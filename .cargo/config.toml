@@ -1,0 +1,7 @@
+[build]
+target = "wasm32-unknown-unknown"
+
+[alias]
+# [WHAT] Localized WASM build command.
+# [WHY] Ensures the geode can be compiled standalone in any project.
+wasm = "build --release"

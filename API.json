@@ -1,0 +1,125 @@
+{
+  "project": "aesthetic_core",
+  "geode": "ac_ant_delirium",
+  "version": "1.0.0-Elite",
+  "philosophy": {
+    "paradigm": "Law by Definition (Opt-in)",
+    "description": "Rules are only enforced if explicitly defined in delirium.toml. Undefined = Disabled.",
+    "analysis_type": "Zero-Copy Static Analysis"
+  },
+  "governance": {
+    "priority_levels": {
+      "P0": "Critical/Security (Memory safety, poison tokens, illegal deps)",
+      "P1": "Structural (Nesting, Density, Else-free, Macros, Layering)",
+      "P2": "Semantic (Pedagogical tags, word salad)",
+      "P3": "Archival (Markdown pairing, staleness)"
+    },
+    "reaction_mechanisms": {
+      "memory_decay": "Physical mutation of source code to wipe non-compliant doc-tags upon P0/P1 violations."
+    }
+  },
+  "rules": [
+    {
+      "id": "rule_poison_tokens",
+      "level": "P0",
+      "focus": "Memory Safety / Panic Paths",
+      "consequence": "Immediate Block",
+      "bypass": "[Safety Required]"
+    },
+    {
+      "id": "rule_deps",
+      "level": "P0",
+      "focus": "Dependency Purity",
+      "consequence": "Purity Violation Block",
+      "description": "Prevents unauthorized external crates from entering the build."
+    },
+    {
+      "id": "rule_layering",
+      "level": "P0",
+      "focus": "Architectural DAG",
+      "consequence": "Cyclic/Illegal Layering Block",
+      "description": "Enforces DAG layering (L0 cannot depend on L1+, etc.)."
+    },
+    {
+      "id": "rule_else_free",
+      "level": "P1",
+      "focus": "Logic Linearity",
+      "consequence": "Memory Decay",
+      "bypass": "// [REASON]"
+    },
+    {
+      "id": "rule_nesting",
+      "level": "P1",
+      "focus": "Abismo Cognitivo (Depth)",
+      "limit": 3,
+      "consequence": "Memory Decay"
+    },
+    {
+      "id": "rule_macro_isolation",
+      "level": "P1",
+      "focus": "Macro Purity (No if/match/for)",
+      "consequence": "Structural Block"
+    },
+    {
+      "id": "rule_logical_density",
+      "level": "P1",
+      "focus": "Atomic Complexity",
+      "limit": 34,
+      "unit": "statements",
+      "consequence": "Refactoring Mandate",
+      "bypass": "[Safety Required]"
+    },
+    {
+      "id": "rule_params",
+      "level": "P1",
+      "focus": "Interface Coupling",
+      "limit": 5,
+      "consequence": "Coupling Warning"
+    },
+    {
+      "id": "rule_deps_purity",
+      "level": "P1",
+      "focus": "Feature Sanitization",
+      "consequence": "Impure Activation Block",
+      "description": "Prevents optional dependencies from being force-activated by default."
+    },
+    {
+      "id": "rule_doc_tags",
+      "level": "P2",
+      "focus": "Pedagogical Compliance",
+      "required_tags": ["[WHAT]", "[WHY]", "[WHERE]", "[USAGE]"],
+      "consequence": "Documentation Alert"
+    },
+    {
+      "id": "rule_word_salad",
+      "level": "P2",
+      "focus": "Information Density",
+      "algorithm": "Circular token ratio > 0.8",
+      "consequence": "Mediocrity Alert"
+    },
+    {
+      "id": "rule_md_pairing",
+      "level": "P3",
+      "focus": "Archival Staleness",
+      "expiry": "48h drift detection",
+      "consequence": "Stagnation Warning"
+    }
+  ],
+  "bypass_matrix": {
+    "else_bypass": "// [REASON]",
+    "critical_safety": "[Safety Required]",
+    "temporary": "[TEMP_ALLOWED]"
+  },
+  "interop": {
+    "ai_manifest": {
+      "enabled": true,
+      "format": "JSON",
+      "output": ".manifest.json",
+      "data_points": ["symbols", "narrative", "complexity", "range"]
+    },
+    "sarif_reporting": {
+      "version": "2.1.0",
+      "ide_integration": "VS Code / SARIF Viewer"
+    }
+  }
+}
