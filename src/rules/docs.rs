@@ -47,7 +47,7 @@ fn validate_tag_in_docstring(
         ctx.violations.push(AuditViolation {
             file_path: ctx.file_path.to_string(),
             line: func.start_line,
-            rule_id: "rule_doc_tags",
+            rule_id: crate::governance::rule_id("rule_doc_tags", tag),
             message: format!("Function '{}' {}: [{}]. Hint: {}", func.name, messages::DOC_TAG_MISSING, tag, tag_config.hint),
             snippet: Some(format!("fn {}(", func.name)), // Simple snippet for signature
             quick_fix: Some(fix_str),
@@ -86,7 +86,7 @@ fn check_tag_length(
         ctx.violations.push(AuditViolation {
             file_path: ctx.file_path.to_string(),
             line: func.start_line,
-            rule_id: "rule_doc_tags",
+            rule_id: crate::governance::rule_id("rule_doc_tags", tag),
             message: format!("Function '{}' {}: [{}]. (Found {}, Need {}). Hint: {}", 
                              func.name, messages::DOC_TAG_TOO_SHORT, tag, final_content.len(), tag_config.min_chars, tag_config.hint),
             snippet: Some(format!("/// [{}] {}", tag, final_content)),

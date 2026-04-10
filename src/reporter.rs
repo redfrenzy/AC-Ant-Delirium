@@ -1,46 +1,89 @@
-//@ [WHAT] Specialist reporter for corporate-grade governance summaries.
-//@ [WHY] To provide a clean, emoji-free interface with strategic AI instructions.
-//@ [WHERE] ac_ant_delirium/src/reporter.rs
+use super::AuditResult;
+use super::config::AuditConfig;
+use super::governance;
 
-/// [WHAT] Prints a corporate-grade governance summary to the standard error stream.
-/// [WHY] To provide a clean, emoji-free interface that includes strategic instructions for AI agents.
-/// [WHERE] Corporate reporting utility in reporter.rs.
-/// [USAGE] Invocado pelo build script principal ou pelas ferramentas CLI corporativas para despejar um resumo executivo da conformidade no fluxo de erro padrão (stderr), garantindo visibilidade imediata dos riscos para o operador humano.
-#[allow(dead_code)]
-pub fn print_elite_report(meta: &super::EliteReportMetadata) {
-    eprintln!("============================================================");
-    eprintln!("Aesthetic Core Governance: Compliance Audit Report");
-    eprintln!("Status: ACTIVE GOVERNANCE");
-    eprintln!("SARIF Artifact: {}", meta.sarif_path);
-    eprintln!("------------------------------------------------------------");
-    eprintln!("PRIORITY SUMMARY:");
-    eprintln!("  P0-CRITICAL   : {} violations (System integrity / Safety)", meta.p0);
-    eprintln!("  P1-STRUCTURAL : {} violations (Architectural purity)", meta.p1);
-    eprintln!("  P2-SEMANTIC   : {} violations (Pedagogical density)", meta.p2);
-    eprintln!("  P3-ARCHIVAL   : {} violations (Ecosystem health)", meta.p3);
-    eprintln!("------------------------------------------------------------");
-    eprintln!("[STRATEGIC AI INSTRUCTION]:");
-    eprintln!("  1. INTEROPERABILITY: This motor generates a '.manifest.json' for EACH file.");
-    eprintln!("  2. EFFICIENCY: AI Agents should prioritize reading manifests over raw source code.");
-    eprintln!("  3. REMEDIATION: SARIF contains exact line ranges and automated Quick-Fixes.");
-    eprintln!("------------------------------------------------------------");
-    eprintln!("RECOMMENDATION: Fix violations in priority order (P0 -> P3).");
-    eprintln!("============================================================");
+/// [WHAT] Metadata container for higher-level reporting orchestration.
+#[derive(Default, Debug, Clone)]
+pub struct EliteReportMetadata {
+    pub sarif_path: String,
+    pub p0: usize,
+    pub p1: usize,
+    pub p2: usize,
+    pub p3: usize,
 }
 
-/// [WHAT] Formats an AuditResult into a high-density terminal report.
-/// [WHY] To provide immediate, actionable feedback during native development.
+/// [WHAT] Prints a compact, aesthetic governance report to the standard error stream.
+/// [WHY] To provide immediate visual feedback while maintaining an industrial, low-noise aesthetic.
 /// [WHERE] Corporate reporting utility in reporter.rs.
-/// [USAGE] Invocado pelas ferramentas de interface de linha de comando para traduzir o resultado da auditoria em uma representação visual clara e formatada, permitindo que o desenvolvedor identifique e corrija violações rapidamente durante o ciclo de codificação.
-pub fn format_visual_report(result: &super::AuditResult) -> String {
+/// [USAGE] Chamada pelo ponto de entrada principal para exibir o dashboard executivo de conformidade.
+pub fn print_elite_report(result: &AuditResult, config: &AuditConfig) {
+    let report = format_visual_report(result, config);
+    eprintln!("{}", report);
+}
+
+/// [WHAT] Formats an AuditResult into a high-density, aesthetic industrial dashboard.
+/// [WHY] To satisfy both human verification and AI awareness during terminal-based interactions.
+/// [WHERE] Corporate reporting utility in reporter.rs.
+/// [USAGE] Traduz o resultado da auditoria em um dashboard visual com box-drawing characters e resumo de configuração.
+pub fn format_visual_report(result: &AuditResult, config: &AuditConfig) -> String {
     let mut out = String::new();
-    if result.violations.is_empty() {
-        return "  [GOVERNANCE] Status: COMPLIANT (Zero Violations).".to_string();
+    let total = result.violations.len();
+    
+    // 1. Header (Flush left, 2 lines of space above)
+    out.push_str("\n\n");
+    out.push_str("AESTHETIC CORE  ▸  Ant Delirium Governance\n");
+    
+    if total == 0 {
+        out.push_str("Status: COMPLIANT  │  Pure Geode Integrity\n\n\n");
+        return out;
     }
 
-    out.push_str("  [GOVERNANCE] Status: NON-COMPLIANT\n");
-    for v in &result.violations {
-        out.push_str(&format!("  - [{}] {}:L{}: {}\n", v.rule_id, v.file_path, v.line, v.message));
+    out.push_str(&format!("Status: NON-COMPLIANT  │  {} violations\n\n\n", total));
+
+    // 2. Priority Summary (Vertical list)
+    let (p0, p1, p2, p3) = count_priorities(result);
+    out.push_str(&format!("P0-CRITICAL ··· {}\n", p0));
+    out.push_str(&format!("P1-STRUCTURAL · {}\n", p1));
+    out.push_str(&format!("P2-SEMANTIC ··· {}\n", p2));
+    out.push_str(&format!("P3-ARCHIVAL ··· {}\n\n\n", p3));
+
+    // 3. (Applied Config Snapshot removed from terminal - remains in SARIF)
+
+    // 4. AI Strategic context (Dynamic from TOML)
+    if !config.info.context.is_empty() {
+        out.push_str("[AI CONTEXT]\n");
+        for line in &config.info.context {
+            out.push_str(&format!("▸ {}\n", line));
+        }
+        out.push_str("\n\n\n");
     }
+
+    if !config.info.tools.is_empty() || !config.info.terminal_commands.is_empty() {
+        out.push_str("[RESOURCES & COMMANDS]\n");
+        for tool in &config.info.tools {
+            out.push_str(&format!("▸ {}\n", tool));
+        }
+        for cmd in &config.info.terminal_commands {
+            out.push_str(&format!("▸ {}\n", cmd));
+        }
+        out.push_str("\n\n");
+    } else {
+        out.push_str("AI: Read .sarif and *_manifest.json for full context.\n\n\n");
+    }
+
     out
+}
+
+/// [WHAT] Counts violations by priority level for the visual dashboard.
+fn count_priorities(result: &AuditResult) -> (usize, usize, usize, usize) {
+    let mut counts = (0, 0, 0, 0);
+    for v in &result.violations {
+        match governance::map_to_level(&v.rule_id) {
+            "P0" => counts.0 += 1,
+            "P1" => counts.1 += 1,
+            "P2" => counts.2 += 1,
+            _ => counts.3 += 1,
+        }
+    }
+    counts
 }

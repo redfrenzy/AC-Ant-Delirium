@@ -1,15 +1,13 @@
 use super::super::AuditViolation;
 use super::super::config::AuditConfig;
 use super::super::rules_logs::messages;
-use super::super::parser::ScannedFunction;
 
-/// [WHAT] Contexto de auditoria estrutural para redução de acoplamento funcional (rule_params).
+/// [WHAT] Contexto de auditoria estrutural para verificação de fluxo linear e profundidade cognitiva.
 /// [WHY] Para agrupar metadados de auditoria e garantir que as funções de verificação permaneçam abaixo do limite de 4 parâmetros.
 /// [WHERE] Camada de dados para orquestração de regras estruturais em structure.rs.
 pub struct StructureCtx<'a> {
     pub file_path: &'a str,
     pub source: &'a str,
-    pub functions: &'a [ScannedFunction<'a>],
     pub config: &'a AuditConfig,
     pub violations: &'a mut Vec<AuditViolation>,
     pub current_nesting: usize,
@@ -24,7 +22,6 @@ pub fn verify(ctx: &mut StructureCtx<'_>) {
     for (idx, line) in ctx.source.lines().enumerate() {
         process_structure(ctx, idx, line);
     }
-    check_params_on_sigs(ctx);
 }
 
 /// [WHAT] Processes structural rules for a single line of code discovered by the primary scanner, evaluating keywords and indentation levels for governance compliance.
@@ -37,13 +34,13 @@ fn process_structure(ctx: &mut StructureCtx<'_>, idx: usize, line: &str) {
 
     let clean_line = strip_strings(trimmed);
     
-    if !super::super::is_rule_ignored(ctx.file_path, "rule_else_free", ctx.config) {
+    if !crate::governance::is_rule_ignored(ctx.file_path, "rule_else_free", ctx.config) {
         if contains_word(&clean_line, "else") {
             check_else_bypass(ctx, idx, trimmed);
         }
     }
 
-    if !super::super::is_rule_ignored(ctx.file_path, "rule_nesting", ctx.config) {
+    if !crate::governance::is_rule_ignored(ctx.file_path, "rule_nesting", ctx.config) {
         check_nesting_depth(ctx, idx, line);
     }
 }
@@ -60,7 +57,7 @@ fn check_else_bypass(ctx: &mut StructureCtx<'_>, idx: usize, trimmed: &str) {
     ctx.violations.push(AuditViolation {
         file_path: ctx.file_path.to_string(),
         line: idx + 1,
-        rule_id: "rule_else_free",
+        rule_id: crate::governance::rule_id_atomic("rule_else_free"),
         message: messages::ELSE_BLOCK.to_string(),
         snippet: Some(trimmed.to_string()),
         quick_fix: Some("// [REASON] Justify this else block here...".to_string()),
@@ -86,7 +83,7 @@ fn check_nesting_depth(ctx: &mut StructureCtx<'_>, idx: usize, line: &str) {
         ctx.violations.push(AuditViolation {
             file_path: ctx.file_path.to_string(),
             line: idx + 1,
-            rule_id: "rule_nesting",
+            rule_id: crate::governance::rule_id_atomic("rule_nesting"),
             message: messages::NESTING_TOO_DEEP.to_string(),
             snippet: Some(line.to_string()),
             quick_fix: Some("// [REFAC] Extract this nested block into a private helper function.".to_string()),
@@ -94,55 +91,7 @@ fn check_nesting_depth(ctx: &mut StructureCtx<'_>, idx: usize, line: &str) {
     }
 }
 
-/// [WHAT] Performs a global scan of the source code to identify and validate function signatures against parameter count limits for industrial coupling control.
-/// [WHY] Para desacoplar a validação de acoplamento de funções das varreduras estruturais de linha, permitindo uma análise robusta e isolada das assinaturas de interface do geode.
-/// [WHERE] Executed as a secondary pass within the `verify` method of `structure.rs`, focusing exclusively on the relational complexity of function declarations.
-/// [USAGE] Called after the primary structural loop to evaluate function-level coupling, ensuring that no interface exceeds the allowed parameter count defined in the governance manifest.
-fn check_params_on_sigs(ctx: &mut StructureCtx<'_>) {
-    if super::super::is_rule_ignored(ctx.file_path, "rule_params", ctx.config) {
-        return;
-    }
-    let limit = ctx.config.rules.limits.max_params;
-    if limit == 0 { return; }
 
-    for func in ctx.functions {
-        let param_count = count_params_brute(func.declaration);
-        if param_count > limit {
-            ctx.violations.push(AuditViolation {
-                file_path: ctx.file_path.to_string(),
-                line: func.start_line,
-                rule_id: "rule_params",
-                message: messages::PARAMS_TOO_MANY.to_string(),
-                snippet: Some(func.declaration.to_string()),
-                quick_fix: Some("// [REFAC] Group these parameters into a dedicated Config/State Struct.".to_string()),
-            });
-        }
-    }
-}
-
-/// [WHAT] Manually calculates the number of parameters in a raw function signature string by parsing tokens within the signature parentheses while respecting nesting.
-/// [WHY] Para fornecer um mecanismo robusto e independente de dependências para medir a complexidade de interfaces industriais, evitando falsos positivos com tipos genéricos ou aninhados.
-/// [WHERE] Internal helper utility used by the parameter validation pass in structure.rs to extract and count arguments from raw source code strings accurately.
-/// [USAGE] Called by check_params_on_sigs to process individual function signature lines, returning an integer count of distinct parameters found within the primary argument list.
-fn count_params_brute(signature: &str) -> usize {
-    let start = match signature.find('(') { Some(i) => i, None => return 0 };
-    let end = match signature[start..].find(')') { Some(i) => start + i, None => return 0 };
-    
-    let inner = signature[start + 1 .. end].trim();
-    if inner.is_empty() { return 0; }
-
-    let mut count = 1;
-    let mut depth = 0;
-    for c in inner.chars() {
-        match c {
-            '<' => depth += 1,
-            '>' => depth -= 1,
-            ',' if depth == 0 => count += 1,
-            _ => {}
-        }
-    }
-    count
-}
 
 /// [WHAT] Parses away quotation marks dynamically without using prohibited 'else' blocks to ensure that string literals do not interfere with structural analysis.
 /// [WHY] Para sanitizar as linhas de código, eliminando ruídos de strings literais que podem conter chaves ou palavras-chave que confundiriam o motor de auditoria estrutural simplificado.

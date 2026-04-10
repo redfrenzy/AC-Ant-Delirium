@@ -1,4 +1,5 @@
 pub mod config;
+pub mod governance;
 pub mod rules;
 pub mod rules_logs;
 pub mod parser;
@@ -16,7 +17,7 @@ use self::scanner::RecursiveScanner;
 pub struct AuditViolation {
     pub file_path: String,
     pub line: usize,
-    pub rule_id: &'static str,
+    pub rule_id: String,
     pub message: String,
     pub snippet: Option<String>,
     pub quick_fix: Option<String>,
@@ -62,8 +63,8 @@ impl AuditResult {
     /// [WHY] To provide a standardized, machine-readable format for external CI/CD integration and industrial dashboarding, enabling seamless integration with IDEs and compliance-tracking platforms.
     /// [WHERE] Primary serialization bridge within the AuditResult struct in lib.rs, serving as the egress point for standardized diagnostic data in the Aesthetic Core.
     /// [USAGE] Invoked by the primary geode entry point or CLI tools to generate the final SARIF artifact, providing a high-fidelity JSON representation of all discovered governance violations.
-    pub fn to_sarif(&self, file_path: &str) -> String {
-        sarif::to_sarif(self, file_path)
+    pub fn to_sarif(&self, file_path: &str, config: &AuditConfig) -> String {
+        sarif::to_sarif(self, file_path, config)
     }
 }
 
@@ -71,15 +72,7 @@ impl AuditResult {
 /// [WHY] To provide a standardized and deterministic mapping between the geode's proprietary priority system (P0-P3) and the industry-standard SARIF severity levels, ensuring clear communication of risk.
 /// [WHERE] Core categorization utility in lib.rs for SARIF serialization and downstream reporting, acting as the translation layer between the engine and external IDE diagnostics.
 /// [USAGE] Called internally by the SARIF serialization engine to categorize violations for CI/CD dashboards, allowing automated tools to fail builds based on severity thresholds.
-fn map_rule_to_level(rule_id: &str) -> &str {
-    if rule_id == "rule_deps" || rule_id == "rule_poison_tokens" || rule_id == "rule_no_raw_print" || rule_id == "rule_layering" {
-        return "error";
-    }
-    if rule_id == "rule_else_free" || rule_id == "rule_nesting" || rule_id == "rule_logical_density" {
-        return "warning";
-    }
-    "note"
-}
+// A função map_rule_to_level foi movida para o módulo governance para centralizar a lógica de grão fino.
 
 /// [WHAT] Sanitizes a string for inclusion in a JSON structure by escaping control characters and ensuring that the output complies with international serialization standards.
 /// [WHY] To prevent malformed or malicious source code snippets from corrupting the generated SARIF report by ensuring full compliance with RFC 8259, maintaining high report fidelity.
@@ -137,8 +130,9 @@ fn push_unicode_escape(c: char, out: &mut String) {
 /// [WHERE] Primary bridge between the Host Orchestrator and the Geode in lib.rs, serving as the top-level API for the Aesthetic Core governance ecosystem.
 /// [USAGE] Called by the WASM host with source code, file path, and configuration TOML strings to receive a complete diagnostic report in machine-readable SARIF format for IDE integration.
 pub fn audit_code(source: &str, file_path: &str, config_toml: &str) -> String {
+    let config = config::AuditConfig::parse_brute(config_toml);
     let result = audit_code_to_result(source, file_path, config_toml);
-    result.to_sarif(file_path)
+    result.to_sarif(file_path, &config)
 }
 
 /// [WHAT] Internal audit engine that returns a structured result for programmatic consumption by native tools.
@@ -190,7 +184,7 @@ pub fn audit_code_to_result(source: &str, file_path: &str, config_toml: &str) ->
 
     // [ELITE POLICY] Global Final Filter. We filter out any ignored violations 
     // BEFORE Memory Decay so that we don't accidentally mutate code for an ignored violation.
-    result.violations.retain(|v| !is_rule_ignored(&v.file_path, &v.rule_id, &config));
+    result.violations.retain(|v| !governance::is_rule_ignored(&v.file_path, &v.rule_id, &config));
 
     // Stage 4: Memory Decay (Final Mutation)
     if let Some(mutated_source) = trigger_memory_decay(source, &functions, &result.violations) {
@@ -215,17 +209,16 @@ fn audit_structural(ctx: &mut AuditContext) {
     let mut s_ctx = rules::structure::StructureCtx {
         file_path: ctx.file_path,
         source: ctx.source,
-        functions: ctx.functions,
         config: ctx.config,
         violations: &mut ctx.result.violations,
         current_nesting: 0,
     };
     rules::structure::verify(&mut s_ctx);
 
-    if !is_rule_ignored(ctx.file_path, "rule_poison_tokens", ctx.config) {
+    if !governance::is_rule_ignored(ctx.file_path, "rule_poison_tokens", ctx.config) {
         rules::tokens::verify(ctx.file_path, ctx.source, ctx.config, &mut ctx.result.violations);
     }
-    if !is_rule_ignored(ctx.file_path, "rule_macro_isolation", ctx.config) {
+    if !governance::is_rule_ignored(ctx.file_path, "rule_macro_isolation", ctx.config) {
         let mut m_ctx = rules::macros::MacroAuditCtx {
             file_path: ctx.file_path,
             source: ctx.source,
@@ -241,7 +234,7 @@ fn audit_structural(ctx: &mut AuditContext) {
 /// [WHERE] Phase 2 orchestration layer in lib.rs.
 /// [USAGE] Called by audit_code_to_result() to verify pedagogical documentation and function quality by scanning for mandatory tags and lexical density in function docstrings.
 fn audit_pedagogical(ctx: &mut AuditContext) {
-    if !is_rule_ignored(ctx.file_path, "rule_doc_tags", ctx.config) {
+    if !governance::is_rule_ignored(ctx.file_path, "rule_doc_tags", ctx.config) {
         let mut d_ctx = rules::docs::DocsAuditCtx {
             file_path: ctx.file_path,
             functions: ctx.functions,
@@ -252,7 +245,7 @@ fn audit_pedagogical(ctx: &mut AuditContext) {
     }
     
     // [Elite Granularity] Quality rules have their own audit gate
-    if !is_rule_ignored(ctx.file_path, "rule_word_salad", ctx.config) {
+    if !governance::is_rule_ignored(ctx.file_path, "rule_word_salad", ctx.config) {
         rules::quality::verify(ctx.file_path, ctx.functions, ctx.config, &mut ctx.result.violations);
     }
 }
@@ -273,7 +266,7 @@ fn audit_ecosystem(ctx: &mut AuditContext) {
     };
     rules::metrics::verify(&mut metrics_ctx);
 
-    if !is_rule_ignored(ctx.file_path, "rule_md_pairing", ctx.config) {
+    if !governance::is_rule_ignored(ctx.file_path, "rule_md_pairing", ctx.config) {
         let mut m_ctx = rules::markdown::MarkdownAuditCtx {
             file_path: ctx.file_path,
             config: ctx.config,
@@ -330,40 +323,7 @@ pub fn is_path_active(_path: &str, _config: &AuditConfig) -> bool {
     true
 }
 
-/// [WHAT] Determines if a specific governance rule should be ignored for a given file entry.
-/// [WHY] To provide a formal and auditable mechanism for authorized exceptions to governance rules in Elite geodes.
-/// [WHERE] Rule suppression utility within the primary audit pipeline in lib.rs.
-/// [USAGE] Invocado internamente pelas diversas fases de orquestração da auditoria para verificar se o caminho do arquivo atual possui uma dispensa formal para a regra específica sendo processada, respeitando a configuração de ignore_to do manifesto.
-pub fn is_rule_ignored(path: &str, rule_id: &str, config: &AuditConfig) -> bool {
-    // [ELITE NORMALIZATION] Remove prefixes and trailing separators for robust matching.
-    let normalized_path = path.trim_matches(|c| c == '.' || c == '/');
-    
-    // [JURISDICTION 1] Isolação Atômica Sênior (exclusive_to)
-    // Se o caminho está aqui, o arquivo SÓ aceita as regras listadas. Resto é ignorado.
-    for (exclusive_path, allowed_rules) in &config.jurisdiction.exclusive_to {
-        let normalized_exclusive = exclusive_path.trim_matches(|c| c == '.' || c == '/');
-        
-        if normalized_path == normalized_exclusive || normalized_path.starts_with(&(normalized_exclusive.to_string() + "/")) {
-            // Se a regra atual NÃO está na lista permitida, ela deve ser IGNORADA
-            if !allowed_rules.contains(&rule_id.to_string()) {
-                return true;
-            }
-        }
-    }
-
-    // [JURISDICTION 2] Rejeição Explícita (ignore_to)
-    // Padrão antigo mantido para retrocompatibilidade híbrida.
-    for (ignore_path, ignored_rules) in &config.jurisdiction.ignore_to {
-        let normalized_ignore = ignore_path.trim_matches(|c| c == '.' || c == '/');
-        
-        if normalized_path == normalized_ignore || normalized_path.starts_with(&(normalized_ignore.to_string() + "/")) {
-            if ignored_rules.contains(&"all".to_string()) || ignored_rules.contains(&rule_id.to_string()) {
-                return true;
-            }
-        }
-    }
-    false
-}
+// A função is_rule_ignored foi movida para o módulo governance.
 
 
 
@@ -372,12 +332,7 @@ pub fn is_rule_ignored(path: &str, rule_id: &str, config: &AuditConfig) -> bool 
 /// [WHERE] Final corrective mutation stage within the primary audit_code_to_result process in lib.rs, providing a self-healing layer for the documentation tree.
 /// [USAGE] Invoked as a post-audit cleanup step to ensure that only compliant code remains justified, acting as the primary enforcer of documentation-implementation synchronization.
 fn trigger_memory_decay(source: &str, functions: &[parser::ScannedFunction<'_>], violations: &[AuditViolation]) -> Option<String> {
-    let severe_rules = [
-        "rule_else_free", "rule_nesting", "rule_poison_tokens", 
-        "rule_no_raw_print", "rule_logical_density", "rule_excessive_coupling"
-    ];
-
-    let has_severe = violations.iter().any(|v| severe_rules.contains(&v.rule_id));
+    let has_severe = violations.iter().any(|v| governance::is_severe(&v.rule_id));
     if !has_severe { return None; }
 
     let mut lines: Vec<String> = source.lines().map(|s| s.to_string()).collect();
@@ -386,7 +341,7 @@ fn trigger_memory_decay(source: &str, functions: &[parser::ScannedFunction<'_>],
     for func in functions {
         // Check if THIS function has severe violations
         let func_has_severe = violations.iter().any(|v| {
-            v.line >= func.start_line && v.line <= func.end_line && severe_rules.contains(&v.rule_id)
+            v.line >= func.start_line && v.line <= func.end_line && governance::is_severe(&v.rule_id)
         });
 
         if func_has_severe {

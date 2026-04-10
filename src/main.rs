@@ -36,10 +36,11 @@ fn main() {
 /// [WHERE] Primary execution entry point for non-recursive auditing within the ac_ant_delirium CLI toolchain, providing file-level diagnostics to the terminal.
 /// [USAGE] Invoked when the provided path argument identifies a valid regular file on disk, triggering a surgical audit and printing the associated compliance report.
 fn audit_file(path: &str, config_toml: &str) {
+    let config = ac_ant_delirium::config::AuditConfig::parse_brute(config_toml);
     let source = fs::read_to_string(path).unwrap_or_default();
     let result = ac_ant_delirium::audit_code_to_result(&source, path, config_toml);
     
-    println!("{}", ac_ant_delirium::reporter::format_visual_report(&result));
+    println!("{}", ac_ant_delirium::reporter::format_visual_report(&result, &config));
 }
 
 /// [WHAT] Performs a bulk governance scan across an entire directory hierarchy to validate compliance for all functional units within an Aesthetic Core geode.
@@ -47,11 +48,15 @@ fn audit_file(path: &str, config_toml: &str) {
 /// [WHERE] Directory-level dispatcher within the CLI toolchain in main.rs, serving as the high-level orchestrator for full-workspace governance checks.
 /// [USAGE] Invoked when the target path is identified as a directory during argument resolution, initiating a recursive scan and enforcing a non-zero exit code on failure.
 fn audit_directory(dir: &str, config_toml: &str) {
-    // Execução da Governança via Motor (Plugin Logic)
+    let config = ac_ant_delirium::config::AuditConfig::parse_brute(config_toml);
     let result = ac_ant_delirium::audit_geode_recursive(dir, config_toml);
 
     if !result.violations.is_empty() {
-        println!("{}", ac_ant_delirium::reporter::format_visual_report(&result));
+        // [ELITE EXPORT] Salva o relatório SARIF global com propriedades de governança para consumo AI
+        let sarif = result.to_sarif("delirium.sarif", &config);
+        let _ = std::fs::write("delirium.sarif", sarif);
+        
+        println!("{}", ac_ant_delirium::reporter::format_visual_report(&result, &config));
         std::process::exit(1);
     }
 }

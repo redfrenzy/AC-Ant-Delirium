@@ -130,7 +130,7 @@ fn classify_and_verify_dep(
     ctx.violations.push(AuditViolation {
         file_path: ctx.path.to_string(),
         line: idx + 1,
-        rule_id: "rule_deps",
+        rule_id: crate::governance::rule_id("rule_deps", name),
         message: format!("{}: External crate '{}' is restricted.", messages::DEPS_UNAUTHORIZED, name),
         snippet: Some(full.to_string()),
         quick_fix: None,
@@ -165,7 +165,7 @@ fn verify_architectural_layering(ctx: &mut DepsAuditCtx<'_>, idx: usize, name: &
         ctx.violations.push(AuditViolation {
             file_path: ctx.path.to_string(),
             line: idx + 1,
-            rule_id: "rule_layering",
+            rule_id: crate::governance::rule_id("rule_layering", dep_name),
             message: format!("{}: L{} geode cannot depend on '{}' (L{}).", messages::LAYERING_VIOLATION, current_geode_layer, dep_name, dep_layer),
             snippet: Some(full.to_string()),
             quick_fix: None,
@@ -254,7 +254,7 @@ fn verify_optional_purity(ctx: &mut DepsAuditCtx<'_>, idx: usize, name: &str, ac
         ctx.violations.push(AuditViolation {
             file_path: ctx.path.to_string(),
             line: idx + 1,
-            rule_id: "rule_deps_purity",
+            rule_id: crate::governance::rule_id("rule_deps_purity", name),
             message: format!("{}: Crate '{}' is force-activated in default features.", messages::IMPURE_ACTIVATION, name),
             snippet: Some(format!("{} (Activated by default)", name)),
             quick_fix: None,
@@ -266,6 +266,7 @@ fn verify_optional_purity(ctx: &mut DepsAuditCtx<'_>, idx: usize, name: &str, ac
 /// [WHY] Para permitir que o sistema de governança traduza caminhos de arquivos em nomes de projetos para aplicação consistente de regras de camadas em toda a árvore de arquivos.
 /// [WHERE] Path normalization utility in deps.rs, used during the dependency resolution phase to map file system locations back to defined architectural components.
 /// [USAGE] Called by Tier 1 validation to translate paths into project names, facilitating the comparison of current and dependent geode layers during the governance scan cycle.
+#[allow(dead_code)]
 fn extract_internal_geode_name(line: &str) -> String {
     // [Elite Regex-like Split] Procura pela última ocorrência de path = "../" ou similar
     if let Some(pos) = line.find("path = \"") {

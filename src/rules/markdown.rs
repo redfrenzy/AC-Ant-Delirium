@@ -55,7 +55,7 @@ fn push_archival_violation(ctx: &mut MarkdownAuditCtx<'_>, message: &str) {
     ctx.violations.push(AuditViolation {
         file_path: ctx.file_path.to_string(),
         line: 1,
-        rule_id: "rule_md_pairing", // Unified rule_id for consistency
+        rule_id: crate::governance::rule_id_atomic("rule_md_pairing"), // Unified rule_id for consistency
         message: message.to_string(),
         snippet: None,
         quick_fix: None,

@@ -59,10 +59,21 @@ pub struct DebugConfig {
 /// [WHAT] Configuration for the generation of AI-ready semantic metadata manifests used for architectural discovery and industrial reporting.
 /// [WHY] To provide deep architectural context for external agents and compliance tools, facilitating the integration of the geode into larger automated ecosystems.
 /// [WHERE] Part of the top-level AuditConfig in config.rs, serving as the control plane for the manifest generation engine.
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct ManifestConfig {
     pub enabled: bool,
     pub features: Vec<String>,
+}
+
+/// [WHAT] Configuration for AI-facing contextual metadata injected into SARIF properties and terminal summaries.
+/// [WHY] To provide strategic operational context that helps AI agents maintain awareness of project tools, priorities, and authorized commands across prompt boundaries.
+/// [WHERE] Part of the top-level AuditConfig in config.rs, populated from the [info] section of delirium.toml.
+#[derive(Default, Debug, Clone)]
+pub struct InfoConfig {
+    pub priority_order: String,
+    pub context: Vec<String>,
+    pub tools: Vec<String>,
+    pub terminal_commands: Vec<String>,
 }
 
 #[derive(Default, Debug)]
@@ -118,6 +129,7 @@ pub struct AuditConfig {
     pub rules: RulesConfig,
     pub manifest: ManifestConfig,
     pub debug: DebugConfig,
+    pub info: InfoConfig,
 }
 
 impl AuditConfig {
@@ -160,6 +172,10 @@ impl AuditConfig {
             "rules.debug" => self.debug.apply_kv(key, value),
             "rules.restricted_tokens" => { self.rules.restricted_tokens.insert(key.to_string(), value.to_string()); }
             "rules" => self.handle_rules_section(key, value),
+            "info" => self.info.apply_kv(key, value),
+            "info.context" => self.info.context.push(value.to_string()),
+            "info.tools" => self.info.tools.push(value.to_string()),
+            "info.terminal_commands" => self.info.terminal_commands.push(value.to_string()),
             _ => self.handle_tag_section(section, key, value),
         }
     }
@@ -262,6 +278,19 @@ impl DebugConfig {
                     .filter(|s| !s.is_empty())
                     .collect();
             }
+            _ => {}
+        }
+    }
+}
+
+impl InfoConfig {
+    /// [WHAT] Updates the AI context configuration with priority ordering metadata.
+    /// [WHY] To allow the [info] section to configure the priority display order for AI agents.
+    /// [WHERE] Component parser for the info section in config.rs.
+    /// [USAGE] Called by the AuditConfig dispatcher when processing keys directly under [info].
+    fn apply_kv(&mut self, key: &str, value: &str) {
+        match key {
+            "priority_order" => self.priority_order = value.to_string(),
             _ => {}
         }
     }

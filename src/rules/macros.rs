@@ -32,6 +32,7 @@ pub fn verify(ctx: &mut MacroAuditCtx<'_>) {
     let mut in_macro = false;
     let mut macro_start_line = 0;
     let mut state = MacroState { complex: false, depth: 0, lines: 0 };
+    let mut macro_name = String::new();
 
     for (idx, line) in ctx.source.lines().enumerate() {
         let trimmed = line.trim();
@@ -42,6 +43,16 @@ pub fn verify(ctx: &mut MacroAuditCtx<'_>) {
             in_macro = true;
             macro_start_line = idx + 1;
             state = MacroState { complex: false, depth: 0, lines: 0 };
+            
+            // Extract macro name: macro_rules! NAME {
+            macro_name = trimmed.split('!')
+                .nth(1)
+                .unwrap_or("")
+                .trim()
+                .split(|c: char| !c.is_alphanumeric() && c != '_')
+                .next()
+                .unwrap_or("unknown")
+                .to_string();
         }
 
         if !in_macro { continue; }
@@ -49,7 +60,7 @@ pub fn verify(ctx: &mut MacroAuditCtx<'_>) {
         process_macro_line(ctx.config, trimmed, &mut state);
 
         if state.depth == 0 && trimmed.contains('}') {
-            analyze_macro(ctx, macro_start_line, state.lines, state.complex);
+            analyze_macro(ctx, macro_start_line, state.lines, state.complex, &macro_name);
             in_macro = false;
         }
     }
@@ -97,12 +108,12 @@ fn contains_forbidden_logic(trimmed: &str) -> bool {
 /// [WHY] To ensure that architectural justifications for macro usage are documented and within limits.
 /// [WHERE] Diagnostic reporting phase for macro rules in macros.rs.
 /// [USAGE] Invoked when the end of a macro definition is reached to perform final validation of the accumulated logical state and line count.
-fn analyze_macro(ctx: &mut MacroAuditCtx<'_>, start_line: usize, lines: usize, complex: bool) {
+fn analyze_macro(ctx: &mut MacroAuditCtx<'_>, start_line: usize, lines: usize, complex: bool, macro_name: &str) {
     if lines > ctx.config.rules.macros.max_lines && ctx.config.rules.macros.max_lines > 0 {
         ctx.violations.push(AuditViolation {
             file_path: ctx.file_path.to_string(),
             line: start_line,
-            rule_id: "rule_macro_isolation",
+            rule_id: crate::governance::rule_id("rule_macro_isolation", macro_name),
             message: format!("{} (Lines: {}). Max: {}. Hint: {}", 
                              messages::MACRO_LENGTH, lines, ctx.config.rules.macros.max_lines, ctx.config.rules.macros.tip),
             snippet: None,
@@ -114,7 +125,7 @@ fn analyze_macro(ctx: &mut MacroAuditCtx<'_>, start_line: usize, lines: usize, c
         ctx.violations.push(AuditViolation {
             file_path: ctx.file_path.to_string(),
             line: start_line,
-            rule_id: "rule_macro_isolation",
+            rule_id: crate::governance::rule_id("rule_macro_isolation", macro_name),
             message: format!("{}. Hint: {}", messages::MACRO_COMPLEXITY, ctx.config.rules.macros.tip),
             snippet: None,
             quick_fix: None,

@@ -76,7 +76,7 @@ fn check_poison_token(idx: usize, trimmed: &str, token: RestrictedToken<'_>, ctx
     ctx.violations.push(AuditViolation {
         file_path: ctx.file_path.to_string(),
         line: idx + 1,
-        rule_id: "rule_poison_tokens",
+        rule_id: crate::governance::rule_id("rule_poison_tokens", token.name.trim_matches('!')),
         message: display_message,
         snippet: Some(trimmed.to_string()),
         quick_fix,

@@ -44,10 +44,10 @@ fn process_tag_quality(func: &super::super::parser::ScannedFunction<'_>, tag: &s
         ctx.violations.push(AuditViolation {
             file_path: ctx.file_path.to_string(),
             line: func.start_line,
-            rule_id: "rule_word_salad",
+            rule_id: crate::governance::rule_id("rule_word_salad", &func.name),
             message: format!(
-                "Function '{}' {}: [{}]. Use unique pedagogical descriptions.",
-                func.name, messages::WORD_SALAD, tag
+                "{} [{}]. Use unique pedagogical descriptions.",
+                messages::WORD_SALAD, tag
             ),
             snippet: Some(format!("/// {} {}", tag, content)),
             quick_fix: None,

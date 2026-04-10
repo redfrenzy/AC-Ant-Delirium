@@ -33,7 +33,7 @@ fn check_file_limits(file_path: &str, source: &str, config: &AuditConfig, violat
         violations.push(AuditViolation {
             file_path: file_path.to_string(),
             line: 0,
-            rule_id: "rule_line_limit",
+            rule_id: crate::governance::rule_id_atomic("rule_line_limit"),
             message: format!("{} (Found {} clean lines)", messages::LINE_LIMIT_EXCEEDED, clean_lines),
             snippet: None,
             quick_fix: None,
@@ -68,10 +68,10 @@ fn verify_single_function_metrics(
         violations.push(AuditViolation {
             file_path: file_path.to_string(),
             line: func.start_line,
-            rule_id: "rule_logical_density",
+            rule_id: crate::governance::rule_id("rule_logical_density", &func.name),
             message: format!(
-                "{} '{}' has {}/{} statements. Fragment this logic.",
-                messages::LOGICAL_DENSITY, func.name, logical_count, logical_limit
+                "{} - {}/{} statements. Fragment this logic.",
+                messages::LOGICAL_DENSITY, logical_count, logical_limit
             ),
             snippet: Some(func.declaration.to_string()),
             quick_fix: Some("// [REFAC] Fragment this function into smaller atomic units to reduce logical mass.".to_string()),
@@ -86,10 +86,10 @@ fn verify_single_function_metrics(
         violations.push(AuditViolation {
             file_path: file_path.to_string(),
             line: func.start_line,
-            rule_id: "rule_params",
+            rule_id: crate::governance::rule_id("rule_params", &func.name),
             message: format!(
-                "{} '{}' has {}/{} parâmetros. Agrupe-os em uma Struct.",
-                messages::PARAMS_TOO_MANY, func.name, param_count, param_limit
+                "{} - {}/{} parâmetros. Agrupe-os em uma Struct.",
+                messages::PARAMS_TOO_MANY, param_count, param_limit
             ),
             snippet: Some(func.declaration.to_string()),
             quick_fix: Some("// [REFAC] Group these parameters into a dedicated Config/State Struct.".to_string()),
