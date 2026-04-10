@@ -49,9 +49,20 @@ pub fn format_visual_report(result: &AuditResult, config: &AuditConfig) -> Strin
 
     // 3. (Applied Config Snapshot removed from terminal - remains in SARIF)
 
-    // 4. AI Strategic context (Dynamic from TOML)
-    if !config.info.context.is_empty() {
+    // 4. AI Strategic context (Dynamic from TOML + Mandatory briefings)
+    if true { // Always show AI Context header if we have shadow config
         out.push_str("[AI CONTEXT]\n");
+        
+        // Mandatory briefing 1: Absolute path pointer for zero-latency AI discovery
+        let abs_path = std::env::current_dir()
+            .map(|d| d.join(&config.shadow.output).to_string_lossy().into_owned())
+            .unwrap_or_else(|_| config.shadow.output.clone());
+
+        out.push_str(&format!("▸ Check the '{}' file for full Shadow Context details.\n", abs_path));
+        
+        // Mandatory briefing 2: Efficiency justification
+        out.push_str("▸ Shadow Context (JSON) is optimized for AI agents to parse violations faster than terminal text.\n");
+
         for line in &config.info.context {
             out.push_str(&format!("▸ {}\n", line));
         }
@@ -68,7 +79,7 @@ pub fn format_visual_report(result: &AuditResult, config: &AuditConfig) -> Strin
         }
         out.push_str("\n\n");
     } else {
-        out.push_str("AI: Read .sarif and *_manifest.json for full context.\n\n\n");
+        out.push_str("AI: Read .shadow.json and *_manifest.json for full context.\n\n\n");
     }
 
     out

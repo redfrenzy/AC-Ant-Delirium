@@ -4,7 +4,7 @@ pub mod rules;
 pub mod rules_logs;
 pub mod parser;
 pub mod reporter;
-pub mod sarif;
+pub mod shadow_context;
 pub mod scanner;
 
 use self::config::AuditConfig;
@@ -59,12 +59,12 @@ pub struct AuditContext<'a> {
 }
 
 impl AuditResult {
-    /// [WHAT] Orchestrates the transformation of audit findings into a SARIF 2.1.0 report via the dedicated sarif module for machine consumption.
-    /// [WHY] To provide a standardized, machine-readable format for external CI/CD integration and industrial dashboarding, enabling seamless integration with IDEs and compliance-tracking platforms.
-    /// [WHERE] Primary serialization bridge within the AuditResult struct in lib.rs, serving as the egress point for standardized diagnostic data in the Aesthetic Core.
-    /// [USAGE] Invoked by the primary geode entry point or CLI tools to generate the final SARIF artifact, providing a high-fidelity JSON representation of all discovered governance violations.
-    pub fn to_sarif(&self, file_path: &str, config: &AuditConfig) -> String {
-        sarif::to_sarif(self, file_path, config)
+    /// [WHAT] Orchestrates the transformation of audit findings into a Shadow Context (SARIF 2.1.0) report with AI context properties.
+    /// [WHY] To provide a standardized, machine-readable format for external CI/CD integration and industrial dashboarding while maintaining a unique identity.
+    /// [WHERE] Primary serialization bridge within the AuditResult struct in lib.rs.
+    /// [USAGE] Invoked by the primary geode entry point or CLI tools to generate the final Shadow Context artifact.
+    pub fn to_shadow_context(&self, file_path: &str, config: &AuditConfig) -> String {
+        shadow_context::to_shadow_context(self, file_path, config)
     }
 }
 
@@ -128,11 +128,11 @@ fn push_unicode_escape(c: char, out: &mut String) {
 /// [WHAT] The main audit entry point for WASM-based governance that consumes source code and returns a standardized SARIF report string for compliance monitoring.
 /// [WHY] Orchestrates all governance rules in a single dependency-free call for AI compliance, ensuring that every project geode can be audited autonomously by the host system.
 /// [WHERE] Primary bridge between the Host Orchestrator and the Geode in lib.rs, serving as the top-level API for the Aesthetic Core governance ecosystem.
-/// [USAGE] Called by the WASM host with source code, file path, and configuration TOML strings to receive a complete diagnostic report in machine-readable SARIF format for IDE integration.
+/// [USAGE] Called by the WASM host with source code, file path, and configuration TOML strings to receive a complete diagnostic report in Shadow Context format.
 pub fn audit_code(source: &str, file_path: &str, config_toml: &str) -> String {
     let config = config::AuditConfig::parse_brute(config_toml);
     let result = audit_code_to_result(source, file_path, config_toml);
-    result.to_sarif(file_path, &config)
+    result.to_shadow_context(file_path, &config)
 }
 
 /// [WHAT] Internal audit engine that returns a structured result for programmatic consumption by native tools.

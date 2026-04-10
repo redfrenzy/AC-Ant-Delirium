@@ -65,7 +65,25 @@ pub struct ManifestConfig {
     pub features: Vec<String>,
 }
 
-/// [WHAT] Configuration for AI-facing contextual metadata injected into SARIF properties and terminal summaries.
+/// [WHAT] Configuration for the Shadow Context (SARIF) exporter, defining the destination and format of the audit artifacts.
+/// [WHY] To allow users to customize where the AI-ready metadata is saved, ensuring integration with specific project structures.
+/// [WHERE] Part of the top-level AuditConfig in config.rs.
+#[derive(Debug, Clone)]
+pub struct ShadowConfig {
+    pub output: String,
+    pub format: String,
+}
+
+impl Default for ShadowConfig {
+    fn default() -> Self {
+        Self {
+            output: "delirium.shadow.json".to_string(),
+            format: "json".to_string(),
+        }
+    }
+}
+
+/// [WHAT] Configuration for AI-facing contextual metadata injected into Shadow Context (SARIF) properties and terminal summaries.
 /// [WHY] To provide strategic operational context that helps AI agents maintain awareness of project tools, priorities, and authorized commands across prompt boundaries.
 /// [WHERE] Part of the top-level AuditConfig in config.rs, populated from the [info] section of delirium.toml.
 #[derive(Default, Debug, Clone)]
@@ -128,6 +146,7 @@ pub struct AuditConfig {
     pub jurisdiction: JurisdictionConfig,
     pub rules: RulesConfig,
     pub manifest: ManifestConfig,
+    pub shadow: ShadowConfig,
     pub debug: DebugConfig,
     pub info: InfoConfig,
 }
@@ -169,6 +188,7 @@ impl AuditConfig {
             "rules.limits" => self.rules.limits.apply_kv(key, value),
             "rules.macros" => self.rules.macros.apply_kv(key, value),
             "manifest" => self.manifest.apply_kv(key, value),
+            "shadow_context" => self.shadow.apply_kv(key, value),
             "rules.debug" => self.debug.apply_kv(key, value),
             "rules.restricted_tokens" => { self.rules.restricted_tokens.insert(key.to_string(), value.to_string()); }
             "rules" => self.handle_rules_section(key, value),
@@ -258,6 +278,20 @@ impl ManifestConfig {
                     .map(|s| s.trim().trim_matches('"').to_string())
                     .collect();
             }
+            _ => {}
+        }
+    }
+}
+
+impl ShadowConfig {
+    /// [WHAT] Updates the Shadow Context configuration with the output path and target format markers.
+    /// [WHY] To synchronize the exporter state with the project manifest, allowing for dynamic artifact destination control.
+    /// [WHERE] Component parser for the [shadow_context] section in config.rs.
+    /// [USAGE] Called by the AuditConfig dispatcher during geode initialization.
+    fn apply_kv(&mut self, key: &str, value: &str) {
+        match key {
+            "output" => self.output = value.to_string(),
+            "format" => self.format = value.to_string(),
             _ => {}
         }
     }

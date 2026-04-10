@@ -52,9 +52,9 @@ fn audit_directory(dir: &str, config_toml: &str) {
     let result = ac_ant_delirium::audit_geode_recursive(dir, config_toml);
 
     if !result.violations.is_empty() {
-        // [ELITE EXPORT] Salva o relatório SARIF global com propriedades de governança para consumo AI
-        let sarif = result.to_sarif("delirium.sarif", &config);
-        let _ = std::fs::write("delirium.sarif", sarif);
+        // [ELITE EXPORT] Salva o Shadow Context (SARIF) global com propriedades de governança para consumo AI
+        let shadow = result.to_shadow_context(&config.shadow.output, &config);
+        let _ = std::fs::write(&config.shadow.output, shadow);
         
         println!("{}", ac_ant_delirium::reporter::format_visual_report(&result, &config));
         std::process::exit(1);

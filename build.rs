@@ -34,7 +34,7 @@ fn main() {
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let plugin_path = Path::new(&manifest_dir).join("../plugins/ac_ant_delirium");
 
-    if plugin_path.exists() && false {
+    if plugin_path.exists() {
         // Run the external governance binary against src/.
         // We set the current_dir to the manifest directory so that
         // the plugin can find delirium.toml relative to the project root.
@@ -45,12 +45,8 @@ fn main() {
 
         match status {
             Ok(s) if !s.success() => {
-                panic!(
-                    "\n\n[GOVERNANCE_FAILURE] The governance plugin detected violations.\n\
-                     Fix all issues above before compiling.\n\
-                     Plugin: {}\n\n",
-                    plugin_path.display()
-                );
+                // [ELITE EXIT] Silences Rust panic noise to maintain dashboard purity.
+                std::process::exit(1);
             }
             Err(e) => {
                 eprintln!(

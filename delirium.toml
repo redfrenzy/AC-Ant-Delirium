@@ -6,8 +6,8 @@
 "src/rules/metrics.rs" = "rule_line_limit"
 
 [ignore_to]
-"src/restricted_tokens/println.rs" = ["all"]
-"src/restricted_tokens/unwrap.rs" = ["all"]
+"src/restricted_tokens/println.rs" = ["rule_poison_tokens.print"]
+"src/restricted_tokens/unwrap.rs" = ["rule_poison_tokens.unwrap"]
 "build.rs" = ["rule_poison_tokens"]
 
 [rules.limits]
@@ -39,9 +39,9 @@ allow_complex_logic = false
 tip = "Macros MUST be shallow. Use functions for logic."
 
 [rules.restricted_tokens]
-"panic!" = "Unhandled panic path. Use Result."
-"unwrap()" = "Potential crash. Handle explicitly."
-"print!" = "Use internal reporter for communication."
+"panic"  = "Unhandled panic path. Use Result."
+"unwrap" = "Potential crash. Handle explicitly."
+"print"  = "Use internal reporter for communication."
 
 [rules.debug]
 enabled = false
@@ -52,4 +52,26 @@ allowed_crates = ["std", "core", "alloc"]
 
 [manifest]
 enabled = true
-features = ["full", "sarif"]
+features = ["full", "shadow_context"]
+
+[shadow_context]
+output = "shadow_context.json"
+format = "json"
+
+[info]
+priority_order = "P0 → P1 → P2 → P3"
+
+[info.context]
+"1" = "Each .rs file has a companion *_manifest.json with Shadow Context (SARIF) symbols."
+"2" = "Read the manifest BEFORE editing the source code to understand the architecture."
+"3" = "Shadow Context artifacts contain exact line ranges and automated Quick-Fixes."
+"4" = "P0 violations are CRITICAL (system integrity). Fix these FIRST."
+
+[info.tools]
+"1" = "Shadow Context 2.1.0 — Machine-readable violation reports with QuickFixes"
+"2" = "AI Manifests — *_manifest.json for each scanned .rs file"
+
+[info.terminal_commands]
+"1" = "cargo check — Validate compilation + governance gate"
+"2" = "cargo build — Full build with governance enforcement"
+"3" = "make plugin — Deploy governance binary to plugins/"
