@@ -1,0 +1,3 @@
+[
+  { "name": "debug_internal_state", "kind": "function", "range": [11, 17], "complexity": 4, "narrative": "/// [WHAT] Inspects and logs the internal state of the geode using governed tracing.\n/// [WHY] To provide a safe and auditable mechanism for localized debugging in Elite geodes.\n/// [WHERE] Developer-facing debug utility in debug_session.rs.\n/// [USAGE] Invocado explicitamente pelos desenvolvedores durante sessões de testes localizados para verificar estados de memória e fluxos de controle internos que normalmente estariam ocultos sob as restrições rígidas de governança industrial do geode." }
+]

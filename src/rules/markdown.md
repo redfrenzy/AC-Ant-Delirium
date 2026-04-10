@@ -1,39 +1,14 @@
-use crate::AuditViolation;
-use crate::config::AuditConfig;
-use std::path::Path;
+# [ac_ant_delirium] Archival Pairing & Markdown Governance
 
-/// [WHAT] Verifies the existence and quality of paired markdown documentation.
-/// [WHY] To satisfy the P3 Archival requirement and ensure pedagogical depth.
-/// [WHERE] Called during the archival audit phase of the rule engine.
-pub fn verify(file_path: &str, _source: &str, _config: &AuditConfig, violations: &mut Vec<AuditViolation>) {
-    if file_path.ends_with(".md") { return; }
+This module enforces the P3-Archival standard, ensuring that every source module is accompanied by a mandatory markdown companion file that provides high-level architectural context.
 
-    let md_path_str = file_path.replace(".rs", ".md");
-    let md_path = Path::new(&md_path_str);
+## Architectural Objectives
 
-    check_markdown_file(md_path, violations);
-}
+- **Mandatory Pairing**: Verifies that for every `.rs` file in the geode, a corresponding `.md` file exists in the same directory.
+- **Pedagogical Substance**: Monitors the content length of markdown companions to ensure they provide meaningful documentation (min 256 characters).
+- **Synchronization Monitoring**: Detects temporal drift between source code and documentation, mandating updates when the implementation outpaces the archival record by more than 48 hours.
 
-/// [WHAT] Performs the physical check for a markdown file.
-/// [WHY] To keep 'verify' logic flat and avoid deep nesting.
-fn check_markdown_file(path: &Path, violations: &mut Vec<AuditViolation>) {
-    if !path.exists() {
-        violations.push(AuditViolation {
-            line: 1,
-            rule_id: "rule_doc_parity".to_string(),
-            message: "Mandatory .md companion file is missing. Archival parity failed.".to_string(),
-        });
-        return;
-    }
+## Archival Rules
 
-    // Basic quality check
-    if let Ok(metadata) = path.metadata() {
-        if metadata.len() == 0 {
-            violations.push(AuditViolation {
-                line: 1,
-                rule_id: "rule_doc_parity".to_string(),
-                message: "Markdown file is empty. Documentation is mandatory for Elite geodes.".to_string(),
-            });
-        }
-    }
-}
+- `rule_md_pairing`: Identifies missing or undersized documentation companions.
+- `check_staleness`: Enforces the 48-hour synchronization window between code and narrative.

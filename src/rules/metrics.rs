@@ -1,39 +1,53 @@
-use crate::AuditViolation;
-use crate::config::AuditConfig;
+use super::super::AuditViolation;
+use super::super::config::AuditConfig;
+use super::super::rules_logs::messages;
 
-/// [WHAT] Verifies line count limits for the geode.
-/// [WHY] To keep files atomistic and maintainable.
-/// [WHERE] Called during the metrics audit phase of the rule engine.
-pub fn verify(source: &str, functions: &[crate::parser::ScannedFunction<'_>], config: &AuditConfig, violations: &mut Vec<AuditViolation>) {
-    // 1. File-level clean line count
-    check_file_limits(source, config, violations);
-
-    // 2. Function-level logical statement count
-    check_function_metrics(functions, config, violations);
+/// [WHAT] Contexto de métricas industriais para redução de acoplamento.
+pub struct MetricsCtx<'a> {
+    pub file_path: &'a str,
+    pub source: &'a str,
+    pub functions: &'a [super::super::parser::ScannedFunction<'a>],
+    pub config: &'a AuditConfig,
+    pub violations: &'a mut Vec<AuditViolation>,
 }
 
-/// [WHAT] Validates the total physical code lines in a file.
-/// [WHY] To prevent massive modules that hinder cognitive navigation.
-/// [WHERE] File-level audit stage of metrics rule.
-fn check_file_limits(source: &str, config: &AuditConfig, violations: &mut Vec<AuditViolation>) {
+/// [WHAT] Analisador industrial de limites de massa de código e densidade lógica que monitora a complexidade ciclomática e estrutural de cada geode no Aesthetic Core.
+/// [WHY] Para garantir a manutenibilidade sistêmica através da atomização de funções e arquivos, mitigando o Cognitive Drift e assegurando que o código permaneça auditável por agentes de IA.
+/// [WHERE] Camada de auditoria estrutural core do motor de métricas em metrics.rs, atuando como o sensor primário de higiene produtiva para a árvore de arquivos industriais.
+/// [USAGE] Orquestra a execução das regras de contagem de linhas limpas e instruções por via de contexto agrupado, avaliando se a densidade operacional de cada componente respeita os limites Elite.
+pub fn verify(ctx: &mut MetricsCtx<'_>) {
+    // 1. File-level clean line count
+    check_file_limits(ctx.file_path, ctx.source, ctx.config, ctx.violations);
+
+    // 2. Function-level logical statement count
+    check_function_metrics(ctx.file_path, ctx.functions, ctx.config, ctx.violations);
+}
+
+/// [WHAT] Verificador de limites de linhas limpas para conformidade de massa de código que avalia o tamanho físico dos arquivos .rs ignorando blocos de comentários e espaços brancos.
+/// [WHY] Para prevenir módulos massivos que degradam a eficiência de auditoria e navegação cognitiva de ferramentas de IA, forçando a modularização de componentes complexos conforme as normas Elite.
+/// [WHERE] Estágio de auditoria de nível de arquivo em metrics.rs, integrado ao pipeline de métricas funcionais para garantir que a carga cognitiva por arquivo permaneça sob controle industrial.
+/// [USAGE] Invocada pelo orquestrador de métricas (verify) para assegurar que a massa total do arquivo não exceda os limites de auditabilidade industrial definidos no manifesto de governança delirium.toml.
+fn check_file_limits(file_path: &str, source: &str, config: &AuditConfig, violations: &mut Vec<AuditViolation>) {
     let clean_lines = count_clean_lines(source);
     if clean_lines > config.rules.limits.max_lines && config.rules.limits.max_lines > 0 {
         violations.push(AuditViolation {
+            file_path: file_path.to_string(),
             line: 0,
             rule_id: "rule_line_limit",
-            message: format!("{} (Found {} clean lines)", config.rules.limits.tip_lines, clean_lines),
+            message: format!("{} (Found {} clean lines)", messages::LINE_LIMIT_EXCEEDED, clean_lines),
             snippet: None,
             quick_fix: None,
         });
     }
 }
 
-/// [WHAT] Orchestrates function-level density auditing using CodeScanner.
-/// [WHY] To ensure every function remains atomistic and pedagogically pure.
-/// [WHERE] Function-level audit stage of metrics rule.
-fn check_function_metrics(functions: &[crate::parser::ScannedFunction<'_>], config: &AuditConfig, violations: &mut Vec<AuditViolation>) {
+/// [WHAT] Orchestrates function-level density auditing for a collection of scanned functions discovered within a specific source file during the primary scan phase.
+/// [WHY] To ensure every function remains atomistic and pedagogically pure, preventing the formation of large logic blocks that would be difficult to verify or maintain in an industrial environment.
+/// [WHERE] Function-level audit stage of metrics rule in metrics.rs, providing a localized evaluation of logical statement counts and parameter coupling for each function signature.
+/// [USAGE] Iterates through ScannedFunction objects and applies localized metric rules sequentially, generating diagnostic violations for any component that fails the logical density or parameter count gates.
+fn check_function_metrics(file_path: &str, functions: &[super::super::parser::ScannedFunction<'_>], config: &AuditConfig, violations: &mut Vec<AuditViolation>) {
     for func in functions {
-        verify_single_function_metrics(func, config, violations);
+        verify_single_function_metrics(file_path, func, config, violations);
     }
 }
 
@@ -41,7 +55,8 @@ fn check_function_metrics(functions: &[crate::parser::ScannedFunction<'_>], conf
 /// [WHY] Parity with legacy rule_line_limit logic for Elite standard enforcement.
 /// [WHERE] Internal checker for per-function metrics.
 fn verify_single_function_metrics(
-    func: &crate::parser::ScannedFunction<'_>, 
+    file_path: &str,
+    func: &super::super::parser::ScannedFunction<'_>, 
     config: &AuditConfig, 
     violations: &mut Vec<AuditViolation>
 ) {
@@ -51,11 +66,12 @@ fn verify_single_function_metrics(
 
     if logical_limit > 0 && logical_count > logical_limit {
         violations.push(AuditViolation {
+            file_path: file_path.to_string(),
             line: func.start_line,
             rule_id: "rule_logical_density",
             message: format!(
-                "Excessive Logical Density: '{}' has {}/{} statements. Fragment this logic.",
-                func.name, logical_count, logical_limit
+                "{} '{}' has {}/{} statements. Fragment this logic.",
+                messages::LOGICAL_DENSITY, func.name, logical_count, logical_limit
             ),
             snippet: Some(func.declaration.to_string()),
             quick_fix: Some("// [REFAC] Fragment this function into smaller atomic units to reduce logical mass.".to_string()),
@@ -68,11 +84,12 @@ fn verify_single_function_metrics(
 
     if param_count > param_limit && param_limit > 0 {
         violations.push(AuditViolation {
+            file_path: file_path.to_string(),
             line: func.start_line,
             rule_id: "rule_params",
             message: format!(
-                "Acoplamento Excessivo: '{}' tem {}/{} parâmetros. Agrupe-os em uma Struct.",
-                func.name, param_count, param_limit
+                "{} '{}' has {}/{} parâmetros. Agrupe-os em uma Struct.",
+                messages::PARAMS_TOO_MANY, func.name, param_count, param_limit
             ),
             snippet: Some(func.declaration.to_string()),
             quick_fix: Some("// [REFAC] Group these parameters into a dedicated Config/State Struct.".to_string()),
@@ -80,9 +97,10 @@ fn verify_single_function_metrics(
     }
 }
 
-/// [WHAT] Counts clean code lines (ignoring comments and blanks).
-/// [WHY] To provide a normalized complexity metric for Elite geodes.
-/// [WHERE] Core utility for metrics calculation and archival health checks.
+/// [WHAT] Algoritmo de normalização de massa funcional baseado em linhas de código operacionais para conformidade Elite Aesthetic Core.
+/// [WHY] Para fornecer uma métrica de complexidade agnóstica a estilos de formatação e blocos de comentários puramente pedagógicos, assegurando objetividade na auditoria.
+/// [WHERE] Utilitário central de cálculo de densidade industrial no projeto ac_ant_delirium controlado pelo motor de métricas estruturais.
+/// [USAGE] Utilizada pela regra rule_line_limit e pelos geradores de manifestos semânticos para determinar a carga funcional real e a densidade operacional de todo o geode.
 pub fn count_clean_lines(source: &str) -> usize {
     let mut count = 0;
     let mut in_block_comment = false;
@@ -96,9 +114,10 @@ pub fn count_clean_lines(source: &str) -> usize {
     count
 }
 
-/// [WHAT] Internal helper to process a single line for metrics calculation.
-/// [WHY] To keep nesting complexity low and avoid else blocks.
-/// [WHERE] Internal metric processing pipeline.
+/// [WHAT] Analisador de estado de linha para filtragem de comentários e espaços funcionais que monitora transições de blocos lexicais durante a auditoria.
+/// [WHY] Para garantir que o cálculo de massa de código ignore artefatos não-operacionais sem violar restrições de nidificação ou o rigor do gatekeeper industrial.
+/// [WHERE] Componente atômico do pipeline de métricas em metrics.rs, responsável pela higienização léxica de cada linha de código scanned no sistema.
+/// [USAGE] Invocado de forma iterativa pelo motor de contagem para atualizar o estado de varredura e o contador de densidade real, garantindo a integridade dos dados coletados.
 fn process_line_metric(trimmed: &str, in_block: &mut bool, count: &mut usize) {
     if *in_block {
         if trimmed.contains("*/") { *in_block = false; }
@@ -114,10 +133,11 @@ fn process_line_metric(trimmed: &str, in_block: &mut bool, count: &mut usize) {
     *count += 1;
 }
 
-/// [WHAT] Counts logical statements (semicolons and open braces) in a function.
-/// [WHY] Logic density is a better complexity metric than physical lines.
-/// [WHERE] Core algorithm for function-level metrics.
-fn count_logical_statements(func: &crate::parser::ScannedFunction<'_>) -> usize {
+/// [WHAT] Algoritmo de extração de densidade lógica baseado em tokens de terminação e escopo.
+/// [WHY] Porque a densidade de instruções é um indicador de carga cognitiva mais preciso do que a contagem pura de linhas.
+/// [WHERE] Implementação núcleo de métricas funcionais em metrics.rs.
+/// [USAGE] Consultada pelo verificador de densidade para validar se uma função deve ser fragmentada por complexidade baseada na contagem de instruções lógicas e fluxos de controle estrutural.
+fn count_logical_statements(func: &super::super::parser::ScannedFunction<'_>) -> usize {
     let mut count = 0;
     // We scan the body lines.
     for line in func.body.lines() {
@@ -134,9 +154,10 @@ fn count_logical_statements(func: &crate::parser::ScannedFunction<'_>) -> usize 
     count
 }
 
-/// [WHAT] Counts the number of parameters in a function declaration.
-/// [WHY] Parity with legacy rule_params logic to prevent excessive coupling.
+/// [WHAT] Counts the number of parameters in a function declaration string using a depth-aware scanner.
+/// [WHY] To enforce architectural constraints on function coupling and nesting.
 /// [WHERE] Function-level audit stage of metrics rule.
+/// [USAGE] Called by verify_single_function_metrics for signature analysis to ensure function coupling stays within industrial limits of parameters and architectural complexity.
 fn count_parameters(declaration: &str) -> usize {
     let (start_idx, end_idx) = match (declaration.find('('), declaration.rfind(')')) {
         (Some(s), Some(e)) => (s, e),
@@ -155,15 +176,4 @@ fn count_parameters(declaration: &str) -> usize {
         if c == ',' && depth == 0 { count += 1; }
     }
     count + 1
-}
-
-/// [WHAT] Strips comments from a line to isolate functional code.
-/// [WHY] To analyze core code logic without stylistic noise.
-/// [WHERE] Utility for various structural and semantic auditing rules.
-pub fn stripped_comment(line: &str) -> &str {
-    let idx = match line.find("//") {
-        Some(i) => i,
-        None => return line.trim(),
-    };
-    &line[..idx].trim()
 }

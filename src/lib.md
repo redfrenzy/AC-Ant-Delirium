@@ -1,10 +1,15 @@
-# ac_ant_delirium
+# [ac_ant_delirium] Core Engine Architecture
 
-## [WHAT]
-O motor de auditoria de próxima geração do Aesthetic Core, consolidado para ser compilado nativamente em WebAssembly (WASM). Ele centraliza a inteligência de governança em um binário portátil, seguro e de alto desempenho.
+This module constitutes the primary orchestrator for the governance engine, providing the high-level coordination between the parser, the rule set, and the reporting system.
 
-## [WHY]
-A integridade da Rebellio Coin exige um sistema de auditoria que possa ser executado de forma isolada (Sandbox), sem depender do sistema de arquivos do usuário ou do host. O WASM garante que as mesmas regras de Elite Governance sejam aplicadas de forma imutável em qualquer plataforma (IDE, CLI, CI/CD).
+## Architectural Objectives
 
-## [WHERE]
-Localizado em `geodes/ac_ant_delirium/`. O binário resultante atua como a interface principal de fiscalização de conformidade para todo o projeto Aesthetic Core.
+- **Reflexive Governance**: The engine is capable of auditing its own source code to ensure absolute adherence to Elite industrial standards.
+- **Zero-Dependency Interoperability**: Implements a clean WASM/FFI boundary for integration into any CI/CD pipeline without external runtime requirements.
+- **Pedagogical Transparency**: Every architectural decision is documented using mandatory [WHAT], [WHY], and [WHERE] tags to maintain long-term archival health.
+
+## Main Components
+
+- `AuditResult`: Standardized container for all governance violations and execution logs.
+- `audit_code_to_result`: The central native entry point for the auditing pipeline.
+- `to_sarif`: Standardized serialization layer for VS Code and SARIF integration.

@@ -1,17 +1,31 @@
-use crate::AuditViolation;
-use crate::config::AuditConfig;
+use super::super::AuditViolation;
+use super::super::config::AuditConfig;
+use super::super::rules_logs::messages;
 
 /// [WHAT] Orchestrates dependency governance for Cargo.toml files using a 3-Tier Classification Engine.
-/// [WHY] To enforce architectural layering and dependency purity at the build level for Elite geodes.
+/// [WHY] Para assegurar a pureza do ecossistema e evitar a infiltração de crates não auditados na árvore de dependências final.
 /// [WHERE] Called by the audit_code entry point specifically for dependency files.
-pub fn verify(path: &str, source: &str, config: &AuditConfig, violations: &mut Vec<AuditViolation>) {
-    if !path.ends_with("Cargo.toml") { return; }
+/// [USAGE] Orchestrates the discovery and tiered validation of production dependencies in Cargo.toml.
+/// [WHAT] Contexto de auditoria de dependências para redução de acoplamento funcional (rule_params).
+pub struct DepsAuditCtx<'a> {
+    pub path: &'a str,
+    pub source: &'a str,
+    pub config: &'a AuditConfig,
+    pub violations: &'a mut Vec<AuditViolation>,
+}
 
-    let activated = resolve_default_deps(source);
+/// [WHAT] Orchestrates dependency governance for Cargo.toml files using a 3-Tier Classification Engine to maintain total architectural purity and security in the Aesthetic Core.
+/// [WHY] To satisfy pure rust ecosystem constraints and prevent the infiltration of un-audited third party crates that could introduce vulnerabilities or compromise the build's integrity.
+/// [WHERE] Dependency validation entry point in deps.rs, acting as the primary gatekeeper for external assets and layer compliance within the geode's project management manifest.
+/// [USAGE] Called by audit_ecosystem to analyze Cargo.toml content via a context struct, triggering a line-by-line classification of all declared production dependencies.
+pub fn verify(ctx: &mut DepsAuditCtx<'_>) {
+    if !ctx.path.ends_with("Cargo.toml") { return; }
+
+    let activated = resolve_default_deps(ctx.source);
     let mut in_deps = false;
     let mut acc = String::new();
 
-    for (idx, line) in source.lines().enumerate() {
+    for (idx, line) in ctx.source.lines().enumerate() {
         let mut stripped = line.trim();
         // Remove trailing comments for parsing logic (but keep original for snippets if needed)
         if let Some(pos) = stripped.find('#') {
@@ -26,13 +40,14 @@ pub fn verify(path: &str, source: &str, config: &AuditConfig, violations: &mut V
         }
 
         if !in_deps { continue; }
-        process_line_with_purity_checks(idx, stripped, &mut acc, &activated, config, violations);
+        process_line_purity(ctx, idx, stripped, &mut acc, &activated);
     }
 }
 
 /// [WHAT] determines whether a specific section header in a Cargo.toml file represents a block of primary production dependencies that should be subject to governance auditing. This function performs string-based matching to identify headers containing the 'dependencies' keyword while explicitly excluding sections related to dev-dependencies or build-dependencies to ensure that only the final binary's dependency graph is validated against purity standards.
 /// [WHY] To focus the auditing resources on the critical components that define the geode's runtime footprint and security posture. By filtering out non-production dependencies, the engine avoids raising false positives for developer tools and test utilities that do not affect the final Elite WASM asset, thereby maintaining the high signal-to-noise ratio required for automated AI compliance monitoring within the Aesthetic Core ecosystem.
 /// [WHERE] Called internally by the primary `verify` loop in `deps.rs` whenever a line starting and ending with square brackets is encountered, acting as a structural gatekeeper for the subsequent dependency classification and verification phases.
+/// [USAGE] Processada pelo motor de varredura para definir se o bloco subsequente de chaves deve ter suas dependências validadas contra a lista de permissões industrial.
 fn is_active_dependency_section(header: &str) -> bool {
     header.contains("dependencies") 
         && !header.contains("dev-dependencies") 
@@ -41,16 +56,16 @@ fn is_active_dependency_section(header: &str) -> bool {
 
 
 
-/// [WHAT] Processes an individual line from a Cargo.toml dependency section, handling both simple single-line key-value pairs and complex multi-line inline table definitions. This function manages an accumulation buffer that allows the parser to reconstruct full dependency statements that span across multiple lines of text, ensuring that the structural integrity of the TOML syntax is preserved before it is passed to the tiered classification engine for final validation.
-/// [WHY] To provide a robust, zero-dependency parsing mechanism that can handle the structural variability of Cargo's dependency declarations without relying on heavy external crates like 'toml' or 'serde'. This manual approach maintains the geode's minimal footprint and allows for granular, line-by-line governance reporting that maps violations directly back to the original source location in a way that is immediately actionable for AI remediation agents.
-/// [WHERE] Executed for every line within an active dependency section during the file scanning phase, serving as the bridge between raw file content and the high-level semantic validation logic of the 3-Tier Classification Engine.
-fn process_line_with_purity_checks(
+/// [WHAT] Processes an individual line from a Cargo.toml dependency section.
+/// [WHY] Para fornecer um motor de análise de manifestos independente de crates externos, garantindo a autonomia da governança.
+/// [WHERE] Executed for every line within an active dependency section in deps.rs.
+/// [USAGE] Called by verify() during the line-by-line scanning of Cargo.toml.
+fn process_line_purity(
+    ctx: &mut DepsAuditCtx<'_>,
     idx: usize, 
     line: &str, 
     acc: &mut String, 
-    activated: &[String], 
-    config: &AuditConfig, 
-    violations: &mut Vec<AuditViolation>
+    activated: &[String]
 ) {
     if line.contains('{') && !line.contains('}') {
         acc.push_str(line);
@@ -58,138 +73,163 @@ fn process_line_with_purity_checks(
     }
 
     if acc.is_empty() {
-        return handle_full_dep_line(idx, line.to_string(), activated, config, violations);
+        return handle_full_dep_line(ctx, idx, line.to_string(), activated);
     }
     let full_line = format!("{} {}", acc, line);
-    handle_full_dep_line(idx, full_line, activated, config, violations)
+    handle_full_dep_line(ctx, idx, full_line, activated)
 }
 
-/// [WHAT] Finalize and verify a complete dependency line.
-/// [WHY] Extracted to avoid else blocks in line processing.
-/// [WHERE] Internal helper for process_line_with_purity_checks.
-/// [WHAT] Orchestrates the final reconstruction and verification of a completed dependency declaration. It performs the splitting of the raw TOML line into its constituent key-value components, isolating the dependency name and its corresponding configuration table or version string, and prepares these elements for the subsequent tiered classification pass where architectural and purity constraints are enforced.
-/// [WHY] To decouple the structural line-accumulation logic from the semantic dependency verification logic, maintaining a clear separation of concerns within the auditor. This modularity ensures that the parsing layer remains focused on TOML syntax while the verification layer focuses on governance policy, facilitating easier maintenance and allowing for independent updates to either the parsing strategy or the architectural layering rules.
-/// [WHERE] Invoked as the terminal step in the dependency line processing pipeline in `deps.rs`, either immediately for single-line declarations or after a multi-line buffer has been successfully accumulated and reconstructed into a single coherent statement.
+/// [WHAT] Finalize and verify a complete dependency declaration after reconstruction.
+/// [WHY] Para separar a complexidade de reconstrução de strings da lógica semântica de validação técnica das dependências.
+/// [WHERE] Terminal step in the dependency line processing pipeline in deps.rs.
+/// [USAGE] Called by process_line_with_purity_checks once a full statement is ready.
 fn handle_full_dep_line(
+    ctx: &mut DepsAuditCtx<'_>,
     idx: usize, 
-    full_line: String, 
-    activated: &[String], 
-    config: &AuditConfig, 
-    violations: &mut Vec<AuditViolation>
+    full: String, 
+    activated: &[String]
 ) {
-    let parts: Vec<&str> = full_line.splitn(2, '=').collect();
+    let parts: Vec<&str> = full.splitn(2, '=').collect();
     if parts.len() < 2 { return; }
 
     let name = parts[0].trim().trim_matches(|c| c == '"' || c == '\'');
     let val = parts[1].trim();
 
-    classify_and_verify_dep(idx, name, val, &full_line, activated, config, violations);
+    classify_and_verify_dep(ctx, idx, name, val, &full, activated);
 }
 
-/// [WHAT] Evaluates a fully parsed dependency definition and assigns it to one of the four governance Tiers: LOCAL, ALLOWED, OPTIONAL, or IMPURE. This function implements the core architectural shield of the Geode, checking for architectural layering violations, whitelisted crate membership, and hidden feature-set activations to ensure that the final dependency graph remains strictly within the bounds of Elite governance.
-/// [WHY] To enforce a zero-violation policy on third-party code and architectural layering without sacrificing the flexibility needed for legitimate internal or whitelisted dependencies. By classifying each dependency into a clear tier, the engine can provide specific, actionable recovery context for each type of violation, guiding the developer or AI agent toward a compliant resolution that maintains the project's long-term maintainability and security integrity.
-/// [WHERE] Called at the end of the dependency processing pipeline in `deps.rs` once a full, potentially multi-line dependency declaration has been successfully reconstructed and split into its constituent key-value components.
+/// [WHAT] Evaluates a parsed dependency and assigns it to a governance Tier (LOCAL, ALLOWED, OPTIONAL).
+/// [WHY] Para aplicar uma política de tolerância zero contra código de terceiros e garantir a integridade da arquitetura em camadas.
+/// [WHERE] Core validation logic for the 3-Tier Classification Engine in deps.rs.
+/// [USAGE] Called by handle_full_dep_line to perform the final security and architectural check.
 fn classify_and_verify_dep(
+    ctx: &mut DepsAuditCtx<'_>,
     idx: usize, 
     name: &str, 
     val: &str, 
     full: &str, 
-    activated: &[String], 
-    config: &AuditConfig, 
-    violations: &mut Vec<AuditViolation>
+    activated: &[String]
 ) {
     // TIER 1: LOCAL (Layering)
     if full.contains("path = \"../") {
-        verify_architectural_layering(idx, name, full, violations);
+        verify_architectural_layering(ctx, idx, name, full);
         return;
     }
 
     // TIER 2: ALLOWED (Whitelist)
-    if config.rules.allowed_crates.contains(&name.to_string()) { return; }
+    if ctx.config.rules.allowed_crates.contains(&name.to_string()) { return; }
     if name == "std" || name == "core" || name == "alloc" { return; }
 
     // TIER 3: OPTIONAL (Sanitized)
     if val.contains("optional = true") {
-        verify_optional_purity(idx, name, activated, violations);
+        verify_optional_purity(ctx, idx, name, activated);
         return;
     }
 
     // TIER 4: IMPURE (Violation)
-    violations.push(AuditViolation {
+    ctx.violations.push(AuditViolation {
+        file_path: ctx.path.to_string(),
         line: idx + 1,
         rule_id: "rule_deps",
-        message: format!("Impure Dependency: External crate '{}' is restricted. Move to allowed_crates or mark as optional.", name),
+        message: format!("{}: External crate '{}' is restricted.", messages::DEPS_UNAUTHORIZED, name),
         snippet: Some(full.to_string()),
         quick_fix: None,
     });
 }
 
-/// [WHAT] Validates that a path-based internal dependency adheres to the strict architectural layering hierarchy established for the Aesthetic Core ecosystem. It extracts the geode's name from the relative path, determines its corresponding layer (from L0 to L6), and compares it against the current geode's level to ensure that low-level infrastructure components do not inadvertently depend on higher-level feature modules or platform-specific implementations.
-/// [WHY] To prevent cyclic dependency graphs and maintain a clean, directed acyclic graph (DAG) of architectural dependencies across the entire project. This layering rigour is essential for creating a modular system where core geodes remain lightweight and platform-agnostic, enabling efficient WASM compilation and ensuring that security-critical audit engines can be maintained and verified independently of the high-level application logic.
-/// [WHERE] Invoked by the classification engine during the Tier 1 validation phase whenever a dependency line is identified as a local geode reference containing the relative path prefix designated for internal project components.
-fn verify_architectural_layering(idx: usize, _name: &str, full: &str, violations: &mut Vec<AuditViolation>) {
-    let dep_name = extract_internal_geode_name(full);
-    let current_geode_layer = 0; // ac_ant_delirium is L0
-    let dep_layer = map_geode_to_layer(&dep_name);
+/// [WHAT] Validates that a path-based internal dependency adheres to the layering hierarchy and does not violate the established geode level constraints.
+/// [WHY] Para impedir a criação de grafos de dependência cíclicos ou ilegais que comprometem a estabilidade e a manutenibilidade de longo prazo do projeto Aesthetic Core.
+/// [WHERE] Internal pass for Tier 1 validation in deps.rs, integrated into the dependency classification engine to enforce architectural layering rules during the scan.
+/// [USAGE] Called when a dependency is identified as a local geode via its relative path, comparing the target layer level with the current geode's architectural position.
+fn verify_architectural_layering(ctx: &mut DepsAuditCtx<'_>, idx: usize, name: &str, full: &str) {
+    let dep_name = name; // Use the crate name directly for layering check
+    
+    // [DYNAMIC DISCOVERY] Detect current project name from [package] section
+    let mut current_project = "unknown";
+    let mut in_package = false;
+    for line in ctx.source.lines() {
+        let trimmed = line.trim();
+        if trimmed == "[package]" { in_package = true; continue; }
+        if trimmed.starts_with('[') { in_package = false; continue; }
+        if in_package && trimmed.starts_with("name =") {
+            current_project = trimmed.split('=').nth(1).unwrap_or("").trim().trim_matches('"');
+            break;
+        }
+    }
 
-    if dep_layer > current_geode_layer && dep_layer != 99 {
-        violations.push(AuditViolation {
+    let current_geode_layer = map_geode_to_layer(current_project);
+    let dep_layer = map_geode_to_layer(dep_name);
+
+    // [ELITE RULE] A higher layer number (Platform/Base) cannot depend on a lower layer number (Governance/Top).
+    if dep_layer < current_geode_layer && dep_layer != 99 {
+        ctx.violations.push(AuditViolation {
+            file_path: ctx.path.to_string(),
             line: idx + 1,
             rule_id: "rule_layering",
-            message: format!("Layering Violation: L{} geode cannot depend on '{}' (L{}).", current_geode_layer, dep_name, dep_layer),
+            message: format!("{}: L{} geode cannot depend on '{}' (L{}).", messages::LAYERING_VIOLATION, current_geode_layer, dep_name, dep_layer),
             snippet: Some(full.to_string()),
             quick_fix: None,
         });
     }
 }
 
-/// [WHAT] Maps a specific geode project name to its assigned architectural layer within the standardized hierarchy that governs all Aesthetic Core components. It uses an exhaustive match-based classification to assign levels ranging from L0 (Core Audit Engines and Infrastructure) to L6 (Platform-Specific Adapters), providing a stable numerical reference point for the layering enforcement algorithm.
-/// [WHY] To provide a centralized and deterministic definition of the project's architectural structure that is accessible to all governance tools. This mapping ensures that layering checks remain consistent throughout the codebase, preventing architectural drift and guaranteeing that the project's modularity is enforced at the build level, which is critical for maintaining long-term project health and facilitating automated reasoning about component isolation.
-/// [WHERE] Used as an internal utility function by the layering verification logic to translate geode identifiers into comparable architectural tiers for dependency graph validation.
+/// [WHAT] Maps a specific geode project name to its assigned architectural layer (L0 to L6) based on the globally defined Aesthetic Core hierarchy rules.
+/// [WHY] Para centralizar o mapa de camadas da arquitetura, permitindo uma validação determinística de toda a hierarquia geode e impedindo o acoplamento ilegal entre camadas.
+/// [WHERE] Central infrastructure mapping utility in deps.rs, serving as the source of truth for geode levels within the governance and dependency validation engine.
+/// [USAGE] Used by the layering enforcer to translate alphanumeric geode names into comparable integer levels, facilitating automated compliance checks during the build script execution.
 fn map_geode_to_layer(name: &str) -> i32 {
     match name {
-        "ac_ant_delirium" | "ant_delirium" => 0,
+        "ac_ant_delirium" | "ant_delirium" | "test_delirium" => 0,
         "ac_png" | "ac_jpeg" | "ac_gif" | "ac_webp" | "ac_pnm" | "ac_ico" | "ac_hdr" | "ac_openexr" | "ac_farbfeld" | "ac_avif" | "ac_qoi" | "ac_tga" | "ac_bmp" | "ac_tiff" => 1,
         "ac_image" => 2,
         "ac_core" => 3,
-        "ac_material" => 4,
+        "ac_material" | "p0_layering" => 4,
         "ac_components" => 5,
-        "ac_platform_linux" | "ac_platform_android" | "ac_platform_windows" => 6,
+        "ac_platform_linux" | "ac_platform_android" | "ac_platform_windows" | "p0_platform" => 6,
         _ => 99,
     }
 }
 
-/// [WHAT] Resolves the set of activated features and implicit dependencies from the project's Cargo.toml source. It orchestrates the discovery of the `[features]` section and delegates the granular parsing of the `default` feature set to specialized sub-collectors.
-/// [WHY] To provide a unified list of activated components that must be audited for architectural purity and security compliance.
-/// [WHERE] Called as a preliminary discovery phase within the main `verify` function in `deps.rs`.
 fn resolve_default_deps(source: &str) -> Vec<String> {
     let mut active_features = Vec::new();
     let mut in_features = false;
 
     for line in source.lines() {
-        let stripped = line.trim();
-        if stripped.starts_with("[features]") { in_features = true; continue; }
-        if stripped.starts_with('[') { in_features = false; continue; }
-        if !in_features || !stripped.starts_with("default =") { continue; }
-        extract_features_from_line(stripped, &mut active_features);
+        let mut trimmed = line.trim();
+        if trimmed.is_empty() { continue; }
+        
+        // [ELITE SANITIZATION] Ignora comentários em linha antes do parsing.
+        if let Some(pos) = trimmed.find('#') {
+            trimmed = trimmed[..pos].trim();
+        }
+        if trimmed.is_empty() { continue; }
+
+        // [Elite Section Discovery]
+        if trimmed.starts_with("[features]") { in_features = true; continue; }
+        if trimmed.starts_with('[') { in_features = false; continue; }
+        
+        if in_features && (trimmed.starts_with("default =") || trimmed.starts_with("default=")) {
+            extract_features_from_line(trimmed, &mut active_features);
+        }
     }
     active_features
 }
 
-/// [WHAT] Extracts individual feature names and implicit dependency activations from a formatted TOML feature list line. This helper normalizes the raw line and iterates over its comma-separated entries to populate the active feature set.
-/// [WHY] To reduce the cognitive complexity and nesting depth of the primary feature resolution logic, satisfying Elite governance standards.
-/// [WHERE] Called internally by `resolve_default_deps` during the manifest parsing phase in `deps.rs`.
+/// [WHAT] Extração resiliente de features a partir de uma linha do manifesto.
 fn extract_features_from_line(line: &str, active_features: &mut Vec<String>) {
     let list = match line.split('=').nth(1) { Some(l) => l.trim(), None => "" };
-    let inner = list.trim_matches(|c| c == '[' || c == ']');
+    // Normalização Elite: remove colchetes e aspas externas da lista completa
+    let inner = list.trim_matches(|c: char| c == '[' || c == ']' || c == '"' || c == '\'');
+    
     for entry in inner.split(',') {
         add_feature_entry(entry, active_features);
     }
 }
 
 /// [WHAT] Normalizes a single feature entry and identifies implicit dependency activations. It handles quote stripping and detects tokens that trigger optional dependencies via Cargo's feature activation syntax.
-/// [WHY] To provide a granular and flat implementation of feature processing, avoiding the 'Cognitive Abyss' while ensuring all hidden dependency activations are correctly identified.
+/// [WHY] Para evitar o 'Abismo Cognitivo' durante a análise de funções, garantindo que ativações ocultas sejam devidamente detectadas.
 /// [WHERE] Invoked by `extract_features_from_line` for each comma-separated value in a feature list.
+/// [USAGE] Chamada iterativamente para cada entrada de feature, garantindo que ativações de crates via barra diagonal sejam rastreadas e auditadas.
 fn add_feature_entry(entry: &str, active_features: &mut Vec<String>) {
     let clean = entry.trim().trim_matches(|c| c == '"' || c == '\'');
     if clean.is_empty() { return; }
@@ -204,27 +244,33 @@ fn add_feature_entry(entry: &str, active_features: &mut Vec<String>) {
     }
 }
 
-/// [WHAT] Verifies the purity of a dependency marked as optional by checking it against the list of features activated by default. This function ensures that any external crate marked with `optional = true` is truly gated behind an opt-in feature and is not being force-activated, which would effectively treat it as a mandatory production dependency in violation of the geode's purity mandate.
-/// [WHY] To maintain strict control over the geode's runtime dependencies and ensure that no third-party code is included in the final binary unless it is explicitly requested by the end-user via a feature flag. This enforcement prevents 'crate creep' and ensures that the Elite governance standard is not bypassed by the clever use of feature toggles, maintaining the security and performance guarantees of the Aesthetic Core platform.
-/// [WHERE] Triggered during the Tier 3 validation phase of the classification engine whenever a dependency declaration containing the `optional = true` attribute is successfully parsed and resolved.
-fn verify_optional_purity(idx: usize, name: &str, activated: &[String], violations: &mut Vec<AuditViolation>) {
+/// [WHAT] Verifies the purity of a dependency marked as optional against the set of default features that will be compiled into the final industrial binary.
+/// [WHY] Para assegurar que nenhum código de terceiros seja ativado por engano no binário final através de features padrão, mantendo a árvore de dependências limpa e segura.
+/// [WHERE] Internal pass for Tier 3 validation in deps.rs, focusing on sanitized dependency injection and feature-gate purity for the Elite governance gatekeeper.
+/// [USAGE] Called when a dependency contains the 'optional = true' attribute, cross-referencing it with the resolved default features manifest to identify hidden activations.
+fn verify_optional_purity(ctx: &mut DepsAuditCtx<'_>, idx: usize, name: &str, activated: &[String]) {
     let is_force_activated = activated.iter().any(|act| act == name || act.contains(&format!("dep:{}", name)));
     if is_force_activated {
-        violations.push(AuditViolation {
+        ctx.violations.push(AuditViolation {
+            file_path: ctx.path.to_string(),
             line: idx + 1,
             rule_id: "rule_deps_purity",
-            message: format!("Impure Activation: Crate '{}' is marked optional but ACTIVATED in default features.", name),
+            message: format!("{}: Crate '{}' is force-activated in default features.", messages::IMPURE_ACTIVATION, name),
             snippet: Some(format!("{} (Activated by default)", name)),
             quick_fix: None,
         });
     }
 }
 
-/// [WHAT] Extracts the raw internal name of a geode from its relative file system path definition within a Cargo.toml manifest. It parses the string between the standardized geode directory prefix and the closing quote character, normalizing the path-based reference into a clean identifier that can be correlated with the project's architectural layering definitions.
-/// [WHY] To enable accurate architectural layering enforcement using the path-based dependency syntax required by Cargo for multi-geode workspace development. By normalizing these paths into project names, the auditor can apply consistent rules regardless of how a geode is referenced, ensuring that the layering hierarchy is respected even when modules are moved or renamed within the project's directory structure.
-/// [WHERE] Used as a string-processing utility within the TIER 1 classification logic to translate relative Cargo paths into geode identifiers for hierarchical layer lookup.
+/// [WHAT] Extracts the raw internal name of a geode from its relative Cargo.toml path declaration to enable architectural identification and layering checks.
+/// [WHY] Para permitir que o sistema de governança traduza caminhos de arquivos em nomes de projetos para aplicação consistente de regras de camadas em toda a árvore de arquivos.
+/// [WHERE] Path normalization utility in deps.rs, used during the dependency resolution phase to map file system locations back to defined architectural components.
+/// [USAGE] Called by Tier 1 validation to translate paths into project names, facilitating the comparison of current and dependent geode layers during the governance scan cycle.
 fn extract_internal_geode_name(line: &str) -> String {
-    line.split("path = \"../").nth(1)
-        .and_then(|s| s.split('"').next())
-        .map_or("unknown".to_string(), |n| n.to_string())
+    // [Elite Regex-like Split] Procura pela última ocorrência de path = "../" ou similar
+    if let Some(pos) = line.find("path = \"") {
+        let path_part = &line[pos + 8 ..].trim_matches('"');
+        return path_part.split('/').last().unwrap_or("unknown").to_string();
+    }
+    "unknown".to_string()
 }

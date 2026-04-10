@@ -1,18 +1,15 @@
-# Code Scanner (Brute Parser)
+# [ac_ant_delirium] Structural Scanner Infrastructure
 
-/// [WHAT] Simplified code analysis engine for Elite geodes.
-/// [WHY] To isolate functions and metadata without external dependencies.
-/// [WHERE] ac_ant_delirium/src/parser.rs
+This module implements a Zero-Copy structural scanner for Rust source code, designed to identify function boundaries and associated pedagogical documentation without external dependencies.
 
-## Scanning Methodology
+## Architectural Objectives
 
-The `CodeScanner` uses a **Brute-Force Vertical Scan** approach:
+- **Zero-Copy Performance**: Minimizes memory pressure by storing references to the original source string rather than duplicating function bodies in the heap.
+- **Structural Immunity**: Employs string-literal scrubbing via `clean_line` to ensure that keywords like `fn` inside strings do not trigger false positives.
+- **Recursive Brace Tracking**: Implements a robust vertical scope analyzer to accurately calculate function line ranges even in deeply nested logic.
 
-1.  **Docstring Accumulation**: It collects consecutive lines starting with `///`.
-2.  **Boundary Detection**: It identifies the start of a function block using keyword matching (`fn`, `{`).
-3.  **Depth Resolution**: It performs a nested bracket-count scan to find the exact closing `}` of the function block.
-4.  **Metadata Packaging**: It combines the accumulated docstring with the discovered line range and function name.
+## Core Utilities
 
-## Constraints
-
-The scanner is designed to be **O(N)** and memory-efficient. It does not perform full syntactic analysis, but provides enough structural context for governance rules (like documentation tag validation and nesting depth checks) to operate reliably.
+- `CodeScanner`: The primary entry point for function discovery.
+- `find_closing_brace`: A specialist scope analyzer that respects nesting.
+- `clean_line`: A surgical sanitizer that removes strings and comments for structural analysis.

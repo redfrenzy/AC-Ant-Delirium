@@ -1,0 +1,55 @@
+# [ac_ant_delirium] Governance Configuration
+# Elite Industrial Standard
+
+[active_to]
+"src/rules/manifest.rs" = "rule_doc_tags"
+"src/rules/metrics.rs" = "rule_line_limit"
+
+[ignore_to]
+"src/restricted_tokens/println.rs" = ["all"]
+"src/restricted_tokens/unwrap.rs" = ["all"]
+"build.rs" = ["rule_poison_tokens"]
+
+[rules.limits]
+max_lines = 300
+tip_lines = "Explain: Function logic exceeds cognitive bound. Logic MUST be atomized."
+max_nesting = 3
+max_params = 4
+logical_density = 34
+
+[rules.doc_tags.WHAT]
+min_chars = 32
+hint = "Explain WHAT this does."
+
+[rules.doc_tags.WHY]
+min_chars = 64
+hint = "Explain WHY this logic exists (Architectural justification)."
+
+[rules.doc_tags.WHERE]
+min_chars = 16
+hint = "Explain WHERE this fits in the component hierarchy."
+
+[rules.doc_tags.USAGE]
+min_chars = 128
+hint = "Explain HOW to check or use this logic."
+
+[rules.macros]
+max_lines = 25
+allow_complex_logic = false
+tip = "Macros MUST be shallow. Use functions for logic."
+
+[rules.restricted_tokens]
+"panic!" = "Unhandled panic path. Use Result."
+"unwrap()" = "Potential crash. Handle explicitly."
+"print!" = "Use internal reporter for communication."
+
+[rules.debug]
+enabled = false
+allow_list = ["src/debug_session.rs"]
+
+[rules]
+allowed_crates = ["std", "core", "alloc"]
+
+[manifest]
+enabled = true
+features = ["full", "sarif"]

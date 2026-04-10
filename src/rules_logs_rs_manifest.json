@@ -1,0 +1,3 @@
+[
+  { "name": "messages", "kind": "module", "range": [8, 26], "complexity": 19, "narrative": "/// [WHAT] Collection of all governance violation messages.\n/// [WHY] To centralize and standardize messaging for easier maintenance and AI comprehension.\n/// [WHERE] Diagnostic layer in rules_logs.rs." }
+]

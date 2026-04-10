@@ -3,16 +3,40 @@ pub mod rules;
 pub mod rules_logs;
 pub mod parser;
 pub mod reporter;
+pub mod sarif;
+pub mod scanner;
 
-use config::AuditConfig;
+use self::config::AuditConfig;
+use self::scanner::RecursiveScanner;
 
+/// [WHAT] A metadata-rich structure representing a specific governance violation.
+/// [WHY] To provide standardized diagnostic information across all reporting layers (CLI, SARIF, WASM).
+/// [WHERE] Core data type used throughout the entire audit pipeline.
 #[derive(Default, Debug, Clone)]
 pub struct AuditViolation {
+    pub file_path: String,
     pub line: usize,
     pub rule_id: &'static str,
     pub message: String,
     pub snippet: Option<String>,
     pub quick_fix: Option<String>,
+}
+
+/// [WHAT] The aggregated result of a complete file audit, including violations and execution logs.
+/// [WHY] To decouple violation detection from reporting and allow for multiple output formats.
+/// [WHERE] Primary return type for all audit entry points.
+/// [WHAT] A structured container for summarizing the compliance state of a geode after a complete governance audit has been performed by the engine.
+/// [WHY] To avoid rule_params violations and provide a clean, grouped interface for industrial reporting by aggregating violation counts and SARIF paths into a single cohesive entity.
+/// [WHERE] Data model for the reporting layer in lib.rs, serving as the primary source of truth for dashboarding and automated CI/CD compliance gatekeepers.
+/// [USAGE] Passed to print_elite_report to provide a unified metadata set for the reporter, ensuring that all priority levels (P0-P3) are correctly counted and displayed to the human operator.
+#[derive(Default, Debug, Clone)]
+#[allow(dead_code)]
+pub struct EliteReportMetadata {
+    pub sarif_path: String,
+    pub p0: usize,
+    pub p1: usize,
+    pub p2: usize,
+    pub p3: usize,
 }
 
 #[derive(Default, Debug, Clone)]
@@ -21,76 +45,32 @@ pub struct AuditResult {
     pub logs: Vec<String>,
 }
 
+/// [WHAT] Aggregates the core parameters required for a specific audit phase, including source code, file path, and the current configuration manifest.
+/// [WHY] To satisfy the rule_params governance gate by grouping related data into a single, cohesive structure that can be passed through multiple validation layers without increasing signature complexity.
+/// [WHERE] Internal data transfer object defined in lib.rs for pipeline orchestration, acting as the primary state container for the active auditing session.
+/// [USAGE] Passed between the primary orchestration stages (structural, pedagogical, ecosystem) to maintain low coupling and ensure that every rule has consistent access to the same audit context.
+pub struct AuditContext<'a> {
+    pub source: &'a str,
+    pub file_path: &'a str,
+    pub config: &'a AuditConfig,
+    pub functions: &'a [parser::ScannedFunction<'a>],
+    pub result: &'a mut AuditResult,
+}
+
 impl AuditResult {
-    /// [WHAT] Formats the entire audit collection into a standardized SARIF 2.1.0 compliant JSON string using a high-performance, single-buffer serialization engine.
-    /// [WHY] To minimize heap allocation pressure and fragmentation by avoiding temporary `format!` results and string concatenations. This "zero-trash" approach is critical for maintaining real-time LSP responsiveness in large-scale Aesthetic Core deployments.
-    /// [WHERE] Primary serialization method in `lib.rs`.
+    /// [WHAT] Orchestrates the transformation of audit findings into a SARIF 2.1.0 report via the dedicated sarif module for machine consumption.
+    /// [WHY] To provide a standardized, machine-readable format for external CI/CD integration and industrial dashboarding, enabling seamless integration with IDEs and compliance-tracking platforms.
+    /// [WHERE] Primary serialization bridge within the AuditResult struct in lib.rs, serving as the egress point for standardized diagnostic data in the Aesthetic Core.
+    /// [USAGE] Invoked by the primary geode entry point or CLI tools to generate the final SARIF artifact, providing a high-fidelity JSON representation of all discovered governance violations.
     pub fn to_sarif(&self, file_path: &str) -> String {
-        use std::fmt::Write;
-        
-        // Pre-allocate buffer based on rule of thumb (512 bytes per violation + boilerplate)
-        let mut out = String::with_capacity(self.violations.len() * 512 + 1024);
-        let relative_path = file_path.replace("\\", "/");
-
-        let _ = write!(out, r#"{{
-  "version": "2.1.0",
-  "$schema": "https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.4.json",
-  "runs": [{{
-    "tool": {{
-      "driver": {{
-        "name": "ac_ant_delirium",
-        "version": "0.1.0"
-      }}
-    }},
-    "results": ["#);
-
-        for (i, v) in self.violations.iter().enumerate() {
-            let level = map_rule_to_level(v.rule_id);
-            let msg = json_escape(&v.message);
-            
-            let _ = write!(out, r#"
-      {{
-        "ruleId": "{}",
-        "level": "{}",
-        "message": {{ "text": "{}" }},
-        "locations": [{{
-          "physicalLocation": {{
-            "artifactLocation": {{ "uri": "{}" }},
-            "region": {{ "startLine": {}"#, v.rule_id, level, msg, relative_path, v.line);
-
-            if let Some(ref snip) = v.snippet {
-                let _ = write!(out, r#", "snippet": {{ "text": "{}" }}"#, json_escape(snip));
-            }
-            let _ = write!(out, " }} }} }}]");
-
-            if let Some(ref fix) = v.quick_fix {
-                let _ = write!(out, r#",
-        "fixes": [{{
-          "description": {{ "text": "Apply exact governance stubs" }},
-          "artifactChanges": [{{
-            "artifactLocation": {{ "uri": "{}" }},
-            "replacements": [{{
-              "deletedRegion": {{ "startLine": {}, "endLine": {} }},
-              "insertedContent": {{ "text": "{}" }}
-            }}]
-          }}]
-        }}]"#, relative_path, v.line, v.line, json_escape(fix));
-            }
-
-            let _ = write!(out, " }}{}", if i < self.violations.len() - 1 { "," } else { "" });
-        }
-
-        let _ = write!(out, r#"
-    ]
-  }}]
-}}"#);
-        out
+        sarif::to_sarif(self, file_path)
     }
 }
 
-/// [WHAT] Maps an internal governance rule identifier to its corresponding SARIF severity level based on the rule's architectural impact and safety criticality across the Aesthetic Core ecosystem. This function ensures that high-priority violations like layering breaches or poison token usage are correctly categorized as 'error', while structural concerns are marked as 'warning' and semantic or archival issues are assigned the 'note' level for appropriate downstream processing by security tools.
-/// [WHY] To provide a standardized and deterministic mapping between the geode's proprietary priority system and the industry-standard SARIF severity levels. This consistency is vital for maintaining a high signal-to-noise ratio in professional development environments, allowing AI agents and human developers to prioritize critical safety remediations over non-blocking stylistic or documentation-based improvements while ensuring full compatibility with automated compliance dashboards.
-/// [WHERE] Invoked as a core categorization utility within the `to_sarif` serialization method in `lib.rs`, which is responsible for transforming raw audit findings into standardized diagnostic report entries for external consumption.
+/// [WHAT] Maps an internal governance rule identifier to its corresponding SARIF severity level for standardized diagnostic reporting across industrial platforms.
+/// [WHY] To provide a standardized and deterministic mapping between the geode's proprietary priority system (P0-P3) and the industry-standard SARIF severity levels, ensuring clear communication of risk.
+/// [WHERE] Core categorization utility in lib.rs for SARIF serialization and downstream reporting, acting as the translation layer between the engine and external IDE diagnostics.
+/// [USAGE] Called internally by the SARIF serialization engine to categorize violations for CI/CD dashboards, allowing automated tools to fail builds based on severity thresholds.
 fn map_rule_to_level(rule_id: &str) -> &str {
     if rule_id == "rule_deps" || rule_id == "rule_poison_tokens" || rule_id == "rule_no_raw_print" || rule_id == "rule_layering" {
         return "error";
@@ -101,9 +81,10 @@ fn map_rule_to_level(rule_id: &str) -> &str {
     "note"
 }
 
-/// [WHAT] Implements a robust, character-by-character JSON escaping engine that ensures full compliance with RFC 8259 without external dependencies. This function iterates through each character of the input string and applies specific escape sequences for backslashes, quotes, and common control characters.
-/// [WHY] To provide industrial-grade sanitization of source code snippets and audit messages, ensuring that the generated SARIF reports are always syntactically valid and machine-readable.
-/// [WHERE] Primary string sanitization utility used throughout the `to_sarif` serialization pipeline in `lib.rs`.
+/// [WHAT] Sanitizes a string for inclusion in a JSON structure by escaping control characters and ensuring that the output complies with international serialization standards.
+/// [WHY] To prevent malformed or malicious source code snippets from corrupting the generated SARIF report by ensuring full compliance with RFC 8259, maintaining high report fidelity.
+/// [WHERE] Primary string sanitization utility used throughout the to_sarif serialization pipeline in lib.rs, providing a secure bridge between raw source and machine-readable JSON.
+/// [USAGE] Invoked by the result serialization stage to safely encode diagnostic messages and signatures, preventing injection attacks or parsing errors in downstream IDE consumers.
 fn json_escape(s: &str) -> String {
     let mut escaped = String::with_capacity(s.len());
     for c in s.chars() {
@@ -114,9 +95,10 @@ fn json_escape(s: &str) -> String {
     escaped
 }
 
-/// [WHAT] Applies a JSON-specific escape sequence for a single character if required by RFC 8259. It handles standard escapes like quotes and backslashes, and delegates Unicode encoding for control characters.
-/// [WHY] To keep the primary character-walking loop flat and comply with architectural nesting limits while ensuring full industrial coverage.
-/// [WHERE] Helper function for `json_escape` in `lib.rs`.
+/// [WHAT] Applies a JSON-specific escape sequence for a single character if required by RFC 8259, ensuring that non-printable characters are correctly represented.
+/// [WHY] To maintain a shallow execution flow and comply with architectural nesting limits while ensuring full industrial coverage of the JSON specification for reliable report generation.
+/// [WHERE] Helper character filter in lib.rs for the high-fidelity json_escape engine, acting as a low-level dispatcher for specific escape character codes discovered during the scan.
+/// [USAGE] Called internally by json_escape() for each character encountered during the source code scan, facilitating the correct transformation of line breaks, tabs, and backslashes into JSON format.
 fn apply_escape(c: char, out: &mut String) -> bool {
     match c {
         '\\' => out.push_str("\\\\"),
@@ -132,9 +114,10 @@ fn apply_escape(c: char, out: &mut String) -> bool {
     true
 }
 
-/// [WHAT] Encodes a low-level ASCII control character into a standard JSON `\uXXXX` Unicode escape sequence.
-/// [WHY] To provide a robust and surgical encoding mechanism that is both flat and zero-dependency.
-/// [WHERE] Specialist helper for `apply_escape` in `lib.rs`.
+/// [WHAT] Encodes a low-level ASCII control character into a standard JSON Unicode escape sequence (e.g., \u00XX) to maintain report integrity in modern editors.
+/// [WHY] To ensure that control characters do not corrupt the generated SARIF JSON structure during serialization, preventing breakage in external parsing tools and maintaining Elite standards.
+/// [WHERE] Specialist Unicode encoder located within the lib.rs orchestration layer, providing a robust fallback for non-standard or invisible character sequences discovered in source.
+/// [USAGE] Called by apply_escape when a control character is detected during the string scanning process, appending the hexadecimal representation of the character to the output buffer.
 fn push_unicode_escape(c: char, out: &mut String) {
     let code = c as u32;
     out.push_str("\\u00");
@@ -142,85 +125,186 @@ fn push_unicode_escape(c: char, out: &mut String) {
     out.push(hex[(code >> 4) as usize] as char);
     out.push(hex[(code & 0xf) as usize] as char);
 }
-/// [WHAT] The main audit entry point for WASM-based governance.
-/// [WHY] Orchestrates all governance rules in a single dependency-free call for AI compliance.
-/// [WHERE] Primary bridge between the Host Orchestrator and the Geode.
-/// [USAGE] Called by the WASM host with source code, file path, and configuration TOML strings.
+// =====================================================================
+// PUBLIC API: audit_code
+// This is the high-level entry point that returns a SARIF JSON string.
+// It is used when the caller wants a machine-readable report (e.g. for
+// CI/CD integration or VS Code diagnostics). For programmatic access
+// to the violation list, use audit_code_to_result() instead.
+// =====================================================================
+/// [WHAT] The main audit entry point for WASM-based governance that consumes source code and returns a standardized SARIF report string for compliance monitoring.
+/// [WHY] Orchestrates all governance rules in a single dependency-free call for AI compliance, ensuring that every project geode can be audited autonomously by the host system.
+/// [WHERE] Primary bridge between the Host Orchestrator and the Geode in lib.rs, serving as the top-level API for the Aesthetic Core governance ecosystem.
+/// [USAGE] Called by the WASM host with source code, file path, and configuration TOML strings to receive a complete diagnostic report in machine-readable SARIF format for IDE integration.
 pub fn audit_code(source: &str, file_path: &str, config_toml: &str) -> String {
+    let result = audit_code_to_result(source, file_path, config_toml);
+    result.to_sarif(file_path)
+}
+
+/// [WHAT] Internal audit engine that returns a structured result for programmatic consumption by native tools.
+/// [WHY] To allow the build script and other native governance auditors to process violations using standardized Rust data types.
+/// [WHERE] Primary internal orchestration entry point within the lib.rs audit pipeline.
+/// [USAGE] Called by audit_code() or external build scripts to receive detailed AuditResult artifacts.
+/// [WHAT] Orchestrates a comprehensive recursive audit of a directory tree, aggregating all discovered governance violations into a single unified result set for global compliance reporting.
+/// [WHY] To provide a centralized mechanism for auditing entire project geodes at once, ensuring that the complete architectural state is consistent with the established governance manifest in delirium.toml.
+/// [WHERE] Core orchestration layer in lib.rs for recursive geode scanning, acting as the primary entry point for full-project compliance verification and industrial reporting.
+/// [USAGE] Invocado pelo ponto de entrada principal do binário WASI para realizar uma varredura completa da árvore de arquivos do projeto, consolidando diagnósticos estruturais, pedagógicos e de ecossistema em um único artefato AuditResult.
+pub fn audit_geode_recursive(dir_path: &str, config_toml: &str) -> AuditResult {
+    let config = config::AuditConfig::parse_brute(config_toml);
+    let mut total_result = AuditResult::default();
+
+    RecursiveScanner::scan(std::path::Path::new(dir_path), &config, |path, source| {
+        let result = audit_code_to_result(source, path.to_str().unwrap_or("unknown"), config_toml);
+        total_result.violations.extend(result.violations);
+    });
+
+    total_result
+}
+
+/// [WHAT] Atomic code analyzer that generates compliance diagnostics for individual source files without the overhead of a full recursive tree scan.
+/// [WHY] To enable granular verification of specific components and provide fast feedback during the development cycle, maintaining a high-velocity compliance pipeline.
+/// [WHERE] Primary execution layer in lib.rs for file-level auditing, acting as the bridge between raw source and structured governance violations.
+/// [USAGE] Invocado pelo orquestrador recursivo para cada arquivo descoberto ou diretamente por hosts de auditoria focal que necessitam de diagnósticos granulares de conformidade atômica.
+pub fn audit_code_to_result(source: &str, file_path: &str, config_toml: &str) -> AuditResult {
     let config = config::AuditConfig::parse_brute(config_toml);
     let mut result = AuditResult::default();
     
     // Centralized Scanning (Audit 4 Optimization)
     let functions = parser::CodeScanner::scan_functions(source);
+    let mut ctx = AuditContext {
+        source, 
+        file_path, 
+        config: &config, 
+        functions: &functions, 
+        result: &mut result 
+    };
 
     // Stage 1: Structure & Safety
-    audit_structural(source, file_path, &config, &functions, &mut result);
+    audit_structural(&mut ctx);
 
     // Stage 2: Documentation & Quality
-    audit_pedagogical(file_path, &config, &functions, &mut result);
+    audit_pedagogical(&mut ctx);
 
     // Stage 3: Ecosystem & Health (MD pairing, deps, manifest)
-    audit_ecosystem(source, file_path, &config, &functions, &mut result);
+    audit_ecosystem(&mut ctx);
+
+    // [ELITE POLICY] Global Final Filter. We filter out any ignored violations 
+    // BEFORE Memory Decay so that we don't accidentally mutate code for an ignored violation.
+    result.violations.retain(|v| !is_rule_ignored(&v.file_path, &v.rule_id, &config));
 
     // Stage 4: Memory Decay (Final Mutation)
     if let Some(mutated_source) = trigger_memory_decay(source, &functions, &result.violations) {
+        // Isolation: Only mutate if the file is part of this project's source
+        if !file_path.contains("ac_ant_delirium/src") && file_path.contains("/") {
+            result.logs.push(format!("[LOG] Memory Decay BLOCKED for external file: {}. (Project Isolation Active)", file_path));
+            return result;
+        }
+
         let _ = std::fs::write(file_path, mutated_source);
-        result.logs.push(format!("[LOG] Memory Decay triggered for {}. Doc tags wiped due to severe violations.", file_path));
+        result.logs.push(format!("[LOG] Memory Decay triggered for local file {}.", file_path));
     }
 
-    result.to_sarif(file_path)
+    result
 }
 
-/// [WHAT] Executa a fase de auditoria estrutural e de segurança.
-/// [WHY] Isola verificações P0/P1 para manter a densidade lógica do orquestrador sob controle.
-/// [WHERE] Camada interna de processamento do lib.rs.
-fn audit_structural(source: &str, file_path: &str, config: &AuditConfig, functions: &[parser::ScannedFunction], result: &mut AuditResult) {
-    if !is_rule_ignored(file_path, "rule_nesting", config) {
-        rules::structure::verify(file_path, source, functions, config, &mut result.violations);
-    }
-    if !is_rule_ignored(file_path, "rule_poison_tokens", config) {
-        rules::tokens::verify(file_path, source, config, &mut result.violations);
-    }
-    if !is_rule_ignored(file_path, "rule_macro_isolation", config) {
-        rules::macros::verify(source, config, &mut result.violations);
-    }
-}
+/// [WHAT] Orchestrates the structural and safety audit phase for a scanned source file.
+/// [WHY] To isolate P0/P1 checks and maintain a linear, auditable execution pipeline within the provided context.
+/// [WHERE] Phase 1 orchestration layer in lib.rs.
+/// [USAGE] Called by audit_code_to_result() to perform high-priority structural and toxicity audits using the provided context wrapper for signature and line-level validation logic.
+fn audit_structural(ctx: &mut AuditContext) {
+    let mut s_ctx = rules::structure::StructureCtx {
+        file_path: ctx.file_path,
+        source: ctx.source,
+        functions: ctx.functions,
+        config: ctx.config,
+        violations: &mut ctx.result.violations,
+        current_nesting: 0,
+    };
+    rules::structure::verify(&mut s_ctx);
 
-/// [WHAT] Executa a fase de auditoria pedagógica e semântica.
-/// [WHY] Garante que a qualidade da documentação e justificativas atenda aos critérios P2.
-/// [WHERE] Camada interna de processamento do lib.rs.
-fn audit_pedagogical(file_path: &str, config: &AuditConfig, functions: &[parser::ScannedFunction], result: &mut AuditResult) {
-    if !is_rule_ignored(file_path, "rule_doc_tags", config) {
-        rules::docs::verify(functions, config, &mut result.violations);
-        rules::quality::verify(functions, config, &mut result.violations);
+    if !is_rule_ignored(ctx.file_path, "rule_poison_tokens", ctx.config) {
+        rules::tokens::verify(ctx.file_path, ctx.source, ctx.config, &mut ctx.result.violations);
     }
-}
-
-/// [WHAT] Executa a fase de auditoria de ecossistema e saúde archival.
-/// [WHY] Valida o pareamento de arquivos MD, dependências do Cargo e gera o manifesto para IA.
-/// [WHERE] Camada de fechamento do pipeline no lib.rs.
-fn audit_ecosystem(source: &str, file_path: &str, config: &AuditConfig, functions: &[parser::ScannedFunction], result: &mut AuditResult) {
-    if !is_rule_ignored(file_path, "rule_line_limit", config) {
-        rules::metrics::verify(source, functions, config, &mut result.violations);
-    }
-    if !is_rule_ignored(file_path, "rule_md_pairing", config) {
-        rules::markdown::verify(file_path, source, config, &mut result.violations);
-    }
-    if file_path.ends_with("Cargo.toml") && !is_rule_ignored(file_path, "rule_deps", config) {
-        rules::deps::verify(file_path, source, config, &mut result.violations);
-    }
-    if config.manifest.enabled {
-        result.logs.push(format!("[LOG] AI Manifest generated for {}", file_path));
-        let manifest = rules::manifest::generate(source, config);
-        export_manifest(file_path, &manifest);
+    if !is_rule_ignored(ctx.file_path, "rule_macro_isolation", ctx.config) {
+        let mut m_ctx = rules::macros::MacroAuditCtx {
+            file_path: ctx.file_path,
+            source: ctx.source,
+            config: ctx.config,
+            violations: &mut ctx.result.violations,
+        };
+        rules::macros::verify(&mut m_ctx);
     }
 }
 
-/// [WHAT] Exporta fisicamente o Manifesto Semântico em formato JSON escapado.
-/// [WHY] Fornece contexto estruturado para agentes externos e IAs consumirem a arquitetura.
-/// [WHERE] Função utilitária de saída em lib.rs.
+/// [WHAT] Orchestrates the pedagogical and semantic audit phase for a scanned source file.
+/// [WHY] To ensure that documentation quality and architectural density meet established Elite P2 standards.
+/// [WHERE] Phase 2 orchestration layer in lib.rs.
+/// [USAGE] Called by audit_code_to_result() to verify pedagogical documentation and function quality by scanning for mandatory tags and lexical density in function docstrings.
+fn audit_pedagogical(ctx: &mut AuditContext) {
+    if !is_rule_ignored(ctx.file_path, "rule_doc_tags", ctx.config) {
+        let mut d_ctx = rules::docs::DocsAuditCtx {
+            file_path: ctx.file_path,
+            functions: ctx.functions,
+            config: ctx.config,
+            violations: &mut ctx.result.violations,
+        };
+        rules::docs::verify(&mut d_ctx);
+    }
+    
+    // [Elite Granularity] Quality rules have their own audit gate
+    if !is_rule_ignored(ctx.file_path, "rule_word_salad", ctx.config) {
+        rules::quality::verify(ctx.file_path, ctx.functions, ctx.config, &mut ctx.result.violations);
+    }
+}
+
+/// [WHAT] Orchestrates the ecosystem and health audit phase for a source file or manifest.
+/// [WHY] To validate archival pairing, dependency purity, and generate persistent AI-ready manifests for governance.
+/// [WHERE] Phase 3 orchestration layer in lib.rs.
+/// [USAGE] Invocado pelo analisador de código atômico (audit_code_to_result) como a fase final do pipeline de governança para validar o emparelhamento de documentação industrial e a pureza das dependências externas do geode.
+fn audit_ecosystem(ctx: &mut AuditContext) {
+    // Metrics can trigger rule_params, rule_line_limit, rule_logical_density. 
+    // We let it run unconditionally, and the Global Final Filter catches ignored specifics.
+    let mut metrics_ctx = rules::metrics::MetricsCtx { 
+        file_path: ctx.file_path,
+        source: ctx.source, 
+        functions: ctx.functions, 
+        config: ctx.config, 
+        violations: &mut ctx.result.violations 
+    };
+    rules::metrics::verify(&mut metrics_ctx);
+
+    if !is_rule_ignored(ctx.file_path, "rule_md_pairing", ctx.config) {
+        let mut m_ctx = rules::markdown::MarkdownAuditCtx {
+            file_path: ctx.file_path,
+            config: ctx.config,
+            violations: &mut ctx.result.violations,
+        };
+        rules::markdown::verify(&mut m_ctx);
+    }
+
+    // Deps rule can trigger "rule_deps" and "rule_layering".
+    if ctx.file_path.ends_with("Cargo.toml") {
+        let mut d_ctx = rules::deps::DepsAuditCtx {
+            path: ctx.file_path,
+            source: ctx.source,
+            config: ctx.config,
+            violations: &mut ctx.result.violations,
+        };
+        rules::deps::verify(&mut d_ctx);
+    }
+    if ctx.config.manifest.enabled {
+        ctx.result.logs.push(format!("[LOG] AI Manifest generated for {}", ctx.file_path));
+        let manifest = rules::manifest::generate(ctx.source, ctx.config);
+        export_manifest(ctx.file_path, &manifest);
+    }
+}
+
+/// [WHAT] Persists a discovered semantic manifest to a .manifest.json file on disk to provide persistent architectural context for external agents and auditing dashboards.
+/// [WHY] To provide a stable metadata artifact that can be consumed by governance dashboards and external AI agents for deep architectural analysis and monitoring.
+/// [WHERE] Final output and metadata export stage in lib.rs, serving as the bridge between in-memory analysis and persistent geode documentation.
+/// [USAGE] Invocado pelo orquestrador de ecossistema após a geração bem-sucedida de um manifesto SymbolInfo para salvar os resultados em um formato de intercâmbio industrial estável.
 fn export_manifest(file_path: &str, manifest: &[rules::manifest::SymbolInfo]) {
-    let manifest_path = format!("{}.manifest.json", file_path);
+    let manifest_path = format!("{}_manifest.json", file_path.replace(".", "_"));
     let mut json_out = String::from("[\n");
     for (idx, sym) in manifest.iter().enumerate() {
         let mut comma = ",";
@@ -235,24 +319,47 @@ fn export_manifest(file_path: &str, manifest: &[rules::manifest::SymbolInfo]) {
     let _ = std::fs::write(manifest_path, json_out);
 }
 
-/// [WHAT] Verifies if a path is eligible for auditing.
-/// [WHY] To support granular directory-based governance and filtered audits.
-/// [WHERE] Called during the configuration discovery and execution phase.
-pub fn is_path_active(path: &str, config: &AuditConfig) -> bool {
-    if config.active_to.is_empty() { return true; }
-    for active_path in config.active_to.keys() {
-        if path.contains(active_path) { return true; } 
-    }
-    false
+/// [WHAT] Audit scope validator for selective activation of components that determines if a file path should be processed based on the current inclusion manifest.
+/// [WHY] To enable focused audits on specific sub-systems within massive geodes, significantly reducing CI execution time and focusing resources on active development areas.
+/// [WHERE] Audit routing and scope management layer in lib.rs, acting as a high-level filter for the file scanner before rule execution begins.
+/// [USAGE] Verifica se o caminho do arquivo está contido na lista de inclusão configurada no manifesto de governança para decidir se a auditoria completa deve ser disparada.
+#[allow(dead_code)]
+pub fn is_path_active(_path: &str, _config: &AuditConfig) -> bool {
+    // [ELITE TOPOLOGY] A autoridade de exclusão global agora reside inteiramente no `scanner.rs`
+    // via `config.architecture.global_excludes`. Todo arquivo que chega a este ponte já está autorizado.
+    true
 }
 
-/// [WHAT] Checks if a specific rule should be skipped for a file.
-/// [WHY] To allow localized exceptions for legacy or boilerplate code in Elite geodes.
-/// [WHERE] Called before each rule execution in the audit pipeline.
+/// [WHAT] Determines if a specific governance rule should be ignored for a given file entry.
+/// [WHY] To provide a formal and auditable mechanism for authorized exceptions to governance rules in Elite geodes.
+/// [WHERE] Rule suppression utility within the primary audit pipeline in lib.rs.
+/// [USAGE] Invocado internamente pelas diversas fases de orquestração da auditoria para verificar se o caminho do arquivo atual possui uma dispensa formal para a regra específica sendo processada, respeitando a configuração de ignore_to do manifesto.
 pub fn is_rule_ignored(path: &str, rule_id: &str, config: &AuditConfig) -> bool {
-    if let Some(ignored_rules) = config.ignore_to.get(path) {
-        if ignored_rules.contains(&"all".to_string()) || ignored_rules.contains(&rule_id.to_string()) {
-            return true;
+    // [ELITE NORMALIZATION] Remove prefixes and trailing separators for robust matching.
+    let normalized_path = path.trim_matches(|c| c == '.' || c == '/');
+    
+    // [JURISDICTION 1] Isolação Atômica Sênior (exclusive_to)
+    // Se o caminho está aqui, o arquivo SÓ aceita as regras listadas. Resto é ignorado.
+    for (exclusive_path, allowed_rules) in &config.jurisdiction.exclusive_to {
+        let normalized_exclusive = exclusive_path.trim_matches(|c| c == '.' || c == '/');
+        
+        if normalized_path == normalized_exclusive || normalized_path.starts_with(&(normalized_exclusive.to_string() + "/")) {
+            // Se a regra atual NÃO está na lista permitida, ela deve ser IGNORADA
+            if !allowed_rules.contains(&rule_id.to_string()) {
+                return true;
+            }
+        }
+    }
+
+    // [JURISDICTION 2] Rejeição Explícita (ignore_to)
+    // Padrão antigo mantido para retrocompatibilidade híbrida.
+    for (ignore_path, ignored_rules) in &config.jurisdiction.ignore_to {
+        let normalized_ignore = ignore_path.trim_matches(|c| c == '.' || c == '/');
+        
+        if normalized_path == normalized_ignore || normalized_path.starts_with(&(normalized_ignore.to_string() + "/")) {
+            if ignored_rules.contains(&"all".to_string()) || ignored_rules.contains(&rule_id.to_string()) {
+                return true;
+            }
         }
     }
     false
@@ -260,9 +367,10 @@ pub fn is_rule_ignored(path: &str, rule_id: &str, config: &AuditConfig) -> bool 
 
 
 
-/// [WHAT] Implements the architectural 'Memory Decay' mechanism designed to handle severe structural and safety violations by intentionally purging pedagogical documentation. This function iterates through all identified code blocks, correlates them with severe violation reports, and determines which functions require a documentation reset. It acts as a corrective mutation layer that ensures that code with critical flaws is not allowed to persist with stale or misleading explanations, effectively forcing a human or AI operator to re-verify the logic after the primary structural issues have been remediated.
-/// [WHY] To prevent the accumulation of documentation staleness in Elite geodes where implementation integrity is paramount. By wiping the [WHAT], [WHY], and [WHERE] tags, the engine creates a localized 'semantic vacuum' that prevents the project from reaching a release-ready state until the architectural reasoning is re-documented against the fixed implementation. This reinforces the project's commitment to pedagogical transparency and ensures that every line of code is justified by a corresponding, up-to-date documentation block, maintaining the high P3-Archival standards required for long-term maintenance.
-/// [WHERE] Executed as the final post-audit mutation stage within the primary `audit_code` entry point. It runs after all individual rule auditors have finalized their violation lists, allowing for a comprehensive assessment of the geode's structural health before any mutation is committed to the underlying source file.
+/// [WHAT] Implements the architectural 'Memory Decay' mechanism that purges pedagogical justifications from functions that have failed severe safety or structural checks.
+/// [WHY] To prevent the accumulation of documentation staleness in Elite geodes where implementation integrity is paramount, ensuring that failed logic loses its justification.
+/// [WHERE] Final corrective mutation stage within the primary audit_code_to_result process in lib.rs, providing a self-healing layer for the documentation tree.
+/// [USAGE] Invoked as a post-audit cleanup step to ensure that only compliant code remains justified, acting as the primary enforcer of documentation-implementation synchronization.
 fn trigger_memory_decay(source: &str, functions: &[parser::ScannedFunction<'_>], violations: &[AuditViolation]) -> Option<String> {
     let severe_rules = [
         "rule_else_free", "rule_nesting", "rule_poison_tokens", 
@@ -294,9 +402,10 @@ fn trigger_memory_decay(source: &str, functions: &[parser::ScannedFunction<'_>],
 
 
 
-/// [WHAT] Realiza o 'wiping' físico das tags de documentação pedagógica acima de uma assinatura de função.
-/// [WHY] Para garantir que código com violações graves não mantenha justificativas obsoletas ou enganosas.
-/// [WHERE] Chamado pelo trigger_memory_decay durante a fase de mutação pós-auditoria.
+/// [WHAT] Performs a targeted documentation wipe for specific functions that failed severe safety or structural checks during the industrial governance scan.
+/// [WHY] To enforce a 'semantic vacuum' that prevents stale justifications from persisting on non-compliant logic, forcing the developer to reconsider the architecture before redocumenting.
+/// [WHERE] Corrective mutation layer in lib.rs, providing the low-level logic for precise documentation purging within the file's preamble blocks.
+/// [USAGE] Called by trigger_memory_decay() to purge specific pedagogical tags (WHAT, WHY, etc.) from failed functional units by replacing them with sanitized whitespace.
 fn wipe_function_tags(lines: &mut Vec<String>, start_line: usize) -> bool {
     let mut modified = false;
     let mut walk = start_line.saturating_sub(1);
@@ -317,76 +426,62 @@ fn wipe_function_tags(lines: &mut Vec<String>, start_line: usize) -> bool {
     modified
 }
 
-/// [WHAT] Identifica se uma linha de documentação contém uma das tags governadas pela Aesthetic Core.
-/// [WHY] Auxiliar para o processo de Memory Decay para evitar nesting excessivo no loop principal.
-/// [WHERE] Utilitário interno de lib.rs.
+/// [WHAT] Identifies if a documentation line contains one of the four mandatory pedagogical tags ([WHAT], [WHY], [WHERE], [USAGE]) that constitute the Elite documentation standard.
+/// [WHY] To isolate the architectural justifications that require purging during Memory Decay mutation, ensuring that non-governed comments are preserved for context.
+/// [WHERE] Semantic filtering utility in lib.rs for corrective mutations, acting as the primary discriminator for pedagogical content within documentation blocks.
+/// [USAGE] Used by wipe_function_tags to identify specific documentation lines that must be targeted for deletion in cases of severe code-governance failure.
 fn is_governed_tag(trimmed: &str) -> bool {
     trimmed.contains("[WHAT]") || trimmed.contains("[WHY]") || 
     trimmed.contains("[WHERE]") || trimmed.contains("[USAGE]")
 }
 
-/// [WHAT] Verifica se uma linha não faz parte do preâmbulo (doc ou atributo) de uma função.
-/// [WHY] Critério de parada para o algoritmo de 'walk up' do Memory Decay.
-/// [WHERE] Utilitário interno de lib.rs.
+/// [WHAT] Identifies documentation lines that sit outside of a function's pedagogical preamble by detecting non-comment markers and attribute decorators in the source.
+/// [WHY] To provide a robust termination criterion for the Memory Decay walk-up algorithm, preventing the purger from accidentally deleting code or unrelated documentation.
+/// [WHERE] Structural filtering utility in lib.rs for corrective mutations, serving as the guardrail for the documentation extraction and purging engine.
+/// [USAGE] Used by wipe_function_tags to stop the reverse line scan at the boundaries of the documentation block, ensuring that only the relevant preamble is processed.
 fn is_not_preamble(trimmed: &str) -> bool {
     !trimmed.starts_with("///") && !trimmed.starts_with("#[") && !trimmed.is_empty()
 }
 
-/// [WHAT] Verifies if a path is eligible for auditing.
 
-// Memory management for raw WASM ABI
-/// [WHAT] Allocates a block of memory of the specified size and prevents the Rust runtime from automatically reclaiming it.
-/// [WHY] To provide the WASM host with a stable buffer where it can write input data (source code, paths, config) before calling the audit logic.
-/// [WHERE] Exported as a global FFI function for the WASM orchestrator.
-#[no_mangle]
-pub extern "C" fn alloc(size: usize) -> *mut u8 {
-    unsafe {
-        std::alloc::alloc(std::alloc::Layout::from_size_align_unchecked(size, 1))
-    }
-}
-
-/// [WHAT] Reclaims a previously allocated memory block, allowing the Rust allocator to free the resources.
-/// [WHY] To prevent memory leaks in long-running audit sessions where the host repeatedly passes large files to the geode.
-/// [WHERE] Critical FFI utility for memory lifecycle management in the WASM host.
-#[no_mangle]
-pub extern "C" fn dealloc(ptr: *mut u8, size: usize) {
-    if ptr.is_null() { return; }
-    unsafe {
-        std::alloc::dealloc(ptr, std::alloc::Layout::from_size_align_unchecked(size, 1));
-    }
-}
-
-/// [WHAT] The industrial FFI entry point for the geode's governance engine. It accepts raw pointers to input strings and returns a pointer to the generated SARIF report.
-/// [WHY] To bridge the gap between the complex Rust types used internally and the simplified ABI required for WASM-Host interoperability. 
-/// [WHERE] Primary execution target for the Aesthetic Core WASM orchestrator.
-#[no_mangle]
-pub extern "C" fn audit_code_raw(
-    src_ptr: *mut u8, src_len: usize,
-    path_ptr: *mut u8, path_len: usize,
-    cfg_ptr: *mut u8, cfg_len: usize
-) -> *mut u8 {
-    let source = unsafe { std::str::from_utf8_unchecked(std::slice::from_raw_parts(src_ptr, src_len)) };
-    let path = unsafe { std::str::from_utf8_unchecked(std::slice::from_raw_parts(path_ptr, path_len)) };
-    let config = unsafe { std::str::from_utf8_unchecked(std::slice::from_raw_parts(cfg_ptr, cfg_len)) };
-
-    let mut result_json = audit_code(source, path, config);
-    result_json.push('\0'); // Null-terminate for the C-style ABI expected by the host.
-    
-    // Convert to boxed slice to ensure pointer stability
-    let mut boxed_slice = result_json.into_bytes().into_boxed_slice();
-    let result_ptr = boxed_slice.as_mut_ptr();
-    
-    std::mem::forget(boxed_slice);
-    result_ptr
-}
+// =====================================================================
+// FFI FUNCTIONS REMOVED
+// The previous version had alloc(), dealloc(), and audit_code_raw()
+// exported as #[no_mangle] extern "C" functions. These were designed
+// for a cdylib model where an external host would:
+//   1. Call alloc() to reserve memory in the WASM linear memory
+//   2. Write source code bytes into that memory
+//   3. Call audit_code_raw() with raw pointers
+//   4. Call dealloc() to free the buffers
+//
+// This approach was WRONG because:
+//   - It requires a complex host runtime (wasmer/wasmtime API) to
+//     manage memory, call functions, and interpret results.
+//   - The governance engine should be AUTONOMOUS — it reads files,
+//     parses config, and reports violations by itself.
+//
+// The correct approach is to compile main.rs as a WASI binary:
+//   cargo build --target wasm32-wasip1 --bin delirium_cli
+//
+// This produces a standalone program with _start that uses WASI
+// syscalls (fd_read, path_open, args_get) to interact with the
+// filesystem directly, just like a native binary would.
+// =====================================================================
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    /// [WHAT] Verifies the visual formatting of the Elite reporting layer in a test environment.
+    /// [WHY] To ensure that the industrial audit report remains readable and logically grouped for human operators.
+    /// [WHERE] Localized unit test block within the lib.rs test module.
+    /// [USAGE] Executado via cargo test para confirmar a sanidade da estrutura de metadados do relatório Elite e garantir que a formatação visual do resumo corporativo permaneça consistente com os padrões industriais do projeto.
     #[test]
     fn test_elite_reporter_visual() {
-        reporter::print_elite_report("governance_results.sarif", 3, 2, 1, 0);
+        let meta = EliteReportMetadata {
+            sarif_path: "governance_results.sarif".to_string(),
+            p0: 3, p1: 2, p2: 1, p3: 0,
+        };
+        reporter::print_elite_report(&meta);
     }
 }
-

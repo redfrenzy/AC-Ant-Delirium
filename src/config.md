@@ -1,8 +1,16 @@
-# Configuration Engine
+# [ac_ant_delirium] Configuration Infrastructure
 
-/// [WHAT] Centralized governance configuration for ac_ant_delirium.
-/// [WHY] To provide a dependency-free, high-performance way to manage rules.
-/// [WHERE] Core geode configuration layer.
+This module implements a zero-dependency, brute-force TOML-style parser designed for the Aesthetic Core governance ecosystem.
 
-This module implements the `AuditConfig` structure and its manual TOML parser.
-It follows the "Brute Parser" pattern to remain 100% compliant with the zero-dependency mandate.
+## Architectural Objectives
+
+- **Dependency Erasure**: Eradicates the need for heavy parsing crates like `serde` or `toml`, significantly improving build times and security auditability.
+- **Linear Dispatch**: Uses a shallow-nested,早期リターン (early return) dispatch model to maintain cognitive clarity.
+- **Dynamic Rule Mapping**: Supports granular activation and exception handling via `active_to` and `ignore_to` mechanisms.
+
+## Configuration Model
+
+- `AuditConfig`: The primary container for all governance settings.
+- `RulesConfig`: Aggregates structural limits, token restrictions, and macro constraints.
+- `TagConfig`: Defines pedagogical requirements for documentation artifacts.
+- `ManifestConfig`: Controls the generation of AI-consumable semantic metadata.

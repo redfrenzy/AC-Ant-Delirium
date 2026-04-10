@@ -1,1 +1,6 @@
-target/
+/target/
+**/*.rs.bk
+*.manifest.json
+violations.log
+audit_log.txt
+delirium_cli

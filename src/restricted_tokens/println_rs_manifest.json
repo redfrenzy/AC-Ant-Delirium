@@ -1,0 +1,3 @@
+[
+  { "name": "quarantined_print", "kind": "function", "range": [9, 12], "complexity": 3, "narrative": "/// [WHAT] Orchestrates the emission of raw character streams to the host's standard output using the restricted println macro for diagnostic purposes.\n/// [WHY] To provide a controlled escape hatch for debugging when ELITE_TRACE is insufficient and raw terminal feedback is critical for industrial audits.\n/// [WHERE] Isolated safety harbor for forbidden IO tokens in println.rs, serving as the authorized conduit for console-based reporting.\n/// [USAGE] Invocado por componentes autorizados para despejar informações de estado bruto no stdout, permitindo uma visibilidade técnica imediata durante ciclos de depuração crítica no geode." }
+]
