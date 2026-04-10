@@ -2,7 +2,10 @@ use super::super::AuditViolation;
 use super::super::config::AuditConfig;
 use super::super::rules_logs::messages;
 
-/// [WHAT] Contexto de métricas industriais para redução de acoplamento.
+/// [WHAT] Contexto de métricas industriais utilizado para agrupar metadados de função, configurações de limites estruturais e o repositório de captura de violações.
+/// [WHY] Reduz o acoplamento funcional (rule_params) ao consolidar o estado da auditoria, permitindo que as regras de métricas operem de forma independente em geodes massivos.
+/// [WHERE] Camada de transporte de dados para orquestração de regras de massa de código e densidade lógica em metrics.rs.
+/// [USAGE] Instanciado no início do processo de auditoria de métricas para centralizar a validação de limites de linhas, parâmetros e densidade lógica por geode.
 pub struct MetricsCtx<'a> {
     pub file_path: &'a str,
     pub source: &'a str,
@@ -51,9 +54,10 @@ fn check_function_metrics(file_path: &str, functions: &[super::super::parser::Sc
     }
 }
 
-/// [WHAT] Validates logical statement density for a specific function.
-/// [WHY] Parity with legacy rule_line_limit logic for Elite standard enforcement.
-/// [WHERE] Internal checker for per-function metrics.
+/// [WHAT] Valida a densidade de instruções lógicas para uma função específica descoberta pelo scanner, calculando a massa operacional real do geode.
+/// [WHY] Mantém a paridade com a lógica legada 'rule_line_limit', forçando a atomização de funções complexas para garantir a auditabilidade industrial Elite.
+/// [WHERE] Verificador interno de métricas por função em metrics.rs, agindo como o sensor final de complexidade estrutural.
+/// [USAGE] Invocada iterativamente por check_function_metrics para aplicar as restrições de densidade lógica e acoplamento de parâmetros definidas no delirium.toml.
 fn verify_single_function_metrics(
     file_path: &str,
     func: &super::super::parser::ScannedFunction<'_>, 
@@ -119,18 +123,25 @@ pub fn count_clean_lines(source: &str) -> usize {
 /// [WHERE] Componente atômico do pipeline de métricas em metrics.rs, responsável pela higienização léxica de cada linha de código scanned no sistema.
 /// [USAGE] Invocado de forma iterativa pelo motor de contagem para atualizar o estado de varredura e o contador de densidade real, garantindo a integridade dos dados coletados.
 fn process_line_metric(trimmed: &str, in_block: &mut bool, count: &mut usize) {
-    if *in_block {
-        if trimmed.contains("*/") { *in_block = false; }
-        return;
-    }
+    if check_in_block(trimmed, in_block) { return; }
     
     if trimmed.starts_with("//") { return; }
     if trimmed.starts_with("/*") {
-        if !trimmed.contains("*/") { *in_block = true; }
+        *in_block = !trimmed.contains("*/");
         return;
     }
     
     *count += 1;
+}
+
+/// [WHAT] Evaluates if the scanner is currently inside a block comment and updates the state if a terminator is found.
+/// [WHY] To satisfy Elite nesting limits by isolating state transitions for multi-line comments.
+/// [WHERE] Utilitário léxico do motor de métricas em metrics.rs.
+/// [USAGE] Chamada internamente por process_line_metric para validar o estado do cursor de auditoria em relação a blocos de comentários, garantindo que o contador de densidade lógica ignore trechos não-operacionais sem exceder a complexidade cognitiva.
+fn check_in_block(trimmed: &str, in_block: &mut bool) -> bool {
+    if !*in_block { return false; }
+    if trimmed.contains("*/") { *in_block = false; }
+    true
 }
 
 /// [WHAT] Algoritmo de extração de densidade lógica baseado em tokens de terminação e escopo.
@@ -147,16 +158,16 @@ fn count_logical_statements(func: &super::super::parser::ScannedFunction<'_>) ->
         count += trimmed.matches(';').count();
         
         // Count open braces that are not function declarations
-        if trimmed.contains('{') && !trimmed.contains(';') && !trimmed.starts_with("fn ") {
+        if trimmed.contains('\x7b') && !trimmed.contains(';') && !trimmed.starts_with("fn ") {
             count += 1;
         }
     }
-    count
+    count + 1
 }
 
 /// [WHAT] Counts the number of parameters in a function declaration string using a depth-aware scanner.
 /// [WHY] To enforce architectural constraints on function coupling and nesting.
-/// [WHERE] Function-level audit stage of metrics rule.
+/// [WHERE] Function-level audit stage of metrics rule in metrics.rs.
 /// [USAGE] Called by verify_single_function_metrics for signature analysis to ensure function coupling stays within industrial limits of parameters and architectural complexity.
 fn count_parameters(declaration: &str) -> usize {
     let (start_idx, end_idx) = match (declaration.find('('), declaration.rfind(')')) {

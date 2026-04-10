@@ -1,10 +1,6 @@
-//@ [WHAT] Centralized governance messages and logging infrastructure.
-//@ [WHY] To isolate UI/Text from logic and provide WASM-compatible output.
-//@ [WHERE] ac_ant_delirium/src/rules_logs.rs
-
-/// [WHAT] Collection of all governance violation messages.
-/// [WHY] To centralize and standardize messaging for easier maintenance and AI comprehension.
-/// [WHERE] Diagnostic layer in rules_logs.rs.
+/// [WHAT] Coleção centralizada de todas as mensagens de violação de governança industrial.
+/// [WHY] Padroniza as comunicações do sistema para facilitar a manutenção e o consumo por agentes de IA e dashboards de conformidade.
+/// [WHERE] Camada de diagnóstico no módulo rules_logs.rs.
 pub mod messages {
     pub const DOC_TAG_MISSING: &str = "Missing mandatory documentation tag ([WHAT], [WHY], or [WHERE]).";
     pub const DOC_TAG_TOO_SHORT: &str = "Documentation tag content is too short to satisfy pedagogical density (min 64 chars).";
@@ -25,26 +21,27 @@ pub mod messages {
     pub const WORD_SALAD: &str = "Word Salad Detected: The description is circular or trivial. Provide unique pedagogical value.";
 }
 
-/// [WHAT] A WASM-friendly logging macro.
-/// [WHY] Since standard 'println!' is often blocked or invisible in WASM geodes.
-/// [USAGE] delirium_log!(logs_vec, "Message: {}", data);
+/// [WHAT] Macro de log compatível com ambientes WASM e nativos que armazena mensagens em um buffer de string.
+/// [WHY] Permite a captura de logs de auditoria em ambientes onde a saída padrão de console é restrita ou invisível durante a execução do geode.
+/// [WHERE] Camada de log assíncrono em rules_logs.rs.
+/// [USAGE] delirium_log!(logs_vec, "Mensagem: {}", dados); - Esta macro deve se utilizada para preencher o campo de logs do AuditResult durante o processo de escaneamento.
 #[macro_export]
 macro_rules! delirium_log {
     ($buffer:expr, $($arg:tt)*) => {
         $buffer.push(format!($($arg)*));
     };
 }
-/// [WHAT] A safe, zero-cost debug tracer for Elite geodes.
-/// [WHY] To provide debugging capabilities that disappear in production (WASM/Release)
-/// and are governed by a whitelist to prevent log pollution.
-/// [USAGE] ELITE_TRACE!("Value: {}", x);
+
+/// [WHAT] Macro de rastreamento de depuração segura e de custo zero para ambientes industriais Aesthetic Core.
+/// [WHY] Fornece capacidades de inspeção detalhada que são removidas em produção, garantindo que logs de depuração não poluam a saída oficial de governança.
+/// [WHERE] Sistema de rastreamento Elite em rules_logs.rs.
+/// [USAGE] ELITE_TRACE!("Valor: {}", x); - Use esta macro para diagnósticos profundos que só devem ser ativados durante o desenvolvimento local (debug_assertions).
 #[macro_export]
 macro_rules! ELITE_TRACE {
     ($($arg:tt)*) => {
         #[cfg(debug_assertions)]
         {
-            // Standard corporate debug prefix
-            eprintln!("[ELITE-TRACE] {}", format!($($arg)*));
+            $crate::restricted_tokens::out::elite_err(&format!("[ELITE-TRACE] {}", format!($($arg)*)));
         }
     };
 }

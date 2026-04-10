@@ -2,9 +2,10 @@ use super::super::AuditViolation;
 use super::super::config::AuditConfig;
 use super::super::rules_logs::messages;
 
-/// [WHAT] Contexto de auditoria de qualidade pedagógica.
-/// [WHY] Para agrupar metadados de auditoria e garantir conformidade com a regra rule_params.
-/// [WHERE] Camada de análise semântica em quality.rs.
+/// [WHAT] Contexto de auditoria de qualidade pedagógica utilizado para transportar o estado das validações semânticas e o repositório de captura de violações industriais.
+/// [WHY] Garante o cumprimento da regra rule_params ao agrupar metadados de auditoria e facilitar a análise de circularidade léxica em geodes massivos do Aesthetic Core.
+/// [WHERE] Camada de transporte de dados para orquestração de regras de qualidade semântica e purificação narrativa em quality.rs.
+/// [USAGE] Instanciado no início do processo de auditoria de qualidade para centralizar o rastreamento de violações de Word Salad e tautologias pedagógicas durante a varredura semântica.
 struct QualityCtx<'a> {
     pub file_path: &'a str,
     pub violations: &'a mut Vec<AuditViolation>,
@@ -31,7 +32,10 @@ fn check_word_salad(func: &super::super::parser::ScannedFunction<'_>, ctx: &mut 
     }
 }
 
-/// [WHAT] Valida a qualidade de uma tag individual para evitar aninhamento excessivo no loop principal de Word Salad.
+/// [WHAT] Valida a qualidade pedagógica de uma tag individual para identificar e prevenir o 'Abismo Cognitivo' provocado por descrições superficiais e tautológicas.
+/// [WHY] Para assegurar que o conteúdo descritivo forneça valor técnico autêntico e não apenas uma repetição redundante dos identificadores presentes no código-fonte do geode.
+/// [WHERE] Unidade de auditoria semântica atômica em quality.rs, responsável pelo processamento de tokens narrativos individuais contra o conjunto de regras ELITE.
+/// [USAGE] Chamada internamente por check_word_salad para cada tag pedagógica encontrada na docstring, disparando violações se a densidade informativa for considerada insuficiente.
 fn process_tag_quality(func: &super::super::parser::ScannedFunction<'_>, tag: &str, ctx: &mut QualityCtx<'_>) {
     let name_lower = func.name.to_lowercase();
     let name_parts: Vec<&str> = name_lower.split('_').collect();

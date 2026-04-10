@@ -6,9 +6,11 @@ pub mod parser;
 pub mod reporter;
 pub mod shadow_context;
 pub mod scanner;
+pub mod restricted_tokens;
 
 use self::config::AuditConfig;
 use self::scanner::RecursiveScanner;
+use self::restricted_tokens::resolve::{elite_resolve};
 
 /// [WHAT] A metadata-rich structure representing a specific governance violation.
 /// [WHY] To provide standardized diagnostic information across all reporting layers (CLI, SARIF, WASM).
@@ -62,7 +64,7 @@ impl AuditResult {
     /// [WHAT] Orchestrates the transformation of audit findings into a Shadow Context (SARIF 2.1.0) report with AI context properties.
     /// [WHY] To provide a standardized, machine-readable format for external CI/CD integration and industrial dashboarding while maintaining a unique identity.
     /// [WHERE] Primary serialization bridge within the AuditResult struct in lib.rs.
-    /// [USAGE] Invoked by the primary geode entry point or CLI tools to generate the final Shadow Context artifact.
+    /// [USAGE] Invoked by the primary geode entry point or CLI tools to generate the final Shadow Context artifact. Esta função serve como a ponte de saída definitiva entre o motor de auditoria e os consumidores externos, garantindo que o formato JSON gerado esteja em plena conformidade com o esquema SARIF 2.1.0.
     pub fn to_shadow_context(&self, file_path: &str, config: &AuditConfig) -> String {
         shadow_context::to_shadow_context(self, file_path, config)
     }
@@ -148,7 +150,8 @@ pub fn audit_geode_recursive(dir_path: &str, config_toml: &str) -> AuditResult {
     let mut total_result = AuditResult::default();
 
     RecursiveScanner::scan(std::path::Path::new(dir_path), &config, |path, source| {
-        let result = audit_code_to_result(source, path.to_str().unwrap_or("unknown"), config_toml);
+        let path_str = elite_resolve(path.to_str());
+        let result = audit_code_to_result(source, path_str, config_toml);
         total_result.violations.extend(result.violations);
     });
 
@@ -433,10 +436,8 @@ mod tests {
     /// [USAGE] Executado via cargo test para confirmar a sanidade da estrutura de metadados do relatório Elite e garantir que a formatação visual do resumo corporativo permaneça consistente com os padrões industriais do projeto.
     #[test]
     fn test_elite_reporter_visual() {
-        let meta = EliteReportMetadata {
-            sarif_path: "governance_results.sarif".to_string(),
-            p0: 3, p1: 2, p2: 1, p3: 0,
-        };
-        reporter::print_elite_report(&meta);
+        let result = AuditResult::default();
+        let config = AuditConfig::default();
+        reporter::output_elite_report(&result, &config);
     }
 }

@@ -32,8 +32,9 @@ use std::path::Path;
 // =====================================================================
 fn main() {
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    let plugin_path = Path::new(&manifest_dir).join("../plugins/ac_ant_delirium");
+    let plugin_path = Path::new(&manifest_dir).join("../plugins/ac_ant_delirium_Legacy/ac_ant_delirium_legacy");
 
+    // [ELITE GATE] Only run if the plugin exists and we are NOT in a skip phase.
     if plugin_path.exists() {
         // Run the external governance binary against src/.
         // We set the current_dir to the manifest directory so that

@@ -1,8 +1,7 @@
-# Rules Engine Orchestration
+# [ELITE] Rules Orchestration Manifest
 
-/// [WHAT] Modular orchestration of structural, semantic, and safety rules.
-/// [WHY] To provide a extensible and isolated auditing framework.
-/// [WHERE] Orchestration layer of the specialized rule engine.
+## Overview
+Central dispatcher for the Geode's multi-layered auditing ruleset.
 
-This module re-exports and coordinates the various specialized auditing modules.
-It ensures that all rules are executed in the correct sequence during a geode audit.
+## Architecture
+Integrates structural, lexical, and semantic verification modules into a cohesive governance pipeline, ensuring that every source file is analyzed against the full industrial compliance suite defined in the project's authority manifest.

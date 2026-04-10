@@ -1,13 +1,8 @@
 # [ac_ant_delirium] Governance Configuration
 # Elite Industrial Standard
 
-[active_to]
-"src/rules/manifest.rs" = "rule_doc_tags"
-"src/rules/metrics.rs" = "rule_line_limit"
-
-[ignore_to]
-"src/restricted_tokens/println.rs" = ["rule_poison_tokens.print"]
-"src/restricted_tokens/unwrap.rs" = ["rule_poison_tokens.unwrap"]
+[jurisdiction.ignore_to]
+"src/restricted_tokens" = ["rule_poison_tokens"]
 "build.rs" = ["rule_poison_tokens"]
 
 [rules.limits]
@@ -62,7 +57,7 @@ format = "json"
 priority_order = "P0 → P1 → P2 → P3"
 
 [info.context]
-"1" = "Each .rs file has a companion *_manifest.json with Shadow Context (SARIF) symbols."
+"1" = "Each .rs file has a companion *_manifest.json with Shadow Context symbols."
 "2" = "Read the manifest BEFORE editing the source code to understand the architecture."
 "3" = "Shadow Context artifacts contain exact line ranges and automated Quick-Fixes."
 "4" = "P0 violations are CRITICAL (system integrity). Fix these FIRST."

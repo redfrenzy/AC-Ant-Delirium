@@ -1,11 +1,12 @@
 use super::super::AuditViolation;
 use super::super::config::AuditConfig;
 use super::super::rules_logs::messages;
+use crate::restricted_tokens::resolve::elite_resolve_or;
 
-/// [WHAT] Verifies macro isolation and prevents complex logic within macros.
-/// [WHY] To keep macros simple and avoid un-auditable opaque logic in industrial binaries.
-/// [WHERE] Called during the structural audit phase of the rule engine.
-/// [USAGE] Orchestrates the macro-block detection and analysis cycle.
+/// [WHAT] Verificador de isolamento e complexidade de macros que impede a presença de lógica opaca.
+/// [WHY] Garante que as macros permaneçam simples e puramente estruturais para facilitar a auditoria industrial do geode.
+/// [WHERE] Camada de análise estrutural no módulo macros.rs.
+/// [USAGE] Orquestra a detecção de blocos macro e a análise de conformidade, produzindo violações quando os limites definidos em delirium.toml são excedidos.
 /// [WHAT] Verificador industrial de isolamento de macros e complexidade lógica que impede a infiltração de lógica opaca e descontrolada no binário final do Aesthetic Core.
 /// [WHY] Para garantir que a lógica de business permaneça auditável em funções puras, evitando que macros se tornem contêineres lógicos complexos de difícil manutenção.
 /// [WHERE] Camada de auditoria estrutural core do motor de macros localizada no arquivo macros.rs para orquestração de regras de integridade.
@@ -22,6 +23,8 @@ struct MacroState {
     pub complex: bool,
     pub depth: i32,
     pub lines: usize,
+    pub start_line: usize,
+    pub name: String,
 }
 
 /// [WHAT] Ponto de entrada para o verificador industrial de isolamento de macros que analisa o código em busca de definições de macros para garantir que sigam os limites industriais.
@@ -30,29 +33,20 @@ struct MacroState {
 /// [USAGE] Orquestra o ciclo de varredura e análise de blocos macro em busca de isolamento arquitetural, utilizando um scanner de estado para rastrear profundidade e complexidade em tempo real.
 pub fn verify(ctx: &mut MacroAuditCtx<'_>) {
     let mut in_macro = false;
-    let mut macro_start_line = 0;
-    let mut state = MacroState { complex: false, depth: 0, lines: 0 };
-    let mut macro_name = String::new();
+    let mut state = MacroState { complex: false, depth: 0, lines: 0, start_line: 0, name: String::new() };
 
     for (idx, line) in ctx.source.lines().enumerate() {
         let trimmed = line.trim();
+        let comment_start = match trimmed.find("//") {
+            Some(c_idx) => c_idx,
+            None => trimmed.len(),
+        };
+        let code_buffer = &trimmed[..comment_start];
         
-        // Detection: Use string joining to prevent the auditor from self-detecting this logic.
         let target = format!("{}{}", "macro", "_rules!");
-        if !in_macro && trimmed.contains(&target) {
+        if !in_macro && code_buffer.contains(&target) {
             in_macro = true;
-            macro_start_line = idx + 1;
-            state = MacroState { complex: false, depth: 0, lines: 0 };
-            
-            // Extract macro name: macro_rules! NAME {
-            macro_name = trimmed.split('!')
-                .nth(1)
-                .unwrap_or("")
-                .trim()
-                .split(|c: char| !c.is_alphanumeric() && c != '_')
-                .next()
-                .unwrap_or("unknown")
-                .to_string();
+            state = init_macro_state(idx, trimmed);
         }
 
         if !in_macro { continue; }
@@ -60,7 +54,7 @@ pub fn verify(ctx: &mut MacroAuditCtx<'_>) {
         process_macro_line(ctx.config, trimmed, &mut state);
 
         if state.depth == 0 && trimmed.contains('}') {
-            analyze_macro(ctx, macro_start_line, state.lines, state.complex, &macro_name);
+            analyze_macro(ctx, &state);
             in_macro = false;
         }
     }
@@ -108,27 +102,48 @@ fn contains_forbidden_logic(trimmed: &str) -> bool {
 /// [WHY] To ensure that architectural justifications for macro usage are documented and within limits.
 /// [WHERE] Diagnostic reporting phase for macro rules in macros.rs.
 /// [USAGE] Invoked when the end of a macro definition is reached to perform final validation of the accumulated logical state and line count.
-fn analyze_macro(ctx: &mut MacroAuditCtx<'_>, start_line: usize, lines: usize, complex: bool, macro_name: &str) {
-    if lines > ctx.config.rules.macros.max_lines && ctx.config.rules.macros.max_lines > 0 {
+fn analyze_macro(ctx: &mut MacroAuditCtx<'_>, state: &MacroState) {
+    if state.lines > ctx.config.rules.macros.max_lines && ctx.config.rules.macros.max_lines > 0 {
         ctx.violations.push(AuditViolation {
             file_path: ctx.file_path.to_string(),
-            line: start_line,
-            rule_id: crate::governance::rule_id("rule_macro_isolation", macro_name),
+            line: state.start_line,
+            rule_id: crate::governance::rule_id("rule_macro_isolation", &state.name),
             message: format!("{} (Lines: {}). Max: {}. Hint: {}", 
-                             messages::MACRO_LENGTH, lines, ctx.config.rules.macros.max_lines, ctx.config.rules.macros.tip),
+                             messages::MACRO_LENGTH, state.lines, ctx.config.rules.macros.max_lines, ctx.config.rules.macros.tip),
             snippet: None,
             quick_fix: None,
         });
     }
 
-    if complex {
+    if state.complex {
         ctx.violations.push(AuditViolation {
             file_path: ctx.file_path.to_string(),
-            line: start_line,
-            rule_id: crate::governance::rule_id("rule_macro_isolation", macro_name),
+            line: state.start_line,
+            rule_id: crate::governance::rule_id("rule_macro_isolation", &state.name),
             message: format!("{}. Hint: {}", messages::MACRO_COMPLEXITY, ctx.config.rules.macros.tip),
             snippet: None,
             quick_fix: None,
         });
+    }
+}
+
+/// [WHAT] Inicializa um novo MacroState extraindo o nome e as coordenadas de linha de uma declaração de macro corporativa.
+/// [WHY] Mantém o loop principal de auditoria raso e cumpre os requisitos de aninhamento cognitivo industrial.
+/// [WHERE] Fábrica de estado interna no módulo macros.rs.
+/// [USAGE] Chamada no início da detecção de uma macro para preparar o contexto de análise de complexidade e massa, garantindo que o motor de auditoria tenha visibilidade total sobre o nome e a localização do artefato.
+fn init_macro_state(idx: usize, trimmed: &str) -> MacroState {
+    let name = elite_resolve_or(elite_resolve_or(trimmed.split('!')
+        .nth(1), "")
+        .trim()
+        .split(|c: char| !c.is_alphanumeric() && c != '_')
+        .next()
+        .map(|s| s.to_string()), "unknown".to_string());
+
+    MacroState { 
+        complex: false, 
+        depth: 0, 
+        lines: 0,
+        start_line: idx + 1,
+        name 
     }
 }

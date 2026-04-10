@@ -2,7 +2,10 @@ use super::super::AuditViolation;
 use super::super::config::AuditConfig;
 use super::super::rules_logs::messages;
 
-/// [WHAT] Contexto de auditoria de documentação para redução de acoplamento funcional (rule_params).
+/// [WHAT] Contexto de auditoria de documentação utilizado para transportar metadados de função, configurações de governança e repositório de violações através do pipeline.
+/// [WHY] Reduz o acoplamento funcional (rule_params) e garante que o estado da auditoria seja preservado consistentemente durante a varredura semântica do geode.
+/// [WHERE] Estrutura de transporte de dados no módulo docs.rs, servindo como a espinha dorsal para todas as regras de validação pedagógica.
+/// [USAGE] Instanciado no início do processo de auditoria de documentação para centralizar o acesso à configuração e facilitar a coleta de erros descobertos.
 pub struct DocsAuditCtx<'a> {
     pub file_path: &'a str,
     pub functions: &'a [super::super::parser::ScannedFunction<'a>],
@@ -30,10 +33,10 @@ fn check_function_docs(ctx: &mut DocsAuditCtx<'_>, func: &super::super::parser::
     }
 }
 
-/// [WHAT] Validates the presence and length of a specific tag in a function docstring.
-/// [WHY] To enforce pedagogical depth as defined in the governance configuration.
-/// [WHERE] Leaf-level verification logic for the documentation engine.
-/// [USAGE] Called by check_function_docs for each mandatory tag.
+/// [WHAT] Valida a presença e a densidade de caracteres de uma tag específica dentro da docstring de uma função técnica descoberta pelo scanner.
+/// [WHY] Para garantir o cumprimento da profundidade pedagógica definida na configuração de governança industrial, impedindo descrições superficiais ou vazias.
+/// [WHERE] Lógica de verificação de folha no motor de documentação em docs.rs, representando a unidade mínima de decisão para validação de metadados semânticos.
+/// [USAGE] Chamada por check_function_docs para cada tag obrigatória identificada no manifesto, disparando violações se a tag estiver ausente ou abaixo do limite de caracteres.
 fn validate_tag_in_docstring(
     ctx: &mut DocsAuditCtx<'_>,
     func: &super::super::parser::ScannedFunction<'_>, 
@@ -61,10 +64,10 @@ fn validate_tag_in_docstring(
 
 
 
-/// [WHAT] Analyzes the character count of a specific documentation tag.
-/// [WHY] To prevent "Elite" documentation from being bypassed with empty or trivial placeholders.
-/// [WHERE] Final verification step for a validly identified doc tag.
-/// [USAGE] Called by validate_tag_in_docstring after verifying tag presence.
+/// [WHAT] Analisa a contagem total de caracteres de uma tag de documentação específica para validar se ela atende aos requisitos de densidade configurados.
+/// [WHY] Para evitar que a documentação 'Elite' seja contornada com espaços reservados triviais (placeholders) ou descrições circulares que não agregam valor pedagógico.
+/// [WHERE] Estágio final de verificação de qualidade para uma tag validamente identificada no módulo docs.rs, servindo como o guardião da densidade semântica.
+/// [USAGE] Chamada por validate_tag_in_docstring após a confirmação da presença da tag, comparando o conteúdo extraído com o limite mínimo definido no delirium.toml.
 fn check_tag_length(
     ctx: &mut DocsAuditCtx<'_>,
     func: &super::super::parser::ScannedFunction<'_>, 

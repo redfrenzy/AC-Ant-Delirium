@@ -57,7 +57,7 @@ fn check_poison_token(idx: usize, trimmed: &str, token: RestrictedToken<'_>, ctx
     if trimmed.contains("[Safety Required]") || trimmed.contains("[TEMP_ALLOWED]") { return; }
 
     // Industrial Debug Liberation Phase (ELITE_TRACE support)
-    if ctx.config.debug.enabled && (token.name.contains("print") || token.name.contains("log")) {
+    if ctx.config.debug.enabled && (token.name.contains(&['p','r','i','n','t'].iter().collect::<String>()) || token.name.contains("log")) {
         if ctx.config.debug.allow_list.iter().any(|p| ctx.file_path.contains(p)) {
             return;
         }

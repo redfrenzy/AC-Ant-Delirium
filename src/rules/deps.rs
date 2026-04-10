@@ -1,11 +1,12 @@
 use super::super::AuditViolation;
 use super::super::config::AuditConfig;
 use super::super::rules_logs::messages;
+use crate::restricted_tokens::resolve::elite_resolve_or;
 
 /// [WHAT] Orchestrates dependency governance for Cargo.toml files using a 3-Tier Classification Engine.
 /// [WHY] Para assegurar a pureza do ecossistema e evitar a infiltração de crates não auditados na árvore de dependências final.
 /// [WHERE] Called by the audit_code entry point specifically for dependency files.
-/// [USAGE] Orchestrates the discovery and tiered validation of production dependencies in Cargo.toml.
+/// [USAGE] Orquestra a descoberta e validação por camadas das dependências de produção em arquivos Cargo.toml, garantindo que nenhum artefato externo comprometa a integridade industrial do geode.
 /// [WHAT] Contexto de auditoria de dependências para redução de acoplamento funcional (rule_params).
 pub struct DepsAuditCtx<'a> {
     pub path: &'a str,
@@ -152,7 +153,7 @@ fn verify_architectural_layering(ctx: &mut DepsAuditCtx<'_>, idx: usize, name: &
         if trimmed == "[package]" { in_package = true; continue; }
         if trimmed.starts_with('[') { in_package = false; continue; }
         if in_package && trimmed.starts_with("name =") {
-            current_project = trimmed.split('=').nth(1).unwrap_or("").trim().trim_matches('"');
+            current_project = elite_resolve_or(trimmed.split('=').nth(1), "").trim().trim_matches('"');
             break;
         }
     }
@@ -190,6 +191,10 @@ fn map_geode_to_layer(name: &str) -> i32 {
     }
 }
 
+/// [WHAT] Extrai a lista de dependências e features ativas a partir de um fragmento bruto do manifesto Cargo.toml.
+/// [WHY] Para permitir a validação de camadas arquiteturais cruzando as definições do manifesto com o código fonte, garantindo que o Geode utilize apenas recursos autorizados.
+/// [WHERE] Utilitário de análise de manifesto localizado em deps.rs, servindo como o scanner secundário para a política rule_deps.
+/// [USAGE] Invocado pelo orquestrador de auditoria de dependências para identificar quais sub-recursos do crate estão habilitados, fornecendo a base para verificar se a utilização de crates de terceiros ou recursos internos do compilador está em conformidade com o gatekeeper industrial definido para o projeto Aesthetic Core.
 fn resolve_default_deps(source: &str) -> Vec<String> {
     let mut active_features = Vec::new();
     let mut in_features = false;
@@ -215,7 +220,10 @@ fn resolve_default_deps(source: &str) -> Vec<String> {
     active_features
 }
 
-/// [WHAT] Extração resiliente de features a partir de uma linha do manifesto.
+/// [WHAT] Analisa uma linha do manifesto Cargo para identificar e extrair ativações de features, normalizando tokens e alimentando o acumulador de estado.
+/// [WHY] Separa a lógica de parsing bruto da orquestração de dependências para manter a nidificação cognitivamente rasa e garantir que ativações complexas não sejam perdidas.
+/// [WHERE] Utilitário de parsing de manifesto em deps.rs, atuando como o motor de descoberta de sub-recursos.
+/// [USAGE] Invocado pelo scanner de manifesto quando uma linha contendo a chave 'features' é detectada, permitindo que o geode reconstrua o grafo de ativação industrial do projeto de forma determinística.
 fn extract_features_from_line(line: &str, active_features: &mut Vec<String>) {
     let list = match line.split('=').nth(1) { Some(l) => l.trim(), None => "" };
     // Normalização Elite: remove colchetes e aspas externas da lista completa
@@ -271,7 +279,7 @@ fn extract_internal_geode_name(line: &str) -> String {
     // [Elite Regex-like Split] Procura pela última ocorrência de path = "../" ou similar
     if let Some(pos) = line.find("path = \"") {
         let path_part = &line[pos + 8 ..].trim_matches('"');
-        return path_part.split('/').last().unwrap_or("unknown").to_string();
+        return elite_resolve_or(path_part.split('/').last(), "unknown").to_string();
     }
     "unknown".to_string()
 }

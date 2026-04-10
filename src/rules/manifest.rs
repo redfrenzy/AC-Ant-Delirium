@@ -147,10 +147,10 @@ fn detect_symbol(cleaned: &str) -> (&str, String) {
     ("", String::new())
 }
 
-/// [WHAT] Surgical extractor for symbol identifiers from raw declaration lines that parses technical names without relying on heavy external dependencies.
-/// [WHY] Para fornecer chaves de identificação limpas e precisas para as entradas do manifesto semântico, garantindo que o nome técnico seja auditável e único no contexto.
-/// [WHERE] Camada de normalização lexical em manifest.rs, servindo como o processador final para nomes de funções e structs extraídos da fonte industrial.
-/// [USAGE] Invocada pelo classificador de símbolos para isolar o nome técnico do identificador após a detecção do gatilho léxico, utilizando separadores alfanuméricos padrão.
+/// [WHAT] Extrator cirúrgico de identificadores de símbolos a partir de linhas de declaração brutas que processa nomes técnicos sem depender de motores de parsing externos pesados.
+/// [WHY] Para fornecer chaves de identificação limpas e precisas para as entradas do manifesto semântico, garantindo que cada nome técnico seja auditável e único dentro do contexto do geode.
+/// [WHERE] Camada de normalização lexical e processamento de identificadores em manifest.rs, servindo como o estágio final para nomes de funções e structs extraídos da fonte industrial.
+/// [USAGE] Invocada pelo classificador de símbolos (detect_symbol) para isolar o nome técnico do identificador logo após a detecção do gatilho léxico, utilizando delimitadores alfanuméricos padrão.
 fn extract_name(line: &str, trigger: &str) -> String {
     let part = match line.split(trigger).nth(1) {
         Some(p) => p,

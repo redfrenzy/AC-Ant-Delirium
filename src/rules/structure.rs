@@ -2,9 +2,10 @@ use super::super::AuditViolation;
 use super::super::config::AuditConfig;
 use super::super::rules_logs::messages;
 
-/// [WHAT] Contexto de auditoria estrutural para verificação de fluxo linear e profundidade cognitiva.
-/// [WHY] Para agrupar metadados de auditoria e garantir que as funções de verificação permaneçam abaixo do limite de 4 parâmetros.
-/// [WHERE] Camada de dados para orquestração de regras estruturais em structure.rs.
+/// [WHAT] Contexto de auditoria estrutural utilizado para transportar metadados de profundidade, configurações de limites industriais e o repositório de violações durante o escaneamento físico dos arquivos .rs.
+/// [WHY] Para agrupar metadados de auditoria e garantir que as funções de verificação permaneçam abaixo do limite rigoroso de acoplamento da Elite Governance, facilitando a análise de aninhamento e fluxo linear.
+/// [WHERE] Camada de transporte de dados para orquestração de regras estruturais e de integridade lógica em structure.rs.
+/// [USAGE] Instanciado no início do processo de auditoria de estrutura para centralizar o rastreamento da profundidade de chaves (brace depth) e validar a conformidade com as restrições de fluxo de controle do motor.
 pub struct StructureCtx<'a> {
     pub file_path: &'a str,
     pub source: &'a str,
@@ -41,7 +42,7 @@ fn process_structure(ctx: &mut StructureCtx<'_>, idx: usize, line: &str) {
     }
 
     if !crate::governance::is_rule_ignored(ctx.file_path, "rule_nesting", ctx.config) {
-        check_nesting_depth(ctx, idx, line);
+        check_nesting_depth(ctx, idx, line, &clean_line);
     }
 }
 
@@ -68,11 +69,10 @@ fn check_else_bypass(ctx: &mut StructureCtx<'_>, idx: usize, trimmed: &str) {
 /// [WHY] Para prevenir o encadeamento excessivo de blocos lógicos que degrada a capacidade de análise semântica da IA e torna a lógica do programa opaca para revisores humanos.
 /// [WHERE] Internal utility for structural code auditing in structure.rs, providing real-time feedback on logical nesting violations during the primary scan phase.
 /// [USAGE] Called by process_structure to evaluate the cognitive load of a specific line by counting the cumulative brace depth and comparing it against the industrial limit defined in config.
-fn check_nesting_depth(ctx: &mut StructureCtx<'_>, idx: usize, line: &str) {
-    let trimmed = line.trim();
-    if trimmed.is_empty() || trimmed.starts_with("//") { return; }
+fn check_nesting_depth(ctx: &mut StructureCtx<'_>, idx: usize, line: &str, clean_line: &str) {
+    if clean_line.is_empty() || clean_line.starts_with("//") { return; }
 
-    for c in line.chars() {
+    for c in clean_line.chars() {
         if c == '{' { ctx.current_nesting += 1; }
         if c == '}' && ctx.current_nesting > 0 { ctx.current_nesting -= 1; }
     }
@@ -100,16 +100,24 @@ fn check_nesting_depth(ctx: &mut StructureCtx<'_>, idx: usize, line: &str) {
 fn strip_strings(s: &str) -> String {
     let mut result = String::new();
     let mut in_string = false;
+    let mut escaped = false;
     
     for c in s.chars() {
-        if c == '"' {
+        if c == '\\' && !escaped {
+            escaped = true;
+            continue;
+        }
+
+        if c == '"' && !escaped {
             in_string = !in_string;
+            escaped = false;
             continue;
         }
         
         if !in_string {
             result.push(c);
         }
+        escaped = false;
     }
     result
 }

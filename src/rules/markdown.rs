@@ -3,9 +3,10 @@ use super::super::config::AuditConfig;
 use super::super::rules_logs::messages;
 use std::path::Path;
 
-/// [WHAT] Contexto de auditoria de documentação markdown para redução de acoplamento funcional (rule_params).
-/// [WHY] Para permitir que as regras de arquivamento operem sob limites industriais de acoplamento.
-/// [WHERE] Camada de dados do motor de arquivamento P3 em markdown.rs.
+/// [WHAT] Contexto de auditoria de documentação markdown utilizado para transportar metadados de arquivos pareados, configurações de governança e repositório de captura de violações industriais.
+/// [WHY] Permite que as regras de arquivamento (P3) operem sob limites industriais de acoplamento rigorosos (rule_params), consolidando o estado da sincronia documental entre o código-fonte e os arquivos .md.
+/// [WHERE] Camada de transporte de dados do motor de arquivamento pedagógico de alta disponibilidade localizada no arquivo markdown.rs.
+/// [USAGE] Instanciado durante a fase de auditoria de ecossistema para centralizar a validação de existência, densidade e obsolescência de arquivos de documentação externa pertencentes ao geode.
 pub struct MarkdownAuditCtx<'a> {
     pub file_path: &'a str,
     pub config: &'a AuditConfig,

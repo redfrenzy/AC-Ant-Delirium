@@ -1,3 +1,3 @@
 [
-  { "name": "messages", "kind": "module", "range": [8, 26], "complexity": 19, "narrative": "/// [WHAT] Collection of all governance violation messages.\n/// [WHY] To centralize and standardize messaging for easier maintenance and AI comprehension.\n/// [WHERE] Diagnostic layer in rules_logs.rs." }
+  { "name": "messages", "kind": "module", "range": [4, 22], "complexity": 19, "narrative": "/// [WHAT] Coleção centralizada de todas as mensagens de violação de governança industrial.\n/// [WHY] Padroniza as comunicações do sistema para facilitar a manutenção e o consumo por agentes de IA e dashboards de conformidade.\n/// [WHERE] Camada de diagnóstico no módulo rules_logs.rs." }
 ]
