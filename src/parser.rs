@@ -1,15 +1,16 @@
-/// [WHAT] A metadata-focused structure representing a scanned function, utilizing lifetimes to avoid redundant heap allocations of the source code during audits.
+/// [WHAT] A metadata-focused structure representing a scanned code block (function, struct, enum, trait), utilizing lifetimes to avoid redundant heap allocations of the source code during audits.
 /// [WHY] To implement a Zero-Copy scanning architecture that maintains high performance and low memory footprint during real-time industrial code analysis.
-/// [WHERE] Internal data type for CodeScanner results in parser.rs, acting as the primary carrier for function-level governance diagnostics.
-/// [USAGE] Invocada pelo motor de rastreamento para encapsular o nome, limites de linha e metadados de documentação de cada unidade funcional descoberta.
+/// [WHERE] Internal data type for CodeScanner results in parser.rs, acting as the primary carrier for block-level governance diagnostics.
+/// [USAGE] Invocada pelo motor de rastreamento para encapsular o nome, limites de linha e metadados de documentação de cada unidade arquitetural descoberta.
 #[derive(Default, Debug)]
-pub struct ScannedFunction<'a> {
+pub struct ScannedBlock<'a> {
     pub name: String,
     pub start_line: usize,
     pub end_line: usize,
     pub docstring: String,
     pub body: &'a str,
     pub declaration: &'a str,
+    pub kind: String,
 }
 
 /// [WHAT] Legacy-inspired brute function scanner for Elite auditing that performs surgical extraction of code blocks without the overhead of an AST.
@@ -21,36 +22,61 @@ pub struct CodeScanner;
 impl CodeScanner {
     /// [WHAT] Scans source code for function boundaries and docstrings using a Zero-Copy approach to minimize memory fragmentation during massive geode audits.
     /// [WHY] To isolate functions for structural and semantic validation without duplicating the source in memory, maintaining elite performance standards for CI.
-    /// [WHERE] Used by rules requiring per-function context in parser.rs, serving as the bridge between raw source and structured ScannedFunction artifacts.
+    /// [WHERE] Used by rules requiring per-function context in parser.rs, serving as the bridge between raw source and structured ScannedBlock artifacts.
     /// [USAGE] Invocado durante o processamento de resultados para anexar o conteúdo do trecho de código afetado. Este contexto visual é vital para que os desenvolvedores e agentes de IA compreendam instantaneamente a natureza da violação de governança, fornecendo a evidência textual necessária para a triagem e para a aplicação automática de sugestões de reparo (QuickFix) no ecossistema do geode. processadas pelas regras de governança e métricas industriais na geode. Este escaneador percorre todo o código fonte de forma linear, identificando assinaturas de funções e acumulando preâmbulos pedagógicos ([WHAT], [WHY], etc.) que precedem cada declaração, garantindo que a estrutura final capturada contenha todo o contexto necessário para a validação técnica profunda.
-    pub fn scan_functions(source: &str) -> Vec<ScannedFunction<'_>> {
-        let mut functions = Vec::new();
+    pub fn scan_blocks(source: &str) -> Vec<ScannedBlock<'_>> {
+        let mut blocks = Vec::new();
         let mut doc_accumulator = Vec::new();
-        
-        // We still collect lines for random-access lookup during brace matching
         let lines: Vec<&str> = source.lines().collect();
 
-        for (idx, line) in source.lines().enumerate() {
-            process_line_in_scan(idx, line, &mut doc_accumulator, &mut functions, &lines, source);
+        // [WHAT] Injeção de Bloco Virtual de Módulo (Unit)
+        // Se as primeiras linhas do arquivo forem documentação, capturamos como a "alma" do geode.
+        let mut module_doc = Vec::new();
+        for line in source.lines() {
+            let t = line.trim();
+            if t.starts_with("///") || t.starts_with("//!") {
+                module_doc.push(t);
+            } else if !t.is_empty() && !t.starts_with("#[") {
+                break;
+            }
         }
-        functions
+        
+        if !module_doc.is_empty() {
+            blocks.push(ScannedBlock {
+                name: "geode_root".to_string(),
+                start_line: 1,
+                end_line: 1,
+                docstring: module_doc.join("\n"),
+                body: "",
+                declaration: "",
+                kind: "_module".to_string(),
+            });
+        }
+
+        for (idx, line) in source.lines().enumerate() {
+            process_line_in_scan(idx, line, &mut doc_accumulator, &mut blocks, &lines, source);
+        }
+        blocks
     }
 }
 
 /// [WHAT] Internal line processor for the CodeScanner loop that manages docstring accumulation and function detection through a single-pass state machine.
 /// [WHY] To keep nesting depth at level 3 or below and ensure that the auditing logic remains flat, linear, and compliant with industrial complexity limits.
-/// [WHERE] Helper function for CodeScanner::scan_functions in parser.rs, providing localized state transitions for each discovered line of source code.
+/// [WHERE] Helper function for CodeScanner::scan_blocks in parser.rs, providing localized state transitions for each discovered line of source code.
 /// [USAGE] Chamada iterativamente pelo motor de rastreamento para cada linha, decidindo se deve arquivar docstrings ou disparar a criação de uma nova entrada funcional. Esta função mantém a carga cognitiva sob controle industrial ao delegar o processamento pesado para workers especializados, assegurando que o loop de descoberta de símbolos permaneça plano e linear conforme as normas de governança Elite para sistemas de missão crítica no Aesthetic Core.
 fn process_line_in_scan<'a, 'b>(
     idx: usize, 
     line: &'a str, 
     docs: &mut Vec<&'a str>, 
-    functions: &mut Vec<ScannedFunction<'a>>, 
+    blocks: &mut Vec<ScannedBlock<'a>>, 
     lines: &'b [&'a str],
     source_full: &'a str
 ) {
     let trimmed = line.trim();
-    if trimmed.is_empty() { return; }
+    if trimmed.is_empty() { 
+        docs.clear();
+        return; 
+    }
     
     if trimmed.starts_with("///") {
         docs.push(trimmed);
@@ -58,8 +84,8 @@ fn process_line_in_scan<'a, 'b>(
     }
 
     let cleaned = clean_line(trimmed);
-    if is_function_start(&cleaned) {
-        functions.push(create_function_entry(idx, trimmed, docs, lines, source_full));
+    if is_block_start(&cleaned) {
+        blocks.push(create_block_entry(idx, trimmed, docs, lines, source_full));
         return;
     }
 
@@ -87,39 +113,48 @@ pub fn clean_line(line: &str) -> String {
     out
 }
 
-/// [WHAT] Detects whether a given line of code marks the beginning of a Rust function declaration by analyzing the presence of the 'fn' keyword and starting brace.
-/// [WHY] To establish a vertical search boundary for function-level auditing, ensuring that only valid functional units are processed by the structural scanners.
-/// [WHERE] Internal predicate used by the code scanner logic in parser.rs, acting as the primary filter for the functional discovery phase of the audit.
-/// [USAGE] Utilizada pelo motor de rastreamento para identificar o início de uma unidade funcional industrial, permitindo a extração subsequente de metadados e corpo técnico.
-fn is_function_start(line: &str) -> bool {
-    (line.contains("fn ") || line.starts_with("pub fn ")) && line.contains('{')
+/// [WHAT] Detects whether a given line of code marks the beginning of a Rust code block (function, struct, enum, trait) by analyzing structural keywords.
+/// [WHY] To establish a vertical search boundary for block-level auditing, ensuring that only valid functional and layout units are processed by the structural scanners.
+/// [WHERE] Internal predicate used by the code scanner logic in parser.rs, acting as the primary filter for the discovery phase of the audit.
+/// [USAGE] Utilizada pelo motor de rastreamento para identificar o início de uma unidade estrutural industrial, permitindo a extração subsequente de metadados e corpo técnico.
+fn is_block_start(line: &str) -> bool {
+    let has_terminator = line.contains('{') || line.contains(';');
+    let has_kw = line.contains("fn ") 
+        || line.starts_with("pub fn ") 
+        || line.contains("struct ")
+        || line.contains("enum ")
+        || line.contains("trait ")
+        || line.contains("macro_rules!");
+    has_terminator && has_kw
 }
 
-/// [WHAT] Finalizes a ScannedFunction entry with line ranges and docstrings by calculating the vertical boundaries and capturing the associated pedagogical tags.
+/// [WHAT] Finalizes a ScannedBlock entry with line ranges and docstrings by calculating the vertical boundaries and capturing the associated pedagogical tags.
 /// [WHY] To package function metadata into a validator-ready structure that contains all the necessary context for structural, lexical, and semantic governance rules.
 /// [WHERE] Internal helper for CodeScanner in parser.rs, providing the construction logic for function metadata artifacts during the lexical scan phase.
 /// [USAGE] Invocada quando o início de uma declaração funcional é detectado pelo escaneador de linha, acionando o cálculo de offsets de ponteiros e a captura de tags pedagógicas associadas. Este componente é vital para a arquitetura Zero-Copy, pois traduz os índices de linhas físicas em fatias (slices) de memória seguras do buffer original, permitindo que as regras de governança analisem o corpo da função sem duplicar strings no heap industrial.
-fn create_function_entry<'a, 'b>(
+fn create_block_entry<'a, 'b>(
     idx: usize, 
     line: &'a str, 
     docs: &mut Vec<&'a str>, 
     source_lines: &'b [&'a str], 
     source_full: &'a str
-) -> ScannedFunction<'a> {
-    let name = extract_func_name(line);
+) -> ScannedBlock<'a> {
+    let name = extract_block_name(line);
+    let (kind, _) = detect_block_type(line);
     let docstring = docs.join("\n");
     docs.clear();
 
     let start_line = idx + 1;
     let end_line = find_closing_brace(idx, source_lines);
     
-ScannedFunction {
+    ScannedBlock {
         name,
         start_line,
         end_line,
         docstring,
         body: extract_body_slice(source_full, source_lines, start_line, end_line),
         declaration: line,
+        kind: kind.to_string(),
     }
 }
 
@@ -141,16 +176,36 @@ fn extract_body_slice<'a>(source_full: &'a str, source_lines: &[&'a str], start:
     &source_full[offset_start..offset_end]
 }
 
-/// [WHAT] Isola o identificador de uma assinatura de função através da remoção cirúrgica do prefixo 'fn' e de marcadores de genéricos ou parâmetros técnicos.
-/// [WHY] Para fornecer um nome limpo e normalizado para o reporte SARIF e para a geração de manifestos pedagógicos, garantindo que os identificadores de símbolos sejam perfeitamente legíveis para humanos e agentes de IA.
-/// [WHERE] Extrator de metadados interno em parser.rs, servindo como o estágio final de purificação do nome funcional antes de sua arquivagem no relatório de governança.
-/// [USAGE] Invocada durante a criação de entradas funcionais industriais para extrair o nome técnico atômico a partir de assinaturas complexas que contenham tipos genéricos ruidosos. Esta função higieniza o prefixo 'fn' e remove os parâmetros para isolar o identificador puro do símbolo, o que é essencial para a indexação correta nos manifestos semânticos e para o reporte amigável de violações no dashboard industrial.
-fn extract_func_name(line: &str) -> String {
-    let mut parts = line.split("fn ");
-    let _ = parts.next();
-    let p = elite_resolve_or(parts.next(), "unknown");
-    let name = elite_resolve_or(p.split('(').next(), "unknown");
-    name.trim().to_string()
+/// [WHAT] Isola o identificador de uma assinatura estrutural através da remoção cirúrgica do prefixo de bloco (fn, struct, etc.) e marcações colaterais.
+/// [WHY] Para fornecer um nome limpo e normalizado para o reporte SARIF e para a geração de manifestos pedagógicos.
+/// [WHERE] Extrator de metadados interno em parser.rs.
+/// [USAGE] Invocada durante a criação de entradas funcionais industriais para extrair o nome técnico atômico.
+fn extract_block_name(line: &str) -> String {
+    let (_, name) = detect_block_type(line);
+    name
+}
+
+/// [WHAT] Detecta cirurgicamente o tipo e o nome de um bloco Rust.
+fn detect_block_type(line: &str) -> (&'static str, String) {
+    let keywords = [
+        ("fn ", "function"),
+        ("struct ", "struct"),
+        ("enum ", "enum"),
+        ("trait ", "trait"),
+        ("macro_rules!", "macro")
+    ];
+    
+    for (kw, kind) in keywords.iter() {
+        if line.contains(kw) {
+            let mut parts = line.split(kw);
+            let _ = parts.next();
+            if let Some(p) = parts.next() {
+                let name = elite_resolve_or(p.split(|c| c == '(' || c == '{' || c == '<').next(), "unknown");
+                return (kind, name.trim().to_string());
+            }
+        }
+    }
+    ("unknown", "unknown".to_string())
 }
 
 use crate::restricted_tokens::resolve::elite_resolve_or;

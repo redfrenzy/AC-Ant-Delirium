@@ -65,7 +65,7 @@ wasm:
 # -----------------------------------------------
 .PHONY: check
 check:
-	cargo run --bin $(BIN_NAME) -- src
+	cargo run --bin $(BIN_NAME) --target $(HOST_TARGET) -- --api ant_delirium_config
 
 # -----------------------------------------------
 # make clean

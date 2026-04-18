@@ -11,6 +11,8 @@ pub struct MarkdownAuditCtx<'a> {
     pub file_path: &'a str,
     pub config: &'a AuditConfig,
     pub violations: &'a mut Vec<AuditViolation>,
+    pub detected_dna: String,
+    pub taxonomy_path: String,
 }
 
 /// [WHAT] Verificador de existência e qualidade de documentação pareada markdown que sincroniza o estado narrativo do geode com seu código-fonte para fins de arquivamento P3.
@@ -20,31 +22,44 @@ pub struct MarkdownAuditCtx<'a> {
 pub fn verify(ctx: &mut MarkdownAuditCtx<'_>) {
     if ctx.file_path.ends_with(".md") { return; }
 
+    // [MD_PAIRING] Consulta a árvore taxonômica para verificar se este DNA exige .md
+    let node = ctx.config.hierarchy.route_by_taxonomy(ctx.file_path, None);
+    let dna = node.path.clone();
+    if !dna.is_empty() && !ctx.config.hierarchy.resolve_md_pairing_preference(&dna) {
+        return;
+    }
+
     let md_path_str = ctx.file_path.replace(".rs", ".md");
     let md_path = Path::new(&md_path_str);
     let rs_path = Path::new(ctx.file_path);
 
     if !md_path.exists() {
-        push_archival_violation(ctx, messages::MD_PAIRING_MISSING);
+        push_archival_violation(ctx, messages::MD_PAIRING_MISSING, &dna);
         return;
     }
 
-    validate_markdown_content(ctx, md_path);
-    check_staleness(ctx, rs_path, md_path);
+    validate_markdown_content(ctx, md_path, &dna);
+    check_staleness(ctx, rs_path, md_path, &dna);
 }
 
 /// [WHAT] Validates the content length of a markdown file to ensure pedagogical substance and prevent the creation of empty or low-value documentation files that bypass the scanner.
 /// [WHY] Para assegurar que a documentação externa não seja apenas um placeholder, mas sim um ativo pedagógico valioso que contenha informações técnicas reais sobre o componente auditado.
 /// [WHERE] Quality control stage of the archival audit in markdown.rs, providing a density-aware filter for all discovered .md assets within the geode's directory structure.
 /// [USAGE] Called by verify() after confirming the existence of a .md companion to ensure that the file contains sufficient semantic information to satisfy Elite standards.
-fn validate_markdown_content(ctx: &mut MarkdownAuditCtx<'_>, path: &Path) {
+fn validate_markdown_content(ctx: &mut MarkdownAuditCtx<'_>, path: &Path, dna: &str) {
     let content = match std::fs::read_to_string(path) {
         Ok(c) => c,
         Err(_) => return,
     };
 
-    if content.trim().len() < 256 {
-        push_archival_violation(ctx, messages::EMPTY_DOCUMENTATION);
+    let node = ctx.config.hierarchy.route_by_taxonomy(ctx.file_path, None);
+    let min_chars = match &node.documentation {
+        Some(doc) => match doc.md_min_chars { Some(v) => v, None => 100 },
+        None => 100,
+    };
+
+    if content.trim().len() < min_chars {
+        push_archival_violation(ctx, messages::EMPTY_DOCUMENTATION, dna);
     }
 }
 
@@ -52,14 +67,16 @@ fn validate_markdown_content(ctx: &mut MarkdownAuditCtx<'_>, path: &Path) {
 /// [WHY] To centralize diagnostic reporting for modular P3-Archival checks while maintaining logical separation between the detection logic and the error reporting infrastructure.
 /// [WHERE] Diagnostic reporting bridge in markdown.rs, serving as the egress point for all archival-related non-compliance events discovered during the scan phase.
 /// [USAGE] Invocada pelos validadores de arquivamento para registrar pares de documentação ausentes ou obsoletos, garantindo que o relatório final contenha referências de caminho precisas.
-fn push_archival_violation(ctx: &mut MarkdownAuditCtx<'_>, message: &str) {
+fn push_archival_violation(ctx: &mut MarkdownAuditCtx<'_>, message: &str, dna: &str) {
     ctx.violations.push(AuditViolation {
         file_path: ctx.file_path.to_string(),
         line: 1,
-        rule_id: crate::governance::rule_id_atomic("rule_md_pairing"), // Unified rule_id for consistency
+        rule_id: crate::governance::rule_id("hierarchy.pedagogy.markdown", dna), // Multi-level DNA reporting
         message: message.to_string(),
         snippet: None,
         quick_fix: None,
+        detected_dna: ctx.detected_dna.clone(),
+        taxonomy_path: format!("{}.documentation", ctx.taxonomy_path),
     });
 }
 
@@ -67,7 +84,7 @@ fn push_archival_violation(ctx: &mut MarkdownAuditCtx<'_>, message: &str) {
 /// [WHY] Para impedir a degradação da fidelidade documental, forçando uma sincronia constante entre o código industrial e seu par narrativo dentro da janela de conformidade de 48 horas.
 /// [WHERE] Final stage of the P3-Archival verification process in markdown.rs, providing a temporal synchronization check for all paired pedagogical assets.
 /// [USAGE] Invocada pelo método verify() para garantir que a documentação externa reflita as alterações mais recentes do código-fonte, disparando violações caso o desvio temporal seja excessivo.
-fn check_staleness(ctx: &mut MarkdownAuditCtx<'_>, rs_path: &Path, md_path: &Path) {
+fn check_staleness(ctx: &mut MarkdownAuditCtx<'_>, rs_path: &Path, md_path: &Path, dna: &str) {
     let rs_meta = match rs_path.metadata() { Ok(m) => m, Err(_) => return };
     let md_meta = match md_path.metadata() { Ok(m) => m, Err(_) => return };
     
@@ -81,6 +98,6 @@ fn check_staleness(ctx: &mut MarkdownAuditCtx<'_>, rs_path: &Path, md_path: &Pat
 
     // 48-hour rule (172,800 seconds)
     if drift.as_secs() > 172_800 {
-        push_archival_violation(ctx, messages::STALE_DOCUMENTATION);
+        push_archival_violation(ctx, messages::STALE_DOCUMENTATION, dna);
     }
 }

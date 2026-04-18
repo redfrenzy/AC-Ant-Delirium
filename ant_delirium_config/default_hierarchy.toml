@@ -1,0 +1,68 @@
+[hierarchy]
+casing = "PascalCase"
+name_separator = "-"
+tag_separator = "_"
+root_manifest = true
+root_md_pairing = true
+repository = "/home/dracker/aesthetic-core"
+max_nesting = 3
+max_params = 5
+logical_density = 40
+
+[hierarchy.permissions]
+libres = ["ac_ant_delirium", "rayon", "std"]
+restricted_tokens = { "panic!" = "Security: Use Result.", "unwrap" = "Security: Use expect()." }
+
+[hierarchy.files]
+max_nesting = 3
+max_params = 5
+logical_density = 40
+[hierarchy.target]
+core =  ["src"]
+tests = "src/tests"
+macros = "src/macros"
+
+[hierarchy.files.unit]
+jurisdiction = "src"
+type_logic = ["pub fn"]
+md_pairing = true
+manifest = true
+max_nesting = 2
+max_params = 4
+logical_density = 25
+
+[hierarchy.files.unit.unitcore]
+type_logic = ["fn"]
+manifest = false
+max_nesting = 3
+max_params = 6
+logical_density = 40
+
+[hierarchy.files.test]
+jurisdiction = "src/tests"
+type_logic = ["#[test]"]
+manifest = false
+md_pairing = false
+
+[hierarchy.files.struct]
+jurisdiction = "src/struct"
+type_logic = ["struct", "enum"]
+md_pairing = true
+manifest = true
+[hierarchy.files.struct.structcore]
+type_logic = ["fn"]
+manifest = false
+max_nesting = 3
+max_params = 4
+logical_density = 30
+
+[hierarchy.files.macro]
+jurisdiction = "src/macros"
+type_logic = ["macro_rules!"]
+md_pairing = true
+manifest = true
+[hierarchy.files.macro.macrocore]
+type_logic = ["fn"]
+manifest = false
+max_nesting = 3
+logical_density = 40

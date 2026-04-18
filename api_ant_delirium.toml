@@ -1,0 +1,174 @@
+# Aesthetic Core - Ant Delirium Governance Manifesto (Conceptual API)
+# [WHAT] Manifesto industrial exaustivo utilizado para demonstrar todas as funcionalidades do motor.
+# [WHY] Serve como a fonte da verdade conceitual para gerar a API dinâmica (manifest.json).
+
+[hierarchy.info]
+priority_order = "P0 (Security) -> P1 (Structure) -> P2 (Pedagogy)"
+terminal_commands = ["plugins/ac_ant_delirium --genapi", "plugins/ac_ant_delirium <target>"]
+dna_grafia = "O DNA é grafado obrigatoriamente via Sufixos de Identidade no nome do arquivo (Ex: auth_unit.rs, logic_internal.rs), utilizando o 'tag_separator' (_) para desambiguação léxica."
+manifest_anchoring = "Mecanismo de consolidação de metadados: arquivos com 'manifest=false' (Ex: internal) têm seus símbolos ancorados no primeiro ancestral da taxonomia com 'manifest=true' (Geralmente a Unit)."
+jurisdiction_recursion = "O motor aceita e audita hierarquias de pastas recursivamente. Arquivos em subpastas (Ex: src/core/utils/) pertencem à jurisdição pai 'src' se mapeada, não exigindo uma estrutura flat. A jurisdição de cada DNA é definida pelo campo 'jurisdiction' no nó taxonômico, que deve corresponder a um dos paths declarados em [hierarchy.target]."
+purification_visibility = "A conformidade de Gatekeeper é validada via Contagem de Visibilidade: a Unit deve conter apenas 'pub fn', enquanto companions de lógica privada (internal) são proibidos de expor símbolos públicos."
+logical_density = "Fórmula: Contagem de Terminadores (;) + Blocos de Controle ({) no corpo da função, ignorando preâmbulos 'fn' e strings. Representa o peso cognitivo real agnóstico a comentários."
+token_security = "Lexical Sanitized Scan. O motor limpa strings e comentários antes da busca, eliminando falsos positivos. Não vê expansão de macros externas (apenas código bruto)."
+geode_definition = "O Geode é o Átomo de Soberania de Conformidade. Representa o cluster funcional indivisível (Unit + Internal + Test) validado sob uma única jurisdição e DNA."
+limits_inheritance = "Precedência exata de herança de limites: DNA Local > DNA Pai > Fallback Global ([hierarchy.files.limits]). O motor inicia com os limites globais, depois sobrescreve campo a campo do ancestral mais distante até o nó folha. Campos não declarados no nó local são preservados do ancestral mais próximo que os define."
+info_recipient = "O campo 'info' em blocos [documentation] serve dois propósitos: (1) Injeção de Contexto AI — alimenta o prompt de agentes de IA com regras locais do DNA durante auditorias. (2) Enriquecimento de Sidecar — o texto pode ser propagado para arquivos .md gerados automaticamente como documentação pedagógica."
+
+[hierarchy]
+casing = "PascalCase"
+name_separator = "-"
+tag_separator = "_"
+root_manifest = true  # [WHAT] Ativação global de Sidecars. [WHY] Garante que cada componente gere metadados para auditoria.
+root_md_pairing = true # [WHAT] Exigência global de .md. [WHY] Força a paridade entre código e documentação pedagógica.
+repository = "/home/dracker/aesthetic-core" # [WHAT] Raiz absoluta do Geode. [WHY] Ponto de ancoragem para detecção de Swarm e caminhos relativos.
+
+# [TIER 2] Global Permissions
+[hierarchy.permissions]
+libres = ["ac_ant_delirium", "rayon", "std"]
+# [SCOPE] Lista ilustrativa dos tokens mais críticos. Projetos reais podem estender esta lista
+# conforme suas necessidades de segurança. Estes são os benchmarks industriais mínimos.
+restricted_tokens = { "panic!" = "Security: Use Result.", "unwrap" = "Security: Use expect()." }
+
+# [GLOBAL LIMITS] Fallback Master Rules — última linha de defesa quando nenhum DNA específico define limites.
+[hierarchy.files.limits]
+max_nesting = 3
+max_params = 5
+logical_density = 40
+
+# [TARGETS] Authorized Audit Zones
+# Mapeamento de nomes amigáveis para paths físicos de jurisdição.
+# Relação com DNAs: core → unit (jurisdiction="src"), tests → unit.test (jurisdiction="src/tests"), macros → macro (jurisdiction="src/macros").
+[hierarchy.target]
+core = "src"
+tests = "src/tests"
+macros = "src/macros"
+
+# ==============================================================================
+# TAXONOMY: The Legal Regime of Code
+# ==============================================================================
+[hierarchy.files]
+test = "AAA"
+
+# [UNIT] The Public API Gateway & Orchestrator
+[hierarchy.files.unit]
+jurisdiction = "src"
+type_logic = ["pub fn"]
+md_pairing = true
+manifest = true # [ANCHOR] Gera seu próprio delirium_api.json.
+
+    [hierarchy.files.unit.limits]
+    max_nesting = 2
+    max_params = 4
+    logical_density = 25 # Limite rigoroso: Máximo de 25 instruções lógicas ou blocos de controle.
+
+    [hierarchy.files.unit.documentation]
+    info = "A Unit é a Autoridade Suprema de Gestão e o único Portal de Integridade do Geode. Ela atua como o hub de orquestração que importa funcionalidades de jurisdições externas e as harmoniza, purificando a entrada de dados antes de despachá-los para o Internal. Seu objetivo fundamental é impedir que a lógica bruta contamine a interface pública; a Unit orquestra o fluxo de dependências e delega o processamento pesado e privado para arquivos especializados de implementação interna. Isso garante que a performance seja maximizada em núcleos isolados enquanto a Unidade preserva a transparência técnica, a segurança total e a soberania absoluta dos testes públicos."
+    md_min_chars = 500
+    WHAT = "Qual missão este Geode cumpre para o sistema?"
+    WHAT_min = 64
+    USAGE = "Exemplo de como invocar o comando da Unidade."
+    USAGE_min = 128
+
+# [INTERNAL] The Private Implementation Layer
+[hierarchy.files.unit.internal]
+type_logic = ["fn"]
+manifest = false # [DISSOLVE] Símbolos são ancorados no manifesto da Unit superior.
+
+    [hierarchy.files.unit.internal.limits]
+    max_nesting = 3
+    max_params = 6
+    logical_density = 40
+
+    [hierarchy.files.unit.internal.documentation]
+    info = "O Internal é o Núcleo de Processamento de Alto Rendimento do Geode. Ele reside obrigatoriamente na mesma jurisdição que sua Unidade superior."
+    WHAT = "Quais cálculos ou transformações este motor realiza?"
+    WHAT_min = 50
+    WHY = "Justificativa técnica da implementação privada."
+    WHY_min = 60
+
+# [TEST] Validation Layer
+[hierarchy.files.unit.test]
+jurisdiction = "src/tests"
+type_logic = ["#[test]"]
+manifest = false # [DISSOLVE] Testes são consolidados na documentação da Unit âncora.
+
+    [hierarchy.files.unit.test.limits]
+    # [HERANÇA EXPLÍCITA] Este bloco está intencionalmente vazio.
+    # Precedência: unit.test.limits (vazio) → unit.limits (max_nesting=2, logical_density=25) → global (max_nesting=3, logical_density=40).
+    # Resultado efetivo: max_nesting=2, max_params=4, logical_density=25 (herdados da unit pai).
+    # Para sobrescrever, declare valores explícitos aqui.
+
+    [hierarchy.files.unit.test.documentation]
+    info = "Testes garantem a integridade industrial e a permanência estrutural do geode. Devem cobrir todos os Edge Cases da Unit, validando contratos públicos e assegurando que regressões sejam detectadas instantaneamente no pipeline de conformidade."
+    WHAT = "O que esta suite de testes valida?"
+    WHAT_min = 64
+    TEST = "Mapeamento dos cenários de cobertura industrial."
+    TEST_min = 128
+    USAGE = "Comando para executar esta suite específica."
+    USAGE_min = 60
+
+# [STRUCT] Data and Type definitions
+[hierarchy.files.struct]
+jurisdiction = "src/struct"
+type_logic = ["struct", "enum"]
+md_pairing = true # [EXPLICIT] Exige documentação Sidecar .md independente.
+manifest = true
+
+    [hierarchy.files.struct.limits]
+    # [INTENCIONAL] Structs e Enums são definições de tipo — não contêm lógica de fluxo.
+    # Herdam limites globais (max_nesting=3, max_params=5, logical_density=40) como fallback.
+    # Apenas o struct.internal (implementação) precisa de limites rígidos específicos.
+
+    [hierarchy.files.struct.documentation]
+    info = "Representação de dados e estados industriais. Structs e Enums definem a tipagem forte do sistema, servindo como o contrato de estado que deve ser isolado em arquivos de jurisdição especializada para evitar poluição lógica e manter a soberania de dados do cluster."
+    WHAT = "Qual o modelo de dados representado?"
+    WHAT_min = 40
+
+# [STRUCT INTERNAL] Implementation block for Structs
+[hierarchy.files.struct.internal]
+type_logic = ["fn"]
+manifest = false
+
+    [hierarchy.files.struct.internal.limits]
+    max_nesting = 3
+    max_params = 4
+    logical_density = 30
+    
+
+    [hierarchy.files.struct.internal.documentation]
+    info = "O Internal da Struct auxilia na manipulação de estados privados e implementação de comportamentos atômicos. Garante que os invariantes de dados sejam preservados sem expor a complexidade da computação para a Unit superior, mantendo o encapsulamento industrial."
+    WHAT = "O que este método realiza no estado da struct?"
+    WHAT_min = 50
+
+# [MACRO] Metaprogramming Scope
+[hierarchy.files.macro]
+jurisdiction = "src/macros"
+type_logic = ["macro_rules!"]
+md_pairing = true # [EXPLICIT] Documentação de macros é obrigatória.
+manifest = true
+
+    [hierarchy.files.macro.limits]
+    max_nesting = 4
+    logical_density = 60
+
+    [hierarchy.files.macro.documentation]
+    info = "Macros são expansores estruturais de código que permitem metaprogramação industrial. Elas devem ser usadas com cautela para garantir que a lógica expandida não oculte complexidade desnecessária, mantendo a transparência arquitetural e facilitando a auditoria de conformidade."
+    WHAT = "O que esta macro expande?"
+    WHAT_min = 60
+
+# [MACRO INTERNAL] Private logic for Macros
+[hierarchy.files.macro.internal]
+type_logic = ["fn"]
+manifest = false
+
+    [hierarchy.files.macro.internal.limits]
+    # [HERANÇA EXPLÍCITA] Herda de macro.limits (max_nesting=4, logical_density=60).
+    # Valores abaixo sobrescrevem apenas os campos declarados; o restante vem do pai.
+    max_nesting = 3
+    logical_density = 40
+
+    [hierarchy.files.macro.internal.documentation]
+    info = "Lógica de suporte privada para macros. Concentra computações auxiliares e expansões secundárias que não precisam ser expostas na interface da macro principal, mantendo a higiene do escopo de metaprogramação."
+    WHAT = "O que este detalhe de macro realiza?"
+    WHAT_min = 50

@@ -13,6 +13,8 @@ pub struct DepsAuditCtx<'a> {
     pub source: &'a str,
     pub config: &'a AuditConfig,
     pub violations: &'a mut Vec<AuditViolation>,
+    pub detected_dna: String,
+    pub taxonomy_path: String,
 }
 
 /// [WHAT] Orchestrates dependency governance for Cargo.toml files using a 3-Tier Classification Engine to maintain total architectural purity and security in the Aesthetic Core.
@@ -117,8 +119,8 @@ fn classify_and_verify_dep(
         return;
     }
 
-    // TIER 2: ALLOWED (Whitelist)
-    if ctx.config.rules.allowed_crates.contains(&name.to_string()) { return; }
+    // TIER 2: AUTHORIZED LIBRES (Global permissions)
+    if ctx.config.hierarchy.libres.contains(&name.to_string()) { return; }
     if name == "std" || name == "core" || name == "alloc" { return; }
 
     // TIER 3: OPTIONAL (Sanitized)
@@ -131,10 +133,12 @@ fn classify_and_verify_dep(
     ctx.violations.push(AuditViolation {
         file_path: ctx.path.to_string(),
         line: idx + 1,
-        rule_id: crate::governance::rule_id("rule_deps", name),
+        rule_id: crate::governance::rule_id("hierarchy.security.crates", name),
         message: format!("{}: External crate '{}' is restricted.", messages::DEPS_UNAUTHORIZED, name),
         snippet: Some(full.to_string()),
         quick_fix: None,
+        detected_dna: ctx.detected_dna.clone(),
+        taxonomy_path: "hierarchy.libres".to_string(), // Crates dependem da seção libres global
     });
 }
 
@@ -166,10 +170,12 @@ fn verify_architectural_layering(ctx: &mut DepsAuditCtx<'_>, idx: usize, name: &
         ctx.violations.push(AuditViolation {
             file_path: ctx.path.to_string(),
             line: idx + 1,
-            rule_id: crate::governance::rule_id("rule_layering", dep_name),
+            rule_id: crate::governance::rule_id("hierarchy.security.layering", dep_name),
             message: format!("{}: L{} geode cannot depend on '{}' (L{}).", messages::LAYERING_VIOLATION, current_geode_layer, dep_name, dep_layer),
             snippet: Some(full.to_string()),
             quick_fix: None,
+            detected_dna: ctx.detected_dna.clone(),
+            taxonomy_path: "hierarchy.targets".to_string(), // Layering check deriva indiretamente dos alvos de geode
         });
     }
 }
@@ -180,7 +186,7 @@ fn verify_architectural_layering(ctx: &mut DepsAuditCtx<'_>, idx: usize, name: &
 /// [USAGE] Used by the layering enforcer to translate alphanumeric geode names into comparable integer levels, facilitating automated compliance checks during the build script execution.
 fn map_geode_to_layer(name: &str) -> i32 {
     match name {
-        "ac_ant_delirium" | "ant_delirium" | "test_delirium" => 0,
+        "ac_ant_delirium" | "ant_delirium" | "test_delirium" | "ant-delirium-test-suite" => 0,
         "ac_png" | "ac_jpeg" | "ac_gif" | "ac_webp" | "ac_pnm" | "ac_ico" | "ac_hdr" | "ac_openexr" | "ac_farbfeld" | "ac_avif" | "ac_qoi" | "ac_tga" | "ac_bmp" | "ac_tiff" => 1,
         "ac_image" => 2,
         "ac_core" => 3,
@@ -262,10 +268,12 @@ fn verify_optional_purity(ctx: &mut DepsAuditCtx<'_>, idx: usize, name: &str, ac
         ctx.violations.push(AuditViolation {
             file_path: ctx.path.to_string(),
             line: idx + 1,
-            rule_id: crate::governance::rule_id("rule_deps_purity", name),
+            rule_id: crate::governance::rule_id("hierarchy.security.deps_purity", name),
             message: format!("{}: Crate '{}' is force-activated in default features.", messages::IMPURE_ACTIVATION, name),
             snippet: Some(format!("{} (Activated by default)", name)),
             quick_fix: None,
+            detected_dna: ctx.detected_dna.clone(),
+            taxonomy_path: "hierarchy.libres".to_string(),
         });
     }
 }

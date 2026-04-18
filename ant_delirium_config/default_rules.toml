@@ -1,0 +1,81 @@
+# [AESTHETIC CORE - ATOMIC RULES MANIFESTO]
+# Onde estamos (Identidade) | O que precisamos (Requisição Atômica)
+
+[hierarchy.engine.search_file] # onde estamos
+target.core # o que precisamos encontrar
+
+# [STRUCTURAL]
+[hierarchy.structural.max_nesting]
+max_nesting
+
+[hierarchy.structural.max_params]
+max_params
+
+[hierarchy.structural.logical_density]
+logical_density
+
+[hierarchy.structural.type_logic]
+unit.type_logic
+
+[hierarchy.structural.jurisdiction]
+unit.jurisdiction
+
+# [PEDAGOGICAL]
+[hierarchy.pedagogical.md_pairing]
+unit.md_pairing
+
+[hierarchy.pedagogical.md_min_chars]
+unit
+
+[hierarchy.pedagogical.what]
+unit.manifest
+
+[hierarchy.pedagogical.why]
+unit.manifest
+
+[hierarchy.pedagogical.usage]
+unit
+
+[hierarchy.pedagogical.test_mapping]
+test
+
+[hierarchy.pedagogical.root_md_pairing]
+root_md_pairing
+
+[hierarchy.pedagogical.inheritance_visibility]
+unit.md_pairing
+
+# [IDENTITY]
+[hierarchy.identity.dna_suffix]
+casing
+
+[hierarchy.identity.tag_separator]
+tag_separator
+
+[hierarchy.identity.pascal_case]
+casing
+
+[hierarchy.identity.name_separator]
+name_separator
+
+[hierarchy.identity.repository]
+repository
+
+[hierarchy.identity.recursion_recursion]
+unit.unitcore
+
+[hierarchy.identity.manifest]
+unit.manifest
+
+# [SANITIZATION]
+[hierarchy.sanitization.restricted_tokens]
+restricted_tokens
+
+[hierarchy.sanitization.allowed_crates]
+libres
+
+[hierarchy.sanitization.token_sanitization]
+restricted_tokens
+
+[hierarchy.sanitization.dependency_purification]
+libres

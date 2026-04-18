@@ -1,0 +1,58 @@
+{
+  "anchor_dna": "struct.internal",
+  "version": "1.0.0",
+  "files": {
+    "shadow_context.rs": {
+      "dna": "struct.internal",
+      "status": "NON-COMPLIANT",
+      "ai_info": "",
+      "symbols": [
+        {
+          "name": "to_shadow_context",
+          "kind": "function",
+          "complexity": 8
+        },
+        {
+          "name": "map_p_level_to_shadow",
+          "kind": "function",
+          "complexity": 9
+        },
+        {
+          "name": "push_shadow_header",
+          "kind": "function",
+          "complexity": 20
+        },
+        {
+          "name": "get_item_separator",
+          "kind": "function",
+          "complexity": 3
+        },
+        {
+          "name": "push_json_results_array",
+          "kind": "function",
+          "complexity": 9
+        },
+        {
+          "name": "push_json_violation",
+          "kind": "function",
+          "complexity": 24
+        },
+        {
+          "name": "push_json_locations",
+          "kind": "function",
+          "complexity": 24
+        },
+        {
+          "name": "push_shadow_footer",
+          "kind": "function",
+          "complexity": 4
+        },
+        {
+          "name": "push_lc",
+          "kind": "function",
+          "complexity": 6
+        }
+      ]
+    }
+  }
+}

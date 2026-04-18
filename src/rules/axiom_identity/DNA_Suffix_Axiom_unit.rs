@@ -1,0 +1,23 @@
+use crate::structs::{HierarchyConfig, GovernanceAxiom, SearchFiles};
+
+#[path = "DNA_Suffix_Axiom_unitcore.rs"]
+mod DNA_Suffix_Axiom_unitcore;
+
+pub struct DnaSuffixAxiom;
+
+impl Default for DnaSuffixAxiom {
+    fn default() -> Self { Self {} }
+}
+
+impl GovernanceAxiom for DnaSuffixAxiom {
+    fn id(&self) -> &str { "dna_suffix" }
+    fn name(&self) -> &str { "DnaSuffixAxiom Identity Auditor" }
+
+    fn resolve_jurisdiction(&self, hierarchy: &HierarchyConfig) -> Vec<String> {
+        SearchFiles::resolve_jurisdiction(hierarchy, self.id())
+    }
+
+    fn execute(&self, ctx: &mut crate::structs::AuditContext<'_>) {
+        DNA_Suffix_Axiom_unitcore::patrol(ctx);
+    }
+}

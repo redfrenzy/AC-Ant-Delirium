@@ -9,16 +9,30 @@ use super::super::rules_logs::messages;
 struct QualityCtx<'a> {
     pub file_path: &'a str,
     pub violations: &'a mut Vec<AuditViolation>,
+    pub detected_dna: String,
+    pub taxonomy_path: String,
 }
 
 /// [WHAT] Verificador de qualidade pedagógica para purificação de descrições semânticas que atua como o motor de detecção de Word Salad e tautologias lexicais no ecossistema Elite.
 /// [WHY] Para garantir que a documentação forneça valor arquitetural genuíno e não apenas placeholders circulares de bypass de auditoria, assegurando que cada tag forneça contexto único.
 /// [WHERE] Camada de análise semântica industrial em quality.rs, integrada ao pipeline de auditoria pedagógica para validar a substância narrativa de todas as funções scanned.
 /// [USAGE] Orquestra a verificação de Word Salad e circularidade léxica utilizando o contexto de auditoria industrial para avaliar se as descrições superam a densidade de informação mínima exigida.
-pub fn verify(file_path: &str, functions: &[super::super::parser::ScannedFunction<'_>], _config: &AuditConfig, violations: &mut Vec<AuditViolation>) {
-    let mut ctx = QualityCtx { file_path, violations };
+pub fn verify(file_path: &str, functions: &[super::super::parser::ScannedBlock<'_>], config: &AuditConfig, violations: &mut Vec<AuditViolation>, dna: &str, taxonomy_path: &str) {
+    let mut ctx = QualityCtx { 
+        file_path, 
+        violations, 
+        detected_dna: dna.to_string(),
+        taxonomy_path: taxonomy_path.to_string(),
+    };
     for func in functions {
-        check_word_salad(func, &mut ctx);
+        let node = config.hierarchy.route_by_taxonomy(file_path, Some(&func.kind));
+        let doc_config = match &node.documentation {
+            Some(doc) => doc,
+            None => continue, // Lei por Definição: Se não declarar tag, não há auditoria.
+        };
+
+        if func.docstring.trim().is_empty() { continue; }
+        check_word_salad(func, &mut ctx, doc_config);
     }
 }
 
@@ -26,9 +40,11 @@ pub fn verify(file_path: &str, functions: &[super::super::parser::ScannedFunctio
 /// [WHY] Para assegurar que a documentação forneça valor arquitetural real para agentes de IA, indo além de simples repetições léxicas do nome da função e forçando justificativas profundas.
 /// [WHERE] Camada de análise semântica em quality.rs, responsável por processar individualmente cada bloco de comentário pedagógico para identificar padrões de baixa fidelidade informativa.
 /// [USAGE] Chamada iterativamente pelo ponto de entrada 'verify' para validar cada docstring individual contra padrões de densidade industrial e circularidade de tokens conforme definidos no motor.
-fn check_word_salad(func: &super::super::parser::ScannedFunction<'_>, ctx: &mut QualityCtx<'_>) {
-    for tag in &["[WHAT]", "[WHY]", "[WHERE]"] {
-        process_tag_quality(func, tag, ctx);
+fn check_word_salad(func: &super::super::parser::ScannedBlock<'_>, ctx: &mut QualityCtx<'_>, doc_config: &crate::configs::hierarchy_config::NodeDocConfig) {
+    let threshold = match doc_config.salad_threshold { Some(v) => v, None => 0.8 };
+    for tag in doc_config.tags.keys() {
+        let formatted_tag = format!("[{}]", tag);
+        process_tag_quality(func, &formatted_tag, ctx, threshold);
     }
 }
 
@@ -36,25 +52,36 @@ fn check_word_salad(func: &super::super::parser::ScannedFunction<'_>, ctx: &mut 
 /// [WHY] Para assegurar que o conteúdo descritivo forneça valor técnico autêntico e não apenas uma repetição redundante dos identificadores presentes no código-fonte do geode.
 /// [WHERE] Unidade de auditoria semântica atômica em quality.rs, responsável pelo processamento de tokens narrativos individuais contra o conjunto de regras ELITE.
 /// [USAGE] Chamada internamente por check_word_salad para cada tag pedagógica encontrada na docstring, disparando violações se a densidade informativa for considerada insuficiente.
-fn process_tag_quality(func: &super::super::parser::ScannedFunction<'_>, tag: &str, ctx: &mut QualityCtx<'_>) {
-    let name_lower = func.name.to_lowercase();
-    let name_parts: Vec<&str> = name_lower.split('_').collect();
+fn process_tag_quality(func: &super::super::parser::ScannedBlock<'_>, tag: &str, ctx: &mut QualityCtx<'_>, threshold: f64) {
+    let name_lower = if func.name == "geode_root" {
+        // [ELITE NORMALIZATION] Para preâmbulos, usamos o nome do arquivo como base de tokens
+        std::path::Path::new(ctx.file_path)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or(&func.name)
+            .to_lowercase()
+    } else {
+        func.name.to_lowercase()
+    };
+    let name_parts: Vec<&str> = name_lower.split(|c: char| c == '_' || c == '-').collect();
     let content = match extract_tag_content(&func.docstring, tag) {
         Some(c) => c,
         None => return,
     };
 
-    if is_circular_definition(content, &name_parts) {
+    if is_circular_definition(content, &name_parts, threshold) {
         ctx.violations.push(AuditViolation {
             file_path: ctx.file_path.to_string(),
             line: func.start_line,
-            rule_id: crate::governance::rule_id("rule_word_salad", &func.name),
+            rule_id: crate::governance::rule_id("hierarchy.pedagogy.quality", &func.name),
             message: format!(
                 "{} [{}]. Use unique pedagogical descriptions.",
                 messages::WORD_SALAD, tag
             ),
             snippet: Some(format!("/// {} {}", tag, content)),
             quick_fix: None,
+            detected_dna: ctx.detected_dna.clone(),
+            taxonomy_path: format!("{}.documentation", ctx.taxonomy_path),
         });
     }
 }
@@ -77,7 +104,7 @@ fn extract_tag_content<'a>(docstring: &'a str, tag: &str) -> Option<&'a str> {
 /// [WHY] If the description contains little information beyond tokens already present in the code, it fails Elite standards by providing zero additional semantic value to the system architecture.
 /// [WHERE] Decision algorithm layer in quality.rs, providing the mathematical heuristic for flagging low-effort documentation bypasses in the Aesthetic Core governance engine.
 /// [USAGE] Final validation guard used to determine if a tag is a 'Word Salad' by evaluating the ratio of name-token reuse against the total length and diversity of the provided narrative.
-fn is_circular_definition(content: &str, name_parts: &[&str]) -> bool {
+fn is_circular_definition(content: &str, name_parts: &[&str], threshold: f64) -> bool {
     let content_lower = content.to_lowercase();
     let words: Vec<&str> = content_lower.split_whitespace().collect();
     
@@ -95,6 +122,6 @@ fn is_circular_definition(content: &str, name_parts: &[&str]) -> bool {
         return words.len() < 5;
     }
 
-    let ratio = matching_tokens as f32 / name_parts.len() as f32;
-    ratio > 0.8 && words.len() < 12
+    let ratio = matching_tokens as f64 / name_parts.len() as f64;
+    ratio > threshold && words.len() < 12
 }

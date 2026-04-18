@@ -12,14 +12,22 @@ struct TokenAuditCtx<'a> {
     pub file_path: &'a str,
     pub config: &'a AuditConfig,
     pub violations: &'a mut Vec<AuditViolation>,
+    pub detected_dna: String,
+    pub taxonomy_path: String,
 }
 
 /// [WHAT] Ponto de entrada para a auditoria léxica de segurança e detecção de tokens restritos que monitora o uso de APIs tóxicas ou desencorajadas no código-fonte.
 /// [WHY] Para assegurar que o código siga os padrões de segurança e pureza do Aesthetic Core, impedindo pânicos não tratados e garantindo a conformidade industrial do binário.
 /// [WHERE] Camada de auditoria estrutural core no arquivo tokens.rs, servindo como o scanner primário de higiene léxica para todos os módulos e geodes do projeto.
 /// [USAGE] Orquestra a varredura per-line em busca de tokens proibidos utilizando o contexto de auditoria de tokens agrupado para disparar violações com justificativas pedagógicas detalhadas.
-pub fn verify(file_path: &str, source: &str, config: &AuditConfig, violations: &mut Vec<AuditViolation>) {
-    let mut ctx = TokenAuditCtx { file_path, config, violations };
+pub fn verify(file_path: &str, source: &str, config: &AuditConfig, violations: &mut Vec<AuditViolation>, dna: &str, taxonomy_path: &str) {
+    let mut ctx = TokenAuditCtx { 
+        file_path, 
+        config, 
+        violations, 
+        detected_dna: dna.to_string(),
+        taxonomy_path: taxonomy_path.to_string(),
+    };
     for (idx, line) in source.lines().enumerate() {
         let trimmed = line.trim();
         process_line_tokens(idx, trimmed, &mut ctx);
@@ -34,7 +42,7 @@ fn process_line_tokens(idx: usize, trimmed: &str, ctx: &mut TokenAuditCtx<'_>) {
     // Skip comments
     if trimmed.starts_with("//") || trimmed.starts_with("/*") { return; }
 
-    for (token_name, hint) in &ctx.config.rules.restricted_tokens {
+    for (token_name, hint) in &ctx.config.hierarchy.restricted_tokens {
         let meta = RestrictedToken { name: token_name, hint };
         check_poison_token(idx, trimmed, meta, ctx);
     }
@@ -70,15 +78,17 @@ fn check_poison_token(idx: usize, trimmed: &str, token: RestrictedToken<'_>, ctx
 
     if is_in_quarantine {
         display_message = format!("Illegal Logic: Token '{}' found in quarantine but MISSING [ignore_to] authorization in delirium.toml.", token.name);
-        quick_fix = Some(format!("# Add this to delirium.toml:\n# [ignore_to]\n# \"{}\" = [\"rule_poison_tokens\"]", ctx.file_path));
+        quick_fix = Some(format!("# Add this to delirium.toml:\n# [ignore_to]\n# \"{}\" = [\"hierarchy.security.tokens\"]", ctx.file_path));
     }
 
     ctx.violations.push(AuditViolation {
         file_path: ctx.file_path.to_string(),
         line: idx + 1,
-        rule_id: crate::governance::rule_id("rule_poison_tokens", token.name.trim_matches('!')),
+        rule_id: crate::governance::rule_id("hierarchy.security.tokens", token.name.trim_matches('!')),
         message: display_message,
         snippet: Some(trimmed.to_string()),
         quick_fix,
+        detected_dna: ctx.detected_dna.clone(),
+        taxonomy_path: ctx.taxonomy_path.clone(),
     });
 }

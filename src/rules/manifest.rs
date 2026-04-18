@@ -13,6 +13,23 @@ pub struct SymbolInfo {
     pub complexity: usize,
 }
 
+/// [WHAT] DADOS de conformidade e símbolos de um arquivo individual dentro de um manifesto âncora.
+#[derive(Default, Debug, Clone)]
+pub struct FileMetadata {
+    pub dna: String,
+    pub status: String,
+    pub ai_info: String,
+    pub symbols: Vec<SymbolInfo>,
+}
+
+/// [WHAT] O Manifesto Industrial Geográfico (Shield Sidecar) que consolida a alma técnica e a conformidade de um geode.
+#[derive(Default, Debug, Clone)]
+pub struct SidecarManifest {
+    pub anchor_dna: String,
+    pub version: String,
+    pub files: std::collections::HashMap<String, FileMetadata>,
+}
+
 
 
 
@@ -188,3 +205,181 @@ fn compute_search_start(idx: usize) -> usize {
     if idx > 10 { start = idx - 10; }
     start
 }
+
+impl SidecarManifest {
+    /// [WHAT] Transforma o manifesto em uma string JSON industrial pura sem depender de crates externas de serialização pesada.
+    /// [WHY] Mantém o motor zero-dependency e garante performance máxima durante a escrita de milhares de sidecars em geodes massasivos.
+    /// [WHERE] Motor de serialização em manifest.rs, atuando como o exportador final de metadados agregados para o geode.
+    /// [USAGE] Invocado pelo persist_shield_manifest no final do pipeline de auditoria para materializar a alma técnica do componente no disco host.
+    pub fn to_json(&self) -> String {
+        let mut out = String::new();
+        out.push('{');
+        out.push_str("\n  \"anchor_dna\": \""); out.push_str(&self.anchor_dna); out.push_str("\",");
+        out.push_str("\n  \"version\": \""); out.push_str(&self.version); out.push_str("\",");
+        out.push_str("\n  \"files\": {");
+        
+        let mut first_file = true;
+        for (path, meta) in &self.files {
+            if !first_file { out.push(','); }
+            first_file = false;
+            out.push_str("\n    \""); out.push_str(path); out.push_str("\": {");
+            out.push_str("\n      \"dna\": \""); out.push_str(&meta.dna); out.push_str("\",");
+            out.push_str("\n      \"status\": \""); out.push_str(&meta.status); out.push_str("\",");
+            out.push_str("\n      \"ai_info\": \""); out.push_str(&meta.ai_info); out.push_str("\",");
+            out.push_str("\n      \"symbols\": [");
+            
+            for (i, sym) in meta.symbols.iter().enumerate() {
+                if i > 0 { out.push(','); }
+                out.push_str("\n        {");
+                out.push_str("\n          \"name\": \""); out.push_str(&sym.name); out.push_str("\",");
+                out.push_str("\n          \"kind\": \""); out.push_str(&sym.kind); out.push_str("\",");
+                out.push_str("\n          \"complexity\": "); out.push_str(&sym.complexity.to_string());
+                out.push_str("\n        }");
+            }
+            out.push_str("\n      ]");
+            out.push_str("\n    }");
+        }
+        
+        out.push_str("\n  }");
+        out.push_str("\n}");
+        out
+    }
+
+    /// [WHAT] Tenta ler um manifesto existente e reconstruir a estrutura mínima para merge industrial sem usar Serde.
+    /// [WHY] Permite que o motor "aprenda" e agregue símbolos de múltiplos arquivos sequencialmente sem perder o estado de conformidade anterior.
+    /// [WHERE] Motor de ingestão de manifestos em manifest.rs servindo de bridge de leitura para o merge de âncoras.
+    /// [USAGE] Acionado no início do persist_shield_manifest para carregar o estado atual da âncora antes de injetar os novos símbolos detectados.
+    pub fn from_json_brute(json: &str) -> Self {
+        let mut manifest = SidecarManifest::default();
+        manifest.version = "1.0.0".to_string();
+        
+        // 1. Extração de Anchor DNA
+        if let Some(pos) = json.find("\"anchor_dna\": \"") {
+            let start = pos + 15;
+            if let Some(len) = json[start..].find("\"") {
+                manifest.anchor_dna = json[start..start+len].to_string();
+            }
+        }
+
+        // 2. Extração de Arquivos (Algoritmo de Fatiamento Industrial)
+        let mut search_pos = match json.find("\"files\": {") {
+            Some(p) => p + 10,
+            None => return manifest,
+        };
+
+        while let Some(file_start) = json[search_pos..].find("\n    \"") {
+            let name_start = search_pos + file_start + 6;
+            let name_end = match json[name_start..].find("\": {") {
+                Some(e) => e,
+                None => break,
+            };
+            let filename = json[name_start..name_start + name_end].replace("\"", "");
+            
+            let mut meta = FileMetadata::default();
+            let block_start = name_start + name_end + 4;
+            
+            // Extração de Metadados do Arquivo (DNA/Status)
+            if let Some(dna_pos) = json[block_start..].find("\"dna\": \"") {
+                let d_start = block_start + dna_pos + 8;
+                if let Some(d_len) = json[d_start..].find("\"") {
+                    meta.dna = json[d_start..d_start+d_len].to_string();
+                }
+            }
+            if let Some(status_pos) = json[block_start..].find("\"status\": \"") {
+                let s_start = block_start + status_pos + 11;
+                if let Some(s_len) = json[s_start..].find("\"") {
+                    meta.status = json[s_start..s_start+s_len].to_string();
+                }
+            }
+            if let Some(ai_pos) = json[block_start..].find("\"ai_info\": \"") {
+                let a_start = block_start + ai_pos + 12;
+                if let Some(a_len) = json[a_start..].find("\"") {
+                    meta.ai_info = json[a_start..a_start+a_len].to_string();
+                }
+            }
+
+            // Extração de Símbolos do Arquivo
+            if let Some(sym_pos) = json[block_start..].find("\"symbols\": [") {
+                let mut sym_search = block_start + sym_pos + 12;
+                while let Some(s_open) = json[sym_search..].find("{") {
+                    let s_start = sym_search + s_open;
+                    let mut sym = SymbolInfo::default();
+                    if let Some(n_pos) = json[s_start..].find("\"name\": \"") {
+                        let n_start = s_start + n_pos + 9;
+                        if let Some(n_len) = json[n_start..].find("\"") {
+                            sym.name = json[n_start..n_start+n_len].to_string();
+                        }
+                    }
+                    if let Some(k_pos) = json[s_start..].find("\"kind\": \"") {
+                        let k_start = s_start + k_pos + 9;
+                        if let Some(k_len) = json[k_start..].find("\"") {
+                            sym.kind = json[k_start..k_start+k_len].to_string();
+                        }
+                    }
+                    if let Some(c_pos) = json[s_start..].find("\"complexity\": ") {
+                        let c_start = s_start + c_pos + 14;
+                        let mut c_val = 0;
+                        for c in json[c_start..].chars() {
+                            if let Some(digit) = c.to_digit(10) {
+                                c_val = c_val * 10 + digit as usize;
+                            } else { break; } // [REASON] Conclui a leitura do dígito ao encontrar delimitador não numérico.
+                        }
+                        sym.complexity = c_val;
+                    }
+                    meta.symbols.push(sym);
+                    
+                    if let Some(s_close) = json[s_start..].find("}") {
+                        sym_search = s_start + s_close + 1;
+                    } else { break; } // [REASON] Garante integridade: interrompe parsing se o bloco de símbolo estiver corrompido.
+                    
+                    if !json[sym_search..].trim_start().starts_with(',') { break; }
+                }
+            }
+
+            manifest.files.insert(filename.to_string(), meta);
+            
+            // Avança para o fechamento do bloco do arquivo selecionado
+            if let Some(next_block_end) = json[block_start..].find("\n    }") {
+                search_pos = block_start + next_block_end + 6;
+            } else { break; } // [REASON] Pivot de segurança léxica para evitar transbordamento de buffer em JSON malformado.
+        }
+
+        manifest
+    }
+}
+
+/// [WHAT] Grava um snapshot intocável congelado vivo contrito profundo (SidecarManifest) único posicionado ao lado do alvo selecionado para a poderosa purificadora Migration.
+/// [WHY] Fornece suporte estático estável ancorado e inquebrável atômico para agentes de Inteligência Artificial reestruturarem iterativamente as fendas estruturais cruas profundas e caóticas deste arquivo sem perder de vista as entidades e os métodos originais industriais vivos nativos, assegurando que o castelo não desabe (o Geode compile). 
+/// [WHERE] Ferramenta independente de persistência secundária engastada no manifest.rs L0 puro profundo no Geode.
+/// [USAGE] Roda acionada exclusiva pelo engine mestre purista no final do ciclo massivo do audit_geode_recursive SOMENTE SE o MIGRATION MODE atômico supremo for invocado no [hierarchy.target] pela IA governamental blindada viva no test.
+pub fn persist_legacy_snapshot(file_path: &str, config: &AuditConfig) {
+    let legacy_path = file_path.replace(".rs", "_legacy.json");
+    if std::path::Path::new(&legacy_path).exists() { return; } // [SHIELD] Nunca sobrescreva um Legado. Guarde-o até que a IA termine!
+    
+    let source = match std::fs::read_to_string(file_path) {
+        Ok(s) => s,
+        Err(_) => return,
+    };
+    
+    let symbols = generate(&source, config);
+    let mut manifest = SidecarManifest::default();
+    manifest.anchor_dna = "migration".to_string();
+    manifest.version = "1.0.0".to_string();
+    
+    let file_meta = FileMetadata {
+        dna: "legacy".to_string(),
+        status: "LEGACY".to_string(),
+        ai_info: "AI: Preserve a assinatura estrita de todos os simbolos originais (structs/impl/funcs) listados neste manifesto para não corromper o compilador nativo do geode durante a refatoração fracionada desta imensa e massiva camada de caos residual industrial em Aesthetic Core.".to_string(),
+        symbols,
+    };
+    
+    let file_name_opt = std::path::Path::new(file_path).file_name();
+    let relative_file = match file_name_opt {
+        Some(os_str) => match os_str.to_str() { Some(s) => s, None => "unknown" },
+        None => "unknown"
+    };
+    
+    manifest.files.insert(relative_file.to_string(), file_meta);
+    let _ = std::fs::write(&legacy_path, manifest.to_json());
+}
+

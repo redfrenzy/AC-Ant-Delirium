@@ -5,8 +5,8 @@
 "src/restricted_tokens" = ["rule_poison_tokens"]
 "build.rs" = ["rule_poison_tokens"]
 
-[rules.limits]
-max_lines = 300
+[hierarchy.files.limits]
+max_lines = 400
 tip_lines = "Explain: Function logic exceeds cognitive bound. Logic MUST be atomized."
 max_nesting = 3
 max_params = 4

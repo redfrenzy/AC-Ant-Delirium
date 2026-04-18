@@ -17,12 +17,16 @@ pub struct MacroAuditCtx<'a> {
     pub source: &'a str,
     pub config: &'a AuditConfig,
     pub violations: &'a mut Vec<AuditViolation>,
+    pub detected_dna: String,
+    pub taxonomy_path: String,
 }
 
 struct MacroState {
     pub complex: bool,
+    pub inception: bool,
+    pub impl_contraband: bool,
+    pub hidden_unsafe: bool,
     pub depth: i32,
-    pub lines: usize,
     pub start_line: usize,
     pub name: String,
 }
@@ -33,7 +37,7 @@ struct MacroState {
 /// [USAGE] Orquestra o ciclo de varredura e análise de blocos macro em busca de isolamento arquitetural, utilizando um scanner de estado para rastrear profundidade e complexidade em tempo real.
 pub fn verify(ctx: &mut MacroAuditCtx<'_>) {
     let mut in_macro = false;
-    let mut state = MacroState { complex: false, depth: 0, lines: 0, start_line: 0, name: String::new() };
+    let mut state = MacroState { complex: false, inception: false, impl_contraband: false, hidden_unsafe: false, depth: 0, start_line: 0, name: String::new() };
 
     for (idx, line) in ctx.source.lines().enumerate() {
         let trimmed = line.trim();
@@ -65,12 +69,16 @@ pub fn verify(ctx: &mut MacroAuditCtx<'_>) {
 /// [WHERE] Internal utility function for the structural macro audit engine, providing localized analysis of tokens and brace balancing within macros.rs.
 /// [USAGE] Invocada iterativamente para cada linha descoberta dentro de uma definição macro operacional com o objetivo de sincronizar o estado acumulado de complexidade estrutural e contagem de massa operacional.
 fn process_macro_line(config: &AuditConfig, trimmed: &str, state: &mut MacroState) {
-    state.lines += 1;
     
     // Logic complexity check
     if !config.rules.macros.allow_complex_logic {
         check_complex_tokens(trimmed, &mut state.complex);
     }
+    
+    // Inception & Contraband P0 checks
+    check_macro_inception(trimmed, &mut state.inception);
+    check_impl_contraband(trimmed, &mut state.impl_contraband);
+    check_macro_hidden_unsafe(trimmed, &mut state.hidden_unsafe);
 
     // Structural tracking
     for c in trimmed.chars() {
@@ -94,8 +102,35 @@ fn check_complex_tokens(trimmed: &str, complex: &mut bool) {
 /// [WHERE] Predicate logic layer for complex token detection in macros.rs, acting as a low-level filter for the logical density audit rules.
 /// [USAGE] Utilizada pelo scanner de tokens para identificar palavras-chave de controle de fluxo que comprometeriam a transparência arquitetural da macro caso fossem permitidas em sua definição.
 fn contains_forbidden_logic(trimmed: &str) -> bool {
-    let forbidden = ["if ", "match ", "while ", "for ", "loop "];
+    let forbidden = ["if ", "match ", "while ", "for ", "loop ", "return ", "yield ", "break "];
     forbidden.iter().any(|t| trimmed.contains(t))
+}
+
+/// [WHAT] Identificador L0 purista de "Fractal Metaprogramming" caçando a submissão oculta de outras macros de corpo.
+fn check_macro_inception(trimmed: &str, inception: &mut bool) {
+    if trimmed.contains('!') && !trimmed.starts_with("//") && !trimmed.contains("macro_rules!") {
+        let is_whitelist = trimmed.contains("assert!") || trimmed.contains("panic!") || trimmed.contains("vec!");
+        if !is_whitelist {
+            *inception = true;
+        }
+    }
+}
+
+/// [WHAT] Identificador L0 de camadas de traits clandestinas embutidas para evitar escaneamento de densidade no Aesthetic Core.
+fn check_impl_contraband(trimmed: &str, impl_contraband: &mut bool) {
+    if trimmed.contains("impl ") && !trimmed.starts_with("//") {
+        *impl_contraband = true;
+    }
+}
+
+/// [WHAT] Identificador L0 de asilo venenoso (Macros que blindam escopos puramente unsafe)
+fn check_macro_hidden_unsafe(trimmed: &str, hidden_unsafe: &mut bool) {
+    if trimmed.contains("unsafe {") || trimmed.contains("unsafe ") {
+        let is_whitelist = trimmed.starts_with("//");
+        if !is_whitelist {
+            *hidden_unsafe = true;
+        }
+    }
 }
 
 /// [WHAT] Evaluates functional constraints on a completed macro definition.
@@ -103,26 +138,57 @@ fn contains_forbidden_logic(trimmed: &str) -> bool {
 /// [WHERE] Diagnostic reporting phase for macro rules in macros.rs.
 /// [USAGE] Invoked when the end of a macro definition is reached to perform final validation of the accumulated logical state and line count.
 fn analyze_macro(ctx: &mut MacroAuditCtx<'_>, state: &MacroState) {
-    if state.lines > ctx.config.rules.macros.max_lines && ctx.config.rules.macros.max_lines > 0 {
-        ctx.violations.push(AuditViolation {
-            file_path: ctx.file_path.to_string(),
-            line: state.start_line,
-            rule_id: crate::governance::rule_id("rule_macro_isolation", &state.name),
-            message: format!("{} (Lines: {}). Max: {}. Hint: {}", 
-                             messages::MACRO_LENGTH, state.lines, ctx.config.rules.macros.max_lines, ctx.config.rules.macros.tip),
-            snippet: None,
-            quick_fix: None,
-        });
-    }
+    // Macro mass is no longer checked by physical line count.
 
     if state.complex {
         ctx.violations.push(AuditViolation {
             file_path: ctx.file_path.to_string(),
             line: state.start_line,
-            rule_id: crate::governance::rule_id("rule_macro_isolation", &state.name),
-            message: format!("{}. Hint: {}", messages::MACRO_COMPLEXITY, ctx.config.rules.macros.tip),
+            rule_id: crate::governance::rule_id("hierarchy.structure.macro_isolation", &state.name),
+            message: messages::MACRO_COMPLEXITY.to_string(),
             snippet: None,
             quick_fix: None,
+            detected_dna: ctx.detected_dna.clone(),
+            taxonomy_path: format!("{}.limits", ctx.taxonomy_path),
+        });
+    }
+
+    if state.inception {
+        ctx.violations.push(AuditViolation {
+            file_path: ctx.file_path.to_string(),
+            line: state.start_line,
+            rule_id: crate::governance::rule_id("hierarchy.structure.macro_inception", &state.name),
+            message: messages::MACRO_INCEPTION.to_string(),
+            snippet: None,
+            quick_fix: Some("// [MIGRATE] Break internal fractal invocations".to_string()),
+            detected_dna: ctx.detected_dna.clone(),
+            taxonomy_path: format!("{}.limits", ctx.taxonomy_path),
+        });
+    }
+
+    if state.impl_contraband {
+        ctx.violations.push(AuditViolation {
+            file_path: ctx.file_path.to_string(),
+            line: state.start_line,
+            rule_id: crate::governance::rule_id("hierarchy.structure.macro_impl_contraband", &state.name),
+            message: messages::MACRO_IMPL_CONTRABAND.to_string(),
+            snippet: None,
+            quick_fix: Some("// [MIGRATE] Extract Trait block to logical Unit Scope".to_string()),
+            detected_dna: ctx.detected_dna.clone(),
+            taxonomy_path: format!("{}.limits", ctx.taxonomy_path),
+        });
+    }
+
+    if state.hidden_unsafe {
+        ctx.violations.push(AuditViolation {
+            file_path: ctx.file_path.to_string(),
+            line: state.start_line,
+            rule_id: crate::governance::rule_id("hierarchy.structure.macro_hidden_unsafe", &state.name),
+            message: messages::MACRO_HIDDEN_UNSAFE.to_string(),
+            snippet: None,
+            quick_fix: Some("// [MIGRATE] Expose unsafe operations to outer explicitly typed functions".to_string()),
+            detected_dna: ctx.detected_dna.clone(),
+            taxonomy_path: format!("{}.limits", ctx.taxonomy_path),
         });
     }
 }
@@ -141,8 +207,10 @@ fn init_macro_state(idx: usize, trimmed: &str) -> MacroState {
 
     MacroState { 
         complex: false, 
+        inception: false,
+        impl_contraband: false,
+        hidden_unsafe: false,
         depth: 0, 
-        lines: 0,
         start_line: idx + 1,
         name 
     }

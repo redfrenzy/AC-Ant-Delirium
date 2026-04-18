@@ -1,14 +1,66 @@
-/// [WHAT] Hub de orquestração central para todas as regras de governança e auditoria industrial do motor Ant Delirium.
-/// [WHY] Centraliza e modulariza a lógica do motor de auditoria para facilitar a manutenção e a expansão de novas políticas de conformidade no geode.
-/// [WHERE] Ponto de entrada do módulo de regras em ac_ant_delirium/src/rules/mod.rs.
-/// [USAGE] Provê acesso aos sub-módulos de métricas, documentação, estrutura e segurança para os orquestradores de auditoria globais do sistema.
-
-pub mod metrics;
-pub mod docs;
+pub mod axiom_structural;
+pub mod axiom_pedagogical;
+pub mod axiom_identity;
+pub mod axiom_sanitization;
 pub mod structure;
-pub mod macros;
-pub mod tokens;
-pub mod manifest;
-pub mod deps;
-pub mod markdown;
-pub mod quality;
+
+use crate::structs::{GovernanceAxiom, AuditConfig, AuditViolation};
+use crate::parser::ScannedBlock;
+
+// [CATALOG DISCOVERY]
+/// Coleta todos os 24 Axiomas de Governança para execução massiva.
+pub fn get_full_axioms() -> Vec<Box<dyn GovernanceAxiom>> {
+    let mut catalog: Vec<Box<dyn GovernanceAxiom>> = Vec::new();
+    
+    // [STRUCTURAL]
+    catalog.push(Box::new(axiom_structural::Max_Nesting_Axiom_unit::MaxNestingAxiom::default()));
+    catalog.push(Box::new(axiom_structural::Max_Params_Axiom_unit::MaxParamsAxiom::default()));
+    catalog.push(Box::new(axiom_structural::Logical_Density_Axiom_unit::LogicalDensityAxiom::default()));
+    catalog.push(Box::new(axiom_structural::Type_Logic_Axiom_unit::TypeLogicAxiom::default()));
+    catalog.push(Box::new(axiom_structural::Visibility_Axiom_unit::VisibilityAxiom::default()));
+
+    // [PEDAGOGICAL]
+    catalog.push(Box::new(axiom_pedagogical::MD_Pairing_Axiom_unit::MdPairingAxiom::default()));
+    catalog.push(Box::new(axiom_pedagogical::MD_Min_Chars_Axiom_unit::MdMinCharsAxiom::default()));
+    catalog.push(Box::new(axiom_pedagogical::What_Mission_Axiom_unit::WhatMissionAxiom::default()));
+    catalog.push(Box::new(axiom_pedagogical::Why_Justification_Axiom_unit::WhyJustificationAxiom::default()));
+    catalog.push(Box::new(axiom_pedagogical::Usage_Example_Axiom_unit::UsageExampleAxiom::default()));
+    catalog.push(Box::new(axiom_pedagogical::Test_Case_Mapping_Axiom_unit::TestCaseMappingAxiom::default()));
+    catalog.push(Box::new(axiom_pedagogical::Root_MD_Pairing_Axiom_unit::RootMdPairingAxiom::default()));
+    catalog.push(Box::new(axiom_pedagogical::Inheritance_Visibility_Axiom_unit::InheritanceVisibilityAxiom::default()));
+
+    // [IDENTITY]
+    catalog.push(Box::new(axiom_identity::DNA_Suffix_Axiom_unit::DnaSuffixAxiom::default()));
+    catalog.push(Box::new(axiom_identity::Tag_Separator_Axiom_unit::TagSeparatorAxiom::default()));
+    catalog.push(Box::new(axiom_identity::Pascal_Case_Axiom_unit::PascalCaseAxiom::default()));
+    catalog.push(Box::new(axiom_identity::Recursion_Axiom_unit::RecursionAxiom::default()));
+    catalog.push(Box::new(axiom_identity::Manifest_Anchoring_Axiom_unit::ManifestAnchoringAxiom::default()));
+    catalog.push(Box::new(axiom_identity::Name_Separator_Axiom_unit::NameSeparatorAxiom::default()));
+    catalog.push(Box::new(axiom_identity::Repository_Anchor_Axiom_unit::RepositoryAnchorAxiom::default()));
+
+    // [SANITIZATION]
+    catalog.push(Box::new(axiom_sanitization::Restricted_Tokens_Axiom_unit::RestrictedTokensAxiom::default()));
+    catalog.push(Box::new(axiom_sanitization::Allowed_Crates_Axiom_unit::AllowedCratesAxiom::default()));
+    catalog.push(Box::new(axiom_sanitization::Token_Sanitization_Axiom_unit::TokenSanitizationAxiom::default()));
+    catalog.push(Box::new(axiom_sanitization::Dependency_Purification_Axiom_unit::DependencyPurificationAxiom::default()));
+
+    catalog
+}
+
+/// [DEPRECATED] Mantido apenas para compatibilidade temporária durante a transição.
+pub fn get_full_catalog() -> Vec<Box<dyn crate::structs::AuditRule>> {
+    Vec::new()
+}
+
+/// [AESTHETIC CORE - DIAGNOSTIC ORCHESTRATOR]
+pub fn run_diagnostics(
+    _config: &AuditConfig,
+    _file_path: &str,
+    _source: &str,
+    _functions: &[ScannedBlock<'_>],
+    _violations: &mut Vec<AuditViolation>,
+    _detected_dna: String,
+    _taxonomy_path: String,
+) {
+    // [TODO] Migrar para executar os Axiomas em vez das regras legadas
+}

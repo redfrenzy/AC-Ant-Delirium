@@ -11,8 +11,8 @@
     "properties": {
       "governance": {
         "priority_order": "P0 → P1 → P2 → P3",
-        "total_violations": 1,
-        "summary": { "P0": 1, "P1": 0, "P2": 0, "P3": 0 },
+        "total_violations": 16,
+        "summary": { "P0": 0, "P1": 1, "P2": 2, "P3": 13 },
         "context": [
           "Each .rs file has a companion *_manifest.json with Shadow Context symbols.",
           "Read the manifest BEFORE editing the source code to understand the architecture.",
@@ -29,34 +29,154 @@
           "make plugin — Deploy governance binary to plugins/"
         ],
         "applied_config": {
-          "max_lines": 300,
-          "max_nesting": 3,
-          "max_params": 4,
-          "logical_density": 34,
-          "restricted_tokens": ["print", "panic", "unwrap"],
+          "max_lines": 0,
+          "max_nesting": 0,
+          "max_params": 0,
+          "logical_density": 0,
+          "restricted_tokens": ["print", "unwrap", "panic"],
           "allowed_crates": ["std", "core", "alloc"]
         }
       }
     },
     "results": [
       {
-        "ruleId": "rule_poison_tokens.unwrap",
-        "level": "error",
-        "message": { "text": "Usage of banned token detected. Check delirium.toml for restricted patterns.: 'unwrap' found. Hint: Potential crash. Handle explicitly." },
+        "ruleId": "rule_md_pairing",
+        "level": "note",
+        "message": { "text": "Stale Documentation: .rs file is significantly newer than its .md companion." },
         "locations": [{
           "physicalLocation": {
-            "artifactLocation": { "uri": "src/scanner.rs" },
-            "region": { "startLine": 77, "snippet": { "text": "let relative_path = path.strip_prefix(root).unwrap_or(path);" } } } }],
+            "artifactLocation": { "uri": "src/reporter.rs" },
+            "region": { "startLine": 1 } } }] },
+      {
+        "ruleId": "rule_md_pairing",
+        "level": "note",
+        "message": { "text": "Stale Documentation: .rs file is significantly newer than its .md companion." },
+        "locations": [{
+          "physicalLocation": {
+            "artifactLocation": { "uri": "src/lib.rs" },
+            "region": { "startLine": 1 } } }] },
+      {
+        "ruleId": "rule_md_pairing",
+        "level": "note",
+        "message": { "text": "Stale Documentation: .rs file is significantly newer than its .md companion." },
+        "locations": [{
+          "physicalLocation": {
+            "artifactLocation": { "uri": "src/rules_logs.rs" },
+            "region": { "startLine": 1 } } }] },
+      {
+        "ruleId": "rule_md_pairing",
+        "level": "note",
+        "message": { "text": "Stale Documentation: .rs file is significantly newer than its .md companion." },
+        "locations": [{
+          "physicalLocation": {
+            "artifactLocation": { "uri": "src/debug_session.rs" },
+            "region": { "startLine": 1 } } }] },
+      {
+        "ruleId": "rule_md_pairing",
+        "level": "note",
+        "message": { "text": "Stale Documentation: .rs file is significantly newer than its .md companion." },
+        "locations": [{
+          "physicalLocation": {
+            "artifactLocation": { "uri": "src/main.rs" },
+            "region": { "startLine": 1 } } }] },
+      {
+        "ruleId": "rule_else_free",
+        "level": "warning",
+        "message": { "text": "Else block detected. Use early returns or match for linear flow logic." },
+        "locations": [{
+          "physicalLocation": {
+            "artifactLocation": { "uri": "src/configs/hierarchy_config.rs" },
+            "region": { "startLine": 627, "snippet": { "text": "} else {" } } } }],
         "fixes": [{
           "description": { "text": "Apply exact governance stubs" },
           "artifactChanges": [{
-            "artifactLocation": { "uri": "src/scanner.rs" },
+            "artifactLocation": { "uri": "src/configs/hierarchy_config.rs" },
             "replacements": [{
-              "deletedRegion": { "startLine": 77, "endLine": 77 },
-              "insertedContent": { "text": "// [SAFETY] Isolate this logic in 'src/restricted_tokens/unwrap.rs' and authorize in delirium.toml." }
+              "deletedRegion": { "startLine": 627, "endLine": 627 },
+              "insertedContent": { "text": "// [REASON] Justify this else block here..." }
             }]
           }]
-        }] }
+        }] },
+      {
+        "ruleId": "rule_doc_tags.USAGE",
+        "level": "note",
+        "message": { "text": "Function 'handle_node_documentation_kv' Documentation tag content is too short to satisfy pedagogical density (min 64 chars).: [USAGE]. (Found 126, Need 128). Hint: Explain HOW to check or use this logic." },
+        "locations": [{
+          "physicalLocation": {
+            "artifactLocation": { "uri": "src/configs/hierarchy_config.rs" },
+            "region": { "startLine": 591, "snippet": { "text": "/// [USAGE] Roda sempre que a chave termine com `.documentation.*`. Extrai `_min` para min_chars estrito nativo, ou `info`/`hint` nativos." } } } }] },
+      {
+        "ruleId": "rule_md_pairing",
+        "level": "note",
+        "message": { "text": "Stale Documentation: .rs file is significantly newer than its .md companion." },
+        "locations": [{
+          "physicalLocation": {
+            "artifactLocation": { "uri": "src/scanner.rs" },
+            "region": { "startLine": 1 } } }] },
+      {
+        "ruleId": "rule_doc_tags.USAGE",
+        "level": "note",
+        "message": { "text": "Function 'extract_block_name' Documentation tag content is too short to satisfy pedagogical density (min 64 chars).: [USAGE]. (Found 102, Need 128). Hint: Explain HOW to check or use this logic." },
+        "locations": [{
+          "physicalLocation": {
+            "artifactLocation": { "uri": "src/parser.rs" },
+            "region": { "startLine": 154, "snippet": { "text": "/// [USAGE] Invocada durante a criação de entradas funcionais industriais para extrair o nome técnico atômico." } } } }] },
+      {
+        "ruleId": "rule_md_pairing",
+        "level": "note",
+        "message": { "text": "Stale Documentation: .rs file is significantly newer than its .md companion." },
+        "locations": [{
+          "physicalLocation": {
+            "artifactLocation": { "uri": "src/parser.rs" },
+            "region": { "startLine": 1 } } }] },
+      {
+        "ruleId": "rule_md_pairing",
+        "level": "note",
+        "message": { "text": "Stale Documentation: .rs file is significantly newer than its .md companion." },
+        "locations": [{
+          "physicalLocation": {
+            "artifactLocation": { "uri": "src/rules/manifest.rs" },
+            "region": { "startLine": 1 } } }] },
+      {
+        "ruleId": "rule_md_pairing",
+        "level": "note",
+        "message": { "text": "Stale Documentation: .rs file is significantly newer than its .md companion." },
+        "locations": [{
+          "physicalLocation": {
+            "artifactLocation": { "uri": "src/rules/tokens.rs" },
+            "region": { "startLine": 1 } } }] },
+      {
+        "ruleId": "rule_md_pairing",
+        "level": "note",
+        "message": { "text": "Stale Documentation: .rs file is significantly newer than its .md companion." },
+        "locations": [{
+          "physicalLocation": {
+            "artifactLocation": { "uri": "src/rules/macros.rs" },
+            "region": { "startLine": 1 } } }] },
+      {
+        "ruleId": "rule_md_pairing",
+        "level": "note",
+        "message": { "text": "Stale Documentation: .rs file is significantly newer than its .md companion." },
+        "locations": [{
+          "physicalLocation": {
+            "artifactLocation": { "uri": "src/rules/deps.rs" },
+            "region": { "startLine": 1 } } }] },
+      {
+        "ruleId": "rule_md_pairing",
+        "level": "note",
+        "message": { "text": "Stale Documentation: .rs file is significantly newer than its .md companion." },
+        "locations": [{
+          "physicalLocation": {
+            "artifactLocation": { "uri": "src/rules/structure.rs" },
+            "region": { "startLine": 1 } } }] },
+      {
+        "ruleId": "rule_md_pairing",
+        "level": "note",
+        "message": { "text": "Stale Documentation: .rs file is significantly newer than its .md companion." },
+        "locations": [{
+          "physicalLocation": {
+            "artifactLocation": { "uri": "src/rules/metrics.rs" },
+            "region": { "startLine": 1 } } }] }
     ]
   }]
 }
