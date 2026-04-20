@@ -1,3 +1,12 @@
 pub mod Search_Engine_test;
 pub mod Global_Params_test;
 pub mod Swarm_Engine_test;
+pub mod Logical_Density_Axiom_test;
+pub mod Type_Logic_Axiom_test;
+pub mod Aximon_Structural_test;
+pub mod Aximon_Sanitization_test;
+pub mod Logs_test;
+pub mod Sanitization_Axiom_test;
+pub mod Identity_Axiom_test;
+pub mod Aximon_Identity_test;
+pub mod Aximon_Pedagogical_test;

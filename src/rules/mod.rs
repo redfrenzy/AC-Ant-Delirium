@@ -8,7 +8,7 @@ use crate::structs::{GovernanceAxiom, AuditConfig, AuditViolation};
 use crate::parser::ScannedBlock;
 
 // [CATALOG DISCOVERY]
-/// Coleta todos os 24 Axiomas de Governança para execução massiva.
+/// Coleta todos os Axiomas de Governança ativos para execução massiva.
 pub fn get_full_axioms() -> Vec<Box<dyn GovernanceAxiom>> {
     let mut catalog: Vec<Box<dyn GovernanceAxiom>> = Vec::new();
     
@@ -17,7 +17,6 @@ pub fn get_full_axioms() -> Vec<Box<dyn GovernanceAxiom>> {
     catalog.push(Box::new(axiom_structural::Max_Params_Axiom_unit::MaxParamsAxiom::default()));
     catalog.push(Box::new(axiom_structural::Logical_Density_Axiom_unit::LogicalDensityAxiom::default()));
     catalog.push(Box::new(axiom_structural::Type_Logic_Axiom_unit::TypeLogicAxiom::default()));
-    catalog.push(Box::new(axiom_structural::Visibility_Axiom_unit::VisibilityAxiom::default()));
 
     // [PEDAGOGICAL]
     catalog.push(Box::new(axiom_pedagogical::MD_Pairing_Axiom_unit::MdPairingAxiom::default()));

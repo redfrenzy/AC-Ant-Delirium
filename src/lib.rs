@@ -5,6 +5,8 @@ pub mod parser;
 pub mod rules;
 pub mod structs;
 pub mod visualizer;
+#[allow(non_snake_case)]
+pub mod Logs;
 pub mod rules_logs;
 pub mod restricted_tokens;
 pub mod governance;

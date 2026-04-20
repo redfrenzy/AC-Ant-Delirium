@@ -131,25 +131,51 @@ impl HierarchyResolver {
     /// [AESTHETIC CORE - SOVEREIGN PARAMETER RESOLVER]
     /// Resolve um ID de parâmetro por Identidade Direta e por atributos concretos.
     pub(crate) fn resolve_parameter(config: &HierarchyConfig, id: &str) -> Option<String> {
+        Self::resolve_parameter_binding(config, id).map(|(_, value)| value)
+    }
+
+    /// [WHAT] Resolve um ID de parâmetro e informa o caminho concreto que materializou o valor final.
+    pub(crate) fn resolve_parameter_binding(config: &HierarchyConfig, id: &str) -> Option<(String, String)> {
         let path = Self::resolve_id(config, id);
         
         // [1] Tentativa de busca direta pelo path/id
         if let Some(val) = Self::search_concrete_value(config, &path) {
-            return Some(val);
+            return Some((path, val));
+        }
+
+        // [1.5] IDs compostos como "target.core" ou "unit.type_logic"
+        if let Some((resolved_path, val)) = Self::resolve_compound_identifier(config, id) {
+            return Some((resolved_path, val));
+        }
+
+        // [1.75] Propriedade concreta global/ramificada antes de saltar para nós-identidade
+        if let Some((resolved_path, val)) = Self::find_property_value(config, id) {
+            return Some((resolved_path, val));
         }
 
         // [2] [ABYSSAL JUMP] Tentativa de busca por Identidade se for um ID atômico
         let discovery_paths = Self::find_paths_by_id(config, id);
         for p in discovery_paths {
             if let Some(val) = Self::search_concrete_value(config, &p) {
-                return Some(val);
+                return Some((p, val));
+            }
+        }
+        
+        None
+    }
+
+    fn resolve_compound_identifier(config: &HierarchyConfig, id: &str) -> Option<(String, String)> {
+        let (parent_id, attr) = id.rsplit_once('.')?;
+        let mut candidates = Self::find_paths_by_id(config, parent_id);
+        candidates.sort_by_key(|path| path.matches('.').count());
+
+        for candidate in candidates {
+            let candidate_path = format!("{}.{}", candidate, attr);
+            if let Some(val) = Self::search_concrete_value(config, &candidate_path) {
+                return Some((candidate_path, val));
             }
         }
 
-        if let Some(val) = Self::find_property_value(config, id) {
-            return Some(val);
-        }
-        
         None
     }
 
@@ -254,12 +280,12 @@ impl HierarchyResolver {
         None
     }
 
-    fn find_property_value(config: &HierarchyConfig, property: &str) -> Option<String> {
+    fn find_property_value(config: &HierarchyConfig, property: &str) -> Option<(String, String)> {
         let mut matches: Vec<(&String, &String)> = config.nodes.iter()
             .filter_map(|(path, node)| node.properties.get(property).map(|value| (path, value)))
             .collect();
         matches.sort_by_key(|(path, _)| path.matches('.').count());
-        matches.first().map(|(_, value)| (*value).clone())
+        matches.first().map(|(path, value)| (format!("{}.{}", path, property), (*value).clone()))
     }
 
     /// [AESTHETIC CORE - TRIPLE SEARCH ORCHESTRATOR]
@@ -274,7 +300,12 @@ impl HierarchyResolver {
             // [STAGE 2: REQUIREMENT] - "Do que eu preciso?"
             for question_id in Self::find_requirements(config, &geode_path) {
                 // [STAGE 3: RESOLUTION] - "Qual a resposta (valor =)?"
-                if let Some(answer_val) = Self::resolve_parameter(config, &question_id) {
+                let local_requirement_path = format!("{}.{}", geode_path, question_id);
+                let answer = Self::search_params(config, &local_requirement_path)
+                    .map(|value| (local_requirement_path, value))
+                    .or_else(|| Self::resolve_parameter_binding(config, &question_id));
+
+                if let Some((_, answer_val)) = answer {
                     let physical_paths = Self::resolve_taxonomic_jump(config, &answer_val);
                     results.push((question_id, physical_paths));
                 } else {

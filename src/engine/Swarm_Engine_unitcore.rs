@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::Path;
+use std::collections::{HashMap, HashSet};
 use crate::structs::{AuditConfig, GovernanceAxiom, AuditViolation, AuditContext};
 use crate::parser::CodeScanner;
 
@@ -19,7 +20,8 @@ pub fn execute_axiom(axiom: &dyn GovernanceAxiom, config: &AuditConfig) -> Vec<A
         if let Ok(content) = fs::read_to_string(&file_path) {
             let mut local_violations = Vec::new();
             let functions = CodeScanner::scan_blocks(&content);
-            let (detected_dna, taxonomy_path) = resolve_file_taxonomy(config, &file_path);
+            let tag_separator = crate::engine::Swarm_Engine_unit::SwarmEngine::resolve_tag_separator(config);
+            let (detected_dna, taxonomy_path) = resolve_file_taxonomy(config, &file_path, &tag_separator);
             
             {
                 let mut ctx = AuditContext {
@@ -44,16 +46,18 @@ pub fn execute_axiom(axiom: &dyn GovernanceAxiom, config: &AuditConfig) -> Vec<A
     axiom_violations
 }
 
-pub(crate) fn resolve_file_taxonomy(config: &AuditConfig, file_path: &str) -> (String, String) {
+pub(crate) fn resolve_file_taxonomy(
+    config: &AuditConfig,
+    file_path: &str,
+    tag_separator: &str,
+) -> (String, String) {
     let scope_root = resolve_scope_root(config);
-    let tag_separator = config.hierarchy.resolve_parameter("tag_separator")
-        .unwrap_or_else(|| "_".to_string());
     let stem = Path::new(file_path)
         .file_stem()
         .and_then(|value| value.to_str())
         .unwrap_or_default();
 
-    let detected_dna = match stem.rsplit_once(&tag_separator) {
+    let detected_dna = match stem.rsplit_once(tag_separator) {
         Some((_, suffix)) if !suffix.is_empty() => suffix.to_string(),
         _ => String::new(),
     };
@@ -69,25 +73,73 @@ pub(crate) fn resolve_file_taxonomy(config: &AuditConfig, file_path: &str) -> (S
 }
 
 fn resolve_scope_root(config: &AuditConfig) -> String {
-    let jurisdiction_paths: Vec<Vec<&str>> = config.hierarchy.nodes.iter()
-        .filter(|(_, node)| node.properties.contains_key("jurisdiction"))
-        .map(|(path, _)| path.split('.').collect())
-        .collect();
-
-    if jurisdiction_paths.is_empty() {
-        return String::new();
+    if let Some(preferred) = resolve_file_dna_scope_root(config) {
+        return preferred;
     }
 
-    let mut prefix = jurisdiction_paths[0].clone();
-    for path in jurisdiction_paths.iter().skip(1) {
-        let common_len = prefix.iter()
-            .zip(path.iter())
-            .take_while(|(left, right)| left == right)
-            .count();
-        prefix.truncate(common_len);
+    let mut branch_children: HashMap<String, HashSet<String>> = HashMap::new();
+
+    for (path, node) in config.hierarchy.nodes.iter() {
+        let has_concrete_properties = node.properties.keys().any(|key| {
+            key.as_str() != "is_requirement" && !key.starts_with("requirement::")
+        });
+        if !has_concrete_properties {
+            continue;
+        }
+
+        let parts: Vec<&str> = path.split('.').collect();
+        if parts.len() < 2 {
+            continue;
+        }
+
+        for idx in 1..parts.len() {
+            let prefix = parts[..idx].join(".");
+            let child = parts[idx].to_string();
+            branch_children.entry(prefix).or_default().insert(child);
+        }
     }
 
-    prefix.join(".")
+    branch_children.into_iter()
+        .filter(|(_, children)| children.len() > 1)
+        .max_by(|(left_path, left_children), (right_path, right_children)| {
+            let left_score = (left_path.matches('.').count(), left_children.len(), left_path.len());
+            let right_score = (right_path.matches('.').count(), right_children.len(), right_path.len());
+            left_score.cmp(&right_score)
+        })
+        .map(|(path, _)| path)
+        .unwrap_or_default()
+}
+
+fn resolve_file_dna_scope_root(config: &AuditConfig) -> Option<String> {
+    let mut branch_children: HashMap<String, HashSet<String>> = HashMap::new();
+
+    for (path, node) in config.hierarchy.nodes.iter() {
+        let looks_like_file_dna = node.properties.contains_key("type_logic")
+            || node.properties.contains_key("jurisdiction");
+        if !looks_like_file_dna {
+            continue;
+        }
+
+        let parts: Vec<&str> = path.split('.').collect();
+        if parts.len() < 2 {
+            continue;
+        }
+
+        for idx in 1..parts.len() {
+            let prefix = parts[..idx].join(".");
+            let child = parts[idx].to_string();
+            branch_children.entry(prefix).or_default().insert(child);
+        }
+    }
+
+    branch_children.into_iter()
+        .filter(|(_, children)| children.len() > 1)
+        .max_by(|(left_path, left_children), (right_path, right_children)| {
+            let left_score = (left_path.matches('.').count(), left_children.len(), left_path.len());
+            let right_score = (right_path.matches('.').count(), right_children.len(), right_path.len());
+            left_score.cmp(&right_score)
+        })
+        .map(|(path, _)| path)
 }
 
 fn find_taxonomy_path_for_dna(

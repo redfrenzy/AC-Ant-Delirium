@@ -6,6 +6,9 @@ pub mod messages {
     pub const LOGICAL_DENSITY: &str = "Logical Density Violation: function exceeds authorized atomic complexity.";
     pub const PARAMS_TOO_MANY: &str = "Parameter Coupling Violation: excessive number of parameters in declaration.";
     pub const NESTING_TOO_DEEP: &str = "Nesting Violation: logic tree depth exceed sovereign limits.";
+    pub const RESTRICTED_TOKEN: &str = "Restricted Token Violation";
+    pub const DEPS_UNAUTHORIZED: &str = "Allowed Crates Violation";
+    pub const IMPURE_ACTIVATION: &str = "Dependency Purification Violation";
 }
 
 /// [WHAT] Roteador dinâmico de documentação industrial.

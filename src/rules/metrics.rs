@@ -183,3 +183,22 @@ fn count_parameters(declaration: &str) -> usize {
     }
     count + 1
 }
+
+/// [WHAT] Legacy sentinel function intentionally exceeding parameter limits for governance validation.
+/// [WHY] Provides a stable fixture so the new MaxParamsAxiom can prove it detects excessive coupling in legacy modules.
+/// [WHERE] metrics.rs legacy rule module, outside the new axiom folders.
+/// [USAGE] Exercised indirectly by structural test sweeps to confirm parameter-count violations are surfaced.
+fn legacy_parameter_overload_probe(
+    alpha: usize,
+    beta: usize,
+    gamma: usize,
+    delta: usize,
+    epsilon: usize,
+    zeta: usize,
+    eta: usize,
+    theta: usize,
+    iota: usize,
+    kappa: usize,
+) -> usize {
+    alpha + beta + gamma + delta + epsilon + zeta + eta + theta + iota + kappa
+}

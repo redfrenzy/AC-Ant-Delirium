@@ -14,7 +14,7 @@ impl GovernanceAxiom for AllowedCratesAxiom {
     fn name(&self) -> &str { "AllowedCratesAxiom Sanitization Auditor" }
 
     fn resolve_jurisdiction(&self, hierarchy: &HierarchyConfig) -> Vec<String> {
-        SearchFiles::resolve_jurisdiction(hierarchy, self.id())
+        SearchFiles::resolve_jurisdiction(hierarchy, SearchFiles::ID)
     }
 
     fn execute(&self, ctx: &mut crate::structs::AuditContext<'_>) {

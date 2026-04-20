@@ -85,7 +85,7 @@ fn process_line_in_scan<'a, 'b>(
 
     let cleaned = clean_line(trimmed);
     if is_block_start(&cleaned) {
-        blocks.push(create_block_entry(idx, trimmed, docs, lines, source_full));
+        blocks.push(create_block_entry(idx, line, docs, lines, source_full));
         return;
     }
 
@@ -113,7 +113,7 @@ pub fn clean_line(line: &str) -> String {
     out
 }
 
-/// [WHAT] Detects whether a given line of code marks the beginning of a Rust code block (function, struct, enum, trait) by analyzing structural keywords.
+/// [WHAT] Detects whether a given line of code marks the beginning of a Rust code block (function, struct, enum, trait, impl) by analyzing structural keywords.
 /// [WHY] To establish a vertical search boundary for block-level auditing, ensuring that only valid functional and layout units are processed by the structural scanners.
 /// [WHERE] Internal predicate used by the code scanner logic in parser.rs, acting as the primary filter for the discovery phase of the audit.
 /// [USAGE] Utilizada pelo motor de rastreamento para identificar o início de uma unidade estrutural industrial, permitindo a extração subsequente de metadados e corpo técnico.
@@ -124,7 +124,8 @@ fn is_block_start(line: &str) -> bool {
         || line.contains("struct ")
         || line.contains("enum ")
         || line.contains("trait ")
-        || line.contains("macro_rules!");
+        || line.contains("macro_rules!")
+        || is_impl_start(line);
     has_terminator && has_kw
 }
 
@@ -187,6 +188,10 @@ fn extract_block_name(line: &str) -> String {
 
 /// [WHAT] Detecta cirurgicamente o tipo e o nome de um bloco Rust.
 fn detect_block_type(line: &str) -> (&'static str, String) {
+    if is_impl_start(line) {
+        return ("impl", extract_impl_name(line));
+    }
+
     let keywords = [
         ("fn ", "function"),
         ("struct ", "struct"),
@@ -206,6 +211,40 @@ fn detect_block_type(line: &str) -> (&'static str, String) {
         }
     }
     ("unknown", "unknown".to_string())
+}
+
+fn is_impl_start(line: &str) -> bool {
+    let normalized = line.trim_start();
+    normalized.starts_with("impl ")
+        || normalized.starts_with("impl<")
+        || normalized.starts_with("unsafe impl ")
+        || normalized.starts_with("unsafe impl<")
+}
+
+fn extract_impl_name(line: &str) -> String {
+    let normalized = line.trim();
+
+    if let Some((_, rhs)) = normalized.split_once(" for ") {
+        return rhs
+            .split(|c| c == '{' || c == '<' || c == ' ' || c == '\t')
+            .find(|segment| !segment.trim().is_empty())
+            .unwrap_or("unknown")
+            .trim()
+            .to_string();
+    }
+
+    let after_impl = normalized
+        .strip_prefix("unsafe ")
+        .unwrap_or(normalized)
+        .trim_start_matches("impl")
+        .trim_start();
+
+    after_impl
+        .split(|c| c == '{' || c == '<' || c == ' ' || c == '\t')
+        .find(|segment| !segment.trim().is_empty())
+        .unwrap_or("unknown")
+        .trim()
+        .to_string()
 }
 
 use crate::restricted_tokens::resolve::elite_resolve_or;

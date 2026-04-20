@@ -2,6 +2,8 @@
 
 use std::env;
 use std::fs;
+use ac_ant_delirium::Logs::GovernanceLogs;
+use ac_ant_delirium::restricted_tokens::out::elite_out;
 use ac_ant_delirium::structs::{HierarchyConfig, AuditConfig};
 use ac_ant_delirium::visualizer::TaxonomyVisualizer;
 use ac_ant_delirium::engine::Swarm_Engine_unit::SwarmEngine;
@@ -21,7 +23,7 @@ fn main() {
             HierarchyConfig::parse_brute(&input)
         }
     } else {
-        println!("[AESTHETIC CORE] Utilizando taxonomia estática embutida (Bake-in).");
+        elite_out("[AESTHETIC CORE] Utilizando taxonomia estática embutida (Bake-in).");
         HierarchyConfig::load_static()
     };
     
@@ -29,9 +31,9 @@ fn main() {
     if args.len() >= 5 && args[3] == "--search" {
         let path = &args[4];
         if let Some(result) = hierarchy.search_params(path) {
-            println!("\n[AQ - SEARCH RESULT]\nPath: {}\n---------------------------------------------\n{}\n---------------------------------------------", path, result);
+            elite_out(&format!("\n[AQ - SEARCH RESULT]\nPath: {}\n---------------------------------------------\n{}\n---------------------------------------------", path, result));
         } else {
-            println!("\n[!] Path or Parameter not found: {}", path);
+            elite_out(&format!("\n[!] Path or Parameter not found: {}", path));
         }
         return;
     }
@@ -42,21 +44,18 @@ fn main() {
     };
 
     // [1] Visualização Taxonômica
-    println!("\nAnt Delirium Agnostic Discovery Tree:\n");
-    println!("{}", TaxonomyVisualizer::generate_tree(&config.hierarchy));
+    elite_out("\nAnt Delirium Agnostic Discovery Tree:\n");
+    elite_out(&TaxonomyVisualizer::generate_tree(&config.hierarchy));
 
     // [2] Governança Ativa (Swarm Engine)
-    println!("\n[AESTHETIC CORE - GOVERNANCE REPORT]");
-    let violations = SwarmEngine::patrol(&config);
-    
-    if violations.is_empty() {
-        println!("\n[SUCCESS] No governance violations detected. Your cluster is in the Elite state.");
-    } else {
-        println!("\n[!] DETECTED {} VIOLATIONS IN GOVERNANCE:", violations.len());
-        for (i, v) in violations.iter().enumerate() {
-            println!("{:02}. [{}] in {}\n    Message: {}", i + 1, v.rule_id, v.file_path, v.message);
-        }
-    }
-    
-    println!("\n[FINISH] Audit complete.");
+    elite_out("\n[AESTHETIC CORE - GOVERNANCE REPORT]");
+    let audit_result = SwarmEngine::audit(&config);
+    let artifact_paths = GovernanceLogs::write_artifacts(
+        &audit_result,
+        &config,
+        GovernanceLogs::DEFAULT_OUTPUT_ROOT,
+    ).ok();
+
+    GovernanceLogs::emit_terminal_report(&audit_result, &config, artifact_paths.as_ref());
+    elite_out("\n[FINISH] Audit complete.");
 }

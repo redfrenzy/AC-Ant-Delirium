@@ -13,13 +13,16 @@ mod tests {
         let identity_paths = config.find_paths_by_id("dna_suffix");
         assert_eq!(identity_paths, vec!["hierarchy.identity.dna_suffix".to_string()]);
 
-        let requirement = config.resolve_parameter("casing");
-        assert_eq!(requirement.as_deref(), Some("PascalCase"));
+        let requirement = config.resolve_parameter("tag_separator");
+        assert_eq!(requirement.as_deref(), Some("_"));
 
         let functionalities = config.search_functionalities("dna_suffix");
         assert_eq!(
             functionalities,
-            vec![("casing".to_string(), vec!["PascalCase".to_string()])]
+            vec![
+                ("operation_zone".to_string(), Vec::<String>::new()),
+                ("tag_separator".to_string(), vec!["_".to_string()]),
+            ]
         );
     }
 
@@ -42,13 +45,16 @@ mod tests {
         let identity_paths = config.find_paths_by_id("dna_suffix");
         assert_eq!(identity_paths, vec!["rule.identity.dna_suffix".to_string()]);
 
-        let requirement = config.resolve_parameter("casing");
-        assert_eq!(requirement.as_deref(), Some("PascalCase"));
+        let requirement = config.resolve_parameter("tag_separator");
+        assert_eq!(requirement.as_deref(), Some("_"));
 
         let functionalities = config.search_functionalities("dna_suffix");
         assert_eq!(
             functionalities,
-            vec![("casing".to_string(), vec!["PascalCase".to_string()])]
+            vec![
+                ("operation_zone".to_string(), Vec::<String>::new()),
+                ("tag_separator".to_string(), vec!["_".to_string()]),
+            ]
         );
     }
 

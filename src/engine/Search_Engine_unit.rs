@@ -38,6 +38,11 @@ impl HierarchyConfig {
         internal::HierarchyResolver::resolve_parameter(self, id)
     }
 
+    /// [WHAT] Resolve um requisito atômico e devolve também o caminho concreto de onde o valor foi materializado.
+    pub fn resolve_parameter_binding(&self, id: &str) -> Option<(String, String)> {
+        internal::HierarchyResolver::resolve_parameter_binding(self, id)
+    }
+
     /// [WHAT] Resolve um parâmetro a partir de um caminho taxonômico, subindo pelos ancestrais até o root.
     pub fn resolve_taxonomy_parameter(&self, taxonomy_path: &str, parameter: &str) -> Result<(String, String), String> {
         internal::HierarchyResolver::resolve_taxonomy_parameter(self, taxonomy_path, parameter)

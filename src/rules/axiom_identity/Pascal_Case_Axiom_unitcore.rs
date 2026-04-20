@@ -1,4 +1,70 @@
+use crate::structs::AuditContext;
+use std::path::Path;
+
 /// [AESTHETIC CORE - INTERNAL VACUUM]
-pub fn patrol(_ctx: &mut crate::structs::AuditContext<'_>) {
-    // [SOVEREIGNTY] Lógica bruta para pascal_case reside aqui.
+pub fn patrol(ctx: &mut AuditContext<'_>) {
+    let casing = match ctx.require_named_global_axiom_parameter("pascal_case", "casing") {
+        Ok(binding) => binding.value,
+        Err(message) => {
+            push_resolution_violation(ctx, "pascal_case", &message);
+            return;
+        }
+    };
+
+    if !ctx.file_path.ends_with(".rs") {
+        return;
+    }
+
+    if casing != "PascalCase" {
+        return;
+    }
+
+    let tag_separator = ctx.config.hierarchy.resolve_parameter("tag_separator")
+        .unwrap_or_else(|| "_".to_string());
+    let stem = Path::new(ctx.file_path)
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default();
+    let core_name = stem
+        .rsplit_once(&tag_separator)
+        .map(|(base, _)| base)
+        .unwrap_or(stem);
+
+    if !is_pascal_case(core_name) {
+        ctx.violations.push(crate::structs::AuditViolation {
+            file_path: ctx.file_path.to_string(),
+            line: 1,
+            rule_id: "hierarchy.identity.pascal_case".to_string(),
+            message: format!("PascalCase violation: '{}' does not match '{}'.", core_name, casing),
+            snippet: Some(core_name.to_string()),
+            quick_fix: None,
+            detected_dna: ctx.detected_dna.clone(),
+            taxonomy_path: "hierarchy.identity.pascal_case".to_string(),
+        });
+    }
+}
+
+fn is_pascal_case(input: &str) -> bool {
+    if input.is_empty() || input.contains('_') || input.contains('-') || input.contains('.') {
+        return false;
+    }
+    let mut chars = input.chars();
+    match chars.next() {
+        Some(first) if first.is_ascii_uppercase() => (),
+        _ => return false,
+    }
+    input.chars().all(|c| c.is_ascii_alphanumeric())
+}
+
+fn push_resolution_violation(ctx: &mut AuditContext<'_>, rule_suffix: &str, message: &str) {
+    ctx.violations.push(crate::structs::AuditViolation {
+        file_path: ctx.file_path.to_string(),
+        line: 1,
+        rule_id: format!("hierarchy.identity.{}.resolution", rule_suffix),
+        message: message.to_string(),
+        snippet: Some(ctx.file_path.to_string()),
+        quick_fix: None,
+        detected_dna: ctx.detected_dna.clone(),
+        taxonomy_path: ctx.taxonomy_path.clone(),
+    });
 }

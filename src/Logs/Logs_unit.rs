@@ -1,0 +1,60 @@
+use crate::restricted_tokens::out::elite_out;
+use crate::structs::{AuditConfig, AuditResult};
+
+#[path = "Logs_unitcore.rs"]
+mod internal;
+
+#[derive(Default, Debug, Clone)]
+pub struct GovernanceArtifactPaths {
+    pub output_root: String,
+    pub violations_dir: String,
+    pub terminal_report_path: String,
+    pub violations_manifest_path: String,
+    pub shadow_context_path: String,
+}
+
+pub struct GovernanceLogs;
+
+impl GovernanceLogs {
+    pub const DEFAULT_OUTPUT_ROOT: &str = "src/Logs/artifacts";
+
+    pub fn format_terminal_report(
+        result: &AuditResult,
+        config: &AuditConfig,
+        artifacts: Option<&GovernanceArtifactPaths>,
+    ) -> String {
+        internal::format_terminal_report(result, config, artifacts)
+    }
+
+    pub fn to_shadow_context(
+        result: &AuditResult,
+        config: &AuditConfig,
+        artifacts: Option<&GovernanceArtifactPaths>,
+    ) -> String {
+        internal::to_shadow_context(result, config, artifacts)
+    }
+
+    pub fn to_violation_manifest(
+        result: &AuditResult,
+        config: &AuditConfig,
+        artifacts: Option<&GovernanceArtifactPaths>,
+    ) -> String {
+        internal::to_violation_manifest(result, config, artifacts)
+    }
+
+    pub fn write_artifacts(
+        result: &AuditResult,
+        config: &AuditConfig,
+        output_root: &str,
+    ) -> std::io::Result<GovernanceArtifactPaths> {
+        internal::write_artifacts(result, config, output_root)
+    }
+
+    pub fn emit_terminal_report(
+        result: &AuditResult,
+        config: &AuditConfig,
+        artifacts: Option<&GovernanceArtifactPaths>,
+    ) {
+        elite_out(&Self::format_terminal_report(result, config, artifacts));
+    }
+}
