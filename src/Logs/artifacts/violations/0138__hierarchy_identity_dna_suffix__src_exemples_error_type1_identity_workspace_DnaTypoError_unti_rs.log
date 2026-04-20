@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=138
+priority=P2
+level=note
+rule_id=hierarchy.identity.dna_suffix
+file_path=src/exemples_error/type1/identity_workspace/DnaTypoError_unti.rs
+line=1
+detected_dna=unti
+taxonomy_path=hierarchy.identity.dna_suffix
+message=DNA suffix invalid: 'DnaTypoError_unti' uses 'unti' after '_', but this suffix is not defined in the active taxonomy.
+snippet=DnaTypoError_unti

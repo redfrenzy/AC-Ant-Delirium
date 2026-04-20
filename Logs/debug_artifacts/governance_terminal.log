@@ -1,0 +1,1540 @@
+
+AESTHETIC CORE  ▸  Ant Delirium Governance
+==========================================
+Status: NON-COMPLIANT  │  189 violations
+Audited Files: 31
+P0-CRITICAL ··· 6
+P1-STRUCTURAL · 16
+P2-SEMANTIC ··· 43
+P3-ARCHIVAL ··· 124
+
+[ARTIFACTS]
+▸ terminal: Logs/debug_artifacts/governance_terminal.log
+▸ manifest: Logs/debug_artifacts/violations_manifest.json
+▸ shadow:   shadow_context_type_3.json
+▸ details:  Logs/debug_artifacts/violations
+
+[AUDITED FILES]
+▸ src/exemples_error/type3/Logical-Dencity-Error_estrutura.rs
+▸ src/exemples_error/type3/Logical-Dencity-Error_estrutura_nucleo.rs
+▸ src/exemples_error/type3/Logical-Dencity-Error_macro.rs
+▸ src/exemples_error/type3/Logical-Dencity-Error_macro_nucleo.rs
+▸ src/exemples_error/type3/Logical-Dencity-Error_unidade.rs
+▸ src/exemples_error/type3/Logical-Dencity-Error_unidade_nucleo.rs
+▸ src/exemples_error/type3/Max-Nesting-Error_estrutura_nucleo.rs
+▸ src/exemples_error/type3/Max-Nesting-Error_unidade.rs
+▸ src/exemples_error/type3/Max-Params-Error_unidade.rs
+▸ src/exemples_error/type3/Max-Params-Error_unidade_nucleo.rs
+▸ src/exemples_error/type3/Type-Logic-Error_estrutura.rs
+▸ src/exemples_error/type3/Type-Logic-Error_unidade_nucleo.rs
+▸ src/exemples_error/type3/Visibility-Error_estrutura.rs
+▸ src/exemples_error/type3/identity_workspace/DnaSuffixError.rs
+▸ src/exemples_error/type3/identity_workspace/DnaTypoError_unidadi.rs
+▸ src/exemples_error/type3/identity_workspace/Guide_unidade.md
+▸ src/exemples_error/type3/identity_workspace/Name_Separator_Error_unidade.rs
+▸ src/exemples_error/type3/identity_workspace/Recursion-Missing_unidade.rs
+▸ src/exemples_error/type3/identity_workspace/Tag-Separator-Error-unidade.rs
+▸ src/exemples_error/type3/identity_workspace/pascal_case_error_unidade.rs
+▸ src/exemples_error/type3/pedagogical_workspace/Inheritance-Visibility-Error_unidade.md
+▸ src/exemples_error/type3/pedagogical_workspace/Md-Min-Chars-Error.md
+▸ src/exemples_error/type3/pedagogical_workspace/Md-Pairing-Error_unidade.rs
+▸ src/exemples_error/type3/pedagogical_workspace/RootGuide.md
+▸ src/exemples_error/type3/pedagogical_workspace/Test-Case-Mapping-Error_unidade.rs
+▸ src/exemples_error/type3/pedagogical_workspace/Usage-Example-Error.md
+▸ src/exemples_error/type3/pedagogical_workspace/What-Mission-Error.md
+▸ src/exemples_error/type3/pedagogical_workspace/Why-Justification-Error.md
+▸ src/exemples_error/type3/sanitization_workspace/Cargo.toml
+▸ src/exemples_error/type3/sanitization_workspace/Restricted-Tokens-Error_unidade.rs
+▸ src/exemples_error/type3/sanitization_workspace/Token-Sanitization-Error_unidade.rs
+
+[ORCHESTRATOR LOGS]
+▸ [SWARM] Iniciando patrulha massiva com 23 axiomas.
+▸ [SWARM][max_nesting] 2 violation(s) detectada(s).
+▸ [SWARM][max_params] 2 violation(s) detectada(s).
+▸ [SWARM][logical_density] 6 violation(s) detectada(s).
+▸ [SWARM][type_logic] 6 violation(s) detectada(s).
+▸ [SWARM][md_pairing] 22 violation(s) detectada(s).
+▸ [SWARM][md_min_chars] 7 violation(s) detectada(s).
+▸ [SWARM][what_mission] 22 violation(s) detectada(s).
+▸ [SWARM][why_justification] 22 violation(s) detectada(s).
+▸ [SWARM][usage_example] 22 violation(s) detectada(s).
+▸ [SWARM][test_case_mapping] 22 violation(s) detectada(s).
+▸ [SWARM][root_md_pairing] 5 violation(s) detectada(s).
+▸ [SWARM][inheritance_visibility] 2 violation(s) detectada(s).
+▸ [SWARM][dna_suffix] 3 violation(s) detectada(s).
+▸ [SWARM][tag_separator] 1 violation(s) detectada(s).
+▸ [SWARM][pascal_case] 21 violation(s) detectada(s).
+▸ [SWARM][recursion] 14 violation(s) detectada(s).
+▸ [SWARM][manifest_anchoring] 2 violation(s) detectada(s).
+▸ [SWARM][name_separator] 2 violation(s) detectada(s).
+▸ [SWARM][restricted_tokens] 2 violation(s) detectada(s).
+▸ [SWARM][allowed_crates] 1 violation(s) detectada(s).
+▸ [SWARM][token_sanitization] 2 violation(s) detectada(s).
+▸ [SWARM][dependency_purification] 1 violation(s) detectada(s).
+▸ [SWARM] Patrulha encerrada com 189 violation(s).
+
+[VIOLATIONS]
+01. [P2|note] regras.identity.pascal_case
+    file: src/exemples_error/type3/Logical-Dencity-Error_estrutura.rs:1
+    dna: estrutura
+    taxonomy: regras.identity.pascal_case
+    log: Logs/debug_artifacts/violations/0156__regras_identity_pascal_case__src_exemples_error_type3_Logical_Dencity_Error_estrutura_rs.log
+    message: PascalCase violation: 'Logical-Dencity-Error' does not match 'PascalCase'.
+    snippet: Logical-Dencity-Error
+02. [P3|note] regras.pedagogical.md_pairing
+    file: src/exemples_error/type3/Logical-Dencity-Error_estrutura.rs:5
+    dna: estrutura
+    taxonomy: regras.pedagogical.md_pairing
+    log: Logs/debug_artifacts/violations/0030__regras_pedagogical_md_pairing__src_exemples_error_type3_Logical_Dencity_Error_estrutura_rs.log
+    message: Where documentation violation: function 'logical_density_error_struct' must include [WHERE] in the documentation block above the declaration.
+    snippet: fn logical_density_error_struct() {
+    quick_fix: /// [WHERE] ...
+03. [P3|note] regras.pedagogical.test_case_mapping
+    file: src/exemples_error/type3/Logical-Dencity-Error_estrutura.rs:5
+    dna: estrutura
+    taxonomy: regras.pedagogical.test_case_mapping
+    log: Logs/debug_artifacts/violations/0125__regras_pedagogical_test_case_mapping__src_exemples_error_type3_Logical_Dencity_Error_estrutura_rs.log
+    message: Test mapping violation: function 'logical_density_error_struct' must include [TEST] in the documentation block above the declaration.
+    snippet: fn logical_density_error_struct() {
+    quick_fix: /// [TEST] ...
+04. [P3|note] regras.pedagogical.usage_example
+    file: src/exemples_error/type3/Logical-Dencity-Error_estrutura.rs:5
+    dna: estrutura
+    taxonomy: regras.pedagogical.usage_example
+    log: Logs/debug_artifacts/violations/0103__regras_pedagogical_usage_example__src_exemples_error_type3_Logical_Dencity_Error_estrutura_rs.log
+    message: Usage example violation: function 'logical_density_error_struct' must include [USAGE] in the documentation block above the declaration.
+    snippet: fn logical_density_error_struct() {
+    quick_fix: /// [USAGE] ...
+05. [P3|note] regras.pedagogical.what_mission
+    file: src/exemples_error/type3/Logical-Dencity-Error_estrutura.rs:5
+    dna: estrutura
+    taxonomy: regras.pedagogical.what_mission
+    log: Logs/debug_artifacts/violations/0059__regras_pedagogical_what_mission__src_exemples_error_type3_Logical_Dencity_Error_estrutura_rs.log
+    message: What mission violation: function 'logical_density_error_struct' must include [WHAT] in the documentation block above the declaration.
+    snippet: fn logical_density_error_struct() {
+    quick_fix: /// [WHAT] ...
+06. [P3|note] regras.pedagogical.why_justification
+    file: src/exemples_error/type3/Logical-Dencity-Error_estrutura.rs:5
+    dna: estrutura
+    taxonomy: regras.pedagogical.why_justification
+    log: Logs/debug_artifacts/violations/0081__regras_pedagogical_why_justification__src_exemples_error_type3_Logical_Dencity_Error_estrutura_rs.log
+    message: Why justification violation: function 'logical_density_error_struct' must include [WHY] in the documentation block above the declaration.
+    snippet: fn logical_density_error_struct() {
+    quick_fix: /// [WHY] ...
+07. [P1|warning] regras.structural.logical_density.logical_density_error_struct
+    file: src/exemples_error/type3/Logical-Dencity-Error_estrutura.rs:5
+    dna: estrutura
+    taxonomy: regras.arquivos.logical_density
+    log: Logs/debug_artifacts/violations/0007__regras_structural_logical_density_logical_density_error_struct__src_exemples_error_type3_Logical_Dencity_Error_estrutura_rs.log
+    message: Logical Density Violation: function exceeds authorized atomic complexity. - 41/40 statements. Fragment this logic.
+    snippet: fn logical_density_error_struct() {
+    quick_fix: // [REFAC] Fragment this function into smaller atomic units to reduce logical mass.
+08. [P1|warning] regras.structural.type_logic.logical_density_error_struct
+    file: src/exemples_error/type3/Logical-Dencity-Error_estrutura.rs:5
+    dna: estrutura
+    taxonomy: regras.arquivos.estrutura.type_logic
+    log: Logs/debug_artifacts/violations/0013__regras_structural_type_logic_logical_density_error_struct__src_exemples_error_type3_Logical_Dencity_Error_estrutura_rs.log
+    message: Type Logic Violation: DNA 'estrutura' only allows ["struct", "public_struct", "enum", "public_enum"], but found 'private_fn' in declaration.
+    snippet: fn logical_density_error_struct() {
+    quick_fix: // [TODO] Align this declaration with the 'estrutura' type_logic profile resolved from regras.arquivos.estrutura.
+09. [P2|note] regras.identity.pascal_case
+    file: src/exemples_error/type3/Logical-Dencity-Error_estrutura_nucleo.rs:1
+    dna: estrutura_nucleo
+    taxonomy: regras.identity.pascal_case
+    log: Logs/debug_artifacts/violations/0155__regras_identity_pascal_case__src_exemples_error_type3_Logical_Dencity_Error_estrutura_nucleo_rs.log
+    message: PascalCase violation: 'Logical-Dencity-Error_estrutura' does not match 'PascalCase'.
+    snippet: Logical-Dencity-Error_estrutura
+10. [P3|note] regras.pedagogical.md_pairing
+    file: src/exemples_error/type3/Logical-Dencity-Error_estrutura_nucleo.rs:1
+    dna: estrutura_nucleo
+    taxonomy: regras.pedagogical.md_pairing
+    log: Logs/debug_artifacts/violations/0029__regras_pedagogical_md_pairing__src_exemples_error_type3_Logical_Dencity_Error_estrutura_nucleo_rs.log
+    message: Where documentation violation: function 'logical_density_error_structcore' must include [WHERE] in the documentation block above the declaration.
+    snippet: fn logical_density_error_structcore() {
+    quick_fix: /// [WHERE] ...
+11. [P3|note] regras.pedagogical.test_case_mapping
+    file: src/exemples_error/type3/Logical-Dencity-Error_estrutura_nucleo.rs:1
+    dna: estrutura_nucleo
+    taxonomy: regras.pedagogical.test_case_mapping
+    log: Logs/debug_artifacts/violations/0124__regras_pedagogical_test_case_mapping__src_exemples_error_type3_Logical_Dencity_Error_estrutura_nucleo_rs.log
+    message: Test mapping violation: function 'logical_density_error_structcore' must include [TEST] in the documentation block above the declaration.
+    snippet: fn logical_density_error_structcore() {
+    quick_fix: /// [TEST] ...
+12. [P3|note] regras.pedagogical.usage_example
+    file: src/exemples_error/type3/Logical-Dencity-Error_estrutura_nucleo.rs:1
+    dna: estrutura_nucleo
+    taxonomy: regras.pedagogical.usage_example
+    log: Logs/debug_artifacts/violations/0102__regras_pedagogical_usage_example__src_exemples_error_type3_Logical_Dencity_Error_estrutura_nucleo_rs.log
+    message: Usage example violation: function 'logical_density_error_structcore' must include [USAGE] in the documentation block above the declaration.
+    snippet: fn logical_density_error_structcore() {
+    quick_fix: /// [USAGE] ...
+13. [P3|note] regras.pedagogical.what_mission
+    file: src/exemples_error/type3/Logical-Dencity-Error_estrutura_nucleo.rs:1
+    dna: estrutura_nucleo
+    taxonomy: regras.pedagogical.what_mission
+    log: Logs/debug_artifacts/violations/0058__regras_pedagogical_what_mission__src_exemples_error_type3_Logical_Dencity_Error_estrutura_nucleo_rs.log
+    message: What mission violation: function 'logical_density_error_structcore' must include [WHAT] in the documentation block above the declaration.
+    snippet: fn logical_density_error_structcore() {
+    quick_fix: /// [WHAT] ...
+14. [P3|note] regras.pedagogical.why_justification
+    file: src/exemples_error/type3/Logical-Dencity-Error_estrutura_nucleo.rs:1
+    dna: estrutura_nucleo
+    taxonomy: regras.pedagogical.why_justification
+    log: Logs/debug_artifacts/violations/0080__regras_pedagogical_why_justification__src_exemples_error_type3_Logical_Dencity_Error_estrutura_nucleo_rs.log
+    message: Why justification violation: function 'logical_density_error_structcore' must include [WHY] in the documentation block above the declaration.
+    snippet: fn logical_density_error_structcore() {
+    quick_fix: /// [WHY] ...
+15. [P1|warning] regras.structural.logical_density.logical_density_error_structcore
+    file: src/exemples_error/type3/Logical-Dencity-Error_estrutura_nucleo.rs:1
+    dna: estrutura_nucleo
+    taxonomy: regras.arquivos.estrutura.estrutura_nucleo.logical_density
+    log: Logs/debug_artifacts/violations/0006__regras_structural_logical_density_logical_density_error_structcore__src_exemples_error_type3_Logical_Dencity_Error_estrutura_nucleo_rs.log
+    message: Logical Density Violation: function exceeds authorized atomic complexity. - 32/30 statements. Fragment this logic.
+    snippet: fn logical_density_error_structcore() {
+    quick_fix: // [REFAC] Fragment this function into smaller atomic units to reduce logical mass.
+16. [P2|note] regras.identity.pascal_case
+    file: src/exemples_error/type3/Logical-Dencity-Error_macro.rs:1
+    dna: macro
+    taxonomy: regras.identity.pascal_case
+    log: Logs/debug_artifacts/violations/0162__regras_identity_pascal_case__src_exemples_error_type3_Logical_Dencity_Error_macro_rs.log
+    message: PascalCase violation: 'Logical-Dencity-Error' does not match 'PascalCase'.
+    snippet: Logical-Dencity-Error
+17. [P1|warning] regras.structural.logical_density.logical_density_error_macro
+    file: src/exemples_error/type3/Logical-Dencity-Error_macro.rs:1
+    dna: macro
+    taxonomy: regras.arquivos.logical_density
+    log: Logs/debug_artifacts/violations/0009__regras_structural_logical_density_logical_density_error_macro__src_exemples_error_type3_Logical_Dencity_Error_macro_rs.log
+    message: Logical Density Violation: function exceeds authorized atomic complexity. - 44/40 statements. Fragment this logic.
+    snippet: macro_rules! logical_density_error_macro {
+    quick_fix: // [REFAC] Fragment this function into smaller atomic units to reduce logical mass.
+18. [P2|note] regras.identity.pascal_case
+    file: src/exemples_error/type3/Logical-Dencity-Error_macro_nucleo.rs:1
+    dna: macro_nucleo
+    taxonomy: regras.identity.pascal_case
+    log: Logs/debug_artifacts/violations/0163__regras_identity_pascal_case__src_exemples_error_type3_Logical_Dencity_Error_macro_nucleo_rs.log
+    message: PascalCase violation: 'Logical-Dencity-Error_macro' does not match 'PascalCase'.
+    snippet: Logical-Dencity-Error_macro
+19. [P3|note] regras.pedagogical.md_pairing
+    file: src/exemples_error/type3/Logical-Dencity-Error_macro_nucleo.rs:1
+    dna: macro_nucleo
+    taxonomy: regras.pedagogical.md_pairing
+    log: Logs/debug_artifacts/violations/0036__regras_pedagogical_md_pairing__src_exemples_error_type3_Logical_Dencity_Error_macro_nucleo_rs.log
+    message: Where documentation violation: function 'logical_density_error_macrocore' must include [WHERE] in the documentation block above the declaration.
+    snippet: fn logical_density_error_macrocore() {
+    quick_fix: /// [WHERE] ...
+20. [P3|note] regras.pedagogical.test_case_mapping
+    file: src/exemples_error/type3/Logical-Dencity-Error_macro_nucleo.rs:1
+    dna: macro_nucleo
+    taxonomy: regras.pedagogical.test_case_mapping
+    log: Logs/debug_artifacts/violations/0131__regras_pedagogical_test_case_mapping__src_exemples_error_type3_Logical_Dencity_Error_macro_nucleo_rs.log
+    message: Test mapping violation: function 'logical_density_error_macrocore' must include [TEST] in the documentation block above the declaration.
+    snippet: fn logical_density_error_macrocore() {
+    quick_fix: /// [TEST] ...
+21. [P3|note] regras.pedagogical.usage_example
+    file: src/exemples_error/type3/Logical-Dencity-Error_macro_nucleo.rs:1
+    dna: macro_nucleo
+    taxonomy: regras.pedagogical.usage_example
+    log: Logs/debug_artifacts/violations/0109__regras_pedagogical_usage_example__src_exemples_error_type3_Logical_Dencity_Error_macro_nucleo_rs.log
+    message: Usage example violation: function 'logical_density_error_macrocore' must include [USAGE] in the documentation block above the declaration.
+    snippet: fn logical_density_error_macrocore() {
+    quick_fix: /// [USAGE] ...
+22. [P3|note] regras.pedagogical.what_mission
+    file: src/exemples_error/type3/Logical-Dencity-Error_macro_nucleo.rs:1
+    dna: macro_nucleo
+    taxonomy: regras.pedagogical.what_mission
+    log: Logs/debug_artifacts/violations/0065__regras_pedagogical_what_mission__src_exemples_error_type3_Logical_Dencity_Error_macro_nucleo_rs.log
+    message: What mission violation: function 'logical_density_error_macrocore' must include [WHAT] in the documentation block above the declaration.
+    snippet: fn logical_density_error_macrocore() {
+    quick_fix: /// [WHAT] ...
+23. [P3|note] regras.pedagogical.why_justification
+    file: src/exemples_error/type3/Logical-Dencity-Error_macro_nucleo.rs:1
+    dna: macro_nucleo
+    taxonomy: regras.pedagogical.why_justification
+    log: Logs/debug_artifacts/violations/0087__regras_pedagogical_why_justification__src_exemples_error_type3_Logical_Dencity_Error_macro_nucleo_rs.log
+    message: Why justification violation: function 'logical_density_error_macrocore' must include [WHY] in the documentation block above the declaration.
+    snippet: fn logical_density_error_macrocore() {
+    quick_fix: /// [WHY] ...
+24. [P1|warning] regras.structural.logical_density.logical_density_error_macrocore
+    file: src/exemples_error/type3/Logical-Dencity-Error_macro_nucleo.rs:1
+    dna: macro_nucleo
+    taxonomy: regras.arquivos.macro.macro_nucleo.logical_density
+    log: Logs/debug_artifacts/violations/0010__regras_structural_logical_density_logical_density_error_macrocore__src_exemples_error_type3_Logical_Dencity_Error_macro_nucleo_rs.log
+    message: Logical Density Violation: function exceeds authorized atomic complexity. - 41/40 statements. Fragment this logic.
+    snippet: fn logical_density_error_macrocore() {
+    quick_fix: // [REFAC] Fragment this function into smaller atomic units to reduce logical mass.
+25. [P2|note] regras.identity.pascal_case
+    file: src/exemples_error/type3/Logical-Dencity-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.identity.pascal_case
+    log: Logs/debug_artifacts/violations/0161__regras_identity_pascal_case__src_exemples_error_type3_Logical_Dencity_Error_unidade_rs.log
+    message: PascalCase violation: 'Logical-Dencity-Error' does not match 'PascalCase'.
+    snippet: Logical-Dencity-Error
+26. [P3|note] regras.pedagogical.md_pairing
+    file: src/exemples_error/type3/Logical-Dencity-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.md_pairing
+    log: Logs/debug_artifacts/violations/0035__regras_pedagogical_md_pairing__src_exemples_error_type3_Logical_Dencity_Error_unidade_rs.log
+    message: Where documentation violation: function 'logical_density_error_unit' must include [WHERE] in the documentation block above the declaration.
+    snippet: pub fn logical_density_error_unit() {
+    quick_fix: /// [WHERE] ...
+27. [P3|note] regras.pedagogical.test_case_mapping
+    file: src/exemples_error/type3/Logical-Dencity-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.test_case_mapping
+    log: Logs/debug_artifacts/violations/0130__regras_pedagogical_test_case_mapping__src_exemples_error_type3_Logical_Dencity_Error_unidade_rs.log
+    message: Test mapping violation: function 'logical_density_error_unit' must include [TEST] in the documentation block above the declaration.
+    snippet: pub fn logical_density_error_unit() {
+    quick_fix: /// [TEST] ...
+28. [P3|note] regras.pedagogical.usage_example
+    file: src/exemples_error/type3/Logical-Dencity-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.usage_example
+    log: Logs/debug_artifacts/violations/0108__regras_pedagogical_usage_example__src_exemples_error_type3_Logical_Dencity_Error_unidade_rs.log
+    message: Usage example violation: function 'logical_density_error_unit' must include [USAGE] in the documentation block above the declaration.
+    snippet: pub fn logical_density_error_unit() {
+    quick_fix: /// [USAGE] ...
+29. [P3|note] regras.pedagogical.what_mission
+    file: src/exemples_error/type3/Logical-Dencity-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.what_mission
+    log: Logs/debug_artifacts/violations/0064__regras_pedagogical_what_mission__src_exemples_error_type3_Logical_Dencity_Error_unidade_rs.log
+    message: What mission violation: function 'logical_density_error_unit' must include [WHAT] in the documentation block above the declaration.
+    snippet: pub fn logical_density_error_unit() {
+    quick_fix: /// [WHAT] ...
+30. [P3|note] regras.pedagogical.why_justification
+    file: src/exemples_error/type3/Logical-Dencity-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.why_justification
+    log: Logs/debug_artifacts/violations/0086__regras_pedagogical_why_justification__src_exemples_error_type3_Logical_Dencity_Error_unidade_rs.log
+    message: Why justification violation: function 'logical_density_error_unit' must include [WHY] in the documentation block above the declaration.
+    snippet: pub fn logical_density_error_unit() {
+    quick_fix: /// [WHY] ...
+31. [P1|warning] regras.structural.logical_density.logical_density_error_unit
+    file: src/exemples_error/type3/Logical-Dencity-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.arquivos.unidade.logical_density
+    log: Logs/debug_artifacts/violations/0008__regras_structural_logical_density_logical_density_error_unit__src_exemples_error_type3_Logical_Dencity_Error_unidade_rs.log
+    message: Logical Density Violation: function exceeds authorized atomic complexity. - 28/25 statements. Fragment this logic.
+    snippet: pub fn logical_density_error_unit() {
+    quick_fix: // [REFAC] Fragment this function into smaller atomic units to reduce logical mass.
+32. [P2|note] regras.identity.pascal_case
+    file: src/exemples_error/type3/Logical-Dencity-Error_unidade_nucleo.rs:1
+    dna: unidade_nucleo
+    taxonomy: regras.identity.pascal_case
+    log: Logs/debug_artifacts/violations/0153__regras_identity_pascal_case__src_exemples_error_type3_Logical_Dencity_Error_unidade_nucleo_rs.log
+    message: PascalCase violation: 'Logical-Dencity-Error_unidade' does not match 'PascalCase'.
+    snippet: Logical-Dencity-Error_unidade
+33. [P3|note] regras.pedagogical.md_pairing
+    file: src/exemples_error/type3/Logical-Dencity-Error_unidade_nucleo.rs:1
+    dna: unidade_nucleo
+    taxonomy: regras.pedagogical.md_pairing
+    log: Logs/debug_artifacts/violations/0027__regras_pedagogical_md_pairing__src_exemples_error_type3_Logical_Dencity_Error_unidade_nucleo_rs.log
+    message: Where documentation violation: function 'logical_density_error_unitcore' must include [WHERE] in the documentation block above the declaration.
+    snippet: fn logical_density_error_unitcore() {
+    quick_fix: /// [WHERE] ...
+34. [P3|note] regras.pedagogical.test_case_mapping
+    file: src/exemples_error/type3/Logical-Dencity-Error_unidade_nucleo.rs:1
+    dna: unidade_nucleo
+    taxonomy: regras.pedagogical.test_case_mapping
+    log: Logs/debug_artifacts/violations/0122__regras_pedagogical_test_case_mapping__src_exemples_error_type3_Logical_Dencity_Error_unidade_nucleo_rs.log
+    message: Test mapping violation: function 'logical_density_error_unitcore' must include [TEST] in the documentation block above the declaration.
+    snippet: fn logical_density_error_unitcore() {
+    quick_fix: /// [TEST] ...
+35. [P3|note] regras.pedagogical.usage_example
+    file: src/exemples_error/type3/Logical-Dencity-Error_unidade_nucleo.rs:1
+    dna: unidade_nucleo
+    taxonomy: regras.pedagogical.usage_example
+    log: Logs/debug_artifacts/violations/0100__regras_pedagogical_usage_example__src_exemples_error_type3_Logical_Dencity_Error_unidade_nucleo_rs.log
+    message: Usage example violation: function 'logical_density_error_unitcore' must include [USAGE] in the documentation block above the declaration.
+    snippet: fn logical_density_error_unitcore() {
+    quick_fix: /// [USAGE] ...
+36. [P3|note] regras.pedagogical.what_mission
+    file: src/exemples_error/type3/Logical-Dencity-Error_unidade_nucleo.rs:1
+    dna: unidade_nucleo
+    taxonomy: regras.pedagogical.what_mission
+    log: Logs/debug_artifacts/violations/0056__regras_pedagogical_what_mission__src_exemples_error_type3_Logical_Dencity_Error_unidade_nucleo_rs.log
+    message: What mission violation: function 'logical_density_error_unitcore' must include [WHAT] in the documentation block above the declaration.
+    snippet: fn logical_density_error_unitcore() {
+    quick_fix: /// [WHAT] ...
+37. [P3|note] regras.pedagogical.why_justification
+    file: src/exemples_error/type3/Logical-Dencity-Error_unidade_nucleo.rs:1
+    dna: unidade_nucleo
+    taxonomy: regras.pedagogical.why_justification
+    log: Logs/debug_artifacts/violations/0078__regras_pedagogical_why_justification__src_exemples_error_type3_Logical_Dencity_Error_unidade_nucleo_rs.log
+    message: Why justification violation: function 'logical_density_error_unitcore' must include [WHY] in the documentation block above the declaration.
+    snippet: fn logical_density_error_unitcore() {
+    quick_fix: /// [WHY] ...
+38. [P1|warning] regras.structural.logical_density.logical_density_error_unitcore
+    file: src/exemples_error/type3/Logical-Dencity-Error_unidade_nucleo.rs:1
+    dna: unidade_nucleo
+    taxonomy: regras.arquivos.unidade.unidade_nucleo.logical_density
+    log: Logs/debug_artifacts/violations/0005__regras_structural_logical_density_logical_density_error_unitcore__src_exemples_error_type3_Logical_Dencity_Error_unidade_nucleo_rs.log
+    message: Logical Density Violation: function exceeds authorized atomic complexity. - 41/40 statements. Fragment this logic.
+    snippet: fn logical_density_error_unitcore() {
+    quick_fix: // [REFAC] Fragment this function into smaller atomic units to reduce logical mass.
+39. [P2|note] regras.identity.pascal_case
+    file: src/exemples_error/type3/Max-Nesting-Error_estrutura_nucleo.rs:1
+    dna: estrutura_nucleo
+    taxonomy: regras.identity.pascal_case
+    log: Logs/debug_artifacts/violations/0160__regras_identity_pascal_case__src_exemples_error_type3_Max_Nesting_Error_estrutura_nucleo_rs.log
+    message: PascalCase violation: 'Max-Nesting-Error_estrutura' does not match 'PascalCase'.
+    snippet: Max-Nesting-Error_estrutura
+40. [P3|note] regras.pedagogical.md_pairing
+    file: src/exemples_error/type3/Max-Nesting-Error_estrutura_nucleo.rs:1
+    dna: estrutura_nucleo
+    taxonomy: regras.pedagogical.md_pairing
+    log: Logs/debug_artifacts/violations/0034__regras_pedagogical_md_pairing__src_exemples_error_type3_Max_Nesting_Error_estrutura_nucleo_rs.log
+    message: Where documentation violation: function 'max_nesting_error_structcore' must include [WHERE] in the documentation block above the declaration.
+    snippet: fn max_nesting_error_structcore(a: bool, b: bool, c: bool, d: bool) -> usize {
+    quick_fix: /// [WHERE] ...
+41. [P3|note] regras.pedagogical.test_case_mapping
+    file: src/exemples_error/type3/Max-Nesting-Error_estrutura_nucleo.rs:1
+    dna: estrutura_nucleo
+    taxonomy: regras.pedagogical.test_case_mapping
+    log: Logs/debug_artifacts/violations/0129__regras_pedagogical_test_case_mapping__src_exemples_error_type3_Max_Nesting_Error_estrutura_nucleo_rs.log
+    message: Test mapping violation: function 'max_nesting_error_structcore' must include [TEST] in the documentation block above the declaration.
+    snippet: fn max_nesting_error_structcore(a: bool, b: bool, c: bool, d: bool) -> usize {
+    quick_fix: /// [TEST] ...
+42. [P3|note] regras.pedagogical.usage_example
+    file: src/exemples_error/type3/Max-Nesting-Error_estrutura_nucleo.rs:1
+    dna: estrutura_nucleo
+    taxonomy: regras.pedagogical.usage_example
+    log: Logs/debug_artifacts/violations/0107__regras_pedagogical_usage_example__src_exemples_error_type3_Max_Nesting_Error_estrutura_nucleo_rs.log
+    message: Usage example violation: function 'max_nesting_error_structcore' must include [USAGE] in the documentation block above the declaration.
+    snippet: fn max_nesting_error_structcore(a: bool, b: bool, c: bool, d: bool) -> usize {
+    quick_fix: /// [USAGE] ...
+43. [P3|note] regras.pedagogical.what_mission
+    file: src/exemples_error/type3/Max-Nesting-Error_estrutura_nucleo.rs:1
+    dna: estrutura_nucleo
+    taxonomy: regras.pedagogical.what_mission
+    log: Logs/debug_artifacts/violations/0063__regras_pedagogical_what_mission__src_exemples_error_type3_Max_Nesting_Error_estrutura_nucleo_rs.log
+    message: What mission violation: function 'max_nesting_error_structcore' must include [WHAT] in the documentation block above the declaration.
+    snippet: fn max_nesting_error_structcore(a: bool, b: bool, c: bool, d: bool) -> usize {
+    quick_fix: /// [WHAT] ...
+44. [P3|note] regras.pedagogical.why_justification
+    file: src/exemples_error/type3/Max-Nesting-Error_estrutura_nucleo.rs:1
+    dna: estrutura_nucleo
+    taxonomy: regras.pedagogical.why_justification
+    log: Logs/debug_artifacts/violations/0085__regras_pedagogical_why_justification__src_exemples_error_type3_Max_Nesting_Error_estrutura_nucleo_rs.log
+    message: Why justification violation: function 'max_nesting_error_structcore' must include [WHY] in the documentation block above the declaration.
+    snippet: fn max_nesting_error_structcore(a: bool, b: bool, c: bool, d: bool) -> usize {
+    quick_fix: /// [WHY] ...
+45. [P1|warning] regras.structural.max_nesting.max_nesting_error_structcore
+    file: src/exemples_error/type3/Max-Nesting-Error_estrutura_nucleo.rs:1
+    dna: estrutura_nucleo
+    taxonomy: regras.arquivos.estrutura.estrutura_nucleo.max_nesting
+    log: Logs/debug_artifacts/violations/0002__regras_structural_max_nesting_max_nesting_error_structcore__src_exemples_error_type3_Max_Nesting_Error_estrutura_nucleo_rs.log
+    message: Nesting Violation: logic tree depth exceed sovereign limits. - 5/3 levels. Flatten this logic tree.
+    snippet: fn max_nesting_error_structcore(a: bool, b: bool, c: bool, d: bool) -> usize {
+    quick_fix: // [REFAC] Extract nested branches into smaller helper functions.
+46. [P2|note] regras.identity.pascal_case
+    file: src/exemples_error/type3/Max-Nesting-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.identity.pascal_case
+    log: Logs/debug_artifacts/violations/0157__regras_identity_pascal_case__src_exemples_error_type3_Max_Nesting_Error_unidade_rs.log
+    message: PascalCase violation: 'Max-Nesting-Error' does not match 'PascalCase'.
+    snippet: Max-Nesting-Error
+47. [P2|note] regras.identity.recursion.unidade_nucleo
+    file: src/exemples_error/type3/Max-Nesting-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.identity.recursion
+    log: Logs/debug_artifacts/violations/0176__regras_identity_recursion_unidade_nucleo__src_exemples_error_type3_Max_Nesting_Error_unidade_rs.log
+    message: Recursion violation: 'regras.arquivos.unidade' requires companion 'Max-Nesting-Error_unidade_nucleo.rs', but it was not found in 'src/exemples_error/type3'.
+    snippet: Max-Nesting-Error_unidade_nucleo.rs
+48. [P3|note] regras.pedagogical.md_pairing
+    file: src/exemples_error/type3/Max-Nesting-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.md_pairing
+    log: Logs/debug_artifacts/violations/0031__regras_pedagogical_md_pairing__src_exemples_error_type3_Max_Nesting_Error_unidade_rs.log
+    message: Where documentation violation: function 'max_nesting_error_unit' must include [WHERE] in the documentation block above the declaration.
+    snippet: pub fn max_nesting_error_unit(flag_a: bool, flag_b: bool, flag_c: bool) -> usize {
+    quick_fix: /// [WHERE] ...
+49. [P3|note] regras.pedagogical.test_case_mapping
+    file: src/exemples_error/type3/Max-Nesting-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.test_case_mapping
+    log: Logs/debug_artifacts/violations/0126__regras_pedagogical_test_case_mapping__src_exemples_error_type3_Max_Nesting_Error_unidade_rs.log
+    message: Test mapping violation: function 'max_nesting_error_unit' must include [TEST] in the documentation block above the declaration.
+    snippet: pub fn max_nesting_error_unit(flag_a: bool, flag_b: bool, flag_c: bool) -> usize {
+    quick_fix: /// [TEST] ...
+50. [P3|note] regras.pedagogical.usage_example
+    file: src/exemples_error/type3/Max-Nesting-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.usage_example
+    log: Logs/debug_artifacts/violations/0104__regras_pedagogical_usage_example__src_exemples_error_type3_Max_Nesting_Error_unidade_rs.log
+    message: Usage example violation: function 'max_nesting_error_unit' must include [USAGE] in the documentation block above the declaration.
+    snippet: pub fn max_nesting_error_unit(flag_a: bool, flag_b: bool, flag_c: bool) -> usize {
+    quick_fix: /// [USAGE] ...
+51. [P3|note] regras.pedagogical.what_mission
+    file: src/exemples_error/type3/Max-Nesting-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.what_mission
+    log: Logs/debug_artifacts/violations/0060__regras_pedagogical_what_mission__src_exemples_error_type3_Max_Nesting_Error_unidade_rs.log
+    message: What mission violation: function 'max_nesting_error_unit' must include [WHAT] in the documentation block above the declaration.
+    snippet: pub fn max_nesting_error_unit(flag_a: bool, flag_b: bool, flag_c: bool) -> usize {
+    quick_fix: /// [WHAT] ...
+52. [P3|note] regras.pedagogical.why_justification
+    file: src/exemples_error/type3/Max-Nesting-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.why_justification
+    log: Logs/debug_artifacts/violations/0082__regras_pedagogical_why_justification__src_exemples_error_type3_Max_Nesting_Error_unidade_rs.log
+    message: Why justification violation: function 'max_nesting_error_unit' must include [WHY] in the documentation block above the declaration.
+    snippet: pub fn max_nesting_error_unit(flag_a: bool, flag_b: bool, flag_c: bool) -> usize {
+    quick_fix: /// [WHY] ...
+53. [P1|warning] regras.structural.max_nesting.max_nesting_error_unit
+    file: src/exemples_error/type3/Max-Nesting-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.arquivos.unidade.max_nesting
+    log: Logs/debug_artifacts/violations/0001__regras_structural_max_nesting_max_nesting_error_unit__src_exemples_error_type3_Max_Nesting_Error_unidade_rs.log
+    message: Nesting Violation: logic tree depth exceed sovereign limits. - 4/2 levels. Flatten this logic tree.
+    snippet: pub fn max_nesting_error_unit(flag_a: bool, flag_b: bool, flag_c: bool) -> usize {
+    quick_fix: // [REFAC] Extract nested branches into smaller helper functions.
+54. [P2|note] regras.identity.pascal_case
+    file: src/exemples_error/type3/Max-Params-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.identity.pascal_case
+    log: Logs/debug_artifacts/violations/0151__regras_identity_pascal_case__src_exemples_error_type3_Max_Params_Error_unidade_rs.log
+    message: PascalCase violation: 'Max-Params-Error' does not match 'PascalCase'.
+    snippet: Max-Params-Error
+55. [P3|note] regras.pedagogical.md_pairing
+    file: src/exemples_error/type3/Max-Params-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.md_pairing
+    log: Logs/debug_artifacts/violations/0025__regras_pedagogical_md_pairing__src_exemples_error_type3_Max_Params_Error_unidade_rs.log
+    message: Where documentation violation: function 'max_params_error_unit' must include [WHERE] in the documentation block above the declaration.
+    snippet: pub fn max_params_error_unit(alpha: usize, beta: usize, gamma: usize, delta: usize, epsilon: usize) -> usize {
+    quick_fix: /// [WHERE] ...
+56. [P3|note] regras.pedagogical.test_case_mapping
+    file: src/exemples_error/type3/Max-Params-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.test_case_mapping
+    log: Logs/debug_artifacts/violations/0120__regras_pedagogical_test_case_mapping__src_exemples_error_type3_Max_Params_Error_unidade_rs.log
+    message: Test mapping violation: function 'max_params_error_unit' must include [TEST] in the documentation block above the declaration.
+    snippet: pub fn max_params_error_unit(alpha: usize, beta: usize, gamma: usize, delta: usize, epsilon: usize) -> usize {
+    quick_fix: /// [TEST] ...
+57. [P3|note] regras.pedagogical.usage_example
+    file: src/exemples_error/type3/Max-Params-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.usage_example
+    log: Logs/debug_artifacts/violations/0098__regras_pedagogical_usage_example__src_exemples_error_type3_Max_Params_Error_unidade_rs.log
+    message: Usage example violation: function 'max_params_error_unit' must include [USAGE] in the documentation block above the declaration.
+    snippet: pub fn max_params_error_unit(alpha: usize, beta: usize, gamma: usize, delta: usize, epsilon: usize) -> usize {
+    quick_fix: /// [USAGE] ...
+58. [P3|note] regras.pedagogical.what_mission
+    file: src/exemples_error/type3/Max-Params-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.what_mission
+    log: Logs/debug_artifacts/violations/0054__regras_pedagogical_what_mission__src_exemples_error_type3_Max_Params_Error_unidade_rs.log
+    message: What mission violation: function 'max_params_error_unit' must include [WHAT] in the documentation block above the declaration.
+    snippet: pub fn max_params_error_unit(alpha: usize, beta: usize, gamma: usize, delta: usize, epsilon: usize) -> usize {
+    quick_fix: /// [WHAT] ...
+59. [P3|note] regras.pedagogical.why_justification
+    file: src/exemples_error/type3/Max-Params-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.why_justification
+    log: Logs/debug_artifacts/violations/0076__regras_pedagogical_why_justification__src_exemples_error_type3_Max_Params_Error_unidade_rs.log
+    message: Why justification violation: function 'max_params_error_unit' must include [WHY] in the documentation block above the declaration.
+    snippet: pub fn max_params_error_unit(alpha: usize, beta: usize, gamma: usize, delta: usize, epsilon: usize) -> usize {
+    quick_fix: /// [WHY] ...
+60. [P1|warning] regras.structural.max_params.max_params_error_unit
+    file: src/exemples_error/type3/Max-Params-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.arquivos.unidade.max_params
+    log: Logs/debug_artifacts/violations/0003__regras_structural_max_params_max_params_error_unit__src_exemples_error_type3_Max_Params_Error_unidade_rs.log
+    message: Parameter Coupling Violation: excessive number of parameters in declaration. - 5/4 parameters. Group them into a Struct.
+    snippet: pub fn max_params_error_unit(alpha: usize, beta: usize, gamma: usize, delta: usize, epsilon: usize) -> usize {
+    quick_fix: // [REFAC] Group these parameters into a dedicated Config/State Struct.
+61. [P2|note] regras.identity.pascal_case
+    file: src/exemples_error/type3/Max-Params-Error_unidade_nucleo.rs:1
+    dna: unidade_nucleo
+    taxonomy: regras.identity.pascal_case
+    log: Logs/debug_artifacts/violations/0154__regras_identity_pascal_case__src_exemples_error_type3_Max_Params_Error_unidade_nucleo_rs.log
+    message: PascalCase violation: 'Max-Params-Error_unidade' does not match 'PascalCase'.
+    snippet: Max-Params-Error_unidade
+62. [P3|note] regras.pedagogical.md_pairing
+    file: src/exemples_error/type3/Max-Params-Error_unidade_nucleo.rs:1
+    dna: unidade_nucleo
+    taxonomy: regras.pedagogical.md_pairing
+    log: Logs/debug_artifacts/violations/0028__regras_pedagogical_md_pairing__src_exemples_error_type3_Max_Params_Error_unidade_nucleo_rs.log
+    message: Where documentation violation: function 'max_params_error_unitcore' must include [WHERE] in the documentation block above the declaration.
+    snippet: fn max_params_error_unitcore(alpha: usize, beta: usize, gamma: usize, delta: usize, epsilon: usize, zeta: usize, eta: usize) -> usize {
+    quick_fix: /// [WHERE] ...
+63. [P3|note] regras.pedagogical.test_case_mapping
+    file: src/exemples_error/type3/Max-Params-Error_unidade_nucleo.rs:1
+    dna: unidade_nucleo
+    taxonomy: regras.pedagogical.test_case_mapping
+    log: Logs/debug_artifacts/violations/0123__regras_pedagogical_test_case_mapping__src_exemples_error_type3_Max_Params_Error_unidade_nucleo_rs.log
+    message: Test mapping violation: function 'max_params_error_unitcore' must include [TEST] in the documentation block above the declaration.
+    snippet: fn max_params_error_unitcore(alpha: usize, beta: usize, gamma: usize, delta: usize, epsilon: usize, zeta: usize, eta: usize) -> usize {
+    quick_fix: /// [TEST] ...
+64. [P3|note] regras.pedagogical.usage_example
+    file: src/exemples_error/type3/Max-Params-Error_unidade_nucleo.rs:1
+    dna: unidade_nucleo
+    taxonomy: regras.pedagogical.usage_example
+    log: Logs/debug_artifacts/violations/0101__regras_pedagogical_usage_example__src_exemples_error_type3_Max_Params_Error_unidade_nucleo_rs.log
+    message: Usage example violation: function 'max_params_error_unitcore' must include [USAGE] in the documentation block above the declaration.
+    snippet: fn max_params_error_unitcore(alpha: usize, beta: usize, gamma: usize, delta: usize, epsilon: usize, zeta: usize, eta: usize) -> usize {
+    quick_fix: /// [USAGE] ...
+65. [P3|note] regras.pedagogical.what_mission
+    file: src/exemples_error/type3/Max-Params-Error_unidade_nucleo.rs:1
+    dna: unidade_nucleo
+    taxonomy: regras.pedagogical.what_mission
+    log: Logs/debug_artifacts/violations/0057__regras_pedagogical_what_mission__src_exemples_error_type3_Max_Params_Error_unidade_nucleo_rs.log
+    message: What mission violation: function 'max_params_error_unitcore' must include [WHAT] in the documentation block above the declaration.
+    snippet: fn max_params_error_unitcore(alpha: usize, beta: usize, gamma: usize, delta: usize, epsilon: usize, zeta: usize, eta: usize) -> usize {
+    quick_fix: /// [WHAT] ...
+66. [P3|note] regras.pedagogical.why_justification
+    file: src/exemples_error/type3/Max-Params-Error_unidade_nucleo.rs:1
+    dna: unidade_nucleo
+    taxonomy: regras.pedagogical.why_justification
+    log: Logs/debug_artifacts/violations/0079__regras_pedagogical_why_justification__src_exemples_error_type3_Max_Params_Error_unidade_nucleo_rs.log
+    message: Why justification violation: function 'max_params_error_unitcore' must include [WHY] in the documentation block above the declaration.
+    snippet: fn max_params_error_unitcore(alpha: usize, beta: usize, gamma: usize, delta: usize, epsilon: usize, zeta: usize, eta: usize) -> usize {
+    quick_fix: /// [WHY] ...
+67. [P1|warning] regras.structural.max_params.max_params_error_unitcore
+    file: src/exemples_error/type3/Max-Params-Error_unidade_nucleo.rs:1
+    dna: unidade_nucleo
+    taxonomy: regras.arquivos.unidade.unidade_nucleo.max_params
+    log: Logs/debug_artifacts/violations/0004__regras_structural_max_params_max_params_error_unitcore__src_exemples_error_type3_Max_Params_Error_unidade_nucleo_rs.log
+    message: Parameter Coupling Violation: excessive number of parameters in declaration. - 7/6 parameters. Group them into a Struct.
+    snippet: fn max_params_error_unitcore(alpha: usize, beta: usize, gamma: usize, delta: usize, epsilon: usize, zeta: usize, eta: usize) -> usize {
+    quick_fix: // [REFAC] Group these parameters into a dedicated Config/State Struct.
+68. [P2|note] regras.identity.pascal_case
+    file: src/exemples_error/type3/Type-Logic-Error_estrutura.rs:1
+    dna: estrutura
+    taxonomy: regras.identity.pascal_case
+    log: Logs/debug_artifacts/violations/0152__regras_identity_pascal_case__src_exemples_error_type3_Type_Logic_Error_estrutura_rs.log
+    message: PascalCase violation: 'Type-Logic-Error' does not match 'PascalCase'.
+    snippet: Type-Logic-Error
+69. [P2|note] regras.identity.recursion.estrutura_nucleo
+    file: src/exemples_error/type3/Type-Logic-Error_estrutura.rs:1
+    dna: estrutura
+    taxonomy: regras.identity.recursion
+    log: Logs/debug_artifacts/violations/0175__regras_identity_recursion_estrutura_nucleo__src_exemples_error_type3_Type_Logic_Error_estrutura_rs.log
+    message: Recursion violation: 'regras.arquivos.estrutura' requires companion 'Type-Logic-Error_estrutura_nucleo.rs', but it was not found in 'src/exemples_error/type3'.
+    snippet: Type-Logic-Error_estrutura_nucleo.rs
+70. [P3|note] regras.pedagogical.md_pairing
+    file: src/exemples_error/type3/Type-Logic-Error_estrutura.rs:5
+    dna: estrutura
+    taxonomy: regras.pedagogical.md_pairing
+    log: Logs/debug_artifacts/violations/0026__regras_pedagogical_md_pairing__src_exemples_error_type3_Type_Logic_Error_estrutura_rs.log
+    message: Where documentation violation: function 'type_logic_error_struct' must include [WHERE] in the documentation block above the declaration.
+    snippet: fn type_logic_error_struct() -> usize {
+    quick_fix: /// [WHERE] ...
+71. [P3|note] regras.pedagogical.test_case_mapping
+    file: src/exemples_error/type3/Type-Logic-Error_estrutura.rs:5
+    dna: estrutura
+    taxonomy: regras.pedagogical.test_case_mapping
+    log: Logs/debug_artifacts/violations/0121__regras_pedagogical_test_case_mapping__src_exemples_error_type3_Type_Logic_Error_estrutura_rs.log
+    message: Test mapping violation: function 'type_logic_error_struct' must include [TEST] in the documentation block above the declaration.
+    snippet: fn type_logic_error_struct() -> usize {
+    quick_fix: /// [TEST] ...
+72. [P3|note] regras.pedagogical.usage_example
+    file: src/exemples_error/type3/Type-Logic-Error_estrutura.rs:5
+    dna: estrutura
+    taxonomy: regras.pedagogical.usage_example
+    log: Logs/debug_artifacts/violations/0099__regras_pedagogical_usage_example__src_exemples_error_type3_Type_Logic_Error_estrutura_rs.log
+    message: Usage example violation: function 'type_logic_error_struct' must include [USAGE] in the documentation block above the declaration.
+    snippet: fn type_logic_error_struct() -> usize {
+    quick_fix: /// [USAGE] ...
+73. [P3|note] regras.pedagogical.what_mission
+    file: src/exemples_error/type3/Type-Logic-Error_estrutura.rs:5
+    dna: estrutura
+    taxonomy: regras.pedagogical.what_mission
+    log: Logs/debug_artifacts/violations/0055__regras_pedagogical_what_mission__src_exemples_error_type3_Type_Logic_Error_estrutura_rs.log
+    message: What mission violation: function 'type_logic_error_struct' must include [WHAT] in the documentation block above the declaration.
+    snippet: fn type_logic_error_struct() -> usize {
+    quick_fix: /// [WHAT] ...
+74. [P3|note] regras.pedagogical.why_justification
+    file: src/exemples_error/type3/Type-Logic-Error_estrutura.rs:5
+    dna: estrutura
+    taxonomy: regras.pedagogical.why_justification
+    log: Logs/debug_artifacts/violations/0077__regras_pedagogical_why_justification__src_exemples_error_type3_Type_Logic_Error_estrutura_rs.log
+    message: Why justification violation: function 'type_logic_error_struct' must include [WHY] in the documentation block above the declaration.
+    snippet: fn type_logic_error_struct() -> usize {
+    quick_fix: /// [WHY] ...
+75. [P1|warning] regras.structural.type_logic.type_logic_error_struct
+    file: src/exemples_error/type3/Type-Logic-Error_estrutura.rs:5
+    dna: estrutura
+    taxonomy: regras.arquivos.estrutura.type_logic
+    log: Logs/debug_artifacts/violations/0012__regras_structural_type_logic_type_logic_error_struct__src_exemples_error_type3_Type_Logic_Error_estrutura_rs.log
+    message: Type Logic Violation: DNA 'estrutura' only allows ["struct", "public_struct", "enum", "public_enum"], but found 'private_fn' in declaration.
+    snippet: fn type_logic_error_struct() -> usize {
+    quick_fix: // [TODO] Align this declaration with the 'estrutura' type_logic profile resolved from regras.arquivos.estrutura.
+76. [P2|note] regras.identity.pascal_case
+    file: src/exemples_error/type3/Type-Logic-Error_unidade_nucleo.rs:1
+    dna: unidade_nucleo
+    taxonomy: regras.identity.pascal_case
+    log: Logs/debug_artifacts/violations/0158__regras_identity_pascal_case__src_exemples_error_type3_Type_Logic_Error_unidade_nucleo_rs.log
+    message: PascalCase violation: 'Type-Logic-Error_unidade' does not match 'PascalCase'.
+    snippet: Type-Logic-Error_unidade
+77. [P3|note] regras.pedagogical.md_pairing
+    file: src/exemples_error/type3/Type-Logic-Error_unidade_nucleo.rs:1
+    dna: unidade_nucleo
+    taxonomy: regras.pedagogical.md_pairing
+    log: Logs/debug_artifacts/violations/0032__regras_pedagogical_md_pairing__src_exemples_error_type3_Type_Logic_Error_unidade_nucleo_rs.log
+    message: Where documentation violation: function 'type_logic_error_unitcore' must include [WHERE] in the documentation block above the declaration.
+    snippet: pub fn type_logic_error_unitcore() {}
+    quick_fix: /// [WHERE] ...
+78. [P3|note] regras.pedagogical.test_case_mapping
+    file: src/exemples_error/type3/Type-Logic-Error_unidade_nucleo.rs:1
+    dna: unidade_nucleo
+    taxonomy: regras.pedagogical.test_case_mapping
+    log: Logs/debug_artifacts/violations/0127__regras_pedagogical_test_case_mapping__src_exemples_error_type3_Type_Logic_Error_unidade_nucleo_rs.log
+    message: Test mapping violation: function 'type_logic_error_unitcore' must include [TEST] in the documentation block above the declaration.
+    snippet: pub fn type_logic_error_unitcore() {}
+    quick_fix: /// [TEST] ...
+79. [P3|note] regras.pedagogical.usage_example
+    file: src/exemples_error/type3/Type-Logic-Error_unidade_nucleo.rs:1
+    dna: unidade_nucleo
+    taxonomy: regras.pedagogical.usage_example
+    log: Logs/debug_artifacts/violations/0105__regras_pedagogical_usage_example__src_exemples_error_type3_Type_Logic_Error_unidade_nucleo_rs.log
+    message: Usage example violation: function 'type_logic_error_unitcore' must include [USAGE] in the documentation block above the declaration.
+    snippet: pub fn type_logic_error_unitcore() {}
+    quick_fix: /// [USAGE] ...
+80. [P3|note] regras.pedagogical.what_mission
+    file: src/exemples_error/type3/Type-Logic-Error_unidade_nucleo.rs:1
+    dna: unidade_nucleo
+    taxonomy: regras.pedagogical.what_mission
+    log: Logs/debug_artifacts/violations/0061__regras_pedagogical_what_mission__src_exemples_error_type3_Type_Logic_Error_unidade_nucleo_rs.log
+    message: What mission violation: function 'type_logic_error_unitcore' must include [WHAT] in the documentation block above the declaration.
+    snippet: pub fn type_logic_error_unitcore() {}
+    quick_fix: /// [WHAT] ...
+81. [P3|note] regras.pedagogical.why_justification
+    file: src/exemples_error/type3/Type-Logic-Error_unidade_nucleo.rs:1
+    dna: unidade_nucleo
+    taxonomy: regras.pedagogical.why_justification
+    log: Logs/debug_artifacts/violations/0083__regras_pedagogical_why_justification__src_exemples_error_type3_Type_Logic_Error_unidade_nucleo_rs.log
+    message: Why justification violation: function 'type_logic_error_unitcore' must include [WHY] in the documentation block above the declaration.
+    snippet: pub fn type_logic_error_unitcore() {}
+    quick_fix: /// [WHY] ...
+82. [P1|warning] regras.structural.type_logic.type_logic_error_unitcore
+    file: src/exemples_error/type3/Type-Logic-Error_unidade_nucleo.rs:1
+    dna: unidade_nucleo
+    taxonomy: regras.arquivos.unidade.unidade_nucleo.type_logic
+    log: Logs/debug_artifacts/violations/0014__regras_structural_type_logic_type_logic_error_unitcore__src_exemples_error_type3_Type_Logic_Error_unidade_nucleo_rs.log
+    message: Type Logic Violation: DNA 'unidade_nucleo' only allows ["private_fn", "private_async_fn", "private_const_fn", "private_unsafe_fn"], but found 'public_fn' in declaration.
+    snippet: pub fn type_logic_error_unitcore() {}
+    quick_fix: // [TODO] Align this declaration with the 'unidade_nucleo' type_logic profile resolved from regras.arquivos.unidade.unidade_nucleo.
+83. [P2|note] regras.identity.pascal_case
+    file: src/exemples_error/type3/Visibility-Error_estrutura.rs:1
+    dna: estrutura
+    taxonomy: regras.identity.pascal_case
+    log: Logs/debug_artifacts/violations/0159__regras_identity_pascal_case__src_exemples_error_type3_Visibility_Error_estrutura_rs.log
+    message: PascalCase violation: 'Visibility-Error' does not match 'PascalCase'.
+    snippet: Visibility-Error
+84. [P2|note] regras.identity.recursion.estrutura_nucleo
+    file: src/exemples_error/type3/Visibility-Error_estrutura.rs:1
+    dna: estrutura
+    taxonomy: regras.identity.recursion
+    log: Logs/debug_artifacts/violations/0177__regras_identity_recursion_estrutura_nucleo__src_exemples_error_type3_Visibility_Error_estrutura_rs.log
+    message: Recursion violation: 'regras.arquivos.estrutura' requires companion 'Visibility-Error_estrutura_nucleo.rs', but it was not found in 'src/exemples_error/type3'.
+    snippet: Visibility-Error_estrutura_nucleo.rs
+85. [P1|warning] regras.structural.type_logic.HiddenVisibilityError;
+    file: src/exemples_error/type3/Visibility-Error_estrutura.rs:1
+    dna: estrutura
+    taxonomy: regras.arquivos.estrutura.type_logic
+    log: Logs/debug_artifacts/violations/0015__regras_structural_type_logic_HiddenVisibilityError___src_exemples_error_type3_Visibility_Error_estrutura_rs.log
+    message: Type Logic Violation: DNA 'estrutura' only allows ["struct", "public_struct", "enum", "public_enum"], but found 'unit_struct' in declaration.
+    snippet: struct HiddenVisibilityError;
+    quick_fix: // [TODO] Align this declaration with the 'estrutura' type_logic profile resolved from regras.arquivos.estrutura.
+86. [P3|note] regras.pedagogical.md_pairing
+    file: src/exemples_error/type3/Visibility-Error_estrutura.rs:3
+    dna: estrutura
+    taxonomy: regras.pedagogical.md_pairing
+    log: Logs/debug_artifacts/violations/0033__regras_pedagogical_md_pairing__src_exemples_error_type3_Visibility_Error_estrutura_rs.log
+    message: Where documentation violation: function 'keep_visibility_fixture_alive' must include [WHERE] in the documentation block above the declaration.
+    snippet: fn keep_visibility_fixture_alive() -> usize {
+    quick_fix: /// [WHERE] ...
+87. [P3|note] regras.pedagogical.test_case_mapping
+    file: src/exemples_error/type3/Visibility-Error_estrutura.rs:3
+    dna: estrutura
+    taxonomy: regras.pedagogical.test_case_mapping
+    log: Logs/debug_artifacts/violations/0128__regras_pedagogical_test_case_mapping__src_exemples_error_type3_Visibility_Error_estrutura_rs.log
+    message: Test mapping violation: function 'keep_visibility_fixture_alive' must include [TEST] in the documentation block above the declaration.
+    snippet: fn keep_visibility_fixture_alive() -> usize {
+    quick_fix: /// [TEST] ...
+88. [P3|note] regras.pedagogical.usage_example
+    file: src/exemples_error/type3/Visibility-Error_estrutura.rs:3
+    dna: estrutura
+    taxonomy: regras.pedagogical.usage_example
+    log: Logs/debug_artifacts/violations/0106__regras_pedagogical_usage_example__src_exemples_error_type3_Visibility_Error_estrutura_rs.log
+    message: Usage example violation: function 'keep_visibility_fixture_alive' must include [USAGE] in the documentation block above the declaration.
+    snippet: fn keep_visibility_fixture_alive() -> usize {
+    quick_fix: /// [USAGE] ...
+89. [P3|note] regras.pedagogical.what_mission
+    file: src/exemples_error/type3/Visibility-Error_estrutura.rs:3
+    dna: estrutura
+    taxonomy: regras.pedagogical.what_mission
+    log: Logs/debug_artifacts/violations/0062__regras_pedagogical_what_mission__src_exemples_error_type3_Visibility_Error_estrutura_rs.log
+    message: What mission violation: function 'keep_visibility_fixture_alive' must include [WHAT] in the documentation block above the declaration.
+    snippet: fn keep_visibility_fixture_alive() -> usize {
+    quick_fix: /// [WHAT] ...
+90. [P3|note] regras.pedagogical.why_justification
+    file: src/exemples_error/type3/Visibility-Error_estrutura.rs:3
+    dna: estrutura
+    taxonomy: regras.pedagogical.why_justification
+    log: Logs/debug_artifacts/violations/0084__regras_pedagogical_why_justification__src_exemples_error_type3_Visibility_Error_estrutura_rs.log
+    message: Why justification violation: function 'keep_visibility_fixture_alive' must include [WHY] in the documentation block above the declaration.
+    snippet: fn keep_visibility_fixture_alive() -> usize {
+    quick_fix: /// [WHY] ...
+91. [P1|warning] regras.structural.type_logic.keep_visibility_fixture_alive
+    file: src/exemples_error/type3/Visibility-Error_estrutura.rs:3
+    dna: estrutura
+    taxonomy: regras.arquivos.estrutura.type_logic
+    log: Logs/debug_artifacts/violations/0016__regras_structural_type_logic_keep_visibility_fixture_alive__src_exemples_error_type3_Visibility_Error_estrutura_rs.log
+    message: Type Logic Violation: DNA 'estrutura' only allows ["struct", "public_struct", "enum", "public_enum"], but found 'private_fn' in declaration.
+    snippet: fn keep_visibility_fixture_alive() -> usize {
+    quick_fix: // [TODO] Align this declaration with the 'estrutura' type_logic profile resolved from regras.arquivos.estrutura.
+92. [P2|note] regras.identity.dna_suffix
+    file: src/exemples_error/type3/identity_workspace/DnaSuffixError.rs:1
+    dna: <unknown>
+    taxonomy: regras.identity.dna_suffix
+    log: Logs/debug_artifacts/violations/0142__regras_identity_dna_suffix__src_exemples_error_type3_identity_workspace_DnaSuffixError_rs.log
+    message: DNA suffix missing: 'DnaSuffixError' contains logic but has no '_' DNA tag in filename.
+    snippet: DnaSuffixError
+    quick_fix: DnaSuffixError_unit.rs
+93. [P3|note] regras.pedagogical.md_pairing
+    file: src/exemples_error/type3/identity_workspace/DnaSuffixError.rs:1
+    dna: <unknown>
+    taxonomy: regras.pedagogical.md_pairing
+    log: Logs/debug_artifacts/violations/0021__regras_pedagogical_md_pairing__src_exemples_error_type3_identity_workspace_DnaSuffixError_rs.log
+    message: Where documentation violation: function 'dna_suffix_error' must include [WHERE] in the documentation block above the declaration.
+    snippet: pub fn dna_suffix_error() -> usize {
+    quick_fix: /// [WHERE] ...
+94. [P3|note] regras.pedagogical.test_case_mapping
+    file: src/exemples_error/type3/identity_workspace/DnaSuffixError.rs:1
+    dna: <unknown>
+    taxonomy: regras.pedagogical.test_case_mapping
+    log: Logs/debug_artifacts/violations/0116__regras_pedagogical_test_case_mapping__src_exemples_error_type3_identity_workspace_DnaSuffixError_rs.log
+    message: Test mapping violation: function 'dna_suffix_error' must include [TEST] in the documentation block above the declaration.
+    snippet: pub fn dna_suffix_error() -> usize {
+    quick_fix: /// [TEST] ...
+95. [P3|note] regras.pedagogical.usage_example
+    file: src/exemples_error/type3/identity_workspace/DnaSuffixError.rs:1
+    dna: <unknown>
+    taxonomy: regras.pedagogical.usage_example
+    log: Logs/debug_artifacts/violations/0094__regras_pedagogical_usage_example__src_exemples_error_type3_identity_workspace_DnaSuffixError_rs.log
+    message: Usage example violation: function 'dna_suffix_error' must include [USAGE] in the documentation block above the declaration.
+    snippet: pub fn dna_suffix_error() -> usize {
+    quick_fix: /// [USAGE] ...
+96. [P3|note] regras.pedagogical.what_mission
+    file: src/exemples_error/type3/identity_workspace/DnaSuffixError.rs:1
+    dna: <unknown>
+    taxonomy: regras.pedagogical.what_mission
+    log: Logs/debug_artifacts/violations/0050__regras_pedagogical_what_mission__src_exemples_error_type3_identity_workspace_DnaSuffixError_rs.log
+    message: What mission violation: function 'dna_suffix_error' must include [WHAT] in the documentation block above the declaration.
+    snippet: pub fn dna_suffix_error() -> usize {
+    quick_fix: /// [WHAT] ...
+97. [P3|note] regras.pedagogical.why_justification
+    file: src/exemples_error/type3/identity_workspace/DnaSuffixError.rs:1
+    dna: <unknown>
+    taxonomy: regras.pedagogical.why_justification
+    log: Logs/debug_artifacts/violations/0072__regras_pedagogical_why_justification__src_exemples_error_type3_identity_workspace_DnaSuffixError_rs.log
+    message: Why justification violation: function 'dna_suffix_error' must include [WHY] in the documentation block above the declaration.
+    snippet: pub fn dna_suffix_error() -> usize {
+    quick_fix: /// [WHY] ...
+98. [P2|note] regras.identity.dna_suffix
+    file: src/exemples_error/type3/identity_workspace/DnaTypoError_unidadi.rs:1
+    dna: unidadi
+    taxonomy: regras.identity.dna_suffix
+    log: Logs/debug_artifacts/violations/0141__regras_identity_dna_suffix__src_exemples_error_type3_identity_workspace_DnaTypoError_unidadi_rs.log
+    message: DNA suffix invalid: 'DnaTypoError_unidadi' uses 'unidadi' after '_', but this suffix is not defined in the active taxonomy.
+    snippet: DnaTypoError_unidadi
+99. [P2|note] regras.identity.recursion.estrutura
+    file: src/exemples_error/type3/identity_workspace/DnaTypoError_unidadi.rs:1
+    dna: unidadi
+    taxonomy: regras.identity.recursion
+    log: Logs/debug_artifacts/violations/0168__regras_identity_recursion_estrutura__src_exemples_error_type3_identity_workspace_DnaTypoError_unidadi_rs.log
+    message: Recursion violation: 'regras.arquivos' requires companion 'DnaTypoError_estrutura.rs', but it was not found in 'src/exemples_error/type3/identity_workspace'.
+    snippet: DnaTypoError_estrutura.rs
+100. [P2|note] regras.identity.recursion.macro
+    file: src/exemples_error/type3/identity_workspace/DnaTypoError_unidadi.rs:1
+    dna: unidadi
+    taxonomy: regras.identity.recursion
+    log: Logs/debug_artifacts/violations/0169__regras_identity_recursion_macro__src_exemples_error_type3_identity_workspace_DnaTypoError_unidadi_rs.log
+    message: Recursion violation: 'regras.arquivos' requires companion 'DnaTypoError_macro.rs', but it was not found in 'src/exemples_error/type3/identity_workspace'.
+    snippet: DnaTypoError_macro.rs
+101. [P2|note] regras.identity.recursion.teste
+    file: src/exemples_error/type3/identity_workspace/DnaTypoError_unidadi.rs:1
+    dna: unidadi
+    taxonomy: regras.identity.recursion
+    log: Logs/debug_artifacts/violations/0170__regras_identity_recursion_teste__src_exemples_error_type3_identity_workspace_DnaTypoError_unidadi_rs.log
+    message: Recursion violation: 'regras.arquivos' requires companion 'DnaTypoError_teste.rs', but it was not found in 'src/exemples_error/type3/identity_workspace'.
+    snippet: DnaTypoError_teste.rs
+102. [P2|note] regras.identity.recursion.unidade
+    file: src/exemples_error/type3/identity_workspace/DnaTypoError_unidadi.rs:1
+    dna: unidadi
+    taxonomy: regras.identity.recursion
+    log: Logs/debug_artifacts/violations/0171__regras_identity_recursion_unidade__src_exemples_error_type3_identity_workspace_DnaTypoError_unidadi_rs.log
+    message: Recursion violation: 'regras.arquivos' requires companion 'DnaTypoError_unidade.rs', but it was not found in 'src/exemples_error/type3/identity_workspace'.
+    snippet: DnaTypoError_unidade.rs
+103. [P3|note] regras.pedagogical.md_pairing
+    file: src/exemples_error/type3/identity_workspace/DnaTypoError_unidadi.rs:1
+    dna: unidadi
+    taxonomy: regras.pedagogical.md_pairing
+    log: Logs/debug_artifacts/violations/0019__regras_pedagogical_md_pairing__src_exemples_error_type3_identity_workspace_DnaTypoError_unidadi_rs.log
+    message: Where documentation violation: function 'dna_typo_error_unidadi' must include [WHERE] in the documentation block above the declaration.
+    snippet: pub fn dna_typo_error_unidadi() {}
+    quick_fix: /// [WHERE] ...
+104. [P3|note] regras.pedagogical.test_case_mapping
+    file: src/exemples_error/type3/identity_workspace/DnaTypoError_unidadi.rs:1
+    dna: unidadi
+    taxonomy: regras.pedagogical.test_case_mapping
+    log: Logs/debug_artifacts/violations/0114__regras_pedagogical_test_case_mapping__src_exemples_error_type3_identity_workspace_DnaTypoError_unidadi_rs.log
+    message: Test mapping violation: function 'dna_typo_error_unidadi' must include [TEST] in the documentation block above the declaration.
+    snippet: pub fn dna_typo_error_unidadi() {}
+    quick_fix: /// [TEST] ...
+105. [P3|note] regras.pedagogical.usage_example
+    file: src/exemples_error/type3/identity_workspace/DnaTypoError_unidadi.rs:1
+    dna: unidadi
+    taxonomy: regras.pedagogical.usage_example
+    log: Logs/debug_artifacts/violations/0092__regras_pedagogical_usage_example__src_exemples_error_type3_identity_workspace_DnaTypoError_unidadi_rs.log
+    message: Usage example violation: function 'dna_typo_error_unidadi' must include [USAGE] in the documentation block above the declaration.
+    snippet: pub fn dna_typo_error_unidadi() {}
+    quick_fix: /// [USAGE] ...
+106. [P3|note] regras.pedagogical.what_mission
+    file: src/exemples_error/type3/identity_workspace/DnaTypoError_unidadi.rs:1
+    dna: unidadi
+    taxonomy: regras.pedagogical.what_mission
+    log: Logs/debug_artifacts/violations/0048__regras_pedagogical_what_mission__src_exemples_error_type3_identity_workspace_DnaTypoError_unidadi_rs.log
+    message: What mission violation: function 'dna_typo_error_unidadi' must include [WHAT] in the documentation block above the declaration.
+    snippet: pub fn dna_typo_error_unidadi() {}
+    quick_fix: /// [WHAT] ...
+107. [P3|note] regras.pedagogical.why_justification
+    file: src/exemples_error/type3/identity_workspace/DnaTypoError_unidadi.rs:1
+    dna: unidadi
+    taxonomy: regras.pedagogical.why_justification
+    log: Logs/debug_artifacts/violations/0070__regras_pedagogical_why_justification__src_exemples_error_type3_identity_workspace_DnaTypoError_unidadi_rs.log
+    message: Why justification violation: function 'dna_typo_error_unidadi' must include [WHY] in the documentation block above the declaration.
+    snippet: pub fn dna_typo_error_unidadi() {}
+    quick_fix: /// [WHY] ...
+108. [P1|warning] regras.structural.type_logic.resolution
+    file: src/exemples_error/type3/identity_workspace/DnaTypoError_unidadi.rs:1
+    dna: unidadi
+    taxonomy: regras.structural.type_logic
+    log: Logs/debug_artifacts/violations/0011__regras_structural_type_logic_resolution__src_exemples_error_type3_identity_workspace_DnaTypoError_unidadi_rs.log
+    message: Axiom 'type_logic' precisa do requirement taxonomico 'type_logic', mas nenhum valor foi encontrado a partir de 'regras.arquivos'.
+109. [P2|note] regras.identity.manifest_anchoring
+    file: src/exemples_error/type3/identity_workspace/Guide_unidade.md:1
+    dna: unidade
+    taxonomy: regras.identity.manifest_anchoring
+    log: Logs/debug_artifacts/violations/0181__regras_identity_manifest_anchoring__src_exemples_error_type3_identity_workspace_Guide_unidade_md.log
+    message: Manifest anchoring violation: child tags cannot own standalone .md/.json docs.
+    snippet: Guide_unidade
+110. [P3|note] regras.pedagogical.inheritance_visibility
+    file: src/exemples_error/type3/identity_workspace/Guide_unidade.md:1
+    dna: unidade
+    taxonomy: regras.pedagogical.inheritance_visibility
+    log: Logs/debug_artifacts/violations/0140__regras_pedagogical_inheritance_visibility__src_exemples_error_type3_identity_workspace_Guide_unidade_md.log
+    message: Inheritance visibility violation: child documentation must be inherited from parent, not owned by tagged child.
+    snippet: Guide_unidade
+111. [P3|note] regras.pedagogical.md_min_chars
+    file: src/exemples_error/type3/identity_workspace/Guide_unidade.md:1
+    dna: unidade
+    taxonomy: regras.pedagogical.md_min_chars
+    log: Logs/debug_artifacts/violations/0045__regras_pedagogical_md_min_chars__src_exemples_error_type3_identity_workspace_Guide_unidade_md.log
+    message: MD min chars violation: 56 < 80.
+    snippet: # Child Doc
+112. [P2|note] regras.identity.name_separator
+    file: src/exemples_error/type3/identity_workspace/Name_Separator_Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.identity.name_separator
+    log: Logs/debug_artifacts/violations/0182__regras_identity_name_separator__src_exemples_error_type3_identity_workspace_Name_Separator_Error_unidade_rs.log
+    message: Name separator violation: base name 'Name_Separator_Error' must use '-' instead of reserved tag separator '_'.
+    snippet: Name_Separator_Error
+    quick_fix: Name-Separator-Error
+113. [P2|note] regras.identity.pascal_case
+    file: src/exemples_error/type3/identity_workspace/Name_Separator_Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.identity.pascal_case
+    log: Logs/debug_artifacts/violations/0148__regras_identity_pascal_case__src_exemples_error_type3_identity_workspace_Name_Separator_Error_unidade_rs.log
+    message: PascalCase violation: 'Name_Separator_Error' does not match 'PascalCase'.
+    snippet: Name_Separator_Error
+114. [P2|note] regras.identity.recursion.unidade_nucleo
+    file: src/exemples_error/type3/identity_workspace/Name_Separator_Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.identity.recursion
+    log: Logs/debug_artifacts/violations/0173__regras_identity_recursion_unidade_nucleo__src_exemples_error_type3_identity_workspace_Name_Separator_Error_unidade_rs.log
+    message: Recursion violation: 'regras.arquivos.unidade' requires companion 'Name_Separator_Error_unidade_nucleo.rs', but it was not found in 'src/exemples_error/type3/identity_workspace'.
+    snippet: Name_Separator_Error_unidade_nucleo.rs
+115. [P3|note] regras.pedagogical.md_pairing
+    file: src/exemples_error/type3/identity_workspace/Name_Separator_Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.md_pairing
+    log: Logs/debug_artifacts/violations/0022__regras_pedagogical_md_pairing__src_exemples_error_type3_identity_workspace_Name_Separator_Error_unidade_rs.log
+    message: Where documentation violation: function 'name_separator_error_unit' must include [WHERE] in the documentation block above the declaration.
+    snippet: pub fn name_separator_error_unit() -> usize {
+    quick_fix: /// [WHERE] ...
+116. [P3|note] regras.pedagogical.test_case_mapping
+    file: src/exemples_error/type3/identity_workspace/Name_Separator_Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.test_case_mapping
+    log: Logs/debug_artifacts/violations/0117__regras_pedagogical_test_case_mapping__src_exemples_error_type3_identity_workspace_Name_Separator_Error_unidade_rs.log
+    message: Test mapping violation: function 'name_separator_error_unit' must include [TEST] in the documentation block above the declaration.
+    snippet: pub fn name_separator_error_unit() -> usize {
+    quick_fix: /// [TEST] ...
+117. [P3|note] regras.pedagogical.usage_example
+    file: src/exemples_error/type3/identity_workspace/Name_Separator_Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.usage_example
+    log: Logs/debug_artifacts/violations/0095__regras_pedagogical_usage_example__src_exemples_error_type3_identity_workspace_Name_Separator_Error_unidade_rs.log
+    message: Usage example violation: function 'name_separator_error_unit' must include [USAGE] in the documentation block above the declaration.
+    snippet: pub fn name_separator_error_unit() -> usize {
+    quick_fix: /// [USAGE] ...
+118. [P3|note] regras.pedagogical.what_mission
+    file: src/exemples_error/type3/identity_workspace/Name_Separator_Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.what_mission
+    log: Logs/debug_artifacts/violations/0051__regras_pedagogical_what_mission__src_exemples_error_type3_identity_workspace_Name_Separator_Error_unidade_rs.log
+    message: What mission violation: function 'name_separator_error_unit' must include [WHAT] in the documentation block above the declaration.
+    snippet: pub fn name_separator_error_unit() -> usize {
+    quick_fix: /// [WHAT] ...
+119. [P3|note] regras.pedagogical.why_justification
+    file: src/exemples_error/type3/identity_workspace/Name_Separator_Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.why_justification
+    log: Logs/debug_artifacts/violations/0073__regras_pedagogical_why_justification__src_exemples_error_type3_identity_workspace_Name_Separator_Error_unidade_rs.log
+    message: Why justification violation: function 'name_separator_error_unit' must include [WHY] in the documentation block above the declaration.
+    snippet: pub fn name_separator_error_unit() -> usize {
+    quick_fix: /// [WHY] ...
+120. [P2|note] regras.identity.pascal_case
+    file: src/exemples_error/type3/identity_workspace/Recursion-Missing_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.identity.pascal_case
+    log: Logs/debug_artifacts/violations/0147__regras_identity_pascal_case__src_exemples_error_type3_identity_workspace_Recursion_Missing_unidade_rs.log
+    message: PascalCase violation: 'Recursion-Missing' does not match 'PascalCase'.
+    snippet: Recursion-Missing
+121. [P2|note] regras.identity.recursion.unidade_nucleo
+    file: src/exemples_error/type3/identity_workspace/Recursion-Missing_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.identity.recursion
+    log: Logs/debug_artifacts/violations/0172__regras_identity_recursion_unidade_nucleo__src_exemples_error_type3_identity_workspace_Recursion_Missing_unidade_rs.log
+    message: Recursion violation: 'regras.arquivos.unidade' requires companion 'Recursion-Missing_unidade_nucleo.rs', but it was not found in 'src/exemples_error/type3/identity_workspace'.
+    snippet: Recursion-Missing_unidade_nucleo.rs
+122. [P3|note] regras.pedagogical.md_pairing
+    file: src/exemples_error/type3/identity_workspace/Recursion-Missing_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.md_pairing
+    log: Logs/debug_artifacts/violations/0020__regras_pedagogical_md_pairing__src_exemples_error_type3_identity_workspace_Recursion_Missing_unidade_rs.log
+    message: Where documentation violation: function 'recursion_missing_unit' must include [WHERE] in the documentation block above the declaration.
+    snippet: pub fn recursion_missing_unit() -> usize {
+    quick_fix: /// [WHERE] ...
+123. [P3|note] regras.pedagogical.test_case_mapping
+    file: src/exemples_error/type3/identity_workspace/Recursion-Missing_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.test_case_mapping
+    log: Logs/debug_artifacts/violations/0115__regras_pedagogical_test_case_mapping__src_exemples_error_type3_identity_workspace_Recursion_Missing_unidade_rs.log
+    message: Test mapping violation: function 'recursion_missing_unit' must include [TEST] in the documentation block above the declaration.
+    snippet: pub fn recursion_missing_unit() -> usize {
+    quick_fix: /// [TEST] ...
+124. [P3|note] regras.pedagogical.usage_example
+    file: src/exemples_error/type3/identity_workspace/Recursion-Missing_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.usage_example
+    log: Logs/debug_artifacts/violations/0093__regras_pedagogical_usage_example__src_exemples_error_type3_identity_workspace_Recursion_Missing_unidade_rs.log
+    message: Usage example violation: function 'recursion_missing_unit' must include [USAGE] in the documentation block above the declaration.
+    snippet: pub fn recursion_missing_unit() -> usize {
+    quick_fix: /// [USAGE] ...
+125. [P3|note] regras.pedagogical.what_mission
+    file: src/exemples_error/type3/identity_workspace/Recursion-Missing_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.what_mission
+    log: Logs/debug_artifacts/violations/0049__regras_pedagogical_what_mission__src_exemples_error_type3_identity_workspace_Recursion_Missing_unidade_rs.log
+    message: What mission violation: function 'recursion_missing_unit' must include [WHAT] in the documentation block above the declaration.
+    snippet: pub fn recursion_missing_unit() -> usize {
+    quick_fix: /// [WHAT] ...
+126. [P3|note] regras.pedagogical.why_justification
+    file: src/exemples_error/type3/identity_workspace/Recursion-Missing_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.why_justification
+    log: Logs/debug_artifacts/violations/0071__regras_pedagogical_why_justification__src_exemples_error_type3_identity_workspace_Recursion_Missing_unidade_rs.log
+    message: Why justification violation: function 'recursion_missing_unit' must include [WHY] in the documentation block above the declaration.
+    snippet: pub fn recursion_missing_unit() -> usize {
+    quick_fix: /// [WHY] ...
+127. [P2|note] regras.identity.dna_suffix
+    file: src/exemples_error/type3/identity_workspace/Tag-Separator-Error-unidade.rs:1
+    dna: <unknown>
+    taxonomy: regras.identity.dna_suffix
+    log: Logs/debug_artifacts/violations/0143__regras_identity_dna_suffix__src_exemples_error_type3_identity_workspace_Tag_Separator_Error_unidade_rs.log
+    message: DNA suffix missing: 'Tag-Separator-Error-unidade' contains logic but has no '_' DNA tag in filename.
+    snippet: Tag-Separator-Error-unidade
+    quick_fix: Tag-Separator-Error-unidade_unit.rs
+128. [P2|note] regras.identity.pascal_case
+    file: src/exemples_error/type3/identity_workspace/Tag-Separator-Error-unidade.rs:1
+    dna: <unknown>
+    taxonomy: regras.identity.pascal_case
+    log: Logs/debug_artifacts/violations/0149__regras_identity_pascal_case__src_exemples_error_type3_identity_workspace_Tag_Separator_Error_unidade_rs.log
+    message: PascalCase violation: 'Tag-Separator-Error-unidade' does not match 'PascalCase'.
+    snippet: Tag-Separator-Error-unidade
+129. [P2|note] regras.identity.tag_separator
+    file: src/exemples_error/type3/identity_workspace/Tag-Separator-Error-unidade.rs:1
+    dna: <unknown>
+    taxonomy: regras.identity.tag_separator
+    log: Logs/debug_artifacts/violations/0144__regras_identity_tag_separator__src_exemples_error_type3_identity_workspace_Tag_Separator_Error_unidade_rs.log
+    message: Tag separator violation: 'Tag-Separator-Error-unidade' uses '-' before DNA 'unidade', but expected '_'.
+    snippet: Tag-Separator-Error-unidade
+    quick_fix: Tag_Separator_Error_unidade
+130. [P3|note] regras.pedagogical.md_pairing
+    file: src/exemples_error/type3/identity_workspace/Tag-Separator-Error-unidade.rs:1
+    dna: <unknown>
+    taxonomy: regras.pedagogical.md_pairing
+    log: Logs/debug_artifacts/violations/0023__regras_pedagogical_md_pairing__src_exemples_error_type3_identity_workspace_Tag_Separator_Error_unidade_rs.log
+    message: Where documentation violation: function 'tag_separator_error_unit' must include [WHERE] in the documentation block above the declaration.
+    snippet: pub fn tag_separator_error_unit() -> usize {
+    quick_fix: /// [WHERE] ...
+131. [P3|note] regras.pedagogical.test_case_mapping
+    file: src/exemples_error/type3/identity_workspace/Tag-Separator-Error-unidade.rs:1
+    dna: <unknown>
+    taxonomy: regras.pedagogical.test_case_mapping
+    log: Logs/debug_artifacts/violations/0118__regras_pedagogical_test_case_mapping__src_exemples_error_type3_identity_workspace_Tag_Separator_Error_unidade_rs.log
+    message: Test mapping violation: function 'tag_separator_error_unit' must include [TEST] in the documentation block above the declaration.
+    snippet: pub fn tag_separator_error_unit() -> usize {
+    quick_fix: /// [TEST] ...
+132. [P3|note] regras.pedagogical.usage_example
+    file: src/exemples_error/type3/identity_workspace/Tag-Separator-Error-unidade.rs:1
+    dna: <unknown>
+    taxonomy: regras.pedagogical.usage_example
+    log: Logs/debug_artifacts/violations/0096__regras_pedagogical_usage_example__src_exemples_error_type3_identity_workspace_Tag_Separator_Error_unidade_rs.log
+    message: Usage example violation: function 'tag_separator_error_unit' must include [USAGE] in the documentation block above the declaration.
+    snippet: pub fn tag_separator_error_unit() -> usize {
+    quick_fix: /// [USAGE] ...
+133. [P3|note] regras.pedagogical.what_mission
+    file: src/exemples_error/type3/identity_workspace/Tag-Separator-Error-unidade.rs:1
+    dna: <unknown>
+    taxonomy: regras.pedagogical.what_mission
+    log: Logs/debug_artifacts/violations/0052__regras_pedagogical_what_mission__src_exemples_error_type3_identity_workspace_Tag_Separator_Error_unidade_rs.log
+    message: What mission violation: function 'tag_separator_error_unit' must include [WHAT] in the documentation block above the declaration.
+    snippet: pub fn tag_separator_error_unit() -> usize {
+    quick_fix: /// [WHAT] ...
+134. [P3|note] regras.pedagogical.why_justification
+    file: src/exemples_error/type3/identity_workspace/Tag-Separator-Error-unidade.rs:1
+    dna: <unknown>
+    taxonomy: regras.pedagogical.why_justification
+    log: Logs/debug_artifacts/violations/0074__regras_pedagogical_why_justification__src_exemples_error_type3_identity_workspace_Tag_Separator_Error_unidade_rs.log
+    message: Why justification violation: function 'tag_separator_error_unit' must include [WHY] in the documentation block above the declaration.
+    snippet: pub fn tag_separator_error_unit() -> usize {
+    quick_fix: /// [WHY] ...
+135. [P2|note] regras.identity.name_separator
+    file: src/exemples_error/type3/identity_workspace/pascal_case_error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.identity.name_separator
+    log: Logs/debug_artifacts/violations/0183__regras_identity_name_separator__src_exemples_error_type3_identity_workspace_pascal_case_error_unidade_rs.log
+    message: Name separator violation: base name 'pascal_case_error' must use '-' instead of reserved tag separator '_'.
+    snippet: pascal_case_error
+    quick_fix: pascal-case-error
+136. [P2|note] regras.identity.pascal_case
+    file: src/exemples_error/type3/identity_workspace/pascal_case_error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.identity.pascal_case
+    log: Logs/debug_artifacts/violations/0150__regras_identity_pascal_case__src_exemples_error_type3_identity_workspace_pascal_case_error_unidade_rs.log
+    message: PascalCase violation: 'pascal_case_error' does not match 'PascalCase'.
+    snippet: pascal_case_error
+137. [P2|note] regras.identity.recursion.unidade_nucleo
+    file: src/exemples_error/type3/identity_workspace/pascal_case_error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.identity.recursion
+    log: Logs/debug_artifacts/violations/0174__regras_identity_recursion_unidade_nucleo__src_exemples_error_type3_identity_workspace_pascal_case_error_unidade_rs.log
+    message: Recursion violation: 'regras.arquivos.unidade' requires companion 'pascal_case_error_unidade_nucleo.rs', but it was not found in 'src/exemples_error/type3/identity_workspace'.
+    snippet: pascal_case_error_unidade_nucleo.rs
+138. [P3|note] regras.pedagogical.md_pairing
+    file: src/exemples_error/type3/identity_workspace/pascal_case_error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.md_pairing
+    log: Logs/debug_artifacts/violations/0024__regras_pedagogical_md_pairing__src_exemples_error_type3_identity_workspace_pascal_case_error_unidade_rs.log
+    message: Where documentation violation: function 'pascal_case_error_unit' must include [WHERE] in the documentation block above the declaration.
+    snippet: pub fn pascal_case_error_unit() -> usize {
+    quick_fix: /// [WHERE] ...
+139. [P3|note] regras.pedagogical.test_case_mapping
+    file: src/exemples_error/type3/identity_workspace/pascal_case_error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.test_case_mapping
+    log: Logs/debug_artifacts/violations/0119__regras_pedagogical_test_case_mapping__src_exemples_error_type3_identity_workspace_pascal_case_error_unidade_rs.log
+    message: Test mapping violation: function 'pascal_case_error_unit' must include [TEST] in the documentation block above the declaration.
+    snippet: pub fn pascal_case_error_unit() -> usize {
+    quick_fix: /// [TEST] ...
+140. [P3|note] regras.pedagogical.usage_example
+    file: src/exemples_error/type3/identity_workspace/pascal_case_error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.usage_example
+    log: Logs/debug_artifacts/violations/0097__regras_pedagogical_usage_example__src_exemples_error_type3_identity_workspace_pascal_case_error_unidade_rs.log
+    message: Usage example violation: function 'pascal_case_error_unit' must include [USAGE] in the documentation block above the declaration.
+    snippet: pub fn pascal_case_error_unit() -> usize {
+    quick_fix: /// [USAGE] ...
+141. [P3|note] regras.pedagogical.what_mission
+    file: src/exemples_error/type3/identity_workspace/pascal_case_error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.what_mission
+    log: Logs/debug_artifacts/violations/0053__regras_pedagogical_what_mission__src_exemples_error_type3_identity_workspace_pascal_case_error_unidade_rs.log
+    message: What mission violation: function 'pascal_case_error_unit' must include [WHAT] in the documentation block above the declaration.
+    snippet: pub fn pascal_case_error_unit() -> usize {
+    quick_fix: /// [WHAT] ...
+142. [P3|note] regras.pedagogical.why_justification
+    file: src/exemples_error/type3/identity_workspace/pascal_case_error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.why_justification
+    log: Logs/debug_artifacts/violations/0075__regras_pedagogical_why_justification__src_exemples_error_type3_identity_workspace_pascal_case_error_unidade_rs.log
+    message: Why justification violation: function 'pascal_case_error_unit' must include [WHY] in the documentation block above the declaration.
+    snippet: pub fn pascal_case_error_unit() -> usize {
+    quick_fix: /// [WHY] ...
+143. [P2|note] regras.identity.manifest_anchoring
+    file: src/exemples_error/type3/pedagogical_workspace/Inheritance-Visibility-Error_unidade.md:1
+    dna: unidade
+    taxonomy: regras.identity.manifest_anchoring
+    log: Logs/debug_artifacts/violations/0180__regras_identity_manifest_anchoring__src_exemples_error_type3_pedagogical_workspace_Inheritance_Visibility_Error_unidade_md.log
+    message: Manifest anchoring violation: child tags cannot own standalone .md/.json docs.
+    snippet: Inheritance-Visibility-Error_unidade
+144. [P3|note] regras.pedagogical.inheritance_visibility
+    file: src/exemples_error/type3/pedagogical_workspace/Inheritance-Visibility-Error_unidade.md:1
+    dna: unidade
+    taxonomy: regras.pedagogical.inheritance_visibility
+    log: Logs/debug_artifacts/violations/0139__regras_pedagogical_inheritance_visibility__src_exemples_error_type3_pedagogical_workspace_Inheritance_Visibility_Error_unidade_md.log
+    message: Inheritance visibility violation: child documentation must be inherited from parent, not owned by tagged child.
+    snippet: Inheritance-Visibility-Error_unidade
+145. [P3|note] regras.pedagogical.md_min_chars
+    file: src/exemples_error/type3/pedagogical_workspace/Inheritance-Visibility-Error_unidade.md:1
+    dna: unidade
+    taxonomy: regras.pedagogical.md_min_chars
+    log: Logs/debug_artifacts/violations/0041__regras_pedagogical_md_min_chars__src_exemples_error_type3_pedagogical_workspace_Inheritance_Visibility_Error_unidade_md.log
+    message: MD min chars violation: 16 < 80.
+    snippet: # Child doc with tag
+146. [P3|note] regras.pedagogical.md_min_chars
+    file: src/exemples_error/type3/pedagogical_workspace/Md-Min-Chars-Error.md:1
+    dna: <unknown>
+    taxonomy: regras.pedagogical.md_min_chars
+    log: Logs/debug_artifacts/violations/0039__regras_pedagogical_md_min_chars__src_exemples_error_type3_pedagogical_workspace_Md_Min_Chars_Error_md.log
+    message: MD min chars violation: 5 < 80.
+    snippet: short
+147. [P3|note] regras.pedagogical.root_md_pairing
+    file: src/exemples_error/type3/pedagogical_workspace/Md-Min-Chars-Error.md:1
+    dna: <unknown>
+    taxonomy: regras.pedagogical.root_md_pairing
+    log: Logs/debug_artifacts/violations/0134__regras_pedagogical_root_md_pairing__src_exemples_error_type3_pedagogical_workspace_Md_Min_Chars_Error_md.log
+    message: Root MD pairing violation: 'Md-Min-Chars-Error' is missing 'src/exemples_error/type3/pedagogical_workspace/Md-Min-Chars-Error_manifest.json'.
+    snippet: Md-Min-Chars-Error
+    quick_fix: Create src/exemples_error/type3/pedagogical_workspace/Md-Min-Chars-Error_manifest.json
+148. [P2|note] regras.identity.pascal_case
+    file: src/exemples_error/type3/pedagogical_workspace/Md-Pairing-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.identity.pascal_case
+    log: Logs/debug_artifacts/violations/0146__regras_identity_pascal_case__src_exemples_error_type3_pedagogical_workspace_Md_Pairing_Error_unidade_rs.log
+    message: PascalCase violation: 'Md-Pairing-Error' does not match 'PascalCase'.
+    snippet: Md-Pairing-Error
+149. [P2|note] regras.identity.recursion.unidade_nucleo
+    file: src/exemples_error/type3/pedagogical_workspace/Md-Pairing-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.identity.recursion
+    log: Logs/debug_artifacts/violations/0167__regras_identity_recursion_unidade_nucleo__src_exemples_error_type3_pedagogical_workspace_Md_Pairing_Error_unidade_rs.log
+    message: Recursion violation: 'regras.arquivos.unidade' requires companion 'Md-Pairing-Error_unidade_nucleo.rs', but it was not found in 'src/exemples_error/type3/pedagogical_workspace'.
+    snippet: Md-Pairing-Error_unidade_nucleo.rs
+150. [P3|note] regras.pedagogical.md_pairing
+    file: src/exemples_error/type3/pedagogical_workspace/Md-Pairing-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.md_pairing
+    log: Logs/debug_artifacts/violations/0018__regras_pedagogical_md_pairing__src_exemples_error_type3_pedagogical_workspace_Md_Pairing_Error_unidade_rs.log
+    message: Where documentation violation: function 'md_pairing_error_unit' must include [WHERE] in the documentation block above the declaration.
+    snippet: pub fn md_pairing_error_unit() -> usize {
+    quick_fix: /// [WHERE] ...
+151. [P3|note] regras.pedagogical.test_case_mapping
+    file: src/exemples_error/type3/pedagogical_workspace/Md-Pairing-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.test_case_mapping
+    log: Logs/debug_artifacts/violations/0113__regras_pedagogical_test_case_mapping__src_exemples_error_type3_pedagogical_workspace_Md_Pairing_Error_unidade_rs.log
+    message: Test mapping violation: function 'md_pairing_error_unit' must include [TEST] in the documentation block above the declaration.
+    snippet: pub fn md_pairing_error_unit() -> usize {
+    quick_fix: /// [TEST] ...
+152. [P3|note] regras.pedagogical.usage_example
+    file: src/exemples_error/type3/pedagogical_workspace/Md-Pairing-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.usage_example
+    log: Logs/debug_artifacts/violations/0091__regras_pedagogical_usage_example__src_exemples_error_type3_pedagogical_workspace_Md_Pairing_Error_unidade_rs.log
+    message: Usage example violation: function 'md_pairing_error_unit' must include [USAGE] in the documentation block above the declaration.
+    snippet: pub fn md_pairing_error_unit() -> usize {
+    quick_fix: /// [USAGE] ...
+153. [P3|note] regras.pedagogical.what_mission
+    file: src/exemples_error/type3/pedagogical_workspace/Md-Pairing-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.what_mission
+    log: Logs/debug_artifacts/violations/0047__regras_pedagogical_what_mission__src_exemples_error_type3_pedagogical_workspace_Md_Pairing_Error_unidade_rs.log
+    message: What mission violation: function 'md_pairing_error_unit' must include [WHAT] in the documentation block above the declaration.
+    snippet: pub fn md_pairing_error_unit() -> usize {
+    quick_fix: /// [WHAT] ...
+154. [P3|note] regras.pedagogical.why_justification
+    file: src/exemples_error/type3/pedagogical_workspace/Md-Pairing-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.why_justification
+    log: Logs/debug_artifacts/violations/0069__regras_pedagogical_why_justification__src_exemples_error_type3_pedagogical_workspace_Md_Pairing_Error_unidade_rs.log
+    message: Why justification violation: function 'md_pairing_error_unit' must include [WHY] in the documentation block above the declaration.
+    snippet: pub fn md_pairing_error_unit() -> usize {
+    quick_fix: /// [WHY] ...
+155. [P3|note] regras.pedagogical.md_min_chars
+    file: src/exemples_error/type3/pedagogical_workspace/RootGuide.md:1
+    dna: <unknown>
+    taxonomy: regras.pedagogical.md_min_chars
+    log: Logs/debug_artifacts/violations/0040__regras_pedagogical_md_min_chars__src_exemples_error_type3_pedagogical_workspace_RootGuide_md.log
+    message: MD min chars violation: 25 < 80.
+    snippet: # Root guide without manifest
+156. [P3|note] regras.pedagogical.root_md_pairing
+    file: src/exemples_error/type3/pedagogical_workspace/RootGuide.md:1
+    dna: <unknown>
+    taxonomy: regras.pedagogical.root_md_pairing
+    log: Logs/debug_artifacts/violations/0135__regras_pedagogical_root_md_pairing__src_exemples_error_type3_pedagogical_workspace_RootGuide_md.log
+    message: Root MD pairing violation: 'RootGuide' is missing 'src/exemples_error/type3/pedagogical_workspace/RootGuide_manifest.json'.
+    snippet: RootGuide
+    quick_fix: Create src/exemples_error/type3/pedagogical_workspace/RootGuide_manifest.json
+157. [P2|note] regras.identity.pascal_case
+    file: src/exemples_error/type3/pedagogical_workspace/Test-Case-Mapping-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.identity.pascal_case
+    log: Logs/debug_artifacts/violations/0145__regras_identity_pascal_case__src_exemples_error_type3_pedagogical_workspace_Test_Case_Mapping_Error_unidade_rs.log
+    message: PascalCase violation: 'Test-Case-Mapping-Error' does not match 'PascalCase'.
+    snippet: Test-Case-Mapping-Error
+158. [P2|note] regras.identity.recursion.unidade_nucleo
+    file: src/exemples_error/type3/pedagogical_workspace/Test-Case-Mapping-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.identity.recursion
+    log: Logs/debug_artifacts/violations/0166__regras_identity_recursion_unidade_nucleo__src_exemples_error_type3_pedagogical_workspace_Test_Case_Mapping_Error_unidade_rs.log
+    message: Recursion violation: 'regras.arquivos.unidade' requires companion 'Test-Case-Mapping-Error_unidade_nucleo.rs', but it was not found in 'src/exemples_error/type3/pedagogical_workspace'.
+    snippet: Test-Case-Mapping-Error_unidade_nucleo.rs
+159. [P3|note] regras.pedagogical.md_pairing
+    file: src/exemples_error/type3/pedagogical_workspace/Test-Case-Mapping-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.md_pairing
+    log: Logs/debug_artifacts/violations/0017__regras_pedagogical_md_pairing__src_exemples_error_type3_pedagogical_workspace_Test_Case_Mapping_Error_unidade_rs.log
+    message: Where documentation violation: function 'test_case_mapping_error_unit' must include [WHERE] in the documentation block above the declaration.
+    snippet: pub fn test_case_mapping_error_unit() -> usize {
+    quick_fix: /// [WHERE] ...
+160. [P3|note] regras.pedagogical.test_case_mapping
+    file: src/exemples_error/type3/pedagogical_workspace/Test-Case-Mapping-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.test_case_mapping
+    log: Logs/debug_artifacts/violations/0112__regras_pedagogical_test_case_mapping__src_exemples_error_type3_pedagogical_workspace_Test_Case_Mapping_Error_unidade_rs.log
+    message: Test mapping violation: function 'test_case_mapping_error_unit' must include [TEST] in the documentation block above the declaration.
+    snippet: pub fn test_case_mapping_error_unit() -> usize {
+    quick_fix: /// [TEST] ...
+161. [P3|note] regras.pedagogical.usage_example
+    file: src/exemples_error/type3/pedagogical_workspace/Test-Case-Mapping-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.usage_example
+    log: Logs/debug_artifacts/violations/0090__regras_pedagogical_usage_example__src_exemples_error_type3_pedagogical_workspace_Test_Case_Mapping_Error_unidade_rs.log
+    message: Usage example violation: function 'test_case_mapping_error_unit' must include [USAGE] in the documentation block above the declaration.
+    snippet: pub fn test_case_mapping_error_unit() -> usize {
+    quick_fix: /// [USAGE] ...
+162. [P3|note] regras.pedagogical.what_mission
+    file: src/exemples_error/type3/pedagogical_workspace/Test-Case-Mapping-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.what_mission
+    log: Logs/debug_artifacts/violations/0046__regras_pedagogical_what_mission__src_exemples_error_type3_pedagogical_workspace_Test_Case_Mapping_Error_unidade_rs.log
+    message: What mission violation: function 'test_case_mapping_error_unit' must include [WHAT] in the documentation block above the declaration.
+    snippet: pub fn test_case_mapping_error_unit() -> usize {
+    quick_fix: /// [WHAT] ...
+163. [P3|note] regras.pedagogical.why_justification
+    file: src/exemples_error/type3/pedagogical_workspace/Test-Case-Mapping-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.why_justification
+    log: Logs/debug_artifacts/violations/0068__regras_pedagogical_why_justification__src_exemples_error_type3_pedagogical_workspace_Test_Case_Mapping_Error_unidade_rs.log
+    message: Why justification violation: function 'test_case_mapping_error_unit' must include [WHY] in the documentation block above the declaration.
+    snippet: pub fn test_case_mapping_error_unit() -> usize {
+    quick_fix: /// [WHY] ...
+164. [P3|note] regras.pedagogical.md_min_chars
+    file: src/exemples_error/type3/pedagogical_workspace/Usage-Example-Error.md:1
+    dna: <unknown>
+    taxonomy: regras.pedagogical.md_min_chars
+    log: Logs/debug_artifacts/violations/0043__regras_pedagogical_md_min_chars__src_exemples_error_type3_pedagogical_workspace_Usage_Example_Error_md.log
+    message: MD min chars violation: 44 < 80.
+    snippet: [WHAT]
+165. [P3|note] regras.pedagogical.root_md_pairing
+    file: src/exemples_error/type3/pedagogical_workspace/Usage-Example-Error.md:1
+    dna: <unknown>
+    taxonomy: regras.pedagogical.root_md_pairing
+    log: Logs/debug_artifacts/violations/0137__regras_pedagogical_root_md_pairing__src_exemples_error_type3_pedagogical_workspace_Usage_Example_Error_md.log
+    message: Root MD pairing violation: 'Usage-Example-Error' is missing 'src/exemples_error/type3/pedagogical_workspace/Usage-Example-Error_manifest.json'.
+    snippet: Usage-Example-Error
+    quick_fix: Create src/exemples_error/type3/pedagogical_workspace/Usage-Example-Error_manifest.json
+166. [P3|note] regras.pedagogical.md_min_chars
+    file: src/exemples_error/type3/pedagogical_workspace/What-Mission-Error.md:1
+    dna: <unknown>
+    taxonomy: regras.pedagogical.md_min_chars
+    log: Logs/debug_artifacts/violations/0042__regras_pedagogical_md_min_chars__src_exemples_error_type3_pedagogical_workspace_What_Mission_Error_md.log
+    message: MD min chars violation: 44 < 80.
+    snippet: [WHY]
+167. [P3|note] regras.pedagogical.root_md_pairing
+    file: src/exemples_error/type3/pedagogical_workspace/What-Mission-Error.md:1
+    dna: <unknown>
+    taxonomy: regras.pedagogical.root_md_pairing
+    log: Logs/debug_artifacts/violations/0136__regras_pedagogical_root_md_pairing__src_exemples_error_type3_pedagogical_workspace_What_Mission_Error_md.log
+    message: Root MD pairing violation: 'What-Mission-Error' is missing 'src/exemples_error/type3/pedagogical_workspace/What-Mission-Error_manifest.json'.
+    snippet: What-Mission-Error
+    quick_fix: Create src/exemples_error/type3/pedagogical_workspace/What-Mission-Error_manifest.json
+168. [P3|note] regras.pedagogical.md_min_chars
+    file: src/exemples_error/type3/pedagogical_workspace/Why-Justification-Error.md:1
+    dna: <unknown>
+    taxonomy: regras.pedagogical.md_min_chars
+    log: Logs/debug_artifacts/violations/0044__regras_pedagogical_md_min_chars__src_exemples_error_type3_pedagogical_workspace_Why_Justification_Error_md.log
+    message: MD min chars violation: 44 < 80.
+    snippet: [WHAT]
+169. [P3|note] regras.pedagogical.root_md_pairing
+    file: src/exemples_error/type3/pedagogical_workspace/Why-Justification-Error.md:1
+    dna: <unknown>
+    taxonomy: regras.pedagogical.root_md_pairing
+    log: Logs/debug_artifacts/violations/0138__regras_pedagogical_root_md_pairing__src_exemples_error_type3_pedagogical_workspace_Why_Justification_Error_md.log
+    message: Root MD pairing violation: 'Why-Justification-Error' is missing 'src/exemples_error/type3/pedagogical_workspace/Why-Justification-Error_manifest.json'.
+    snippet: Why-Justification-Error
+    quick_fix: Create src/exemples_error/type3/pedagogical_workspace/Why-Justification-Error_manifest.json
+170. [P0|error] regras.dependency_governance.dependency_purification.serde
+    file: src/exemples_error/type3/sanitization_workspace/Cargo.toml:10
+    dna: <unknown>
+    taxonomy: regras.permissions.libres
+    log: Logs/debug_artifacts/violations/0189__regras_dependency_governance_dependency_purification_serde__src_exemples_error_type3_sanitization_workspace_Cargo_toml.log
+    message: Dependency Purification Violation: optional crate 'serde' is force-activated outside the authorized policy in regras.permissions.libres.
+    snippet: serde = { version = "1", optional = true }
+    quick_fix: # [SANITIZE] Remove 'serde' from default features or promote it into the authorized dependency policy.
+171. [P0|error] regras.dependency_governance.allowed_crates.serde_json
+    file: src/exemples_error/type3/sanitization_workspace/Cargo.toml:11
+    dna: <unknown>
+    taxonomy: regras.permissions.libres
+    log: Logs/debug_artifacts/violations/0186__regras_dependency_governance_allowed_crates_serde_json__src_exemples_error_type3_sanitization_workspace_Cargo_toml.log
+    message: Allowed Crates Violation: crate 'serde_json' is not authorized by regras.permissions.libres.
+    snippet: serde_json = "1"
+    quick_fix: # [SANITIZE] Add 'serde_json' to the allowed crate policy or remove it from Cargo.toml.
+172. [P2|note] regras.identity.pascal_case
+    file: src/exemples_error/type3/sanitization_workspace/Restricted-Tokens-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.identity.pascal_case
+    log: Logs/debug_artifacts/violations/0165__regras_identity_pascal_case__src_exemples_error_type3_sanitization_workspace_Restricted_Tokens_Error_unidade_rs.log
+    message: PascalCase violation: 'Restricted-Tokens-Error' does not match 'PascalCase'.
+    snippet: Restricted-Tokens-Error
+173. [P2|note] regras.identity.recursion.unidade_nucleo
+    file: src/exemples_error/type3/sanitization_workspace/Restricted-Tokens-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.identity.recursion
+    log: Logs/debug_artifacts/violations/0179__regras_identity_recursion_unidade_nucleo__src_exemples_error_type3_sanitization_workspace_Restricted_Tokens_Error_unidade_rs.log
+    message: Recursion violation: 'regras.arquivos.unidade' requires companion 'Restricted-Tokens-Error_unidade_nucleo.rs', but it was not found in 'src/exemples_error/type3/sanitization_workspace'.
+    snippet: Restricted-Tokens-Error_unidade_nucleo.rs
+174. [P3|note] regras.pedagogical.md_pairing
+    file: src/exemples_error/type3/sanitization_workspace/Restricted-Tokens-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.md_pairing
+    log: Logs/debug_artifacts/violations/0038__regras_pedagogical_md_pairing__src_exemples_error_type3_sanitization_workspace_Restricted_Tokens_Error_unidade_rs.log
+    message: Where documentation violation: function 'restricted_tokens_error_unit' must include [WHERE] in the documentation block above the declaration.
+    snippet: pub fn restricted_tokens_error_unit(input: Option<usize>) -> usize {
+    quick_fix: /// [WHERE] ...
+175. [P3|note] regras.pedagogical.test_case_mapping
+    file: src/exemples_error/type3/sanitization_workspace/Restricted-Tokens-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.test_case_mapping
+    log: Logs/debug_artifacts/violations/0133__regras_pedagogical_test_case_mapping__src_exemples_error_type3_sanitization_workspace_Restricted_Tokens_Error_unidade_rs.log
+    message: Test mapping violation: function 'restricted_tokens_error_unit' must include [TEST] in the documentation block above the declaration.
+    snippet: pub fn restricted_tokens_error_unit(input: Option<usize>) -> usize {
+    quick_fix: /// [TEST] ...
+176. [P3|note] regras.pedagogical.usage_example
+    file: src/exemples_error/type3/sanitization_workspace/Restricted-Tokens-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.usage_example
+    log: Logs/debug_artifacts/violations/0111__regras_pedagogical_usage_example__src_exemples_error_type3_sanitization_workspace_Restricted_Tokens_Error_unidade_rs.log
+    message: Usage example violation: function 'restricted_tokens_error_unit' must include [USAGE] in the documentation block above the declaration.
+    snippet: pub fn restricted_tokens_error_unit(input: Option<usize>) -> usize {
+    quick_fix: /// [USAGE] ...
+177. [P3|note] regras.pedagogical.what_mission
+    file: src/exemples_error/type3/sanitization_workspace/Restricted-Tokens-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.what_mission
+    log: Logs/debug_artifacts/violations/0067__regras_pedagogical_what_mission__src_exemples_error_type3_sanitization_workspace_Restricted_Tokens_Error_unidade_rs.log
+    message: What mission violation: function 'restricted_tokens_error_unit' must include [WHAT] in the documentation block above the declaration.
+    snippet: pub fn restricted_tokens_error_unit(input: Option<usize>) -> usize {
+    quick_fix: /// [WHAT] ...
+178. [P3|note] regras.pedagogical.why_justification
+    file: src/exemples_error/type3/sanitization_workspace/Restricted-Tokens-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.why_justification
+    log: Logs/debug_artifacts/violations/0089__regras_pedagogical_why_justification__src_exemples_error_type3_sanitization_workspace_Restricted_Tokens_Error_unidade_rs.log
+    message: Why justification violation: function 'restricted_tokens_error_unit' must include [WHY] in the documentation block above the declaration.
+    snippet: pub fn restricted_tokens_error_unit(input: Option<usize>) -> usize {
+    quick_fix: /// [WHY] ...
+179. [P0|error] regras.sanitization.restricted_tokens.unwrap
+    file: src/exemples_error/type3/sanitization_workspace/Restricted-Tokens-Error_unidade.rs:2
+    dna: unidade
+    taxonomy: regras.permissions.restricted_tokens
+    log: Logs/debug_artifacts/violations/0185__regras_sanitization_restricted_tokens_unwrap__src_exemples_error_type3_sanitization_workspace_Restricted_Tokens_Error_unidade_rs.log
+    message: Restricted Token Violation: 'unwrap' found. Hint: Security: Use expect().
+    snippet: let unsafe_value = input.unwrap();
+    quick_fix: // [SANITIZE] Replace 'unwrap' using the policy declared in regras.permissions.restricted_tokens.
+180. [P0|error] regras.sanitization.token_sanitization.unwrap
+    file: src/exemples_error/type3/sanitization_workspace/Restricted-Tokens-Error_unidade.rs:2
+    dna: unidade
+    taxonomy: regras.permissions.restricted_tokens
+    log: Logs/debug_artifacts/violations/0188__regras_sanitization_token_sanitization_unwrap__src_exemples_error_type3_sanitization_workspace_Restricted_Tokens_Error_unidade_rs.log
+    message: Token Sanitization Violation: 'unwrap' must be isolated or replaced according to regras.permissions.restricted_tokens.
+    snippet: let unsafe_value = input.unwrap();
+    quick_fix: // [SANITIZE] Rewrite this usage so 'unwrap' no longer appears in governed source.
+181. [P2|note] regras.identity.pascal_case
+    file: src/exemples_error/type3/sanitization_workspace/Token-Sanitization-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.identity.pascal_case
+    log: Logs/debug_artifacts/violations/0164__regras_identity_pascal_case__src_exemples_error_type3_sanitization_workspace_Token_Sanitization_Error_unidade_rs.log
+    message: PascalCase violation: 'Token-Sanitization-Error' does not match 'PascalCase'.
+    snippet: Token-Sanitization-Error
+182. [P2|note] regras.identity.recursion.unidade_nucleo
+    file: src/exemples_error/type3/sanitization_workspace/Token-Sanitization-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.identity.recursion
+    log: Logs/debug_artifacts/violations/0178__regras_identity_recursion_unidade_nucleo__src_exemples_error_type3_sanitization_workspace_Token_Sanitization_Error_unidade_rs.log
+    message: Recursion violation: 'regras.arquivos.unidade' requires companion 'Token-Sanitization-Error_unidade_nucleo.rs', but it was not found in 'src/exemples_error/type3/sanitization_workspace'.
+    snippet: Token-Sanitization-Error_unidade_nucleo.rs
+183. [P3|note] regras.pedagogical.md_pairing
+    file: src/exemples_error/type3/sanitization_workspace/Token-Sanitization-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.md_pairing
+    log: Logs/debug_artifacts/violations/0037__regras_pedagogical_md_pairing__src_exemples_error_type3_sanitization_workspace_Token_Sanitization_Error_unidade_rs.log
+    message: Where documentation violation: function 'token_sanitization_error_unit' must include [WHERE] in the documentation block above the declaration.
+    snippet: pub fn token_sanitization_error_unit() {
+    quick_fix: /// [WHERE] ...
+184. [P3|note] regras.pedagogical.test_case_mapping
+    file: src/exemples_error/type3/sanitization_workspace/Token-Sanitization-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.test_case_mapping
+    log: Logs/debug_artifacts/violations/0132__regras_pedagogical_test_case_mapping__src_exemples_error_type3_sanitization_workspace_Token_Sanitization_Error_unidade_rs.log
+    message: Test mapping violation: function 'token_sanitization_error_unit' must include [TEST] in the documentation block above the declaration.
+    snippet: pub fn token_sanitization_error_unit() {
+    quick_fix: /// [TEST] ...
+185. [P3|note] regras.pedagogical.usage_example
+    file: src/exemples_error/type3/sanitization_workspace/Token-Sanitization-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.usage_example
+    log: Logs/debug_artifacts/violations/0110__regras_pedagogical_usage_example__src_exemples_error_type3_sanitization_workspace_Token_Sanitization_Error_unidade_rs.log
+    message: Usage example violation: function 'token_sanitization_error_unit' must include [USAGE] in the documentation block above the declaration.
+    snippet: pub fn token_sanitization_error_unit() {
+    quick_fix: /// [USAGE] ...
+186. [P3|note] regras.pedagogical.what_mission
+    file: src/exemples_error/type3/sanitization_workspace/Token-Sanitization-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.what_mission
+    log: Logs/debug_artifacts/violations/0066__regras_pedagogical_what_mission__src_exemples_error_type3_sanitization_workspace_Token_Sanitization_Error_unidade_rs.log
+    message: What mission violation: function 'token_sanitization_error_unit' must include [WHAT] in the documentation block above the declaration.
+    snippet: pub fn token_sanitization_error_unit() {
+    quick_fix: /// [WHAT] ...
+187. [P3|note] regras.pedagogical.why_justification
+    file: src/exemples_error/type3/sanitization_workspace/Token-Sanitization-Error_unidade.rs:1
+    dna: unidade
+    taxonomy: regras.pedagogical.why_justification
+    log: Logs/debug_artifacts/violations/0088__regras_pedagogical_why_justification__src_exemples_error_type3_sanitization_workspace_Token_Sanitization_Error_unidade_rs.log
+    message: Why justification violation: function 'token_sanitization_error_unit' must include [WHY] in the documentation block above the declaration.
+    snippet: pub fn token_sanitization_error_unit() {
+    quick_fix: /// [WHY] ...
+188. [P0|error] regras.sanitization.restricted_tokens.panic!
+    file: src/exemples_error/type3/sanitization_workspace/Token-Sanitization-Error_unidade.rs:2
+    dna: unidade
+    taxonomy: regras.permissions.restricted_tokens
+    log: Logs/debug_artifacts/violations/0184__regras_sanitization_restricted_tokens_panic___src_exemples_error_type3_sanitization_workspace_Token_Sanitization_Error_unidade_rs.log
+    message: Restricted Token Violation: 'panic!' found. Hint: Security: Use Result.
+    snippet: panic!("token sanitization fixture");
+    quick_fix: // [SANITIZE] Replace 'panic!' using the policy declared in regras.permissions.restricted_tokens.
+189. [P0|error] regras.sanitization.token_sanitization.panic!
+    file: src/exemples_error/type3/sanitization_workspace/Token-Sanitization-Error_unidade.rs:2
+    dna: unidade
+    taxonomy: regras.permissions.restricted_tokens
+    log: Logs/debug_artifacts/violations/0187__regras_sanitization_token_sanitization_panic___src_exemples_error_type3_sanitization_workspace_Token_Sanitization_Error_unidade_rs.log
+    message: Token Sanitization Violation: 'panic!' must be isolated or replaced according to regras.permissions.restricted_tokens.
+    snippet: panic!("token sanitization fixture");
+    quick_fix: // [SANITIZE] Rewrite this usage so 'panic!' no longer appears in governed source.
+

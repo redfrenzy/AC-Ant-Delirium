@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=58
+priority=P3
+level=note
+rule_id=rules.pedagogical.what_mission
+file_path=src/exemples_error/type2/Max-Nesting-Error_structurecore.rs
+line=1
+detected_dna=structurecore
+taxonomy_path=rules.pedagogical.what_mission
+message=What mission violation: function 'max_nesting_error_structcore' must include [WHAT] in the documentation block above the declaration.
+snippet=fn max_nesting_error_structcore(a: bool, b: bool, c: bool, d: bool) -> usize {
+quick_fix=/// [WHAT] ...

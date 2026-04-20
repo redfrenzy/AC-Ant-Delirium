@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=9
+priority=P1
+level=warning
+rule_id=regras.structural.logical_density.logical_density_error_macro
+file_path=src/exemples_error/type3/Logical-Dencity-Error_macro.rs
+line=1
+detected_dna=macro
+taxonomy_path=regras.arquivos.logical_density
+message=Logical Density Violation: function exceeds authorized atomic complexity. - 44/40 statements. Fragment this logic.
+snippet=macro_rules! logical_density_error_macro {
+quick_fix=// [REFAC] Fragment this function into smaller atomic units to reduce logical mass.

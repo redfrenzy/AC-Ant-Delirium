@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=148
+priority=P2
+level=note
+rule_id=rules.identity.pascal_case
+file_path=src/exemples_error/type2/identity_workspace/pascal_case_error_unite.rs
+line=1
+detected_dna=unite
+taxonomy_path=rules.identity.pascal_case
+message=PascalCase violation: 'pascal_case_error' does not match 'PascalCase'.
+snippet=pascal_case_error

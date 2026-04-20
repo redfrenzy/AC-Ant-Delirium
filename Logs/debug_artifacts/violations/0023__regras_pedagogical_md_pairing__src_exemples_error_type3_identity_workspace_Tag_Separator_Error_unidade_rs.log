@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=23
+priority=P3
+level=note
+rule_id=regras.pedagogical.md_pairing
+file_path=src/exemples_error/type3/identity_workspace/Tag-Separator-Error-unidade.rs
+line=1
+detected_dna=<unknown>
+taxonomy_path=regras.pedagogical.md_pairing
+message=Where documentation violation: function 'tag_separator_error_unit' must include [WHERE] in the documentation block above the declaration.
+snippet=pub fn tag_separator_error_unit() -> usize {
+quick_fix=/// [WHERE] ...

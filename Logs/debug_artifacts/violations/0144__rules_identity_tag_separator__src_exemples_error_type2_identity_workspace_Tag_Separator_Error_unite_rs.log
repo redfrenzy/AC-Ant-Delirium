@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=144
+priority=P2
+level=note
+rule_id=rules.identity.tag_separator
+file_path=src/exemples_error/type2/identity_workspace/Tag-Separator-Error-unite.rs
+line=1
+detected_dna=<unknown>
+taxonomy_path=rules.identity.tag_separator
+message=Tag separator violation: 'Tag-Separator-Error-unite' uses '-' before DNA 'unite', but expected '_'.
+snippet=Tag-Separator-Error-unite
+quick_fix=Tag_Separator_Error_unite

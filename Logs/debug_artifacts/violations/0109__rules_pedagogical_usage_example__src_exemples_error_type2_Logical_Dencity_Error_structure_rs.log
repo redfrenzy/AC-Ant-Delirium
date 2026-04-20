@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=109
+priority=P3
+level=note
+rule_id=rules.pedagogical.usage_example
+file_path=src/exemples_error/type2/Logical-Dencity-Error_structure.rs
+line=5
+detected_dna=structure
+taxonomy_path=rules.pedagogical.usage_example
+message=Usage example violation: function 'logical_density_error_struct' must include [USAGE] in the documentation block above the declaration.
+snippet=fn logical_density_error_struct() {
+quick_fix=/// [USAGE] ...

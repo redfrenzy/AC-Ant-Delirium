@@ -11,3 +11,4 @@ pub mod Identity_Axiom_test;
 pub mod Aximon_Identity_test;
 pub mod Aximon_Pedagogical_test;
 pub mod Manifest_Engine_test;
+pub mod Debug_Violation_test;

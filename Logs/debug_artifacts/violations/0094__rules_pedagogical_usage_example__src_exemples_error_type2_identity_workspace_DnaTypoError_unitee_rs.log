@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=94
+priority=P3
+level=note
+rule_id=rules.pedagogical.usage_example
+file_path=src/exemples_error/type2/identity_workspace/DnaTypoError_unitee.rs
+line=1
+detected_dna=unitee
+taxonomy_path=rules.pedagogical.usage_example
+message=Usage example violation: function 'dna_typo_error_unitee' must include [USAGE] in the documentation block above the declaration.
+snippet=pub fn dna_typo_error_unitee() {}
+quick_fix=/// [USAGE] ...

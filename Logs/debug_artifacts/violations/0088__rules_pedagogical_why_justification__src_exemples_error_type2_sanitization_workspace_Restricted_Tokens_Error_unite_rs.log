@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=88
+priority=P3
+level=note
+rule_id=rules.pedagogical.why_justification
+file_path=src/exemples_error/type2/sanitization_workspace/Restricted-Tokens-Error_unite.rs
+line=1
+detected_dna=unite
+taxonomy_path=rules.pedagogical.why_justification
+message=Why justification violation: function 'restricted_tokens_error_unit' must include [WHY] in the documentation block above the declaration.
+snippet=pub fn restricted_tokens_error_unit(input: Option<usize>) -> usize {
+quick_fix=/// [WHY] ...

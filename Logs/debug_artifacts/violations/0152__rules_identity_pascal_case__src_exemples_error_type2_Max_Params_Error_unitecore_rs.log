@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=152
+priority=P2
+level=note
+rule_id=rules.identity.pascal_case
+file_path=src/exemples_error/type2/Max-Params-Error_unitecore.rs
+line=1
+detected_dna=unitecore
+taxonomy_path=rules.identity.pascal_case
+message=PascalCase violation: 'Max-Params-Error' does not match 'PascalCase'.
+snippet=Max-Params-Error

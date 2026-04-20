@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=158
+priority=P2
+level=note
+rule_id=rules.identity.pascal_case
+file_path=src/exemples_error/type2/Visibility-Error_structure.rs
+line=1
+detected_dna=structure
+taxonomy_path=rules.identity.pascal_case
+message=PascalCase violation: 'Visibility-Error' does not match 'PascalCase'.
+snippet=Visibility-Error

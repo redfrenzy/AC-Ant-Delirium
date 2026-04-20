@@ -178,4 +178,5 @@ mod tests {
         assert_eq!(type_1.1, type_2.1, "type_2 normalized rule distribution diverged from type_1");
         assert_eq!(type_1.1, type_3.1, "type_3 normalized rule distribution diverged from type_1");
     }
+
 }

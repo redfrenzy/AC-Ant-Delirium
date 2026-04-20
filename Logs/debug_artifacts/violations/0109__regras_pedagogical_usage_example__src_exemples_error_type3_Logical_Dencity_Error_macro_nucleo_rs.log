@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=109
+priority=P3
+level=note
+rule_id=regras.pedagogical.usage_example
+file_path=src/exemples_error/type3/Logical-Dencity-Error_macro_nucleo.rs
+line=1
+detected_dna=macro_nucleo
+taxonomy_path=regras.pedagogical.usage_example
+message=Usage example violation: function 'logical_density_error_macrocore' must include [USAGE] in the documentation block above the declaration.
+snippet=fn logical_density_error_macrocore() {
+quick_fix=/// [USAGE] ...

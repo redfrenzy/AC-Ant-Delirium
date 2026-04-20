@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=164
+priority=P2
+level=note
+rule_id=rules.identity.pascal_case
+file_path=src/exemples_error/type2/sanitization_workspace/Restricted-Tokens-Error_unite.rs
+line=1
+detected_dna=unite
+taxonomy_path=rules.identity.pascal_case
+message=PascalCase violation: 'Restricted-Tokens-Error' does not match 'PascalCase'.
+snippet=Restricted-Tokens-Error

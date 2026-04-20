@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=93
+priority=P3
+level=note
+rule_id=regras.pedagogical.usage_example
+file_path=src/exemples_error/type3/identity_workspace/Recursion-Missing_unidade.rs
+line=1
+detected_dna=unidade
+taxonomy_path=regras.pedagogical.usage_example
+message=Usage example violation: function 'recursion_missing_unit' must include [USAGE] in the documentation block above the declaration.
+snippet=pub fn recursion_missing_unit() -> usize {
+quick_fix=/// [USAGE] ...

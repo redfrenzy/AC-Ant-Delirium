@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=140
+priority=P2
+level=note
+rule_id=hierarchy.identity.dna_suffix
+file_path=src/exemples_error/type1/identity_workspace/Tag-Separator-Error-unit.rs
+line=1
+detected_dna=<unknown>
+taxonomy_path=hierarchy.identity.dna_suffix
+message=DNA suffix missing: 'Tag-Separator-Error-unit' contains logic but has no '_' DNA tag in filename.
+snippet=Tag-Separator-Error-unit
+quick_fix=Tag-Separator-Error-unit_unit.rs

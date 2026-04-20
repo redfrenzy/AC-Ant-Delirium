@@ -11,8 +11,8 @@
       },
       "properties": {
         "governance": {
-          "terminal_report": "src/Logs/artifacts/governance_terminal.log",
-          "violations_manifest": "src/Logs/artifacts/violations_manifest.json",
+          "terminal_report": "Logs/debug_artifacts/governance_terminal.log",
+          "violations_manifest": "Logs/debug_artifacts/violations_manifest.json",
           "priority_order": "P0 → P1 → P2 → P3",
           "total_violations": 189,
           "audited_files": 31,
@@ -94,7 +94,7 @@
           "priority": "P1",
           "taxonomy": "hierarchy.files.unit.max_nesting",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0001__hierarchy_structural_max_nesting_max_nesting_error_unit__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0001__hierarchy_structural_max_nesting_max_nesting_error_unit__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
           "message": { "text": "Nesting Violation: logic tree depth exceed sovereign limits. - 4/2 levels. Flatten this logic tree." },
           "locations": [
             {
@@ -127,7 +127,7 @@
           "priority": "P1",
           "taxonomy": "hierarchy.files.struct.structcore.max_nesting",
           "dna": "structcore",
-          "logFile": "src/Logs/artifacts/violations/0002__hierarchy_structural_max_nesting_max_nesting_error_structcore__src_exemples_error_type1_Max_Nesting_Error_structcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0002__hierarchy_structural_max_nesting_max_nesting_error_structcore__src_exemples_error_type1_Max_Nesting_Error_structcore_rs.log",
           "message": { "text": "Nesting Violation: logic tree depth exceed sovereign limits. - 5/3 levels. Flatten this logic tree." },
           "locations": [
             {
@@ -160,7 +160,7 @@
           "priority": "P1",
           "taxonomy": "hierarchy.files.unit.max_params",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0003__hierarchy_structural_max_params_max_params_error_unit__src_exemples_error_type1_Max_Params_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0003__hierarchy_structural_max_params_max_params_error_unit__src_exemples_error_type1_Max_Params_Error_unit_rs.log",
           "message": { "text": "Parameter Coupling Violation: excessive number of parameters in declaration. - 5/4 parameters. Group them into a Struct." },
           "locations": [
             {
@@ -193,7 +193,7 @@
           "priority": "P1",
           "taxonomy": "hierarchy.files.unit.unitcore.max_params",
           "dna": "unitcore",
-          "logFile": "src/Logs/artifacts/violations/0004__hierarchy_structural_max_params_max_params_error_unitcore__src_exemples_error_type1_Max_Params_Error_unitcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0004__hierarchy_structural_max_params_max_params_error_unitcore__src_exemples_error_type1_Max_Params_Error_unitcore_rs.log",
           "message": { "text": "Parameter Coupling Violation: excessive number of parameters in declaration. - 7/6 parameters. Group them into a Struct." },
           "locations": [
             {
@@ -226,7 +226,7 @@
           "priority": "P1",
           "taxonomy": "hierarchy.files.logical_density",
           "dna": "struct",
-          "logFile": "src/Logs/artifacts/violations/0005__hierarchy_structural_logical_density_logical_density_error_struct__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0005__hierarchy_structural_logical_density_logical_density_error_struct__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
           "message": { "text": "Logical Density Violation: function exceeds authorized atomic complexity. - 41/40 statements. Fragment this logic." },
           "locations": [
             {
@@ -259,7 +259,7 @@
           "priority": "P1",
           "taxonomy": "hierarchy.files.macro.macrocore.logical_density",
           "dna": "macrocore",
-          "logFile": "src/Logs/artifacts/violations/0006__hierarchy_structural_logical_density_logical_density_error_macrocore__src_exemples_error_type1_Logical_Dencity_Error_macrocore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0006__hierarchy_structural_logical_density_logical_density_error_macrocore__src_exemples_error_type1_Logical_Dencity_Error_macrocore_rs.log",
           "message": { "text": "Logical Density Violation: function exceeds authorized atomic complexity. - 41/40 statements. Fragment this logic." },
           "locations": [
             {
@@ -292,7 +292,7 @@
           "priority": "P1",
           "taxonomy": "hierarchy.files.struct.structcore.logical_density",
           "dna": "structcore",
-          "logFile": "src/Logs/artifacts/violations/0007__hierarchy_structural_logical_density_logical_density_error_structcore__src_exemples_error_type1_Logical_Dencity_Error_structcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0007__hierarchy_structural_logical_density_logical_density_error_structcore__src_exemples_error_type1_Logical_Dencity_Error_structcore_rs.log",
           "message": { "text": "Logical Density Violation: function exceeds authorized atomic complexity. - 32/30 statements. Fragment this logic." },
           "locations": [
             {
@@ -325,7 +325,7 @@
           "priority": "P1",
           "taxonomy": "hierarchy.files.unit.logical_density",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0008__hierarchy_structural_logical_density_logical_density_error_unit__src_exemples_error_type1_Logical_Dencity_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0008__hierarchy_structural_logical_density_logical_density_error_unit__src_exemples_error_type1_Logical_Dencity_Error_unit_rs.log",
           "message": { "text": "Logical Density Violation: function exceeds authorized atomic complexity. - 28/25 statements. Fragment this logic." },
           "locations": [
             {
@@ -358,7 +358,7 @@
           "priority": "P1",
           "taxonomy": "hierarchy.files.unit.unitcore.logical_density",
           "dna": "unitcore",
-          "logFile": "src/Logs/artifacts/violations/0009__hierarchy_structural_logical_density_logical_density_error_unitcore__src_exemples_error_type1_Logical_Dencity_Error_unitcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0009__hierarchy_structural_logical_density_logical_density_error_unitcore__src_exemples_error_type1_Logical_Dencity_Error_unitcore_rs.log",
           "message": { "text": "Logical Density Violation: function exceeds authorized atomic complexity. - 41/40 statements. Fragment this logic." },
           "locations": [
             {
@@ -391,7 +391,7 @@
           "priority": "P1",
           "taxonomy": "hierarchy.files.logical_density",
           "dna": "macro",
-          "logFile": "src/Logs/artifacts/violations/0010__hierarchy_structural_logical_density_logical_density_error_macro__src_exemples_error_type1_Logical_Dencity_Error_macro_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0010__hierarchy_structural_logical_density_logical_density_error_macro__src_exemples_error_type1_Logical_Dencity_Error_macro_rs.log",
           "message": { "text": "Logical Density Violation: function exceeds authorized atomic complexity. - 44/40 statements. Fragment this logic." },
           "locations": [
             {
@@ -424,7 +424,7 @@
           "priority": "P1",
           "taxonomy": "hierarchy.structural.type_logic",
           "dna": "unti",
-          "logFile": "src/Logs/artifacts/violations/0011__hierarchy_structural_type_logic_resolution__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0011__hierarchy_structural_type_logic_resolution__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
           "message": { "text": "Axiom 'type_logic' precisa do requirement taxonomico 'type_logic', mas nenhum valor foi encontrado a partir de 'hierarchy.files'." },
           "locations": [
             {
@@ -441,7 +441,7 @@
           "priority": "P1",
           "taxonomy": "hierarchy.files.struct.type_logic",
           "dna": "struct",
-          "logFile": "src/Logs/artifacts/violations/0012__hierarchy_structural_type_logic_logical_density_error_struct__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0012__hierarchy_structural_type_logic_logical_density_error_struct__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
           "message": { "text": "Type Logic Violation: DNA 'struct' only allows [\"struct\", \"public_struct\", \"enum\", \"public_enum\"], but found 'private_fn' in declaration." },
           "locations": [
             {
@@ -474,7 +474,7 @@
           "priority": "P1",
           "taxonomy": "hierarchy.files.struct.type_logic",
           "dna": "struct",
-          "logFile": "src/Logs/artifacts/violations/0013__hierarchy_structural_type_logic_HiddenVisibilityError___src_exemples_error_type1_Visibility_Error_struct_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0013__hierarchy_structural_type_logic_HiddenVisibilityError___src_exemples_error_type1_Visibility_Error_struct_rs.log",
           "message": { "text": "Type Logic Violation: DNA 'struct' only allows [\"struct\", \"public_struct\", \"enum\", \"public_enum\"], but found 'unit_struct' in declaration." },
           "locations": [
             {
@@ -507,7 +507,7 @@
           "priority": "P1",
           "taxonomy": "hierarchy.files.struct.type_logic",
           "dna": "struct",
-          "logFile": "src/Logs/artifacts/violations/0014__hierarchy_structural_type_logic_keep_visibility_fixture_alive__src_exemples_error_type1_Visibility_Error_struct_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0014__hierarchy_structural_type_logic_keep_visibility_fixture_alive__src_exemples_error_type1_Visibility_Error_struct_rs.log",
           "message": { "text": "Type Logic Violation: DNA 'struct' only allows [\"struct\", \"public_struct\", \"enum\", \"public_enum\"], but found 'private_fn' in declaration." },
           "locations": [
             {
@@ -540,7 +540,7 @@
           "priority": "P1",
           "taxonomy": "hierarchy.files.struct.type_logic",
           "dna": "struct",
-          "logFile": "src/Logs/artifacts/violations/0015__hierarchy_structural_type_logic_type_logic_error_struct__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0015__hierarchy_structural_type_logic_type_logic_error_struct__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
           "message": { "text": "Type Logic Violation: DNA 'struct' only allows [\"struct\", \"public_struct\", \"enum\", \"public_enum\"], but found 'private_fn' in declaration." },
           "locations": [
             {
@@ -573,7 +573,7 @@
           "priority": "P1",
           "taxonomy": "hierarchy.files.unit.unitcore.type_logic",
           "dna": "unitcore",
-          "logFile": "src/Logs/artifacts/violations/0016__hierarchy_structural_type_logic_type_logic_error_unitcore__src_exemples_error_type1_Type_Logic_Error_unitcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0016__hierarchy_structural_type_logic_type_logic_error_unitcore__src_exemples_error_type1_Type_Logic_Error_unitcore_rs.log",
           "message": { "text": "Type Logic Violation: DNA 'unitcore' only allows [\"private_fn\", \"private_async_fn\", \"private_const_fn\", \"private_unsafe_fn\"], but found 'public_fn' in declaration." },
           "locations": [
             {
@@ -606,7 +606,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.md_pairing",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0017__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_pedagogical_workspace_Test_Case_Mapping_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0017__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_pedagogical_workspace_Test_Case_Mapping_Error_unit_rs.log",
           "message": { "text": "Where documentation violation: function 'test_case_mapping_error_unit' must include [WHERE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -639,7 +639,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.md_pairing",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0018__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_pedagogical_workspace_Md_Pairing_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0018__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_pedagogical_workspace_Md_Pairing_Error_unit_rs.log",
           "message": { "text": "Where documentation violation: function 'md_pairing_error_unit' must include [WHERE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -672,7 +672,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.md_pairing",
           "dna": "unti",
-          "logFile": "src/Logs/artifacts/violations/0019__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0019__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
           "message": { "text": "Where documentation violation: function 'dna_typo_error_unti' must include [WHERE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -705,7 +705,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.md_pairing",
           "dna": "",
-          "logFile": "src/Logs/artifacts/violations/0020__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_identity_workspace_DnaSuffixError_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0020__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_identity_workspace_DnaSuffixError_rs.log",
           "message": { "text": "Where documentation violation: function 'dna_suffix_error' must include [WHERE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -738,7 +738,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.md_pairing",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0021__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0021__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
           "message": { "text": "Where documentation violation: function 'pascal_case_error_unit' must include [WHERE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -771,7 +771,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.md_pairing",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0022__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_identity_workspace_Recursion_Missing_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0022__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_identity_workspace_Recursion_Missing_unit_rs.log",
           "message": { "text": "Where documentation violation: function 'recursion_missing_unit' must include [WHERE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -804,7 +804,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.md_pairing",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0023__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0023__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
           "message": { "text": "Where documentation violation: function 'name_separator_error_unit' must include [WHERE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -837,7 +837,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.md_pairing",
           "dna": "",
-          "logFile": "src/Logs/artifacts/violations/0024__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0024__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
           "message": { "text": "Where documentation violation: function 'tag_separator_error_unit' must include [WHERE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -870,7 +870,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.md_pairing",
           "dna": "struct",
-          "logFile": "src/Logs/artifacts/violations/0025__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0025__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
           "message": { "text": "Where documentation violation: function 'logical_density_error_struct' must include [WHERE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -903,7 +903,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.md_pairing",
           "dna": "macrocore",
-          "logFile": "src/Logs/artifacts/violations/0026__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Logical_Dencity_Error_macrocore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0026__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Logical_Dencity_Error_macrocore_rs.log",
           "message": { "text": "Where documentation violation: function 'logical_density_error_macrocore' must include [WHERE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -936,7 +936,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.md_pairing",
           "dna": "struct",
-          "logFile": "src/Logs/artifacts/violations/0027__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Visibility_Error_struct_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0027__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Visibility_Error_struct_rs.log",
           "message": { "text": "Where documentation violation: function 'keep_visibility_fixture_alive' must include [WHERE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -969,7 +969,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.md_pairing",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0028__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Max_Params_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0028__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Max_Params_Error_unit_rs.log",
           "message": { "text": "Where documentation violation: function 'max_params_error_unit' must include [WHERE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -1002,7 +1002,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.md_pairing",
           "dna": "structcore",
-          "logFile": "src/Logs/artifacts/violations/0029__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Logical_Dencity_Error_structcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0029__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Logical_Dencity_Error_structcore_rs.log",
           "message": { "text": "Where documentation violation: function 'logical_density_error_structcore' must include [WHERE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -1035,7 +1035,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.md_pairing",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0030__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0030__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
           "message": { "text": "Where documentation violation: function 'max_nesting_error_unit' must include [WHERE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -1068,7 +1068,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.md_pairing",
           "dna": "struct",
-          "logFile": "src/Logs/artifacts/violations/0031__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0031__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
           "message": { "text": "Where documentation violation: function 'type_logic_error_struct' must include [WHERE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -1101,7 +1101,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.md_pairing",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0032__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Logical_Dencity_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0032__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Logical_Dencity_Error_unit_rs.log",
           "message": { "text": "Where documentation violation: function 'logical_density_error_unit' must include [WHERE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -1134,7 +1134,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.md_pairing",
           "dna": "structcore",
-          "logFile": "src/Logs/artifacts/violations/0033__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Max_Nesting_Error_structcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0033__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Max_Nesting_Error_structcore_rs.log",
           "message": { "text": "Where documentation violation: function 'max_nesting_error_structcore' must include [WHERE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -1167,7 +1167,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.md_pairing",
           "dna": "unitcore",
-          "logFile": "src/Logs/artifacts/violations/0034__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Type_Logic_Error_unitcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0034__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Type_Logic_Error_unitcore_rs.log",
           "message": { "text": "Where documentation violation: function 'type_logic_error_unitcore' must include [WHERE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -1200,7 +1200,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.md_pairing",
           "dna": "unitcore",
-          "logFile": "src/Logs/artifacts/violations/0035__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Logical_Dencity_Error_unitcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0035__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Logical_Dencity_Error_unitcore_rs.log",
           "message": { "text": "Where documentation violation: function 'logical_density_error_unitcore' must include [WHERE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -1233,7 +1233,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.md_pairing",
           "dna": "unitcore",
-          "logFile": "src/Logs/artifacts/violations/0036__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Max_Params_Error_unitcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0036__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Max_Params_Error_unitcore_rs.log",
           "message": { "text": "Where documentation violation: function 'max_params_error_unitcore' must include [WHERE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -1266,7 +1266,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.md_pairing",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0037__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0037__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
           "message": { "text": "Where documentation violation: function 'token_sanitization_error_unit' must include [WHERE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -1299,7 +1299,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.md_pairing",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0038__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0038__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
           "message": { "text": "Where documentation violation: function 'restricted_tokens_error_unit' must include [WHERE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -1332,7 +1332,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.md_min_chars",
           "dna": "",
-          "logFile": "src/Logs/artifacts/violations/0039__hierarchy_pedagogical_md_min_chars__src_exemples_error_type1_pedagogical_workspace_Md_Min_Chars_Error_md.log",
+          "logFile": "Logs/debug_artifacts/violations/0039__hierarchy_pedagogical_md_min_chars__src_exemples_error_type1_pedagogical_workspace_Md_Min_Chars_Error_md.log",
           "message": { "text": "MD min chars violation: 5 < 80." },
           "locations": [
             {
@@ -1349,7 +1349,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.md_min_chars",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0040__hierarchy_pedagogical_md_min_chars__src_exemples_error_type1_pedagogical_workspace_Inheritance_Visibility_Error_unit_md.log",
+          "logFile": "Logs/debug_artifacts/violations/0040__hierarchy_pedagogical_md_min_chars__src_exemples_error_type1_pedagogical_workspace_Inheritance_Visibility_Error_unit_md.log",
           "message": { "text": "MD min chars violation: 16 < 80." },
           "locations": [
             {
@@ -1366,7 +1366,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.md_min_chars",
           "dna": "",
-          "logFile": "src/Logs/artifacts/violations/0041__hierarchy_pedagogical_md_min_chars__src_exemples_error_type1_pedagogical_workspace_RootGuide_md.log",
+          "logFile": "Logs/debug_artifacts/violations/0041__hierarchy_pedagogical_md_min_chars__src_exemples_error_type1_pedagogical_workspace_RootGuide_md.log",
           "message": { "text": "MD min chars violation: 25 < 80." },
           "locations": [
             {
@@ -1383,7 +1383,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.md_min_chars",
           "dna": "",
-          "logFile": "src/Logs/artifacts/violations/0042__hierarchy_pedagogical_md_min_chars__src_exemples_error_type1_pedagogical_workspace_What_Mission_Error_md.log",
+          "logFile": "Logs/debug_artifacts/violations/0042__hierarchy_pedagogical_md_min_chars__src_exemples_error_type1_pedagogical_workspace_What_Mission_Error_md.log",
           "message": { "text": "MD min chars violation: 44 < 80." },
           "locations": [
             {
@@ -1400,7 +1400,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.md_min_chars",
           "dna": "",
-          "logFile": "src/Logs/artifacts/violations/0043__hierarchy_pedagogical_md_min_chars__src_exemples_error_type1_pedagogical_workspace_Usage_Example_Error_md.log",
+          "logFile": "Logs/debug_artifacts/violations/0043__hierarchy_pedagogical_md_min_chars__src_exemples_error_type1_pedagogical_workspace_Usage_Example_Error_md.log",
           "message": { "text": "MD min chars violation: 44 < 80." },
           "locations": [
             {
@@ -1417,7 +1417,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.md_min_chars",
           "dna": "",
-          "logFile": "src/Logs/artifacts/violations/0044__hierarchy_pedagogical_md_min_chars__src_exemples_error_type1_pedagogical_workspace_Why_Justification_Error_md.log",
+          "logFile": "Logs/debug_artifacts/violations/0044__hierarchy_pedagogical_md_min_chars__src_exemples_error_type1_pedagogical_workspace_Why_Justification_Error_md.log",
           "message": { "text": "MD min chars violation: 44 < 80." },
           "locations": [
             {
@@ -1434,7 +1434,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.md_min_chars",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0045__hierarchy_pedagogical_md_min_chars__src_exemples_error_type1_identity_workspace_Guide_unit_md.log",
+          "logFile": "Logs/debug_artifacts/violations/0045__hierarchy_pedagogical_md_min_chars__src_exemples_error_type1_identity_workspace_Guide_unit_md.log",
           "message": { "text": "MD min chars violation: 56 < 80." },
           "locations": [
             {
@@ -1451,7 +1451,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.what_mission",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0046__hierarchy_pedagogical_what_mission__src_exemples_error_type1_pedagogical_workspace_Test_Case_Mapping_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0046__hierarchy_pedagogical_what_mission__src_exemples_error_type1_pedagogical_workspace_Test_Case_Mapping_Error_unit_rs.log",
           "message": { "text": "What mission violation: function 'test_case_mapping_error_unit' must include [WHAT] in the documentation block above the declaration." },
           "locations": [
             {
@@ -1484,7 +1484,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.what_mission",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0047__hierarchy_pedagogical_what_mission__src_exemples_error_type1_pedagogical_workspace_Md_Pairing_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0047__hierarchy_pedagogical_what_mission__src_exemples_error_type1_pedagogical_workspace_Md_Pairing_Error_unit_rs.log",
           "message": { "text": "What mission violation: function 'md_pairing_error_unit' must include [WHAT] in the documentation block above the declaration." },
           "locations": [
             {
@@ -1517,7 +1517,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.what_mission",
           "dna": "unti",
-          "logFile": "src/Logs/artifacts/violations/0048__hierarchy_pedagogical_what_mission__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0048__hierarchy_pedagogical_what_mission__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
           "message": { "text": "What mission violation: function 'dna_typo_error_unti' must include [WHAT] in the documentation block above the declaration." },
           "locations": [
             {
@@ -1550,7 +1550,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.what_mission",
           "dna": "",
-          "logFile": "src/Logs/artifacts/violations/0049__hierarchy_pedagogical_what_mission__src_exemples_error_type1_identity_workspace_DnaSuffixError_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0049__hierarchy_pedagogical_what_mission__src_exemples_error_type1_identity_workspace_DnaSuffixError_rs.log",
           "message": { "text": "What mission violation: function 'dna_suffix_error' must include [WHAT] in the documentation block above the declaration." },
           "locations": [
             {
@@ -1583,7 +1583,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.what_mission",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0050__hierarchy_pedagogical_what_mission__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0050__hierarchy_pedagogical_what_mission__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
           "message": { "text": "What mission violation: function 'pascal_case_error_unit' must include [WHAT] in the documentation block above the declaration." },
           "locations": [
             {
@@ -1616,7 +1616,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.what_mission",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0051__hierarchy_pedagogical_what_mission__src_exemples_error_type1_identity_workspace_Recursion_Missing_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0051__hierarchy_pedagogical_what_mission__src_exemples_error_type1_identity_workspace_Recursion_Missing_unit_rs.log",
           "message": { "text": "What mission violation: function 'recursion_missing_unit' must include [WHAT] in the documentation block above the declaration." },
           "locations": [
             {
@@ -1649,7 +1649,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.what_mission",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0052__hierarchy_pedagogical_what_mission__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0052__hierarchy_pedagogical_what_mission__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
           "message": { "text": "What mission violation: function 'name_separator_error_unit' must include [WHAT] in the documentation block above the declaration." },
           "locations": [
             {
@@ -1682,7 +1682,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.what_mission",
           "dna": "",
-          "logFile": "src/Logs/artifacts/violations/0053__hierarchy_pedagogical_what_mission__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0053__hierarchy_pedagogical_what_mission__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
           "message": { "text": "What mission violation: function 'tag_separator_error_unit' must include [WHAT] in the documentation block above the declaration." },
           "locations": [
             {
@@ -1715,7 +1715,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.what_mission",
           "dna": "struct",
-          "logFile": "src/Logs/artifacts/violations/0054__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0054__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
           "message": { "text": "What mission violation: function 'logical_density_error_struct' must include [WHAT] in the documentation block above the declaration." },
           "locations": [
             {
@@ -1748,7 +1748,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.what_mission",
           "dna": "macrocore",
-          "logFile": "src/Logs/artifacts/violations/0055__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Logical_Dencity_Error_macrocore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0055__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Logical_Dencity_Error_macrocore_rs.log",
           "message": { "text": "What mission violation: function 'logical_density_error_macrocore' must include [WHAT] in the documentation block above the declaration." },
           "locations": [
             {
@@ -1781,7 +1781,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.what_mission",
           "dna": "struct",
-          "logFile": "src/Logs/artifacts/violations/0056__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Visibility_Error_struct_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0056__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Visibility_Error_struct_rs.log",
           "message": { "text": "What mission violation: function 'keep_visibility_fixture_alive' must include [WHAT] in the documentation block above the declaration." },
           "locations": [
             {
@@ -1814,7 +1814,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.what_mission",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0057__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Max_Params_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0057__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Max_Params_Error_unit_rs.log",
           "message": { "text": "What mission violation: function 'max_params_error_unit' must include [WHAT] in the documentation block above the declaration." },
           "locations": [
             {
@@ -1847,7 +1847,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.what_mission",
           "dna": "structcore",
-          "logFile": "src/Logs/artifacts/violations/0058__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Logical_Dencity_Error_structcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0058__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Logical_Dencity_Error_structcore_rs.log",
           "message": { "text": "What mission violation: function 'logical_density_error_structcore' must include [WHAT] in the documentation block above the declaration." },
           "locations": [
             {
@@ -1880,7 +1880,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.what_mission",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0059__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0059__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
           "message": { "text": "What mission violation: function 'max_nesting_error_unit' must include [WHAT] in the documentation block above the declaration." },
           "locations": [
             {
@@ -1913,7 +1913,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.what_mission",
           "dna": "struct",
-          "logFile": "src/Logs/artifacts/violations/0060__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0060__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
           "message": { "text": "What mission violation: function 'type_logic_error_struct' must include [WHAT] in the documentation block above the declaration." },
           "locations": [
             {
@@ -1946,7 +1946,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.what_mission",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0061__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Logical_Dencity_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0061__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Logical_Dencity_Error_unit_rs.log",
           "message": { "text": "What mission violation: function 'logical_density_error_unit' must include [WHAT] in the documentation block above the declaration." },
           "locations": [
             {
@@ -1979,7 +1979,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.what_mission",
           "dna": "structcore",
-          "logFile": "src/Logs/artifacts/violations/0062__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Max_Nesting_Error_structcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0062__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Max_Nesting_Error_structcore_rs.log",
           "message": { "text": "What mission violation: function 'max_nesting_error_structcore' must include [WHAT] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2012,7 +2012,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.what_mission",
           "dna": "unitcore",
-          "logFile": "src/Logs/artifacts/violations/0063__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Type_Logic_Error_unitcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0063__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Type_Logic_Error_unitcore_rs.log",
           "message": { "text": "What mission violation: function 'type_logic_error_unitcore' must include [WHAT] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2045,7 +2045,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.what_mission",
           "dna": "unitcore",
-          "logFile": "src/Logs/artifacts/violations/0064__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Logical_Dencity_Error_unitcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0064__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Logical_Dencity_Error_unitcore_rs.log",
           "message": { "text": "What mission violation: function 'logical_density_error_unitcore' must include [WHAT] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2078,7 +2078,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.what_mission",
           "dna": "unitcore",
-          "logFile": "src/Logs/artifacts/violations/0065__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Max_Params_Error_unitcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0065__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Max_Params_Error_unitcore_rs.log",
           "message": { "text": "What mission violation: function 'max_params_error_unitcore' must include [WHAT] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2111,7 +2111,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.what_mission",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0066__hierarchy_pedagogical_what_mission__src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0066__hierarchy_pedagogical_what_mission__src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
           "message": { "text": "What mission violation: function 'token_sanitization_error_unit' must include [WHAT] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2144,7 +2144,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.what_mission",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0067__hierarchy_pedagogical_what_mission__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0067__hierarchy_pedagogical_what_mission__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
           "message": { "text": "What mission violation: function 'restricted_tokens_error_unit' must include [WHAT] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2177,7 +2177,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.why_justification",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0068__hierarchy_pedagogical_why_justification__src_exemples_error_type1_pedagogical_workspace_Test_Case_Mapping_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0068__hierarchy_pedagogical_why_justification__src_exemples_error_type1_pedagogical_workspace_Test_Case_Mapping_Error_unit_rs.log",
           "message": { "text": "Why justification violation: function 'test_case_mapping_error_unit' must include [WHY] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2210,7 +2210,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.why_justification",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0069__hierarchy_pedagogical_why_justification__src_exemples_error_type1_pedagogical_workspace_Md_Pairing_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0069__hierarchy_pedagogical_why_justification__src_exemples_error_type1_pedagogical_workspace_Md_Pairing_Error_unit_rs.log",
           "message": { "text": "Why justification violation: function 'md_pairing_error_unit' must include [WHY] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2243,7 +2243,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.why_justification",
           "dna": "unti",
-          "logFile": "src/Logs/artifacts/violations/0070__hierarchy_pedagogical_why_justification__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0070__hierarchy_pedagogical_why_justification__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
           "message": { "text": "Why justification violation: function 'dna_typo_error_unti' must include [WHY] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2276,7 +2276,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.why_justification",
           "dna": "",
-          "logFile": "src/Logs/artifacts/violations/0071__hierarchy_pedagogical_why_justification__src_exemples_error_type1_identity_workspace_DnaSuffixError_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0071__hierarchy_pedagogical_why_justification__src_exemples_error_type1_identity_workspace_DnaSuffixError_rs.log",
           "message": { "text": "Why justification violation: function 'dna_suffix_error' must include [WHY] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2309,7 +2309,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.why_justification",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0072__hierarchy_pedagogical_why_justification__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0072__hierarchy_pedagogical_why_justification__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
           "message": { "text": "Why justification violation: function 'pascal_case_error_unit' must include [WHY] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2342,7 +2342,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.why_justification",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0073__hierarchy_pedagogical_why_justification__src_exemples_error_type1_identity_workspace_Recursion_Missing_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0073__hierarchy_pedagogical_why_justification__src_exemples_error_type1_identity_workspace_Recursion_Missing_unit_rs.log",
           "message": { "text": "Why justification violation: function 'recursion_missing_unit' must include [WHY] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2375,7 +2375,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.why_justification",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0074__hierarchy_pedagogical_why_justification__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0074__hierarchy_pedagogical_why_justification__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
           "message": { "text": "Why justification violation: function 'name_separator_error_unit' must include [WHY] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2408,7 +2408,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.why_justification",
           "dna": "",
-          "logFile": "src/Logs/artifacts/violations/0075__hierarchy_pedagogical_why_justification__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0075__hierarchy_pedagogical_why_justification__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
           "message": { "text": "Why justification violation: function 'tag_separator_error_unit' must include [WHY] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2441,7 +2441,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.why_justification",
           "dna": "struct",
-          "logFile": "src/Logs/artifacts/violations/0076__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0076__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
           "message": { "text": "Why justification violation: function 'logical_density_error_struct' must include [WHY] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2474,7 +2474,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.why_justification",
           "dna": "macrocore",
-          "logFile": "src/Logs/artifacts/violations/0077__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Logical_Dencity_Error_macrocore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0077__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Logical_Dencity_Error_macrocore_rs.log",
           "message": { "text": "Why justification violation: function 'logical_density_error_macrocore' must include [WHY] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2507,7 +2507,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.why_justification",
           "dna": "struct",
-          "logFile": "src/Logs/artifacts/violations/0078__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Visibility_Error_struct_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0078__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Visibility_Error_struct_rs.log",
           "message": { "text": "Why justification violation: function 'keep_visibility_fixture_alive' must include [WHY] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2540,7 +2540,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.why_justification",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0079__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Max_Params_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0079__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Max_Params_Error_unit_rs.log",
           "message": { "text": "Why justification violation: function 'max_params_error_unit' must include [WHY] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2573,7 +2573,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.why_justification",
           "dna": "structcore",
-          "logFile": "src/Logs/artifacts/violations/0080__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Logical_Dencity_Error_structcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0080__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Logical_Dencity_Error_structcore_rs.log",
           "message": { "text": "Why justification violation: function 'logical_density_error_structcore' must include [WHY] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2606,7 +2606,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.why_justification",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0081__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0081__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
           "message": { "text": "Why justification violation: function 'max_nesting_error_unit' must include [WHY] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2639,7 +2639,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.why_justification",
           "dna": "struct",
-          "logFile": "src/Logs/artifacts/violations/0082__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0082__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
           "message": { "text": "Why justification violation: function 'type_logic_error_struct' must include [WHY] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2672,7 +2672,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.why_justification",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0083__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Logical_Dencity_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0083__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Logical_Dencity_Error_unit_rs.log",
           "message": { "text": "Why justification violation: function 'logical_density_error_unit' must include [WHY] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2705,7 +2705,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.why_justification",
           "dna": "structcore",
-          "logFile": "src/Logs/artifacts/violations/0084__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Max_Nesting_Error_structcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0084__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Max_Nesting_Error_structcore_rs.log",
           "message": { "text": "Why justification violation: function 'max_nesting_error_structcore' must include [WHY] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2738,7 +2738,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.why_justification",
           "dna": "unitcore",
-          "logFile": "src/Logs/artifacts/violations/0085__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Type_Logic_Error_unitcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0085__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Type_Logic_Error_unitcore_rs.log",
           "message": { "text": "Why justification violation: function 'type_logic_error_unitcore' must include [WHY] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2771,7 +2771,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.why_justification",
           "dna": "unitcore",
-          "logFile": "src/Logs/artifacts/violations/0086__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Logical_Dencity_Error_unitcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0086__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Logical_Dencity_Error_unitcore_rs.log",
           "message": { "text": "Why justification violation: function 'logical_density_error_unitcore' must include [WHY] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2804,7 +2804,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.why_justification",
           "dna": "unitcore",
-          "logFile": "src/Logs/artifacts/violations/0087__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Max_Params_Error_unitcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0087__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Max_Params_Error_unitcore_rs.log",
           "message": { "text": "Why justification violation: function 'max_params_error_unitcore' must include [WHY] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2837,7 +2837,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.why_justification",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0088__hierarchy_pedagogical_why_justification__src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0088__hierarchy_pedagogical_why_justification__src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
           "message": { "text": "Why justification violation: function 'token_sanitization_error_unit' must include [WHY] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2870,7 +2870,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.why_justification",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0089__hierarchy_pedagogical_why_justification__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0089__hierarchy_pedagogical_why_justification__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
           "message": { "text": "Why justification violation: function 'restricted_tokens_error_unit' must include [WHY] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2903,7 +2903,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.usage_example",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0090__hierarchy_pedagogical_usage_example__src_exemples_error_type1_pedagogical_workspace_Test_Case_Mapping_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0090__hierarchy_pedagogical_usage_example__src_exemples_error_type1_pedagogical_workspace_Test_Case_Mapping_Error_unit_rs.log",
           "message": { "text": "Usage example violation: function 'test_case_mapping_error_unit' must include [USAGE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2936,7 +2936,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.usage_example",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0091__hierarchy_pedagogical_usage_example__src_exemples_error_type1_pedagogical_workspace_Md_Pairing_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0091__hierarchy_pedagogical_usage_example__src_exemples_error_type1_pedagogical_workspace_Md_Pairing_Error_unit_rs.log",
           "message": { "text": "Usage example violation: function 'md_pairing_error_unit' must include [USAGE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -2969,7 +2969,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.usage_example",
           "dna": "unti",
-          "logFile": "src/Logs/artifacts/violations/0092__hierarchy_pedagogical_usage_example__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0092__hierarchy_pedagogical_usage_example__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
           "message": { "text": "Usage example violation: function 'dna_typo_error_unti' must include [USAGE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3002,7 +3002,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.usage_example",
           "dna": "",
-          "logFile": "src/Logs/artifacts/violations/0093__hierarchy_pedagogical_usage_example__src_exemples_error_type1_identity_workspace_DnaSuffixError_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0093__hierarchy_pedagogical_usage_example__src_exemples_error_type1_identity_workspace_DnaSuffixError_rs.log",
           "message": { "text": "Usage example violation: function 'dna_suffix_error' must include [USAGE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3035,7 +3035,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.usage_example",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0094__hierarchy_pedagogical_usage_example__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0094__hierarchy_pedagogical_usage_example__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
           "message": { "text": "Usage example violation: function 'pascal_case_error_unit' must include [USAGE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3068,7 +3068,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.usage_example",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0095__hierarchy_pedagogical_usage_example__src_exemples_error_type1_identity_workspace_Recursion_Missing_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0095__hierarchy_pedagogical_usage_example__src_exemples_error_type1_identity_workspace_Recursion_Missing_unit_rs.log",
           "message": { "text": "Usage example violation: function 'recursion_missing_unit' must include [USAGE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3101,7 +3101,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.usage_example",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0096__hierarchy_pedagogical_usage_example__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0096__hierarchy_pedagogical_usage_example__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
           "message": { "text": "Usage example violation: function 'name_separator_error_unit' must include [USAGE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3134,7 +3134,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.usage_example",
           "dna": "",
-          "logFile": "src/Logs/artifacts/violations/0097__hierarchy_pedagogical_usage_example__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0097__hierarchy_pedagogical_usage_example__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
           "message": { "text": "Usage example violation: function 'tag_separator_error_unit' must include [USAGE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3167,7 +3167,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.usage_example",
           "dna": "struct",
-          "logFile": "src/Logs/artifacts/violations/0098__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0098__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
           "message": { "text": "Usage example violation: function 'logical_density_error_struct' must include [USAGE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3200,7 +3200,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.usage_example",
           "dna": "macrocore",
-          "logFile": "src/Logs/artifacts/violations/0099__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Logical_Dencity_Error_macrocore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0099__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Logical_Dencity_Error_macrocore_rs.log",
           "message": { "text": "Usage example violation: function 'logical_density_error_macrocore' must include [USAGE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3233,7 +3233,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.usage_example",
           "dna": "struct",
-          "logFile": "src/Logs/artifacts/violations/0100__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Visibility_Error_struct_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0100__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Visibility_Error_struct_rs.log",
           "message": { "text": "Usage example violation: function 'keep_visibility_fixture_alive' must include [USAGE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3266,7 +3266,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.usage_example",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0101__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Max_Params_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0101__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Max_Params_Error_unit_rs.log",
           "message": { "text": "Usage example violation: function 'max_params_error_unit' must include [USAGE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3299,7 +3299,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.usage_example",
           "dna": "structcore",
-          "logFile": "src/Logs/artifacts/violations/0102__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Logical_Dencity_Error_structcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0102__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Logical_Dencity_Error_structcore_rs.log",
           "message": { "text": "Usage example violation: function 'logical_density_error_structcore' must include [USAGE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3332,7 +3332,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.usage_example",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0103__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0103__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
           "message": { "text": "Usage example violation: function 'max_nesting_error_unit' must include [USAGE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3365,7 +3365,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.usage_example",
           "dna": "struct",
-          "logFile": "src/Logs/artifacts/violations/0104__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0104__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
           "message": { "text": "Usage example violation: function 'type_logic_error_struct' must include [USAGE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3398,7 +3398,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.usage_example",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0105__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Logical_Dencity_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0105__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Logical_Dencity_Error_unit_rs.log",
           "message": { "text": "Usage example violation: function 'logical_density_error_unit' must include [USAGE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3431,7 +3431,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.usage_example",
           "dna": "structcore",
-          "logFile": "src/Logs/artifacts/violations/0106__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Max_Nesting_Error_structcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0106__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Max_Nesting_Error_structcore_rs.log",
           "message": { "text": "Usage example violation: function 'max_nesting_error_structcore' must include [USAGE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3464,7 +3464,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.usage_example",
           "dna": "unitcore",
-          "logFile": "src/Logs/artifacts/violations/0107__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Type_Logic_Error_unitcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0107__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Type_Logic_Error_unitcore_rs.log",
           "message": { "text": "Usage example violation: function 'type_logic_error_unitcore' must include [USAGE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3497,7 +3497,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.usage_example",
           "dna": "unitcore",
-          "logFile": "src/Logs/artifacts/violations/0108__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Logical_Dencity_Error_unitcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0108__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Logical_Dencity_Error_unitcore_rs.log",
           "message": { "text": "Usage example violation: function 'logical_density_error_unitcore' must include [USAGE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3530,7 +3530,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.usage_example",
           "dna": "unitcore",
-          "logFile": "src/Logs/artifacts/violations/0109__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Max_Params_Error_unitcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0109__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Max_Params_Error_unitcore_rs.log",
           "message": { "text": "Usage example violation: function 'max_params_error_unitcore' must include [USAGE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3563,7 +3563,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.usage_example",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0110__hierarchy_pedagogical_usage_example__src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0110__hierarchy_pedagogical_usage_example__src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
           "message": { "text": "Usage example violation: function 'token_sanitization_error_unit' must include [USAGE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3596,7 +3596,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.usage_example",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0111__hierarchy_pedagogical_usage_example__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0111__hierarchy_pedagogical_usage_example__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
           "message": { "text": "Usage example violation: function 'restricted_tokens_error_unit' must include [USAGE] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3629,7 +3629,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.test_case_mapping",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0112__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_pedagogical_workspace_Test_Case_Mapping_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0112__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_pedagogical_workspace_Test_Case_Mapping_Error_unit_rs.log",
           "message": { "text": "Test mapping violation: function 'test_case_mapping_error_unit' must include [TEST] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3662,7 +3662,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.test_case_mapping",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0113__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_pedagogical_workspace_Md_Pairing_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0113__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_pedagogical_workspace_Md_Pairing_Error_unit_rs.log",
           "message": { "text": "Test mapping violation: function 'md_pairing_error_unit' must include [TEST] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3695,7 +3695,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.test_case_mapping",
           "dna": "unti",
-          "logFile": "src/Logs/artifacts/violations/0114__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0114__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
           "message": { "text": "Test mapping violation: function 'dna_typo_error_unti' must include [TEST] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3728,7 +3728,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.test_case_mapping",
           "dna": "",
-          "logFile": "src/Logs/artifacts/violations/0115__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_identity_workspace_DnaSuffixError_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0115__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_identity_workspace_DnaSuffixError_rs.log",
           "message": { "text": "Test mapping violation: function 'dna_suffix_error' must include [TEST] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3761,7 +3761,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.test_case_mapping",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0116__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0116__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
           "message": { "text": "Test mapping violation: function 'pascal_case_error_unit' must include [TEST] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3794,7 +3794,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.test_case_mapping",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0117__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_identity_workspace_Recursion_Missing_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0117__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_identity_workspace_Recursion_Missing_unit_rs.log",
           "message": { "text": "Test mapping violation: function 'recursion_missing_unit' must include [TEST] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3827,7 +3827,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.test_case_mapping",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0118__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0118__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
           "message": { "text": "Test mapping violation: function 'name_separator_error_unit' must include [TEST] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3860,7 +3860,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.test_case_mapping",
           "dna": "",
-          "logFile": "src/Logs/artifacts/violations/0119__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0119__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
           "message": { "text": "Test mapping violation: function 'tag_separator_error_unit' must include [TEST] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3893,7 +3893,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.test_case_mapping",
           "dna": "struct",
-          "logFile": "src/Logs/artifacts/violations/0120__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0120__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
           "message": { "text": "Test mapping violation: function 'logical_density_error_struct' must include [TEST] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3926,7 +3926,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.test_case_mapping",
           "dna": "macrocore",
-          "logFile": "src/Logs/artifacts/violations/0121__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Logical_Dencity_Error_macrocore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0121__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Logical_Dencity_Error_macrocore_rs.log",
           "message": { "text": "Test mapping violation: function 'logical_density_error_macrocore' must include [TEST] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3959,7 +3959,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.test_case_mapping",
           "dna": "struct",
-          "logFile": "src/Logs/artifacts/violations/0122__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Visibility_Error_struct_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0122__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Visibility_Error_struct_rs.log",
           "message": { "text": "Test mapping violation: function 'keep_visibility_fixture_alive' must include [TEST] in the documentation block above the declaration." },
           "locations": [
             {
@@ -3992,7 +3992,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.test_case_mapping",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0123__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Max_Params_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0123__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Max_Params_Error_unit_rs.log",
           "message": { "text": "Test mapping violation: function 'max_params_error_unit' must include [TEST] in the documentation block above the declaration." },
           "locations": [
             {
@@ -4025,7 +4025,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.test_case_mapping",
           "dna": "structcore",
-          "logFile": "src/Logs/artifacts/violations/0124__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Logical_Dencity_Error_structcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0124__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Logical_Dencity_Error_structcore_rs.log",
           "message": { "text": "Test mapping violation: function 'logical_density_error_structcore' must include [TEST] in the documentation block above the declaration." },
           "locations": [
             {
@@ -4058,7 +4058,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.test_case_mapping",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0125__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0125__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
           "message": { "text": "Test mapping violation: function 'max_nesting_error_unit' must include [TEST] in the documentation block above the declaration." },
           "locations": [
             {
@@ -4091,7 +4091,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.test_case_mapping",
           "dna": "struct",
-          "logFile": "src/Logs/artifacts/violations/0126__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0126__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
           "message": { "text": "Test mapping violation: function 'type_logic_error_struct' must include [TEST] in the documentation block above the declaration." },
           "locations": [
             {
@@ -4124,7 +4124,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.test_case_mapping",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0127__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Logical_Dencity_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0127__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Logical_Dencity_Error_unit_rs.log",
           "message": { "text": "Test mapping violation: function 'logical_density_error_unit' must include [TEST] in the documentation block above the declaration." },
           "locations": [
             {
@@ -4157,7 +4157,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.test_case_mapping",
           "dna": "structcore",
-          "logFile": "src/Logs/artifacts/violations/0128__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Max_Nesting_Error_structcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0128__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Max_Nesting_Error_structcore_rs.log",
           "message": { "text": "Test mapping violation: function 'max_nesting_error_structcore' must include [TEST] in the documentation block above the declaration." },
           "locations": [
             {
@@ -4190,7 +4190,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.test_case_mapping",
           "dna": "unitcore",
-          "logFile": "src/Logs/artifacts/violations/0129__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Type_Logic_Error_unitcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0129__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Type_Logic_Error_unitcore_rs.log",
           "message": { "text": "Test mapping violation: function 'type_logic_error_unitcore' must include [TEST] in the documentation block above the declaration." },
           "locations": [
             {
@@ -4223,7 +4223,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.test_case_mapping",
           "dna": "unitcore",
-          "logFile": "src/Logs/artifacts/violations/0130__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Logical_Dencity_Error_unitcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0130__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Logical_Dencity_Error_unitcore_rs.log",
           "message": { "text": "Test mapping violation: function 'logical_density_error_unitcore' must include [TEST] in the documentation block above the declaration." },
           "locations": [
             {
@@ -4256,7 +4256,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.test_case_mapping",
           "dna": "unitcore",
-          "logFile": "src/Logs/artifacts/violations/0131__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Max_Params_Error_unitcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0131__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Max_Params_Error_unitcore_rs.log",
           "message": { "text": "Test mapping violation: function 'max_params_error_unitcore' must include [TEST] in the documentation block above the declaration." },
           "locations": [
             {
@@ -4289,7 +4289,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.test_case_mapping",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0132__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0132__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
           "message": { "text": "Test mapping violation: function 'token_sanitization_error_unit' must include [TEST] in the documentation block above the declaration." },
           "locations": [
             {
@@ -4322,7 +4322,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.test_case_mapping",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0133__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0133__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
           "message": { "text": "Test mapping violation: function 'restricted_tokens_error_unit' must include [TEST] in the documentation block above the declaration." },
           "locations": [
             {
@@ -4355,7 +4355,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.root_md_pairing",
           "dna": "",
-          "logFile": "src/Logs/artifacts/violations/0134__hierarchy_pedagogical_root_md_pairing__src_exemples_error_type1_pedagogical_workspace_Md_Min_Chars_Error_md.log",
+          "logFile": "Logs/debug_artifacts/violations/0134__hierarchy_pedagogical_root_md_pairing__src_exemples_error_type1_pedagogical_workspace_Md_Min_Chars_Error_md.log",
           "message": { "text": "Root MD pairing violation: 'Md-Min-Chars-Error' is missing 'src/exemples_error/type1/pedagogical_workspace/Md-Min-Chars-Error_manifest.json'." },
           "locations": [
             {
@@ -4388,7 +4388,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.root_md_pairing",
           "dna": "",
-          "logFile": "src/Logs/artifacts/violations/0135__hierarchy_pedagogical_root_md_pairing__src_exemples_error_type1_pedagogical_workspace_RootGuide_md.log",
+          "logFile": "Logs/debug_artifacts/violations/0135__hierarchy_pedagogical_root_md_pairing__src_exemples_error_type1_pedagogical_workspace_RootGuide_md.log",
           "message": { "text": "Root MD pairing violation: 'RootGuide' is missing 'src/exemples_error/type1/pedagogical_workspace/RootGuide_manifest.json'." },
           "locations": [
             {
@@ -4421,7 +4421,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.root_md_pairing",
           "dna": "",
-          "logFile": "src/Logs/artifacts/violations/0136__hierarchy_pedagogical_root_md_pairing__src_exemples_error_type1_pedagogical_workspace_What_Mission_Error_md.log",
+          "logFile": "Logs/debug_artifacts/violations/0136__hierarchy_pedagogical_root_md_pairing__src_exemples_error_type1_pedagogical_workspace_What_Mission_Error_md.log",
           "message": { "text": "Root MD pairing violation: 'What-Mission-Error' is missing 'src/exemples_error/type1/pedagogical_workspace/What-Mission-Error_manifest.json'." },
           "locations": [
             {
@@ -4454,7 +4454,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.root_md_pairing",
           "dna": "",
-          "logFile": "src/Logs/artifacts/violations/0137__hierarchy_pedagogical_root_md_pairing__src_exemples_error_type1_pedagogical_workspace_Usage_Example_Error_md.log",
+          "logFile": "Logs/debug_artifacts/violations/0137__hierarchy_pedagogical_root_md_pairing__src_exemples_error_type1_pedagogical_workspace_Usage_Example_Error_md.log",
           "message": { "text": "Root MD pairing violation: 'Usage-Example-Error' is missing 'src/exemples_error/type1/pedagogical_workspace/Usage-Example-Error_manifest.json'." },
           "locations": [
             {
@@ -4487,7 +4487,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.root_md_pairing",
           "dna": "",
-          "logFile": "src/Logs/artifacts/violations/0138__hierarchy_pedagogical_root_md_pairing__src_exemples_error_type1_pedagogical_workspace_Why_Justification_Error_md.log",
+          "logFile": "Logs/debug_artifacts/violations/0138__hierarchy_pedagogical_root_md_pairing__src_exemples_error_type1_pedagogical_workspace_Why_Justification_Error_md.log",
           "message": { "text": "Root MD pairing violation: 'Why-Justification-Error' is missing 'src/exemples_error/type1/pedagogical_workspace/Why-Justification-Error_manifest.json'." },
           "locations": [
             {
@@ -4520,7 +4520,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.inheritance_visibility",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0139__hierarchy_pedagogical_inheritance_visibility__src_exemples_error_type1_pedagogical_workspace_Inheritance_Visibility_Error_unit_md.log",
+          "logFile": "Logs/debug_artifacts/violations/0139__hierarchy_pedagogical_inheritance_visibility__src_exemples_error_type1_pedagogical_workspace_Inheritance_Visibility_Error_unit_md.log",
           "message": { "text": "Inheritance visibility violation: child documentation must be inherited from parent, not owned by tagged child." },
           "locations": [
             {
@@ -4537,7 +4537,7 @@
           "priority": "P3",
           "taxonomy": "hierarchy.pedagogical.inheritance_visibility",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0140__hierarchy_pedagogical_inheritance_visibility__src_exemples_error_type1_identity_workspace_Guide_unit_md.log",
+          "logFile": "Logs/debug_artifacts/violations/0140__hierarchy_pedagogical_inheritance_visibility__src_exemples_error_type1_identity_workspace_Guide_unit_md.log",
           "message": { "text": "Inheritance visibility violation: child documentation must be inherited from parent, not owned by tagged child." },
           "locations": [
             {
@@ -4554,7 +4554,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.dna_suffix",
           "dna": "unti",
-          "logFile": "src/Logs/artifacts/violations/0141__hierarchy_identity_dna_suffix__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0141__hierarchy_identity_dna_suffix__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
           "message": { "text": "DNA suffix invalid: 'DnaTypoError_unti' uses 'unti' after '_', but this suffix is not defined in the active taxonomy." },
           "locations": [
             {
@@ -4571,7 +4571,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.dna_suffix",
           "dna": "",
-          "logFile": "src/Logs/artifacts/violations/0142__hierarchy_identity_dna_suffix__src_exemples_error_type1_identity_workspace_DnaSuffixError_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0142__hierarchy_identity_dna_suffix__src_exemples_error_type1_identity_workspace_DnaSuffixError_rs.log",
           "message": { "text": "DNA suffix missing: 'DnaSuffixError' contains logic but has no '_' DNA tag in filename." },
           "locations": [
             {
@@ -4604,7 +4604,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.dna_suffix",
           "dna": "",
-          "logFile": "src/Logs/artifacts/violations/0143__hierarchy_identity_dna_suffix__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0143__hierarchy_identity_dna_suffix__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
           "message": { "text": "DNA suffix missing: 'Tag-Separator-Error-unit' contains logic but has no '_' DNA tag in filename." },
           "locations": [
             {
@@ -4637,7 +4637,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.tag_separator",
           "dna": "",
-          "logFile": "src/Logs/artifacts/violations/0144__hierarchy_identity_tag_separator__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0144__hierarchy_identity_tag_separator__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
           "message": { "text": "Tag separator violation: 'Tag-Separator-Error-unit' uses '-' before DNA 'unit', but expected '_'." },
           "locations": [
             {
@@ -4670,7 +4670,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.pascal_case",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0145__hierarchy_identity_pascal_case__src_exemples_error_type1_pedagogical_workspace_Test_Case_Mapping_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0145__hierarchy_identity_pascal_case__src_exemples_error_type1_pedagogical_workspace_Test_Case_Mapping_Error_unit_rs.log",
           "message": { "text": "PascalCase violation: 'Test-Case-Mapping-Error' does not match 'PascalCase'." },
           "locations": [
             {
@@ -4687,7 +4687,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.pascal_case",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0146__hierarchy_identity_pascal_case__src_exemples_error_type1_pedagogical_workspace_Md_Pairing_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0146__hierarchy_identity_pascal_case__src_exemples_error_type1_pedagogical_workspace_Md_Pairing_Error_unit_rs.log",
           "message": { "text": "PascalCase violation: 'Md-Pairing-Error' does not match 'PascalCase'." },
           "locations": [
             {
@@ -4704,7 +4704,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.pascal_case",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0147__hierarchy_identity_pascal_case__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0147__hierarchy_identity_pascal_case__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
           "message": { "text": "PascalCase violation: 'pascal_case_error' does not match 'PascalCase'." },
           "locations": [
             {
@@ -4721,7 +4721,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.pascal_case",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0148__hierarchy_identity_pascal_case__src_exemples_error_type1_identity_workspace_Recursion_Missing_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0148__hierarchy_identity_pascal_case__src_exemples_error_type1_identity_workspace_Recursion_Missing_unit_rs.log",
           "message": { "text": "PascalCase violation: 'Recursion-Missing' does not match 'PascalCase'." },
           "locations": [
             {
@@ -4738,7 +4738,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.pascal_case",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0149__hierarchy_identity_pascal_case__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0149__hierarchy_identity_pascal_case__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
           "message": { "text": "PascalCase violation: 'Name_Separator_Error' does not match 'PascalCase'." },
           "locations": [
             {
@@ -4755,7 +4755,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.pascal_case",
           "dna": "",
-          "logFile": "src/Logs/artifacts/violations/0150__hierarchy_identity_pascal_case__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0150__hierarchy_identity_pascal_case__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
           "message": { "text": "PascalCase violation: 'Tag-Separator-Error-unit' does not match 'PascalCase'." },
           "locations": [
             {
@@ -4772,7 +4772,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.pascal_case",
           "dna": "struct",
-          "logFile": "src/Logs/artifacts/violations/0151__hierarchy_identity_pascal_case__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0151__hierarchy_identity_pascal_case__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
           "message": { "text": "PascalCase violation: 'Logical-Dencity-Error' does not match 'PascalCase'." },
           "locations": [
             {
@@ -4789,7 +4789,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.pascal_case",
           "dna": "macrocore",
-          "logFile": "src/Logs/artifacts/violations/0152__hierarchy_identity_pascal_case__src_exemples_error_type1_Logical_Dencity_Error_macrocore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0152__hierarchy_identity_pascal_case__src_exemples_error_type1_Logical_Dencity_Error_macrocore_rs.log",
           "message": { "text": "PascalCase violation: 'Logical-Dencity-Error' does not match 'PascalCase'." },
           "locations": [
             {
@@ -4806,7 +4806,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.pascal_case",
           "dna": "struct",
-          "logFile": "src/Logs/artifacts/violations/0153__hierarchy_identity_pascal_case__src_exemples_error_type1_Visibility_Error_struct_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0153__hierarchy_identity_pascal_case__src_exemples_error_type1_Visibility_Error_struct_rs.log",
           "message": { "text": "PascalCase violation: 'Visibility-Error' does not match 'PascalCase'." },
           "locations": [
             {
@@ -4823,7 +4823,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.pascal_case",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0154__hierarchy_identity_pascal_case__src_exemples_error_type1_Max_Params_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0154__hierarchy_identity_pascal_case__src_exemples_error_type1_Max_Params_Error_unit_rs.log",
           "message": { "text": "PascalCase violation: 'Max-Params-Error' does not match 'PascalCase'." },
           "locations": [
             {
@@ -4840,7 +4840,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.pascal_case",
           "dna": "structcore",
-          "logFile": "src/Logs/artifacts/violations/0155__hierarchy_identity_pascal_case__src_exemples_error_type1_Logical_Dencity_Error_structcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0155__hierarchy_identity_pascal_case__src_exemples_error_type1_Logical_Dencity_Error_structcore_rs.log",
           "message": { "text": "PascalCase violation: 'Logical-Dencity-Error' does not match 'PascalCase'." },
           "locations": [
             {
@@ -4857,7 +4857,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.pascal_case",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0156__hierarchy_identity_pascal_case__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0156__hierarchy_identity_pascal_case__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
           "message": { "text": "PascalCase violation: 'Max-Nesting-Error' does not match 'PascalCase'." },
           "locations": [
             {
@@ -4874,7 +4874,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.pascal_case",
           "dna": "struct",
-          "logFile": "src/Logs/artifacts/violations/0157__hierarchy_identity_pascal_case__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0157__hierarchy_identity_pascal_case__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
           "message": { "text": "PascalCase violation: 'Type-Logic-Error' does not match 'PascalCase'." },
           "locations": [
             {
@@ -4891,7 +4891,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.pascal_case",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0158__hierarchy_identity_pascal_case__src_exemples_error_type1_Logical_Dencity_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0158__hierarchy_identity_pascal_case__src_exemples_error_type1_Logical_Dencity_Error_unit_rs.log",
           "message": { "text": "PascalCase violation: 'Logical-Dencity-Error' does not match 'PascalCase'." },
           "locations": [
             {
@@ -4908,7 +4908,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.pascal_case",
           "dna": "structcore",
-          "logFile": "src/Logs/artifacts/violations/0159__hierarchy_identity_pascal_case__src_exemples_error_type1_Max_Nesting_Error_structcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0159__hierarchy_identity_pascal_case__src_exemples_error_type1_Max_Nesting_Error_structcore_rs.log",
           "message": { "text": "PascalCase violation: 'Max-Nesting-Error' does not match 'PascalCase'." },
           "locations": [
             {
@@ -4925,7 +4925,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.pascal_case",
           "dna": "unitcore",
-          "logFile": "src/Logs/artifacts/violations/0160__hierarchy_identity_pascal_case__src_exemples_error_type1_Type_Logic_Error_unitcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0160__hierarchy_identity_pascal_case__src_exemples_error_type1_Type_Logic_Error_unitcore_rs.log",
           "message": { "text": "PascalCase violation: 'Type-Logic-Error' does not match 'PascalCase'." },
           "locations": [
             {
@@ -4942,7 +4942,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.pascal_case",
           "dna": "unitcore",
-          "logFile": "src/Logs/artifacts/violations/0161__hierarchy_identity_pascal_case__src_exemples_error_type1_Logical_Dencity_Error_unitcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0161__hierarchy_identity_pascal_case__src_exemples_error_type1_Logical_Dencity_Error_unitcore_rs.log",
           "message": { "text": "PascalCase violation: 'Logical-Dencity-Error' does not match 'PascalCase'." },
           "locations": [
             {
@@ -4959,7 +4959,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.pascal_case",
           "dna": "macro",
-          "logFile": "src/Logs/artifacts/violations/0162__hierarchy_identity_pascal_case__src_exemples_error_type1_Logical_Dencity_Error_macro_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0162__hierarchy_identity_pascal_case__src_exemples_error_type1_Logical_Dencity_Error_macro_rs.log",
           "message": { "text": "PascalCase violation: 'Logical-Dencity-Error' does not match 'PascalCase'." },
           "locations": [
             {
@@ -4976,7 +4976,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.pascal_case",
           "dna": "unitcore",
-          "logFile": "src/Logs/artifacts/violations/0163__hierarchy_identity_pascal_case__src_exemples_error_type1_Max_Params_Error_unitcore_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0163__hierarchy_identity_pascal_case__src_exemples_error_type1_Max_Params_Error_unitcore_rs.log",
           "message": { "text": "PascalCase violation: 'Max-Params-Error' does not match 'PascalCase'." },
           "locations": [
             {
@@ -4993,7 +4993,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.pascal_case",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0164__hierarchy_identity_pascal_case__src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0164__hierarchy_identity_pascal_case__src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
           "message": { "text": "PascalCase violation: 'Token-Sanitization-Error' does not match 'PascalCase'." },
           "locations": [
             {
@@ -5010,7 +5010,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.pascal_case",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0165__hierarchy_identity_pascal_case__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0165__hierarchy_identity_pascal_case__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
           "message": { "text": "PascalCase violation: 'Restricted-Tokens-Error' does not match 'PascalCase'." },
           "locations": [
             {
@@ -5027,7 +5027,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.recursion",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0166__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_pedagogical_workspace_Test_Case_Mapping_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0166__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_pedagogical_workspace_Test_Case_Mapping_Error_unit_rs.log",
           "message": { "text": "Recursion violation: 'hierarchy.files.unit' requires companion 'Test-Case-Mapping-Error_unitcore.rs', but it was not found in 'src/exemples_error/type1/pedagogical_workspace'." },
           "locations": [
             {
@@ -5044,7 +5044,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.recursion",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0167__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_pedagogical_workspace_Md_Pairing_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0167__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_pedagogical_workspace_Md_Pairing_Error_unit_rs.log",
           "message": { "text": "Recursion violation: 'hierarchy.files.unit' requires companion 'Md-Pairing-Error_unitcore.rs', but it was not found in 'src/exemples_error/type1/pedagogical_workspace'." },
           "locations": [
             {
@@ -5061,7 +5061,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.recursion",
           "dna": "unti",
-          "logFile": "src/Logs/artifacts/violations/0168__hierarchy_identity_recursion_macro__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0168__hierarchy_identity_recursion_macro__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
           "message": { "text": "Recursion violation: 'hierarchy.files' requires companion 'DnaTypoError_macro.rs', but it was not found in 'src/exemples_error/type1/identity_workspace'." },
           "locations": [
             {
@@ -5078,7 +5078,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.recursion",
           "dna": "unti",
-          "logFile": "src/Logs/artifacts/violations/0169__hierarchy_identity_recursion_struct__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0169__hierarchy_identity_recursion_struct__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
           "message": { "text": "Recursion violation: 'hierarchy.files' requires companion 'DnaTypoError_struct.rs', but it was not found in 'src/exemples_error/type1/identity_workspace'." },
           "locations": [
             {
@@ -5095,7 +5095,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.recursion",
           "dna": "unti",
-          "logFile": "src/Logs/artifacts/violations/0170__hierarchy_identity_recursion_test__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0170__hierarchy_identity_recursion_test__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
           "message": { "text": "Recursion violation: 'hierarchy.files' requires companion 'DnaTypoError_test.rs', but it was not found in 'src/exemples_error/type1/identity_workspace'." },
           "locations": [
             {
@@ -5112,7 +5112,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.recursion",
           "dna": "unti",
-          "logFile": "src/Logs/artifacts/violations/0171__hierarchy_identity_recursion_unit__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0171__hierarchy_identity_recursion_unit__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
           "message": { "text": "Recursion violation: 'hierarchy.files' requires companion 'DnaTypoError_unit.rs', but it was not found in 'src/exemples_error/type1/identity_workspace'." },
           "locations": [
             {
@@ -5129,7 +5129,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.recursion",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0172__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0172__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
           "message": { "text": "Recursion violation: 'hierarchy.files.unit' requires companion 'pascal_case_error_unitcore.rs', but it was not found in 'src/exemples_error/type1/identity_workspace'." },
           "locations": [
             {
@@ -5146,7 +5146,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.recursion",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0173__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_identity_workspace_Recursion_Missing_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0173__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_identity_workspace_Recursion_Missing_unit_rs.log",
           "message": { "text": "Recursion violation: 'hierarchy.files.unit' requires companion 'Recursion-Missing_unitcore.rs', but it was not found in 'src/exemples_error/type1/identity_workspace'." },
           "locations": [
             {
@@ -5163,7 +5163,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.recursion",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0174__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0174__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
           "message": { "text": "Recursion violation: 'hierarchy.files.unit' requires companion 'Name_Separator_Error_unitcore.rs', but it was not found in 'src/exemples_error/type1/identity_workspace'." },
           "locations": [
             {
@@ -5180,7 +5180,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.recursion",
           "dna": "struct",
-          "logFile": "src/Logs/artifacts/violations/0175__hierarchy_identity_recursion_structcore__src_exemples_error_type1_Visibility_Error_struct_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0175__hierarchy_identity_recursion_structcore__src_exemples_error_type1_Visibility_Error_struct_rs.log",
           "message": { "text": "Recursion violation: 'hierarchy.files.struct' requires companion 'Visibility-Error_structcore.rs', but it was not found in 'src/exemples_error/type1'." },
           "locations": [
             {
@@ -5197,7 +5197,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.recursion",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0176__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0176__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
           "message": { "text": "Recursion violation: 'hierarchy.files.unit' requires companion 'Max-Nesting-Error_unitcore.rs', but it was not found in 'src/exemples_error/type1'." },
           "locations": [
             {
@@ -5214,7 +5214,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.recursion",
           "dna": "struct",
-          "logFile": "src/Logs/artifacts/violations/0177__hierarchy_identity_recursion_structcore__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0177__hierarchy_identity_recursion_structcore__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
           "message": { "text": "Recursion violation: 'hierarchy.files.struct' requires companion 'Type-Logic-Error_structcore.rs', but it was not found in 'src/exemples_error/type1'." },
           "locations": [
             {
@@ -5231,7 +5231,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.recursion",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0178__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0178__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
           "message": { "text": "Recursion violation: 'hierarchy.files.unit' requires companion 'Token-Sanitization-Error_unitcore.rs', but it was not found in 'src/exemples_error/type1/sanitization_workspace'." },
           "locations": [
             {
@@ -5248,7 +5248,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.recursion",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0179__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0179__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
           "message": { "text": "Recursion violation: 'hierarchy.files.unit' requires companion 'Restricted-Tokens-Error_unitcore.rs', but it was not found in 'src/exemples_error/type1/sanitization_workspace'." },
           "locations": [
             {
@@ -5265,7 +5265,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.manifest_anchoring",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0180__hierarchy_identity_manifest_anchoring__src_exemples_error_type1_pedagogical_workspace_Inheritance_Visibility_Error_unit_md.log",
+          "logFile": "Logs/debug_artifacts/violations/0180__hierarchy_identity_manifest_anchoring__src_exemples_error_type1_pedagogical_workspace_Inheritance_Visibility_Error_unit_md.log",
           "message": { "text": "Manifest anchoring violation: child tags cannot own standalone .md/.json docs." },
           "locations": [
             {
@@ -5282,7 +5282,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.manifest_anchoring",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0181__hierarchy_identity_manifest_anchoring__src_exemples_error_type1_identity_workspace_Guide_unit_md.log",
+          "logFile": "Logs/debug_artifacts/violations/0181__hierarchy_identity_manifest_anchoring__src_exemples_error_type1_identity_workspace_Guide_unit_md.log",
           "message": { "text": "Manifest anchoring violation: child tags cannot own standalone .md/.json docs." },
           "locations": [
             {
@@ -5299,7 +5299,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.name_separator",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0182__hierarchy_identity_name_separator__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0182__hierarchy_identity_name_separator__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
           "message": { "text": "Name separator violation: base name 'pascal_case_error' must use '-' instead of reserved tag separator '_'." },
           "locations": [
             {
@@ -5332,7 +5332,7 @@
           "priority": "P2",
           "taxonomy": "hierarchy.identity.name_separator",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0183__hierarchy_identity_name_separator__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0183__hierarchy_identity_name_separator__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
           "message": { "text": "Name separator violation: base name 'Name_Separator_Error' must use '-' instead of reserved tag separator '_'." },
           "locations": [
             {
@@ -5365,7 +5365,7 @@
           "priority": "P0",
           "taxonomy": "hierarchy.permissions.restricted_tokens",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0184__hierarchy_sanitization_restricted_tokens_panic___src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0184__hierarchy_sanitization_restricted_tokens_panic___src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
           "message": { "text": "Restricted Token Violation: 'panic!' found. Hint: Security: Use Result." },
           "locations": [
             {
@@ -5398,7 +5398,7 @@
           "priority": "P0",
           "taxonomy": "hierarchy.permissions.restricted_tokens",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0185__hierarchy_sanitization_restricted_tokens_unwrap__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0185__hierarchy_sanitization_restricted_tokens_unwrap__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
           "message": { "text": "Restricted Token Violation: 'unwrap' found. Hint: Security: Use expect()." },
           "locations": [
             {
@@ -5431,7 +5431,7 @@
           "priority": "P0",
           "taxonomy": "hierarchy.permissions.libres",
           "dna": "",
-          "logFile": "src/Logs/artifacts/violations/0186__hierarchy_dependency_governance_allowed_crates_serde_json__src_exemples_error_type1_sanitization_workspace_Cargo_toml.log",
+          "logFile": "Logs/debug_artifacts/violations/0186__hierarchy_dependency_governance_allowed_crates_serde_json__src_exemples_error_type1_sanitization_workspace_Cargo_toml.log",
           "message": { "text": "Allowed Crates Violation: crate 'serde_json' is not authorized by hierarchy.permissions.libres." },
           "locations": [
             {
@@ -5464,7 +5464,7 @@
           "priority": "P0",
           "taxonomy": "hierarchy.permissions.restricted_tokens",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0187__hierarchy_sanitization_token_sanitization_panic___src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0187__hierarchy_sanitization_token_sanitization_panic___src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
           "message": { "text": "Token Sanitization Violation: 'panic!' must be isolated or replaced according to hierarchy.permissions.restricted_tokens." },
           "locations": [
             {
@@ -5497,7 +5497,7 @@
           "priority": "P0",
           "taxonomy": "hierarchy.permissions.restricted_tokens",
           "dna": "unit",
-          "logFile": "src/Logs/artifacts/violations/0188__hierarchy_sanitization_token_sanitization_unwrap__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
+          "logFile": "Logs/debug_artifacts/violations/0188__hierarchy_sanitization_token_sanitization_unwrap__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
           "message": { "text": "Token Sanitization Violation: 'unwrap' must be isolated or replaced according to hierarchy.permissions.restricted_tokens." },
           "locations": [
             {
@@ -5530,7 +5530,7 @@
           "priority": "P0",
           "taxonomy": "hierarchy.permissions.libres",
           "dna": "",
-          "logFile": "src/Logs/artifacts/violations/0189__hierarchy_dependency_governance_dependency_purification_serde__src_exemples_error_type1_sanitization_workspace_Cargo_toml.log",
+          "logFile": "Logs/debug_artifacts/violations/0189__hierarchy_dependency_governance_dependency_purification_serde__src_exemples_error_type1_sanitization_workspace_Cargo_toml.log",
           "message": { "text": "Dependency Purification Violation: optional crate 'serde' is force-activated outside the authorized policy in hierarchy.permissions.libres." },
           "locations": [
             {

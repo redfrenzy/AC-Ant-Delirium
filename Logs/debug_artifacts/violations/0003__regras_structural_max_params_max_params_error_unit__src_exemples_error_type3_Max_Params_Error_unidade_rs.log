@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=3
+priority=P1
+level=warning
+rule_id=regras.structural.max_params.max_params_error_unit
+file_path=src/exemples_error/type3/Max-Params-Error_unidade.rs
+line=1
+detected_dna=unidade
+taxonomy_path=regras.arquivos.unidade.max_params
+message=Parameter Coupling Violation: excessive number of parameters in declaration. - 5/4 parameters. Group them into a Struct.
+snippet=pub fn max_params_error_unit(alpha: usize, beta: usize, gamma: usize, delta: usize, epsilon: usize) -> usize {
+quick_fix=// [REFAC] Group these parameters into a dedicated Config/State Struct.

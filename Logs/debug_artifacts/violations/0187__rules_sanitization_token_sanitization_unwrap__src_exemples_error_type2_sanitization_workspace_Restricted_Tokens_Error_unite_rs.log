@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=187
+priority=P0
+level=error
+rule_id=rules.sanitization.token_sanitization.unwrap
+file_path=src/exemples_error/type2/sanitization_workspace/Restricted-Tokens-Error_unite.rs
+line=2
+detected_dna=unite
+taxonomy_path=rules.permissions.restricted_tokens
+message=Token Sanitization Violation: 'unwrap' must be isolated or replaced according to rules.permissions.restricted_tokens.
+snippet=let unsafe_value = input.unwrap();
+quick_fix=// [SANITIZE] Rewrite this usage so 'unwrap' no longer appears in governed source.

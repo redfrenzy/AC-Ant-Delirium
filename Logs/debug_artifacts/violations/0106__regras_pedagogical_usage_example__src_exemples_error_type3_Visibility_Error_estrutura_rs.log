@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=106
+priority=P3
+level=note
+rule_id=regras.pedagogical.usage_example
+file_path=src/exemples_error/type3/Visibility-Error_estrutura.rs
+line=3
+detected_dna=estrutura
+taxonomy_path=regras.pedagogical.usage_example
+message=Usage example violation: function 'keep_visibility_fixture_alive' must include [USAGE] in the documentation block above the declaration.
+snippet=fn keep_visibility_fixture_alive() -> usize {
+quick_fix=/// [USAGE] ...

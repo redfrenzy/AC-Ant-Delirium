@@ -25,6 +25,7 @@ restricted_tokens = { "panic!" = "Security: Use Result.", "unwrap" = "Security: 
 max_nesting = 3
 max_params = 5
 logical_density = 40
+md_pairing = true
 [rules.target]
 core =  ["src/exemples_error/type2"]
 tests = "src/tests"

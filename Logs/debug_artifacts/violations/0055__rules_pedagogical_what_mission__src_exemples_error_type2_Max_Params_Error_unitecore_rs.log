@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=55
+priority=P3
+level=note
+rule_id=rules.pedagogical.what_mission
+file_path=src/exemples_error/type2/Max-Params-Error_unitecore.rs
+line=1
+detected_dna=unitecore
+taxonomy_path=rules.pedagogical.what_mission
+message=What mission violation: function 'max_params_error_unitcore' must include [WHAT] in the documentation block above the declaration.
+snippet=fn max_params_error_unitcore(alpha: usize, beta: usize, gamma: usize, delta: usize, epsilon: usize, zeta: usize, eta: usize) -> usize {
+quick_fix=/// [WHAT] ...

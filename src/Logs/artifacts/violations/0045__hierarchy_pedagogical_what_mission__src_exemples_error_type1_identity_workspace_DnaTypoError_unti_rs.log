@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=45
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.what_mission
+file_path=src/exemples_error/type1/identity_workspace/DnaTypoError_unti.rs
+line=1
+detected_dna=unti
+taxonomy_path=hierarchy.pedagogical.what_mission
+message=What mission violation: function 'dna_typo_error_unti' must include [WHAT] in the documentation block above the declaration.
+snippet=pub fn dna_typo_error_unti() {}
+quick_fix=/// [WHAT] ...

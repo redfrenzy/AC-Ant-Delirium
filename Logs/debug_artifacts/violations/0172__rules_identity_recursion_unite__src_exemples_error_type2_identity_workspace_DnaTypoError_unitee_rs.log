@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=172
+priority=P2
+level=note
+rule_id=rules.identity.recursion.unite
+file_path=src/exemples_error/type2/identity_workspace/DnaTypoError_unitee.rs
+line=1
+detected_dna=unitee
+taxonomy_path=rules.identity.recursion
+message=Recursion violation: 'rules.fichiers' requires companion 'DnaTypoError_unite.rs', but it was not found in 'src/exemples_error/type2/identity_workspace'.
+snippet=DnaTypoError_unite.rs

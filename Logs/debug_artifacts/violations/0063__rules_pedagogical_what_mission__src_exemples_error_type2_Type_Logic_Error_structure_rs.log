@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=63
+priority=P3
+level=note
+rule_id=rules.pedagogical.what_mission
+file_path=src/exemples_error/type2/Type-Logic-Error_structure.rs
+line=5
+detected_dna=structure
+taxonomy_path=rules.pedagogical.what_mission
+message=What mission violation: function 'type_logic_error_struct' must include [WHAT] in the documentation block above the declaration.
+snippet=fn type_logic_error_struct() -> usize {
+quick_fix=/// [WHAT] ...

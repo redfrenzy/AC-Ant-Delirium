@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=19
+priority=P3
+level=note
+rule_id=regras.pedagogical.md_pairing
+file_path=src/exemples_error/type3/identity_workspace/DnaTypoError_unidadi.rs
+line=1
+detected_dna=unidadi
+taxonomy_path=regras.pedagogical.md_pairing
+message=Where documentation violation: function 'dna_typo_error_unidadi' must include [WHERE] in the documentation block above the declaration.
+snippet=pub fn dna_typo_error_unidadi() {}
+quick_fix=/// [WHERE] ...

@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=95
+priority=P3
+level=note
+rule_id=regras.pedagogical.usage_example
+file_path=src/exemples_error/type3/identity_workspace/Name_Separator_Error_unidade.rs
+line=1
+detected_dna=unidade
+taxonomy_path=regras.pedagogical.usage_example
+message=Usage example violation: function 'name_separator_error_unit' must include [USAGE] in the documentation block above the declaration.
+snippet=pub fn name_separator_error_unit() -> usize {
+quick_fix=/// [USAGE] ...

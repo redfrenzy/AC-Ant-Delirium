@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=13
+priority=P1
+level=warning
+rule_id=rules.structural.type_logic.keep_visibility_fixture_alive
+file_path=src/exemples_error/type2/Visibility-Error_structure.rs
+line=3
+detected_dna=structure
+taxonomy_path=rules.fichiers.structure.type_logic
+message=Type Logic Violation: DNA 'structure' only allows ["struct", "public_struct", "enum", "public_enum"], but found 'private_fn' in declaration.
+snippet=fn keep_visibility_fixture_alive() -> usize {
+quick_fix=// [TODO] Align this declaration with the 'structure' type_logic profile resolved from rules.fichiers.structure.

@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=181
+priority=P0
+level=error
+rule_id=hierarchy.sanitization.restricted_tokens.panic!
+file_path=src/exemples_error/type1/sanitization_workspace/Token-Sanitization-Error_unit.rs
+line=2
+detected_dna=unit
+taxonomy_path=hierarchy.permissions.restricted_tokens
+message=Restricted Token Violation: 'panic!' found. Hint: Security: Use Result.
+snippet=panic!("token sanitization fixture");
+quick_fix=// [SANITIZE] Replace 'panic!' using the policy declared in hierarchy.permissions.restricted_tokens.

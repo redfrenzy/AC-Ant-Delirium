@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=158
+priority=P2
+level=note
+rule_id=regras.identity.pascal_case
+file_path=src/exemples_error/type3/Type-Logic-Error_unidade_nucleo.rs
+line=1
+detected_dna=unidade_nucleo
+taxonomy_path=regras.identity.pascal_case
+message=PascalCase violation: 'Type-Logic-Error_unidade' does not match 'PascalCase'.
+snippet=Type-Logic-Error_unidade
