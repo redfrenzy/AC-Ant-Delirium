@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=1357
+priority=P2
+level=note
+rule_id=hierarchy.identity.recursion.resolution
+file_path=src/exemples_error/type1/pedagogical_workspace/Inheritance-Visibility-Error_unit.md
+line=1
+detected_dna=unit
+taxonomy_path=regras.arquivos
+message=Axiom 'recursion' possui identidade ambigua: rules.identity.recursion | hierarchy.identity.recursion | regras.identity.recursion. Deixe apenas um ramo-identidade ativo para este axioma.
+snippet=src/exemples_error/type1/pedagogical_workspace/Inheritance-Visibility-Error_unit.md

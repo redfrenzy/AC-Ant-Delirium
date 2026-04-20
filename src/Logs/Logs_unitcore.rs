@@ -202,6 +202,30 @@ pub fn to_shadow_context(
     let audited_files = SearchFiles::resolve_jurisdiction(&config.hierarchy, SearchFiles::ID);
     let (p0, p1, p2, p3) = count_priorities(&result.violations);
     let audited_file_list = unique_sorted_files(&audited_files);
+    let context_items = default_shadow_context_lines();
+    let tools = if config.info.tools.is_empty() {
+        default_shadow_tools()
+    } else {
+        config.info.tools.clone()
+    };
+    let terminal_commands = if config.info.terminal_commands.is_empty() {
+        default_shadow_terminal_commands()
+    } else {
+        config.info.terminal_commands.clone()
+    };
+    let max_nesting = resolve_numeric_or_default(&config.hierarchy, "max_nesting");
+    let max_params = resolve_numeric_or_default(&config.hierarchy, "max_params");
+    let logical_density = resolve_numeric_or_default(&config.hierarchy, "logical_density");
+    let restricted_tokens = resolve_array_or_default(
+        &config.hierarchy,
+        "restricted_tokens",
+        vec!["panic!".to_string(), "unwrap".to_string()],
+    );
+    let allowed_crates = resolve_array_or_default(
+        &config.hierarchy,
+        "libres",
+        vec!["std".to_string(), "core".to_string(), "alloc".to_string()],
+    );
 
     out.push_str("{\n");
     out.push_str("  \"version\": \"2.1.0\",\n");
@@ -226,6 +250,8 @@ pub fn to_shadow_context(
             "          \"violations_manifest\": \"{}\",",
             json_escape(&paths.violations_manifest_path)
         );
+        out.push_str("          \"priority_order\": \"P0 → P1 → P2 → P3\",\n");
+        let _ = writeln!(out, "          \"total_violations\": {},", result.violations.len());
         let _ = writeln!(out, "          \"audited_files\": {},", unique_file_count(&audited_files));
         out.push_str("          \"audited_file_paths\": [\n");
         for (idx, file_path) in audited_file_list.iter().enumerate() {
@@ -233,6 +259,26 @@ pub fn to_shadow_context(
             let _ = writeln!(out, "            \"{}\"{}", json_escape(file_path), comma);
         }
         out.push_str("          ],\n");
+        out.push_str("          \"context\": [\n");
+        write_json_string_array_items(&mut out, &context_items, 12);
+        out.push_str("          ],\n");
+        out.push_str("          \"tools\": [\n");
+        write_json_string_array_items(&mut out, &tools, 12);
+        out.push_str("          ],\n");
+        out.push_str("          \"terminal_commands\": [\n");
+        write_json_string_array_items(&mut out, &terminal_commands, 12);
+        out.push_str("          ],\n");
+        out.push_str("          \"applied_config\": {\n");
+        let _ = writeln!(out, "            \"max_nesting\": {},", max_nesting);
+        let _ = writeln!(out, "            \"max_params\": {},", max_params);
+        let _ = writeln!(out, "            \"logical_density\": {},", logical_density);
+        out.push_str("            \"restricted_tokens\": [\n");
+        write_json_string_array_items(&mut out, &restricted_tokens, 14);
+        out.push_str("            ],\n");
+        out.push_str("            \"allowed_crates\": [\n");
+        write_json_string_array_items(&mut out, &allowed_crates, 14);
+        out.push_str("            ]\n");
+        out.push_str("          },\n");
         out.push_str("          \"summary\": {\n");
     let _ = writeln!(out, "            \"total\": {},", result.violations.len());
     let _ = writeln!(out, "            \"p0\": {},", p0);
@@ -267,10 +313,52 @@ pub fn to_shadow_context(
             "                \"artifactLocation\": {{ \"uri\": \"{}\" }},",
             json_escape(&violation.file_path)
         );
-        let _ = writeln!(out, "                \"region\": {{ \"startLine\": {} }}", violation.line);
+        if let Some(snippet) = &violation.snippet {
+            let _ = writeln!(
+                out,
+                "                \"region\": {{ \"startLine\": {}, \"snippet\": {{ \"text\": \"{}\" }} }}",
+                violation.line,
+                json_escape(snippet),
+            );
+        } else {
+            let _ = writeln!(out, "                \"region\": {{ \"startLine\": {} }}", violation.line);
+        }
         out.push_str("              }\n");
         out.push_str("            }\n");
-        out.push_str("          ]\n");
+        out.push_str("          ]");
+        if let Some(quick_fix) = &violation.quick_fix {
+            out.push_str(",\n");
+            out.push_str("          \"fixes\": [\n");
+            out.push_str("            {\n");
+            out.push_str("              \"description\": { \"text\": \"Apply governance quick-fix\" },\n");
+            out.push_str("              \"artifactChanges\": [\n");
+            out.push_str("                {\n");
+            let _ = writeln!(
+                out,
+                "                  \"artifactLocation\": {{ \"uri\": \"{}\" }},",
+                json_escape(&violation.file_path)
+            );
+            out.push_str("                  \"replacements\": [\n");
+            out.push_str("                    {\n");
+            let _ = writeln!(
+                out,
+                "                      \"deletedRegion\": {{ \"startLine\": {}, \"endLine\": {} }},",
+                violation.line, violation.line
+            );
+            let _ = writeln!(
+                out,
+                "                      \"insertedContent\": {{ \"text\": \"{}\" }}",
+                json_escape(quick_fix)
+            );
+            out.push_str("                    }\n");
+            out.push_str("                  ]\n");
+            out.push_str("                }\n");
+            out.push_str("              ]\n");
+            out.push_str("            }\n");
+            out.push_str("          ]\n");
+        } else {
+            out.push('\n');
+        }
         let comma = item_separator(idx, result.violations.len());
         let _ = writeln!(out, "        }}{}", comma);
     }
@@ -423,6 +511,72 @@ fn option_to_json_string(value: Option<&str>) -> String {
         Some(value) => format!("\"{}\"", json_escape(value)),
         None => "null".to_string(),
     }
+}
+
+fn write_json_string_array_items(out: &mut String, items: &[String], indent: usize) {
+    let pad = " ".repeat(indent);
+    for (idx, item) in items.iter().enumerate() {
+        let comma = item_separator(idx, items.len());
+        let _ = writeln!(out, "{}\"{}\"{}", pad, json_escape(item), comma);
+    }
+}
+
+fn resolve_numeric_or_default(hierarchy: &crate::structs::HierarchyConfig, key: &str) -> usize {
+    hierarchy.resolve_parameter(key)
+        .and_then(|raw| raw.trim().parse::<usize>().ok())
+        .unwrap_or_default()
+}
+
+fn resolve_array_or_default(
+    hierarchy: &crate::structs::HierarchyConfig,
+    key: &str,
+    default_values: Vec<String>,
+) -> Vec<String> {
+    match hierarchy.resolve_parameter(key) {
+        Some(raw) => parse_loosely_array_like(&raw).unwrap_or(default_values),
+        None => default_values,
+    }
+}
+
+fn parse_loosely_array_like(raw: &str) -> Option<Vec<String>> {
+    let trimmed = raw.trim();
+    if !(trimmed.starts_with('[') && trimmed.ends_with(']')) {
+        return None;
+    }
+
+    let inner = &trimmed[1..trimmed.len() - 1];
+    let values: Vec<String> = inner
+        .split(',')
+        .map(|v| v.trim().trim_matches('"').trim_matches('\''))
+        .filter(|v| !v.is_empty())
+        .map(|v| v.to_string())
+        .collect();
+
+    if values.is_empty() { None } else { Some(values) }
+}
+
+fn default_shadow_context_lines() -> Vec<String> {
+    vec![
+        "Each .rs file has a companion *_manifest.json with technical symbols.".to_string(),
+        "Read *_manifest.json before editing the source code.".to_string(),
+        "Shadow Context includes exact line references for each violation.".to_string(),
+        "P0 violations are critical and should be fixed first.".to_string(),
+    ]
+}
+
+fn default_shadow_tools() -> Vec<String> {
+    vec![
+        "Shadow Context 2.1.0 — Machine-readable violation report".to_string(),
+        "Technical manifests — *_manifest.json per scanned source file".to_string(),
+    ]
+}
+
+fn default_shadow_terminal_commands() -> Vec<String> {
+    vec![
+        "cargo check --target x86_64-unknown-linux-gnu".to_string(),
+        "cargo test --target x86_64-unknown-linux-gnu".to_string(),
+        "cargo run --target x86_64-unknown-linux-gnu -- --api ant_delirium_config".to_string(),
+    ]
 }
 
 fn json_escape(value: &str) -> String {

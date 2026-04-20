@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=1329
+priority=P2
+level=note
+rule_id=axiom.recursion.resolution
+file_path=src/exemples_error/type2/Type-Logic-Error_unitcore.rs
+line=1
+detected_dna=unitcore
+taxonomy_path=axiom.recursion
+message=Axiom 'recursion' possui identidade ambigua: regras.identity.recursion | hierarchy.identity.recursion | rules.identity.recursion. Deixe apenas um ramo-identidade ativo para este axioma.
+snippet=src/exemples_error/type2/Type-Logic-Error_unitcore.rs

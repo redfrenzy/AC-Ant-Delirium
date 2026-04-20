@@ -1,0 +1,10 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=1733
+priority=P0
+level=error
+rule_id=hierarchy.sanitization.restricted_tokens.resolution
+file_path=src/exemples_error/type1/Max-Params-Error_unit.rs
+line=1
+detected_dna=unit
+taxonomy_path=hierarchy.files.unit
+message=Axiom 'restricted_tokens' possui identidade ambigua: rules.sanitization.restricted_tokens | regras.sanitization.restricted_tokens | hierarchy.sanitization.restricted_tokens. Deixe apenas um ramo-identidade ativo para este axioma.

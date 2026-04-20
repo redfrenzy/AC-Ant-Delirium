@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=232
+priority=P2
+level=note
+rule_id=hierarchy.identity.recursion.teste
+file_path=src/exemples_error/type3/Max-Params-Error_unitcore.rs
+line=1
+detected_dna=unitcore
+taxonomy_path=hierarchy.identity.recursion
+message=Recursion violation: 'regras.arquivos' requires companion 'Max-Params-Error_teste.rs', but it was not found in 'src/exemples_error/type3'.
+snippet=Max-Params-Error_teste.rs

@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=14
+priority=P1
+level=warning
+rule_id=hierarchy.structural.type_logic.type_logic_error_struct
+file_path=src/exemples_error/type2/Type-Logic-Error_struct.rs
+line=5
+detected_dna=struct
+taxonomy_path=rules.fichiers.structure.type_logic
+message=Type Logic Violation: DNA 'struct' only allows ["struct", "public_struct", "enum", "public_enum"], but found 'private_fn' in declaration.
+snippet=fn type_logic_error_struct() -> usize {
+quick_fix=// [TODO] Align this declaration with the 'struct' type_logic profile resolved from rules.fichiers.structure.

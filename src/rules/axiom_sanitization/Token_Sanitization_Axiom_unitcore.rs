@@ -32,7 +32,7 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
             ctx.violations.push(AuditViolation {
                 file_path: ctx.file_path.to_string(),
                 line: idx + 1,
-                rule_id: governance::rule_id("hierarchy.sanitization.token_sanitization", token),
+                rule_id: governance::rule_id(&resolution.identity_path, token),
                 message: format!(
                     "Token Sanitization Violation: '{}' must be isolated or replaced according to {}.",
                     token, resolution.resolved_path
@@ -78,14 +78,16 @@ fn has_manual_bypass(trimmed: &str) -> bool {
 }
 
 fn push_resolution_violation(ctx: &mut AuditContext<'_>, rule_suffix: &str, message: String) {
+    let identity_path = ctx.resolve_axiom_identity_path(rule_suffix)
+        .unwrap_or_else(|_| format!("axiom.{}", rule_suffix));
     ctx.violations.push(AuditViolation {
         file_path: ctx.file_path.to_string(),
         line: 1,
-        rule_id: format!("hierarchy.sanitization.{}.resolution", rule_suffix),
+        rule_id: format!("{}.resolution", identity_path),
         message,
         snippet: None,
         quick_fix: None,
         detected_dna: ctx.detected_dna.clone(),
-        taxonomy_path: ctx.taxonomy_path.clone(),
+        taxonomy_path: identity_path,
     });
 }

@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=170
+priority=P2
+level=note
+rule_id=hierarchy.identity.manifest_anchoring
+file_path=src/exemples_error/type3/identity_workspace/Guide_unit.md
+line=1
+detected_dna=unit
+taxonomy_path=hierarchy.identity.manifest_anchoring
+message=Manifest anchoring violation: child tags cannot own standalone .md/.json docs.
+snippet=Guide_unit

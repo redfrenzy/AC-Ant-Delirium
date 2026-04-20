@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=54
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.what_mission
+file_path=src/exemples_error/type3/Max-Params-Error_unit.rs
+line=1
+detected_dna=unit
+taxonomy_path=hierarchy.pedagogical.what_mission
+message=What mission violation: function 'max_params_error_unit' must include [WHAT] in the documentation block above the declaration.
+snippet=pub fn max_params_error_unit(alpha: usize, beta: usize, gamma: usize, delta: usize, epsilon: usize) -> usize {
+quick_fix=/// [WHAT] ...

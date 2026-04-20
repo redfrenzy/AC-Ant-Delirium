@@ -1,0 +1,10 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=106
+priority=P1
+level=warning
+rule_id=hierarchy.structural.max_params.resolution
+file_path=src/exemples_error/type2/Logical-Dencity-Error_macrocore.rs
+line=1
+detected_dna=macrocore
+taxonomy_path=hierarchy.files.macro.macrocore
+message=Axiom 'max_params' possui identidade ambigua: regras.structural.max_params | rules.structural.max_params | hierarchy.structural.max_params. Deixe apenas um ramo-identidade ativo para este axioma.

@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=1314
+priority=P2
+level=note
+rule_id=hierarchy.identity.recursion.resolution
+file_path=src/exemples_error/type2/identity_workspace/DnaSuffixError.rs
+line=1
+detected_dna=<unknown>
+taxonomy_path=hierarchy.files
+message=Axiom 'recursion' possui identidade ambigua: hierarchy.identity.recursion | rules.identity.recursion | regras.identity.recursion. Deixe apenas um ramo-identidade ativo para este axioma.
+snippet=src/exemples_error/type2/identity_workspace/DnaSuffixError.rs

@@ -15,14 +15,11 @@ fn main() {
     generated_code.push_str("pub fn load_embedded_hierarchy(hierarchy: &mut crate::structs::HierarchyConfig) {\n");
 
     if config_dir.exists() {
-        if let Ok(entries) = fs::read_dir(config_dir) {
-            for entry in entries.filter_map(|e| e.ok()) {
-                let path = entry.path();
-                if path.extension().map_or(false, |ext| ext == "toml") {
-                    if let Ok(content) = fs::read_to_string(&path) {
-                        compile_toml_to_rust(&content, &mut generated_code);
-                    }
-                }
+        let selected_profile = select_profile_folder(&config_dir);
+        println!("cargo:warning=[ac_ant_delirium] selected config profile: {}", selected_profile.display());
+        for path in collect_toml_files(&selected_profile) {
+            if let Ok(content) = fs::read_to_string(&path) {
+                compile_toml_to_rust(&content, &mut generated_code);
             }
         }
     }
@@ -33,6 +30,48 @@ fn main() {
     // Re-run if configs change
     println!("cargo:rerun-if-changed=ant_delirium_config");
     println!("cargo:rerun-if-changed=build.rs");
+}
+
+fn collect_toml_files(root: &Path) -> Vec<std::path::PathBuf> {
+    let mut files = Vec::new();
+    if let Ok(entries) = fs::read_dir(root) {
+        for entry in entries.filter_map(|e| e.ok()) {
+            let path = entry.path();
+            if path.extension().map_or(false, |ext| ext == "toml") {
+                files.push(path);
+            }
+        }
+    }
+    files.sort();
+    files
+}
+
+fn select_profile_folder(config_root: &Path) -> std::path::PathBuf {
+    let mut profiles: Vec<std::path::PathBuf> = fs::read_dir(config_root)
+        .ok()
+        .into_iter()
+        .flat_map(|entries| entries.filter_map(|e| e.ok()))
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.is_dir()
+                && path.file_name()
+                    .and_then(|name| name.to_str())
+                    .map(|name| name.starts_with("type_"))
+                    .unwrap_or(false)
+        })
+        .collect();
+
+    if profiles.is_empty() {
+        return config_root.to_path_buf();
+    }
+
+    profiles.sort();
+    let seed = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_nanos() as usize)
+        .unwrap_or(0);
+    let idx = seed % profiles.len();
+    profiles[idx].clone()
 }
 
 fn compile_toml_to_rust(content: &str, output: &mut String) {

@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=22
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.md_pairing
+file_path=src/exemples_error/Logical-Dencity-Error_macrocore.rs
+line=1
+detected_dna=macrocore
+taxonomy_path=hierarchy.pedagogical.md_pairing
+message=Where documentation violation: function 'logical_density_error_macrocore' must include [WHERE] in the documentation block above the declaration.
+snippet=fn logical_density_error_macrocore() {
+quick_fix=/// [WHERE] ...

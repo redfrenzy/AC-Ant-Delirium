@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=110
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.test_case_mapping
+file_path=src/exemples_error/type1/identity_workspace/Name_Separator_Error_unit.rs
+line=1
+detected_dna=unit
+taxonomy_path=hierarchy.pedagogical.test_case_mapping
+message=Test mapping violation: function 'name_separator_error_unit' must include [TEST] in the documentation block above the declaration.
+snippet=pub fn name_separator_error_unit() -> usize {
+quick_fix=/// [TEST] ...

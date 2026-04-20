@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=79
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.why_justification
+file_path=src/exemples_error/type1/Type-Logic-Error_unitcore.rs
+line=1
+detected_dna=unitcore
+taxonomy_path=hierarchy.pedagogical.why_justification
+message=Why justification violation: function 'type_logic_error_unitcore' must include [WHY] in the documentation block above the declaration.
+snippet=pub fn type_logic_error_unitcore() {}
+quick_fix=/// [WHY] ...

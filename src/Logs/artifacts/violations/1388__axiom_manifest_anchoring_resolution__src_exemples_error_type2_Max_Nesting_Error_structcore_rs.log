@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=1388
+priority=P2
+level=note
+rule_id=axiom.manifest_anchoring.resolution
+file_path=src/exemples_error/type2/Max-Nesting-Error_structcore.rs
+line=1
+detected_dna=structcore
+taxonomy_path=axiom.manifest_anchoring
+message=Axiom 'manifest_anchoring' possui identidade ambigua: hierarchy.identity.manifest_anchoring | regras.identity.manifest_anchoring | rules.identity.manifest_anchoring. Deixe apenas um ramo-identidade ativo para este axioma.
+snippet=src/exemples_error/type2/Max-Nesting-Error_structcore.rs

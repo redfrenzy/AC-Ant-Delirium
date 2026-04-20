@@ -6,40 +6,21 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
         return;
     }
 
-    let requirement = match ctx.resolve_axiom_requirements("type_logic") {
-        Ok(requirements) if requirements.iter().any(|requirement| requirement == "type_logic") => "type_logic".to_string(),
-        Ok(requirements) => {
-            push_resolution_violation(
-                ctx,
-                format!(
-                    "Axiom 'type_logic' nao declarou o requirement 'type_logic'. Requirements ativos: {}.",
-                    requirements.join(", ")
-                ),
-            );
-            return;
-        }
-        Err(message) => {
-            push_resolution_violation(ctx, message);
-            return;
-        }
-    };
-
-    let (resolved_from, resolved_value) = match ctx
-        .config
-        .hierarchy
-        .resolve_taxonomy_parameter(&ctx.taxonomy_path, &requirement)
-    {
+    let requirement = match ctx.require_named_taxonomy_axiom_parameter("type_logic", "type_logic") {
         Ok(value) => value,
         Err(message) => {
-            push_resolution_violation(ctx, message);
+            push_resolution_violation(ctx, "type_logic", message);
             return;
         }
     };
+    let resolved_from = requirement.resolved_path;
+    let resolved_value = requirement.value;
 
     let allowed_logic = parse_industrial_array(&resolved_value);
     if allowed_logic.is_empty() {
         push_resolution_violation(
             ctx,
+            "type_logic",
             "type_logic resolved to an empty allow-list.".to_string(),
         );
         return;
@@ -49,6 +30,7 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
     if allowed_profiles.is_empty() {
         push_resolution_violation(
             ctx,
+            "type_logic",
             format!(
                 "type_logic resolved at '{}' but none of the profiles {:?} are recognized.",
                 resolved_from, allowed_logic
@@ -70,7 +52,7 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
         ctx.violations.push(AuditViolation {
             file_path: ctx.file_path.to_string(),
             line: block.start_line,
-            rule_id: governance::rule_id("hierarchy.structural.type_logic", &block.name),
+            rule_id: governance::rule_id(&requirement.identity_path, &block.name),
             message: format!(
                 "Type Logic Violation: DNA '{}' only allows {:?}, but found '{}' in declaration.",
                 ctx.detected_dna,
@@ -84,7 +66,7 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
                 resolved_from
             )),
             detected_dna: ctx.detected_dna.clone(),
-            taxonomy_path: format!("{}.{}", resolved_from, requirement),
+            taxonomy_path: format!("{}.{}", resolved_from, requirement.requirement_id),
         });
     }
 }
@@ -283,15 +265,17 @@ fn classify_function_profile(normalized: &str) -> String {
     "unknown".to_string()
 }
 
-fn push_resolution_violation(ctx: &mut AuditContext<'_>, message: String) {
+fn push_resolution_violation(ctx: &mut AuditContext<'_>, axiom_id: &str, message: String) {
+    let identity_path = ctx.resolve_axiom_identity_path(axiom_id)
+        .unwrap_or_else(|_| format!("axiom.{}", axiom_id));
     ctx.violations.push(AuditViolation {
         file_path: ctx.file_path.to_string(),
         line: 1,
-        rule_id: "hierarchy.structural.type_logic.resolution".to_string(),
+        rule_id: format!("{}.resolution", identity_path),
         message,
         snippet: None,
         quick_fix: None,
         detected_dna: ctx.detected_dna.clone(),
-        taxonomy_path: ctx.taxonomy_path.clone(),
+        taxonomy_path: identity_path,
     });
 }

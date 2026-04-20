@@ -1,0 +1,10 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=1796
+priority=P2
+level=note
+rule_id=axiom.token_sanitization.resolution
+file_path=src/exemples_error/type2/pedagogical_workspace/Md-Pairing-Error_unit.rs
+line=1
+detected_dna=unit
+taxonomy_path=axiom.token_sanitization
+message=Axiom 'token_sanitization' possui identidade ambigua: regras.sanitization.token_sanitization | rules.sanitization.token_sanitization | hierarchy.sanitization.token_sanitization. Deixe apenas um ramo-identidade ativo para este axioma.

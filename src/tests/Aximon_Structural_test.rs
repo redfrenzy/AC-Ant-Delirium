@@ -6,7 +6,7 @@ mod tests {
 
     fn fixture_result(rule_fragment: &str) -> (AuditConfig, AuditResult) {
         let config = AuditConfig {
-            hierarchy: HierarchyConfig::load_from_folder("ant_delirium_config"),
+            hierarchy: HierarchyConfig::load_from_folder("ant_delirium_config/type_1"),
             ..AuditConfig::default()
         };
 
@@ -30,7 +30,7 @@ mod tests {
 
     #[test]
     fn print_logical_density_violations_from_swarm_manifest() {
-        let (config, result) = fixture_result("hierarchy.structural.logical_density");
+        let (config, result) = fixture_result(".structural.logical_density");
         let logical_density_violations = result.violations.clone();
 
         println!("{}", GovernanceLogs::format_terminal_report(&result, &config, None));
@@ -63,7 +63,7 @@ mod tests {
 
     #[test]
     fn print_type_logic_violations_from_swarm_manifest() {
-        let (config, result) = fixture_result("hierarchy.structural.type_logic");
+        let (config, result) = fixture_result(".structural.type_logic");
         let type_logic_violations = result.violations.clone();
 
         println!("{}", GovernanceLogs::format_terminal_report(&result, &config, None));
@@ -105,7 +105,7 @@ mod tests {
 
     #[test]
     fn print_max_params_violations_from_swarm_manifest() {
-        let (config, result) = fixture_result("hierarchy.structural.max_params");
+        let (config, result) = fixture_result(".structural.max_params");
         let max_params_violations = result.violations.clone();
 
         println!("{}", GovernanceLogs::format_terminal_report(&result, &config, None));
@@ -122,7 +122,7 @@ mod tests {
 
     #[test]
     fn print_max_nesting_violations_from_swarm_manifest() {
-        let (config, result) = fixture_result("hierarchy.structural.max_nesting");
+        let (config, result) = fixture_result(".structural.max_nesting");
         let max_nesting_violations = result.violations.clone();
 
         println!("{}", GovernanceLogs::format_terminal_report(&result, &config, None));

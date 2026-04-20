@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=814
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.test_case_mapping
+file_path=src/exemples_error/type1/Max-Params-Error_unitcore.rs
+line=1
+detected_dna=unitcore
+taxonomy_path=hierarchy.pedagogical.test_case_mapping
+message=Test mapping violation: function 'max_params_error_unitcore' must include [TEST] in the documentation block above the declaration.
+snippet=fn max_params_error_unitcore(alpha: usize, beta: usize, gamma: usize, delta: usize, epsilon: usize, zeta: usize, eta: usize) -> usize {
+quick_fix=/// [TEST] ...

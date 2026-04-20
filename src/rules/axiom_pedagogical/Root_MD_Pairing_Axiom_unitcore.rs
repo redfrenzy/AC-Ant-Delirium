@@ -1,11 +1,14 @@
 use crate::structs::AuditContext;
 use std::path::Path;
 
+#[path = "Pedagogical_Tag_Common_unitcore.rs"]
+mod Pedagogical_Tag_Common_unitcore;
+
 pub fn patrol(ctx: &mut AuditContext<'_>) {
     let root_md_pairing = match ctx.require_named_global_axiom_parameter("root_md_pairing", "root_md_pairing") {
         Ok(binding) => binding.value == "true",
         Err(message) => {
-            push_resolution_violation(ctx, "root_md_pairing", &message);
+            Pedagogical_Tag_Common_unitcore::push_resolution_violation(ctx, "root_md_pairing", &message);
             return;
         }
     };
@@ -24,28 +27,16 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
     let parent = path.parent().unwrap_or_else(|| Path::new("."));
     let manifest = parent.join(format!("{}_manifest.json", stem));
     if !manifest.exists() {
+        let identity_path = Pedagogical_Tag_Common_unitcore::resolve_axiom_identity_path_or_fallback(ctx, "root_md_pairing");
         ctx.violations.push(crate::structs::AuditViolation {
             file_path: ctx.file_path.to_string(),
             line: 1,
-            rule_id: "hierarchy.pedagogical.root_md_pairing".to_string(),
+            rule_id: identity_path.clone(),
             message: format!("Root MD pairing violation: '{}' is missing '{}'.", stem, manifest.display()),
             snippet: Some(stem.to_string()),
             quick_fix: Some(format!("Create {}", manifest.display())),
             detected_dna: ctx.detected_dna.clone(),
-            taxonomy_path: "hierarchy.pedagogical.root_md_pairing".to_string(),
+            taxonomy_path: identity_path,
         });
     }
-}
-
-fn push_resolution_violation(ctx: &mut AuditContext<'_>, rule_suffix: &str, message: &str) {
-    ctx.violations.push(crate::structs::AuditViolation {
-        file_path: ctx.file_path.to_string(),
-        line: 1,
-        rule_id: format!("hierarchy.pedagogical.{}.resolution", rule_suffix),
-        message: message.to_string(),
-        snippet: Some(ctx.file_path.to_string()),
-        quick_fix: None,
-        detected_dna: ctx.detected_dna.clone(),
-        taxonomy_path: ctx.taxonomy_path.clone(),
-    });
 }

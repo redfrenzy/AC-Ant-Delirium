@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=120
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.test_case_mapping
+file_path=src/exemples_error/type2/Type-Logic-Error_struct.rs
+line=5
+detected_dna=struct
+taxonomy_path=hierarchy.pedagogical.test_case_mapping
+message=Test mapping violation: function 'type_logic_error_struct' must include [TEST] in the documentation block above the declaration.
+snippet=fn type_logic_error_struct() -> usize {
+quick_fix=/// [TEST] ...

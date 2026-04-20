@@ -1,0 +1,10 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=1714
+priority=P2
+level=note
+rule_id=axiom.restricted_tokens.resolution
+file_path=src/exemples_error/type2/Logical-Dencity-Error_structcore.rs
+line=1
+detected_dna=structcore
+taxonomy_path=axiom.restricted_tokens
+message=Axiom 'restricted_tokens' possui identidade ambigua: rules.sanitization.restricted_tokens | hierarchy.sanitization.restricted_tokens | regras.sanitization.restricted_tokens. Deixe apenas um ramo-identidade ativo para este axioma.

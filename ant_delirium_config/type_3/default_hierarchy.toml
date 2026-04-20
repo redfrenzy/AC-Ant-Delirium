@@ -1,0 +1,112 @@
+[regras]
+casing = "PascalCase"
+name_separator = "-"
+tag_separator = "_"
+manifest = true
+recursion = true
+md_min_chars = 80
+what_mission = true
+why_justification = true
+usage_example = true
+test_case_mapping = true
+inheritance_visibility = true
+root_manifest = true
+root_md_pairing = true
+repository = "/home/dracker/aesthetic-core"
+max_nesting = 3
+max_params = 5
+logical_density = 40
+
+[regras.permissions]
+libres = ["ac_ant_delirium", "rayon", "std"]
+restricted_tokens = { "panic!" = "Security: Use Result.", "unwrap" = "Security: Use expect()." }
+
+[regras.arquivos]
+max_nesting = 3
+max_params = 5
+logical_density = 40
+[regras.target]
+core =  ["src/exemples_error/type3"]
+tests = "src/tests"
+macros = "src/macros"
+
+[regras.arquivos.unidade]
+jurisdiction = "src"
+type_logic = ["pub fn", "pub async fn", "pub const fn", "pub unsafe fn", "pub(crate) fn", "pub(crate) async fn", "pub(crate) const fn"]
+md_pairing = true
+manifest = true
+max_nesting = 2
+max_params = 4
+logical_density = 25
+[regras.arquivos.unidade.documentation]
+WHAT = true
+WHY = true
+WHERE = true
+USAGE = true
+TEST = true
+
+[regras.arquivos.unidade.unidade_nucleo]
+type_logic = ["fn", "async fn", "const fn", "unsafe fn"]
+manifest = false
+max_nesting = 3
+max_params = 6
+logical_density = 40
+[regras.arquivos.unidade.unidade_nucleo.documentation]
+WHAT = true
+WHY = true
+WHERE = true
+USAGE = true
+TEST = true
+
+[regras.arquivos.teste]
+jurisdiction = "src/tests"
+type_logic = ["#[test]", "#[tokio::test]", "#[cfg(test)]"]
+manifest = false
+md_pairing = false
+
+[regras.arquivos.estrutura]
+jurisdiction = "src/struct"
+type_logic = ["struct", "pub struct", "enum", "pub enum"]
+md_pairing = true
+manifest = true
+[regras.arquivos.estrutura.documentation]
+WHAT = true
+WHY = true
+WHERE = true
+USAGE = true
+TEST = true
+[regras.arquivos.estrutura.estrutura_nucleo]
+type_logic = ["fn", "async fn", "const fn", "unsafe fn", "impl"]
+manifest = false
+max_nesting = 3
+max_params = 4
+logical_density = 30
+[regras.arquivos.estrutura.estrutura_nucleo.documentation]
+WHAT = true
+WHY = true
+WHERE = true
+USAGE = true
+TEST = true
+
+[regras.arquivos.macro]
+jurisdiction = "src/macros"
+type_logic = ["macro_rules!", "pub macro"]
+md_pairing = true
+manifest = true
+[regras.arquivos.macro.documentation]
+WHAT = true
+WHY = true
+WHERE = true
+USAGE = true
+TEST = true
+[regras.arquivos.macro.macro_nucleo]
+type_logic = ["fn", "async fn", "const fn", "unsafe fn"]
+manifest = false
+max_nesting = 3
+logical_density = 40
+[regras.arquivos.macro.macro_nucleo.documentation]
+WHAT = true
+WHY = true
+WHERE = true
+USAGE = true
+TEST = true

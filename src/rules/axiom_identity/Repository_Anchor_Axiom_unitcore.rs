@@ -1,15 +1,19 @@
 use crate::structs::AuditContext;
 use std::path::{Path, PathBuf};
 
+#[path = "Identity_Axiom_Common_unitcore.rs"]
+mod Identity_Axiom_Common_unitcore;
+
 /// [AESTHETIC CORE - INTERNAL VACUUM]
 pub fn patrol(ctx: &mut AuditContext<'_>) {
     let repository = match ctx.require_named_global_axiom_parameter("repository_anchor", "repository") {
         Ok(binding) => binding.value,
         Err(message) => {
-            push_resolution_violation(ctx, "repository_anchor", &message);
+            Identity_Axiom_Common_unitcore::push_resolution_violation(ctx, "repository_anchor", &message);
             return;
         }
     };
+    let identity_path = Identity_Axiom_Common_unitcore::resolve_axiom_identity_path_or_fallback(ctx, "repository_anchor");
 
     if repository.trim().is_empty() {
         return;
@@ -30,7 +34,7 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
         ctx.violations.push(crate::structs::AuditViolation {
             file_path: ctx.file_path.to_string(),
             line: 1,
-            rule_id: "hierarchy.identity.repository_anchor".to_string(),
+            rule_id: identity_path.clone(),
             message: format!(
                 "Repository anchor violation: '{}' is outside '{}'.",
                 ctx.file_path, repository
@@ -38,20 +42,7 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
             snippet: Some(ctx.file_path.to_string()),
             quick_fix: None,
             detected_dna: ctx.detected_dna.clone(),
-            taxonomy_path: "hierarchy.identity.repository_anchor".to_string(),
+            taxonomy_path: identity_path,
         });
     }
-}
-
-fn push_resolution_violation(ctx: &mut AuditContext<'_>, rule_suffix: &str, message: &str) {
-    ctx.violations.push(crate::structs::AuditViolation {
-        file_path: ctx.file_path.to_string(),
-        line: 1,
-        rule_id: format!("hierarchy.identity.{}.resolution", rule_suffix),
-        message: message.to_string(),
-        snippet: Some(ctx.file_path.to_string()),
-        quick_fix: None,
-        detected_dna: ctx.detected_dna.clone(),
-        taxonomy_path: ctx.taxonomy_path.clone(),
-    });
 }

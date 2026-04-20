@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=655
+priority=P2
+level=note
+rule_id=axiom.why_justification
+file_path=src/exemples_error/type2/Type-Logic-Error_struct.rs
+line=5
+detected_dna=struct
+taxonomy_path=axiom.why_justification
+message=Why justification violation: function 'type_logic_error_struct' must include [WHY] in the documentation block above the declaration.
+snippet=fn type_logic_error_struct() -> usize {
+quick_fix=/// [WHY] ...

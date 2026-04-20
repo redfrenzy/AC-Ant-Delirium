@@ -3,29 +3,23 @@ use crate::rules_logs::messages;
 use crate::structs::{AuditContext, AuditViolation};
 
 pub fn patrol(ctx: &mut AuditContext<'_>) {
-    let requirement = match ctx.require_axiom_parameter("max_params", "max_params") {
+    let requirement = match ctx.require_named_taxonomy_axiom_parameter("max_params", "max_params") {
         Ok(value) => value,
         Err(message) => {
-            push_resolution_violation(ctx, message);
+            push_resolution_violation(ctx, "max_params", message);
             return;
         }
     };
 
-    let (resolved_path, raw_limit) = match ctx.config.hierarchy
-        .resolve_taxonomy_parameter(&ctx.taxonomy_path, &requirement.requirement_id)
-    {
-        Ok(value) => value,
-        Err(message) => {
-            push_resolution_violation(ctx, message);
-            return;
-        }
-    };
+    let resolved_path = requirement.resolved_path.clone();
+    let raw_limit = requirement.value;
 
     let param_limit = match raw_limit.parse::<usize>() {
         Ok(value) => value,
         Err(_) => {
             push_resolution_violation(
                 ctx,
+                "max_params",
                 format!("max_params requires a numeric value, but '{}' was found in '{}'.", raw_limit, resolved_path),
             );
             return;
@@ -42,7 +36,7 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
             ctx.violations.push(AuditViolation {
                 file_path: ctx.file_path.to_string(),
                 line: func.start_line,
-                rule_id: governance::rule_id("hierarchy.structural.max_params", &func.name),
+                rule_id: governance::rule_id(&requirement.identity_path, &func.name),
                 message: format!(
                     "{} - {}/{} parameters. Group them into a Struct.",
                     messages::PARAMS_TOO_MANY,
@@ -89,15 +83,17 @@ fn count_parameters(declaration: &str) -> usize {
     count + 1
 }
 
-fn push_resolution_violation(ctx: &mut AuditContext<'_>, message: String) {
+fn push_resolution_violation(ctx: &mut AuditContext<'_>, axiom_id: &str, message: String) {
+    let identity_path = ctx.resolve_axiom_identity_path(axiom_id)
+        .unwrap_or_else(|_| format!("axiom.{}", axiom_id));
     ctx.violations.push(AuditViolation {
         file_path: ctx.file_path.to_string(),
         line: 1,
-        rule_id: "hierarchy.structural.max_params.resolution".to_string(),
+        rule_id: format!("{}.resolution", identity_path),
         message,
         snippet: None,
         quick_fix: None,
         detected_dna: ctx.detected_dna.clone(),
-        taxonomy_path: ctx.taxonomy_path.clone(),
+        taxonomy_path: identity_path,
     });
 }

@@ -2,7 +2,6 @@ pub mod axiom_structural;
 pub mod axiom_pedagogical;
 pub mod axiom_identity;
 pub mod axiom_sanitization;
-pub mod structure;
 
 use crate::structs::{GovernanceAxiom, AuditConfig, AuditViolation};
 use crate::parser::ScannedBlock;

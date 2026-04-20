@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=1180
+priority=P2
+level=note
+rule_id=hierarchy.identity.tag_separator.resolution
+file_path=src/exemples_error/type2/Logical-Dencity-Error_unitcore.rs
+line=1
+detected_dna=unitcore
+taxonomy_path=hierarchy.files.unit.unitcore
+message=Axiom 'tag_separator' possui identidade ambigua: regras.identity.tag_separator | hierarchy.identity.tag_separator | rules.identity.tag_separator. Deixe apenas um ramo-identidade ativo para este axioma.
+snippet=src/exemples_error/type2/Logical-Dencity-Error_unitcore.rs

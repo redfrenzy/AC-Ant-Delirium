@@ -1,0 +1,100 @@
+# [AESTHETIC CORE - ATOMIC RULES MANIFESTO]
+# Onde estamos (Identidade) | O que precisamos (Requisição Atômica)
+
+[regras.engine.search_file] # onde estamos
+target.core # o que precisamos encontrar
+
+# [STRUCTURAL]
+[regras.structural.max_nesting]
+max_nesting
+
+[regras.structural.max_params]
+max_params
+
+[regras.structural.logical_density]
+logical_density
+
+[regras.structural.type_logic]
+type_logic
+
+[regras.structural.jurisdiction]
+unidade.jurisdiction
+
+# [PEDAGOGICAL]
+[regras.pedagogical.md_pairing]
+operation_zone
+md_pairing
+
+[regras.pedagogical.md_min_chars]
+operation_zone
+md_min_chars
+
+[regras.pedagogical.what_mission]
+operation_zone
+what_mission
+
+[regras.pedagogical.why_justification]
+operation_zone
+why_justification
+
+[regras.pedagogical.usage_example]
+operation_zone
+usage_example
+
+[regras.pedagogical.test_case_mapping]
+operation_zone
+test_case_mapping
+
+[regras.pedagogical.root_md_pairing]
+operation_zone
+root_md_pairing
+
+[regras.pedagogical.inheritance_visibility]
+operation_zone
+inheritance_visibility
+
+# [IDENTITY]
+[regras.identity.dna_suffix] ##onde estou?
+operation_zone ## oque preciso
+tag_separator ## oque preciso
+
+[regras.identity.tag_separator]
+operation_zone
+tag_separator
+
+[regras.identity.pascal_case]
+operation_zone
+casing
+
+[regras.identity.name_separator]
+operation_zone
+name_separator
+
+[regras.identity.repository_anchor]
+operation_zone
+repository
+
+[regras.identity.recursion]
+operation_zone
+recursion
+
+[regras.identity.manifest_anchoring]
+operation_zone
+manifest
+
+# [SANITIZATION]
+[regras.sanitization.restricted_tokens]
+operation_zone
+restricted_tokens
+
+[regras.dependency_governance.allowed_crates]
+operation_zone
+libres
+
+[regras.sanitization.token_sanitization]
+operation_zone
+restricted_tokens
+
+[regras.dependency_governance.dependency_purification]
+operation_zone
+libres

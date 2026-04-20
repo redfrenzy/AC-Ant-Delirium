@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=342
+priority=P2
+level=note
+rule_id=axiom.md_pairing.resolution
+file_path=src/exemples_error/type2/identity_workspace/Tag-Separator-Error-unit.rs
+line=1
+detected_dna=<unknown>
+taxonomy_path=axiom.md_pairing
+message=Axiom 'md_pairing' possui identidade ambigua: regras.pedagogical.md_pairing | hierarchy.pedagogical.md_pairing | rules.pedagogical.md_pairing. Deixe apenas um ramo-identidade ativo para este axioma.
+snippet=src/exemples_error/type2/identity_workspace/Tag-Separator-Error-unit.rs

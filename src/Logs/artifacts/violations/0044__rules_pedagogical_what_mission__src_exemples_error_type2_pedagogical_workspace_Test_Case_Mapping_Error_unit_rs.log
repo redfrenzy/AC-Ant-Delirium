@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=44
+priority=P3
+level=note
+rule_id=rules.pedagogical.what_mission
+file_path=src/exemples_error/type2/pedagogical_workspace/Test-Case-Mapping-Error_unit.rs
+line=1
+detected_dna=unit
+taxonomy_path=rules.pedagogical.what_mission
+message=What mission violation: function 'test_case_mapping_error_unit' must include [WHAT] in the documentation block above the declaration.
+snippet=pub fn test_case_mapping_error_unit() -> usize {
+quick_fix=/// [WHAT] ...

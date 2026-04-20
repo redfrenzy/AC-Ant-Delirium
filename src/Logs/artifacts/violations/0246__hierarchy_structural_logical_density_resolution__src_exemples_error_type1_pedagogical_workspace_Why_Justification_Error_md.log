@@ -1,0 +1,10 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=246
+priority=P1
+level=warning
+rule_id=hierarchy.structural.logical_density.resolution
+file_path=src/exemples_error/type1/pedagogical_workspace/Why-Justification-Error.md
+line=1
+detected_dna=<unknown>
+taxonomy_path=hierarchy.files
+message=Axiom 'logical_density' possui identidade ambigua: regras.structural.logical_density | rules.structural.logical_density | hierarchy.structural.logical_density. Deixe apenas um ramo-identidade ativo para este axioma.

@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=1232
+priority=P2
+level=note
+rule_id=hierarchy.identity.pascal_case.resolution
+file_path=src/exemples_error/type1/Max-Params-Error_unitcore.rs
+line=1
+detected_dna=unitcore
+taxonomy_path=regras.arquivos
+message=Axiom 'pascal_case' possui identidade ambigua: rules.identity.pascal_case | hierarchy.identity.pascal_case | regras.identity.pascal_case. Deixe apenas um ramo-identidade ativo para este axioma.
+snippet=src/exemples_error/type1/Max-Params-Error_unitcore.rs

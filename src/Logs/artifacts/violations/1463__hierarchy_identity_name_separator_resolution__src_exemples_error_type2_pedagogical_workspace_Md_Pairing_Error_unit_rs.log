@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=1463
+priority=P2
+level=note
+rule_id=hierarchy.identity.name_separator.resolution
+file_path=src/exemples_error/type2/pedagogical_workspace/Md-Pairing-Error_unit.rs
+line=1
+detected_dna=unit
+taxonomy_path=hierarchy.files.unit
+message=Axiom 'name_separator' possui identidade ambigua: hierarchy.identity.name_separator | regras.identity.name_separator | rules.identity.name_separator. Deixe apenas um ramo-identidade ativo para este axioma.
+snippet=src/exemples_error/type2/pedagogical_workspace/Md-Pairing-Error_unit.rs

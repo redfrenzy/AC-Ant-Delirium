@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=127
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.test_case_mapping
+file_path=src/exemples_error/type3/Visibility-Error_struct.rs
+line=3
+detected_dna=struct
+taxonomy_path=hierarchy.pedagogical.test_case_mapping
+message=Test mapping violation: function 'keep_visibility_fixture_alive' must include [TEST] in the documentation block above the declaration.
+snippet=fn keep_visibility_fixture_alive() -> usize {
+quick_fix=/// [TEST] ...

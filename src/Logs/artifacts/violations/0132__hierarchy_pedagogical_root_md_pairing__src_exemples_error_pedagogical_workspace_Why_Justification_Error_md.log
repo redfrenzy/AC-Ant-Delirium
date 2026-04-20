@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=132
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.root_md_pairing
+file_path=src/exemples_error/pedagogical_workspace/Why-Justification-Error.md
+line=1
+detected_dna=<unknown>
+taxonomy_path=hierarchy.pedagogical.root_md_pairing
+message=Root MD pairing violation: 'Why-Justification-Error' is missing 'src/exemples_error/pedagogical_workspace/Why-Justification-Error_manifest.json'.
+snippet=Why-Justification-Error
+quick_fix=Create src/exemples_error/pedagogical_workspace/Why-Justification-Error_manifest.json

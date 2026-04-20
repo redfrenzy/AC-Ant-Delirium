@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=53
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.md_min_chars
+file_path=src/exemples_error/type3/pedagogical_workspace/Why-Justification-Error.md
+line=1
+detected_dna=<unknown>
+taxonomy_path=hierarchy.pedagogical.md_min_chars
+message=MD min chars violation: 44 < 80.
+snippet=[WHAT]

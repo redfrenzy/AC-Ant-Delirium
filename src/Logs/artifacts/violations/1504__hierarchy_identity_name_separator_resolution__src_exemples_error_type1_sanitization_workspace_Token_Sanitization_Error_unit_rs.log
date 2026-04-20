@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=1504
+priority=P2
+level=note
+rule_id=hierarchy.identity.name_separator.resolution
+file_path=src/exemples_error/type1/sanitization_workspace/Token-Sanitization-Error_unit.rs
+line=1
+detected_dna=unit
+taxonomy_path=hierarchy.files.unit
+message=Axiom 'name_separator' possui identidade ambigua: regras.identity.name_separator | rules.identity.name_separator | hierarchy.identity.name_separator. Deixe apenas um ramo-identidade ativo para este axioma.
+snippet=src/exemples_error/type1/sanitization_workspace/Token-Sanitization-Error_unit.rs

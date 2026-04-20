@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=12
+priority=P1
+level=warning
+rule_id=hierarchy.structural.type_logic.HiddenVisibilityError;
+file_path=src/exemples_error/Visibility-Error_struct.rs
+line=1
+detected_dna=struct
+taxonomy_path=hierarchy.files.struct.type_logic
+message=Type Logic Violation: DNA 'struct' only allows ["struct", "public_struct", "enum", "public_enum"], but found 'unit_struct' in declaration.
+snippet=struct HiddenVisibilityError;
+quick_fix=// [TODO] Align this declaration with the 'struct' type_logic profile resolved from hierarchy.files.struct.

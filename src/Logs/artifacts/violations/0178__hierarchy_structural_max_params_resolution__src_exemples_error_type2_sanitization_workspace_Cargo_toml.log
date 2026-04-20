@@ -1,0 +1,10 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=178
+priority=P1
+level=warning
+rule_id=hierarchy.structural.max_params.resolution
+file_path=src/exemples_error/type2/sanitization_workspace/Cargo.toml
+line=1
+detected_dna=<unknown>
+taxonomy_path=regras.arquivos
+message=Axiom 'max_params' possui identidade ambigua: regras.structural.max_params | rules.structural.max_params | hierarchy.structural.max_params. Deixe apenas um ramo-identidade ativo para este axioma.

@@ -1,0 +1,10 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=70
+priority=P1
+level=warning
+rule_id=hierarchy.structural.max_nesting.resolution
+file_path=src/exemples_error/type2/identity_workspace/pascal_case_error_unit.rs
+line=1
+detected_dna=unit
+taxonomy_path=regras.arquivos.unidade
+message=Axiom 'max_nesting' possui identidade ambigua: rules.structural.max_nesting | hierarchy.structural.max_nesting | regras.structural.max_nesting. Deixe apenas um ramo-identidade ativo para este axioma.

@@ -1,15 +1,19 @@
 use crate::structs::AuditContext;
 use std::path::Path;
 
+#[path = "Identity_Axiom_Common_unitcore.rs"]
+mod Identity_Axiom_Common_unitcore;
+
 /// [AESTHETIC CORE - INTERNAL VACUUM]
 pub fn patrol(ctx: &mut AuditContext<'_>) {
     let tag_separator = match ctx.require_named_global_axiom_parameter("tag_separator", "tag_separator") {
         Ok(binding) => binding.value,
         Err(message) => {
-            push_resolution_violation(ctx, "tag_separator", &message);
+            Identity_Axiom_Common_unitcore::push_resolution_violation(ctx, "tag_separator", &message);
             return;
         }
     };
+    let identity_path = Identity_Axiom_Common_unitcore::resolve_axiom_identity_path_or_fallback(ctx, "tag_separator");
 
     if !ctx.file_path.ends_with(".rs") {
         return;
@@ -34,7 +38,7 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
                 ctx.violations.push(crate::structs::AuditViolation {
                     file_path: ctx.file_path.to_string(),
                     line: 1,
-                    rule_id: "hierarchy.identity.tag_separator".to_string(),
+                    rule_id: identity_path.clone(),
                     message: format!(
                         "Tag separator violation: '{}' uses '{}' before DNA '{}', but expected '{}'.",
                         stem, separator, suffix, expected
@@ -42,7 +46,7 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
                     snippet: Some(stem.to_string()),
                     quick_fix: Some(stem.replace(separator, &tag_separator)),
                     detected_dna: ctx.detected_dna.clone(),
-                    taxonomy_path: "hierarchy.identity.tag_separator".to_string(),
+                    taxonomy_path: identity_path.clone(),
                 });
                 return;
             }
@@ -59,7 +63,7 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
                     ctx.violations.push(crate::structs::AuditViolation {
                         file_path: ctx.file_path.to_string(),
                         line: 1,
-                        rule_id: "hierarchy.identity.tag_separator".to_string(),
+                        rule_id: identity_path.clone(),
                         message: format!(
                             "Tag separator violation: '{}' likely uses '{}' before DNA-like suffix '{}', expected '{}'.",
                             stem, separator, suffix, expected
@@ -67,7 +71,7 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
                         snippet: Some(stem.to_string()),
                         quick_fix: Some(stem.replace(separator, &tag_separator)),
                         detected_dna: ctx.detected_dna.clone(),
-                        taxonomy_path: "hierarchy.identity.tag_separator".to_string(),
+                        taxonomy_path: identity_path.clone(),
                     });
                     return;
                 }
@@ -93,17 +97,4 @@ fn collect_scope_suffixes(ctx: &AuditContext<'_>) -> Vec<String> {
     values.sort();
     values.dedup();
     values
-}
-
-fn push_resolution_violation(ctx: &mut AuditContext<'_>, rule_suffix: &str, message: &str) {
-    ctx.violations.push(crate::structs::AuditViolation {
-        file_path: ctx.file_path.to_string(),
-        line: 1,
-        rule_id: format!("hierarchy.identity.{}.resolution", rule_suffix),
-        message: message.to_string(),
-        snippet: Some(ctx.file_path.to_string()),
-        quick_fix: None,
-        detected_dna: ctx.detected_dna.clone(),
-        taxonomy_path: ctx.taxonomy_path.clone(),
-    });
 }

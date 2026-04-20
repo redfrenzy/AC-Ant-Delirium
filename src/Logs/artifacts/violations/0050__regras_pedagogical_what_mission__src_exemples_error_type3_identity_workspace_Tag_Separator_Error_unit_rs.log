@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=50
+priority=P3
+level=note
+rule_id=regras.pedagogical.what_mission
+file_path=src/exemples_error/type3/identity_workspace/Tag-Separator-Error-unit.rs
+line=1
+detected_dna=<unknown>
+taxonomy_path=regras.pedagogical.what_mission
+message=What mission violation: function 'tag_separator_error_unit' must include [WHAT] in the documentation block above the declaration.
+snippet=pub fn tag_separator_error_unit() -> usize {
+quick_fix=/// [WHAT] ...

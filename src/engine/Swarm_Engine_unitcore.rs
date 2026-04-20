@@ -57,16 +57,21 @@ pub(crate) fn resolve_file_taxonomy(
         .and_then(|value| value.to_str())
         .unwrap_or_default();
 
-    let detected_dna = match stem.rsplit_once(tag_separator) {
-        Some((_, suffix)) if !suffix.is_empty() => suffix.to_string(),
-        _ => String::new(),
-    };
-
-    let taxonomy_path = if detected_dna.is_empty() {
-        scope_root
-    } else {
-        find_taxonomy_path_for_dna(config, &scope_root, &detected_dna)
-            .unwrap_or(scope_root)
+    let (detected_dna, taxonomy_path) = match find_taxonomy_for_stem(config, &scope_root, stem, tag_separator) {
+        Some((dna, path)) => (dna, path),
+        None => {
+            let detected_dna = match stem.rsplit_once(tag_separator) {
+                Some((_, suffix)) if !suffix.is_empty() => suffix.to_string(),
+                _ => String::new(),
+            };
+            let taxonomy_path = if detected_dna.is_empty() {
+                scope_root.clone()
+            } else {
+                find_taxonomy_path_for_dna(config, &scope_root, &detected_dna)
+                    .unwrap_or(scope_root.clone())
+            };
+            (detected_dna, taxonomy_path)
+        }
     };
 
     (detected_dna, taxonomy_path)
@@ -153,11 +158,65 @@ fn find_taxonomy_path_for_dna(
         format!("{}.", scope_root)
     };
 
-    let mut candidates: Vec<String> = config.hierarchy.nodes.keys()
-        .filter(|path| path.rsplit('.').next() == Some(detected_dna))
+    let mut candidates: Vec<String> = config.hierarchy.nodes.iter()
+        .filter(|(_, node)| {
+            node.properties.contains_key("type_logic")
+                || node.properties.contains_key("jurisdiction")
+                || node.properties.contains_key("manifest")
+        })
+        .filter(|(path, _)| {
+            path.rsplit('.')
+                .next()
+                .map(|segment| segment == detected_dna)
+                .unwrap_or(false)
+        })
+        .map(|(path, _)| path.clone())
         .filter(|path| scope_root.is_empty() || *path == scope_root || path.starts_with(&scope_prefix))
-        .cloned()
         .collect();
     candidates.sort_by_key(|path| path.matches('.').count());
     candidates.into_iter().next()
+}
+
+fn find_taxonomy_for_stem(
+    config: &AuditConfig,
+    scope_root: &str,
+    stem: &str,
+    tag_separator: &str,
+) -> Option<(String, String)> {
+    if stem.is_empty() {
+        return None;
+    }
+
+    let scope_prefix = if scope_root.is_empty() {
+        String::new()
+    } else {
+        format!("{}.", scope_root)
+    };
+
+    let mut candidates: Vec<(String, String)> = config.hierarchy.nodes.iter()
+        .filter(|(_, node)| {
+            node.properties.contains_key("type_logic")
+                || node.properties.contains_key("jurisdiction")
+                || node.properties.contains_key("manifest")
+        })
+        .map(|(path, _)| {
+            let dna = path.rsplit('.').next().unwrap_or_default().to_string();
+            (path.clone(), dna)
+        })
+        .filter(|(path, dna)| {
+            !dna.is_empty()
+                && (scope_root.is_empty() || *path == scope_root || path.starts_with(&scope_prefix))
+                && (stem == dna || stem.ends_with(&format!("{}{}", tag_separator, dna)))
+        })
+        .collect();
+
+    // Prefer the most specific DNA token (longest segment) and then deeper taxonomy path.
+    candidates.sort_by(|(left_path, left_dna), (right_path, right_dna)| {
+        right_dna
+            .len()
+            .cmp(&left_dna.len())
+            .then_with(|| right_path.matches('.').count().cmp(&left_path.matches('.').count()))
+    });
+
+    candidates.into_iter().next().map(|(path, dna)| (dna, path))
 }

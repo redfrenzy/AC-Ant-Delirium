@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=764
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.test_case_mapping.resolution
+file_path=src/exemples_error/type1/pedagogical_workspace/RootGuide.md
+line=1
+detected_dna=<unknown>
+taxonomy_path=regras.arquivos
+message=Axiom 'test_case_mapping' possui identidade ambigua: regras.pedagogical.test_case_mapping | rules.pedagogical.test_case_mapping | hierarchy.pedagogical.test_case_mapping. Deixe apenas um ramo-identidade ativo para este axioma.
+snippet=src/exemples_error/type1/pedagogical_workspace/RootGuide.md

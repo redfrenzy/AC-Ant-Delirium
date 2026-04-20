@@ -1,0 +1,112 @@
+[rules]
+casing = "PascalCase"
+name_separator = "-"
+tag_separator = "_"
+manifest = true
+recursion = true
+md_min_chars = 80
+what_mission = true
+why_justification = true
+usage_example = true
+test_case_mapping = true
+inheritance_visibility = true
+root_manifest = true
+root_md_pairing = true
+repository = "/home/dracker/aesthetic-core"
+max_nesting = 3
+max_params = 5
+logical_density = 40
+
+[rules.permissions]
+libres = ["ac_ant_delirium", "rayon", "std"]
+restricted_tokens = { "panic!" = "Security: Use Result.", "unwrap" = "Security: Use expect()." }
+
+[rules.fichiers]
+max_nesting = 3
+max_params = 5
+logical_density = 40
+[rules.target]
+core =  ["src/exemples_error/type2"]
+tests = "src/tests"
+macros = "src/macros"
+
+[rules.fichiers.unite]
+jurisdiction = "src"
+type_logic = ["pub fn", "pub async fn", "pub const fn", "pub unsafe fn", "pub(crate) fn", "pub(crate) async fn", "pub(crate) const fn"]
+md_pairing = true
+manifest = true
+max_nesting = 2
+max_params = 4
+logical_density = 25
+[rules.fichiers.unite.documentation]
+WHAT = true
+WHY = true
+WHERE = true
+USAGE = true
+TEST = true
+
+[rules.fichiers.unite.unitecore]
+type_logic = ["fn", "async fn", "const fn", "unsafe fn"]
+manifest = false
+max_nesting = 3
+max_params = 6
+logical_density = 40
+[rules.fichiers.unite.unitecore.documentation]
+WHAT = true
+WHY = true
+WHERE = true
+USAGE = true
+TEST = true
+
+[rules.fichiers.tests]
+jurisdiction = "src/tests"
+type_logic = ["#[test]", "#[tokio::test]", "#[cfg(test)]"]
+manifest = false
+md_pairing = false
+
+[rules.fichiers.structure]
+jurisdiction = "src/struct"
+type_logic = ["struct", "pub struct", "enum", "pub enum"]
+md_pairing = true
+manifest = true
+[rules.fichiers.structure.documentation]
+WHAT = true
+WHY = true
+WHERE = true
+USAGE = true
+TEST = true
+[rules.fichiers.structure.structurecore]
+type_logic = ["fn", "async fn", "const fn", "unsafe fn", "impl"]
+manifest = false
+max_nesting = 3
+max_params = 4
+logical_density = 30
+[rules.fichiers.structure.structurecore.documentation]
+WHAT = true
+WHY = true
+WHERE = true
+USAGE = true
+TEST = true
+
+[rules.fichiers.macro]
+jurisdiction = "src/macros"
+type_logic = ["macro_rules!", "pub macro"]
+md_pairing = true
+manifest = true
+[rules.fichiers.macro.documentation]
+WHAT = true
+WHY = true
+WHERE = true
+USAGE = true
+TEST = true
+[rules.fichiers.macro.macrocore]
+type_logic = ["fn", "async fn", "const fn", "unsafe fn"]
+manifest = false
+max_nesting = 3
+logical_density = 40
+[rules.fichiers.macro.macrocore.documentation]
+WHAT = true
+WHY = true
+WHERE = true
+USAGE = true
+TEST = true

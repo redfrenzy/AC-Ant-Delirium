@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=503
+priority=P2
+level=note
+rule_id=axiom.what_mission.resolution
+file_path=src/exemples_error/type2/pedagogical_workspace/RootGuide.md
+line=1
+detected_dna=<unknown>
+taxonomy_path=axiom.what_mission
+message=Axiom 'what_mission' possui identidade ambigua: rules.pedagogical.what_mission | regras.pedagogical.what_mission | hierarchy.pedagogical.what_mission. Deixe apenas um ramo-identidade ativo para este axioma.
+snippet=src/exemples_error/type2/pedagogical_workspace/RootGuide.md

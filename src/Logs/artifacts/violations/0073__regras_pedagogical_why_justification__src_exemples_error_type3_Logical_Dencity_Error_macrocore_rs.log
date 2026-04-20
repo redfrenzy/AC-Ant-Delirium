@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=73
+priority=P3
+level=note
+rule_id=regras.pedagogical.why_justification
+file_path=src/exemples_error/type3/Logical-Dencity-Error_macrocore.rs
+line=1
+detected_dna=macrocore
+taxonomy_path=regras.pedagogical.why_justification
+message=Why justification violation: function 'logical_density_error_macrocore' must include [WHY] in the documentation block above the declaration.
+snippet=fn logical_density_error_macrocore() {
+quick_fix=/// [WHY] ...

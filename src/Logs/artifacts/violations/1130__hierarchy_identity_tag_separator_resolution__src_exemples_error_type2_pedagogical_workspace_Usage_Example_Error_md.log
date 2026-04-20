@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=1130
+priority=P2
+level=note
+rule_id=hierarchy.identity.tag_separator.resolution
+file_path=src/exemples_error/type2/pedagogical_workspace/Usage-Example-Error.md
+line=1
+detected_dna=<unknown>
+taxonomy_path=hierarchy.files
+message=Axiom 'tag_separator' possui identidade ambigua: regras.identity.tag_separator | hierarchy.identity.tag_separator | rules.identity.tag_separator. Deixe apenas um ramo-identidade ativo para este axioma.
+snippet=src/exemples_error/type2/pedagogical_workspace/Usage-Example-Error.md

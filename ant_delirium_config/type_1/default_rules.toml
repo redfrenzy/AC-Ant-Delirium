@@ -1,0 +1,100 @@
+# [AESTHETIC CORE - ATOMIC RULES MANIFESTO]
+# Onde estamos (Identidade) | O que precisamos (Requisição Atômica)
+
+[hierarchy.engine.search_file] # onde estamos
+target.core # o que precisamos encontrar
+
+# [STRUCTURAL]
+[hierarchy.structural.max_nesting]
+max_nesting
+
+[hierarchy.structural.max_params]
+max_params
+
+[hierarchy.structural.logical_density]
+logical_density
+
+[hierarchy.structural.type_logic]
+type_logic
+
+[hierarchy.structural.jurisdiction]
+unit.jurisdiction
+
+# [PEDAGOGICAL]
+[hierarchy.pedagogical.md_pairing]
+operation_zone
+md_pairing
+
+[hierarchy.pedagogical.md_min_chars]
+operation_zone
+md_min_chars
+
+[hierarchy.pedagogical.what_mission]
+operation_zone
+what_mission
+
+[hierarchy.pedagogical.why_justification]
+operation_zone
+why_justification
+
+[hierarchy.pedagogical.usage_example]
+operation_zone
+usage_example
+
+[hierarchy.pedagogical.test_case_mapping]
+operation_zone
+test_case_mapping
+
+[hierarchy.pedagogical.root_md_pairing]
+operation_zone
+root_md_pairing
+
+[hierarchy.pedagogical.inheritance_visibility]
+operation_zone
+inheritance_visibility
+
+# [IDENTITY]
+[hierarchy.identity.dna_suffix] ##onde estou?
+operation_zone ## oque preciso
+tag_separator ## oque preciso
+
+[hierarchy.identity.tag_separator]
+operation_zone
+tag_separator
+
+[hierarchy.identity.pascal_case]
+operation_zone
+casing
+
+[hierarchy.identity.name_separator]
+operation_zone
+name_separator
+
+[hierarchy.identity.repository_anchor]
+operation_zone
+repository
+
+[hierarchy.identity.recursion]
+operation_zone
+recursion
+
+[hierarchy.identity.manifest_anchoring]
+operation_zone
+manifest
+
+# [SANITIZATION]
+[hierarchy.sanitization.restricted_tokens]
+operation_zone
+restricted_tokens
+
+[hierarchy.dependency_governance.allowed_crates]
+operation_zone
+libres
+
+[hierarchy.sanitization.token_sanitization]
+operation_zone
+restricted_tokens
+
+[hierarchy.dependency_governance.dependency_purification]
+operation_zone
+libres

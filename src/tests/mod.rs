@@ -10,3 +10,4 @@ pub mod Sanitization_Axiom_test;
 pub mod Identity_Axiom_test;
 pub mod Aximon_Identity_test;
 pub mod Aximon_Pedagogical_test;
+pub mod Manifest_Engine_test;

@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=164
+priority=P2
+level=note
+rule_id=hierarchy.identity.pascal_case
+file_path=src/exemples_error/type3/Type-Logic-Error_unitcore.rs
+line=1
+detected_dna=unitcore
+taxonomy_path=hierarchy.identity.pascal_case
+message=PascalCase violation: 'Type-Logic-Error' does not match 'PascalCase'.
+snippet=Type-Logic-Error

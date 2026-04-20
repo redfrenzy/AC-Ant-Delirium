@@ -1,0 +1,10 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=60
+priority=P1
+level=warning
+rule_id=hierarchy.structural.max_nesting.resolution
+file_path=src/exemples_error/type1/sanitization_workspace/Restricted-Tokens-Error_unit.rs
+line=1
+detected_dna=unit
+taxonomy_path=regras.arquivos
+message=Axiom 'max_nesting' possui identidade ambigua: hierarchy.structural.max_nesting | rules.structural.max_nesting | regras.structural.max_nesting. Deixe apenas um ramo-identidade ativo para este axioma.

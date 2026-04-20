@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=1482
+priority=P2
+level=note
+rule_id=axiom.name_separator.resolution
+file_path=src/exemples_error/type2/Max-Params-Error_unitcore.rs
+line=1
+detected_dna=unitcore
+taxonomy_path=axiom.name_separator
+message=Axiom 'name_separator' possui identidade ambigua: regras.identity.name_separator | hierarchy.identity.name_separator | rules.identity.name_separator. Deixe apenas um ramo-identidade ativo para este axioma.
+snippet=src/exemples_error/type2/Max-Params-Error_unitcore.rs

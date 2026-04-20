@@ -1,0 +1,1 @@
+# Root guide without manifest

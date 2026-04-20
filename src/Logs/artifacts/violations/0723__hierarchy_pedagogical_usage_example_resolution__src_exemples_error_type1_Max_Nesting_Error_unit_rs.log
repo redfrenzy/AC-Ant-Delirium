@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=723
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.usage_example.resolution
+file_path=src/exemples_error/type1/Max-Nesting-Error_unit.rs
+line=1
+detected_dna=unit
+taxonomy_path=regras.arquivos
+message=Axiom 'usage_example' possui identidade ambigua: rules.pedagogical.usage_example | regras.pedagogical.usage_example | hierarchy.pedagogical.usage_example. Deixe apenas um ramo-identidade ativo para este axioma.
+snippet=src/exemples_error/type1/Max-Nesting-Error_unit.rs

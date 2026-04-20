@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=1085
+priority=P2
+level=note
+rule_id=axiom.dna_suffix.resolution
+file_path=src/exemples_error/type2/Max-Nesting-Error_unit.rs
+line=1
+detected_dna=unit
+taxonomy_path=axiom.dna_suffix
+message=Axiom 'dna_suffix' possui identidade ambigua: rules.identity.dna_suffix | hierarchy.identity.dna_suffix | regras.identity.dna_suffix. Deixe apenas um ramo-identidade ativo para este axioma.
+snippet=src/exemples_error/type2/Max-Nesting-Error_unit.rs

@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=469
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.md_min_chars.resolution
+file_path=src/exemples_error/type1/Max-Nesting-Error_structcore.rs
+line=1
+detected_dna=structcore
+taxonomy_path=regras.arquivos
+message=Axiom 'md_min_chars' possui identidade ambigua: hierarchy.pedagogical.md_min_chars | regras.pedagogical.md_min_chars | rules.pedagogical.md_min_chars. Deixe apenas um ramo-identidade ativo para este axioma.
+snippet=src/exemples_error/type1/Max-Nesting-Error_structcore.rs

@@ -6,7 +6,7 @@ mod tests {
 
     fn fixture_result(rule_fragment: &str) -> (AuditConfig, AuditResult) {
         let config = AuditConfig {
-            hierarchy: HierarchyConfig::load_from_folder("ant_delirium_config"),
+            hierarchy: HierarchyConfig::load_from_folder("ant_delirium_config/type_1"),
             ..AuditConfig::default()
         };
 
@@ -14,7 +14,7 @@ mod tests {
             .violations
             .into_iter()
             .filter(|violation| violation.rule_id.contains(rule_fragment))
-            .filter(|violation| violation.file_path.contains("src/exemples_error/pedagogical_workspace/"))
+            .filter(|violation| violation.file_path.contains("pedagogical_workspace/"))
             .collect();
 
         let result = AuditResult {
@@ -30,7 +30,7 @@ mod tests {
 
     #[test]
     fn print_md_pairing_violations_from_swarm_manifest() {
-        let (config, result) = fixture_result("hierarchy.pedagogical.md_pairing");
+        let (config, result) = fixture_result(".pedagogical.md_pairing");
         println!("{}", GovernanceLogs::format_terminal_report(&result, &config, None));
 
         assert!(result.violations.iter().any(|violation| {
@@ -40,7 +40,7 @@ mod tests {
 
     #[test]
     fn print_md_min_chars_violations_from_swarm_manifest() {
-        let (config, result) = fixture_result("hierarchy.pedagogical.md_min_chars");
+        let (config, result) = fixture_result(".pedagogical.md_min_chars");
         println!("{}", GovernanceLogs::format_terminal_report(&result, &config, None));
 
         assert!(result.violations.iter().any(|violation| {
@@ -50,37 +50,37 @@ mod tests {
 
     #[test]
     fn print_what_mission_violations_from_swarm_manifest() {
-        let (config, result) = fixture_result("hierarchy.pedagogical.what_mission");
+        let (config, result) = fixture_result(".pedagogical.what_mission");
         println!("{}", GovernanceLogs::format_terminal_report(&result, &config, None));
 
         assert!(result.violations.iter().any(|violation| {
-            violation.file_path.contains("What-Mission-Error.md")
+            violation.file_path.contains("Md-Pairing-Error_unit.rs")
         }));
     }
 
     #[test]
     fn print_why_justification_violations_from_swarm_manifest() {
-        let (config, result) = fixture_result("hierarchy.pedagogical.why_justification");
+        let (config, result) = fixture_result(".pedagogical.why_justification");
         println!("{}", GovernanceLogs::format_terminal_report(&result, &config, None));
 
         assert!(result.violations.iter().any(|violation| {
-            violation.file_path.contains("Why-Justification-Error.md")
+            violation.file_path.contains("Md-Pairing-Error_unit.rs")
         }));
     }
 
     #[test]
     fn print_usage_example_violations_from_swarm_manifest() {
-        let (config, result) = fixture_result("hierarchy.pedagogical.usage_example");
+        let (config, result) = fixture_result(".pedagogical.usage_example");
         println!("{}", GovernanceLogs::format_terminal_report(&result, &config, None));
 
         assert!(result.violations.iter().any(|violation| {
-            violation.file_path.contains("Usage-Example-Error.md")
+            violation.file_path.contains("Md-Pairing-Error_unit.rs")
         }));
     }
 
     #[test]
     fn print_test_case_mapping_violations_from_swarm_manifest() {
-        let (config, result) = fixture_result("hierarchy.pedagogical.test_case_mapping");
+        let (config, result) = fixture_result(".pedagogical.test_case_mapping");
         println!("{}", GovernanceLogs::format_terminal_report(&result, &config, None));
 
         assert!(result.violations.iter().any(|violation| {
@@ -90,7 +90,7 @@ mod tests {
 
     #[test]
     fn print_root_md_pairing_violations_from_swarm_manifest() {
-        let (config, result) = fixture_result("hierarchy.pedagogical.root_md_pairing");
+        let (config, result) = fixture_result(".pedagogical.root_md_pairing");
         println!("{}", GovernanceLogs::format_terminal_report(&result, &config, None));
 
         assert!(result.violations.iter().any(|violation| {
@@ -100,7 +100,7 @@ mod tests {
 
     #[test]
     fn print_inheritance_visibility_violations_from_swarm_manifest() {
-        let (config, result) = fixture_result("hierarchy.pedagogical.inheritance_visibility");
+        let (config, result) = fixture_result(".pedagogical.inheritance_visibility");
         println!("{}", GovernanceLogs::format_terminal_report(&result, &config, None));
 
         assert!(result.violations.iter().any(|violation| {

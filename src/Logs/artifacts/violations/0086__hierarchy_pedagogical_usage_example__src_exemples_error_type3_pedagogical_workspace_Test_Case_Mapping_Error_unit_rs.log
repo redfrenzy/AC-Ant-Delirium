@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=86
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.usage_example
+file_path=src/exemples_error/type3/pedagogical_workspace/Test-Case-Mapping-Error_unit.rs
+line=1
+detected_dna=unit
+taxonomy_path=hierarchy.pedagogical.usage_example
+message=Usage example violation: function 'test_case_mapping_error_unit' must include [USAGE] in the documentation block above the declaration.
+snippet=pub fn test_case_mapping_error_unit() -> usize {
+quick_fix=/// [USAGE] ...

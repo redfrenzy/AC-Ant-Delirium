@@ -25,7 +25,10 @@ impl SearchFiles {
                         // Mergulho recursivo no abismo de pastas
                         files.extend(Self::scan_physical_jurisdiction(&path_str));
                     } else {
-                        files.push(path_str);
+                        // Manifesto técnico é artefato de leitura para IA, não alvo de auditoria.
+                        if !path_str.ends_with("_manifest.json") {
+                            files.push(path_str);
+                        }
                     }
                 }
             }
@@ -323,21 +326,37 @@ pub(crate) struct AgnosticScanner;
 impl AgnosticScanner {
     pub(crate) fn load_from_folder(dir_path: &str) -> HierarchyConfig {
         let mut master_config = HierarchyConfig::default();
-        if let Ok(entries) = fs::read_dir(dir_path) {
-            let mut paths: Vec<_> = entries
-                .filter_map(|e| e.ok())
-                .map(|e| e.path())
-                .filter(|p| p.extension().map_or(false, |ext| ext == "toml"))
-                .collect();
-            paths.sort();
-            for path in paths {
-                if let Ok(content) = fs::read_to_string(&path) {
-                    let current = Self::parse_brute(&content);
-                    HierarchyResolver::merge_config(&mut master_config, current);
-                }
+        let paths = Self::collect_toml_paths_recursively(std::path::Path::new(dir_path));
+        for path in paths {
+            if let Ok(content) = fs::read_to_string(&path) {
+                let current = Self::parse_brute(&content);
+                HierarchyResolver::merge_config(&mut master_config, current);
             }
         }
         master_config
+    }
+
+    fn collect_toml_paths_recursively(root: &std::path::Path) -> Vec<std::path::PathBuf> {
+        let mut paths = Vec::new();
+        Self::collect_toml_paths_worker(root, &mut paths);
+        paths.sort();
+        paths
+    }
+
+    fn collect_toml_paths_worker(
+        root: &std::path::Path,
+        paths: &mut Vec<std::path::PathBuf>,
+    ) {
+        if let Ok(entries) = fs::read_dir(root) {
+            for entry in entries.filter_map(|e| e.ok()) {
+                let path = entry.path();
+                if path.is_dir() {
+                    Self::collect_toml_paths_worker(&path, paths);
+                } else if path.extension().map_or(false, |ext| ext == "toml") {
+                    paths.push(path);
+                }
+            }
+        }
     }
 
     pub(crate) fn parse_brute(input: &str) -> HierarchyConfig {

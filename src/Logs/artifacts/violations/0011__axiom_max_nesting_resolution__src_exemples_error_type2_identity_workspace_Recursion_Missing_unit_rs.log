@@ -1,0 +1,10 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=11
+priority=P2
+level=note
+rule_id=axiom.max_nesting.resolution
+file_path=src/exemples_error/type2/identity_workspace/Recursion-Missing_unit.rs
+line=1
+detected_dna=unit
+taxonomy_path=axiom.max_nesting
+message=Axiom 'max_nesting' possui identidade ambigua: regras.structural.max_nesting | hierarchy.structural.max_nesting | rules.structural.max_nesting. Deixe apenas um ramo-identidade ativo para este axioma.

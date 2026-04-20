@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=170
+priority=P2
+level=note
+rule_id=hierarchy.identity.name_separator
+file_path=src/exemples_error/type3/identity_workspace/Name_Separator_Error_unit.rs
+line=1
+detected_dna=unit
+taxonomy_path=hierarchy.identity.name_separator
+message=Name separator violation: base name 'Name_Separator_Error' must use '-' instead of reserved tag separator '_'.
+snippet=Name_Separator_Error
+quick_fix=Name-Separator-Error

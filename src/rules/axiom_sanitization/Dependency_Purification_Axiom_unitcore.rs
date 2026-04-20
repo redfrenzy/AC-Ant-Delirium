@@ -45,7 +45,7 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
         ctx.violations.push(AuditViolation {
             file_path: ctx.file_path.to_string(),
             line: entry.line,
-            rule_id: governance::rule_id("hierarchy.dependency_governance.dependency_purification", &entry.name),
+            rule_id: governance::rule_id(&resolution.identity_path, &entry.name),
             message: format!(
                 "{}: optional crate '{}' is force-activated outside the authorized policy in {}.",
                 messages::IMPURE_ACTIVATION,
@@ -183,14 +183,16 @@ fn is_active_dependency_section(header: &str) -> bool {
 }
 
 fn push_resolution_violation(ctx: &mut AuditContext<'_>, rule_suffix: &str, message: String) {
+    let identity_path = ctx.resolve_axiom_identity_path(rule_suffix)
+        .unwrap_or_else(|_| format!("axiom.{}", rule_suffix));
     ctx.violations.push(AuditViolation {
         file_path: ctx.file_path.to_string(),
         line: 1,
-        rule_id: format!("hierarchy.dependency_governance.{}.resolution", rule_suffix),
+        rule_id: format!("{}.resolution", identity_path),
         message,
         snippet: None,
         quick_fix: None,
         detected_dna: ctx.detected_dna.clone(),
-        taxonomy_path: ctx.taxonomy_path.clone(),
+        taxonomy_path: identity_path,
     });
 }

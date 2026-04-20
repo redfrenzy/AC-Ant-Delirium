@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=926
+priority=P2
+level=note
+rule_id=axiom.inheritance_visibility.resolution
+file_path=src/exemples_error/type2/identity_workspace/Recursion-Missing_unit.rs
+line=1
+detected_dna=unit
+taxonomy_path=axiom.inheritance_visibility
+message=Axiom 'inheritance_visibility' possui identidade ambigua: hierarchy.pedagogical.inheritance_visibility | rules.pedagogical.inheritance_visibility | regras.pedagogical.inheritance_visibility. Deixe apenas um ramo-identidade ativo para este axioma.
+snippet=src/exemples_error/type2/identity_workspace/Recursion-Missing_unit.rs

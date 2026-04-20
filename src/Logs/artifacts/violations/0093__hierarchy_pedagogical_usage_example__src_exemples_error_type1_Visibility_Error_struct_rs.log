@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=93
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.usage_example
+file_path=src/exemples_error/type1/Visibility-Error_struct.rs
+line=3
+detected_dna=struct
+taxonomy_path=hierarchy.pedagogical.usage_example
+message=Usage example violation: function 'keep_visibility_fixture_alive' must include [USAGE] in the documentation block above the declaration.
+snippet=fn keep_visibility_fixture_alive() -> usize {
+quick_fix=/// [USAGE] ...

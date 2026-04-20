@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=1647
+priority=P2
+level=note
+rule_id=hierarchy.identity.repository_anchor.resolution
+file_path=src/exemples_error/type1/Logical-Dencity-Error_unit.rs
+line=1
+detected_dna=unit
+taxonomy_path=regras.arquivos
+message=Axiom 'repository_anchor' possui identidade ambigua: rules.identity.repository_anchor | regras.identity.repository_anchor | hierarchy.identity.repository_anchor. Deixe apenas um ramo-identidade ativo para este axioma.
+snippet=src/exemples_error/type1/Logical-Dencity-Error_unit.rs

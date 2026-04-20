@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=117
+priority=P3
+level=note
+rule_id=rules.pedagogical.test_case_mapping
+file_path=src/exemples_error/type2/Max-Params-Error_unit.rs
+line=1
+detected_dna=unit
+taxonomy_path=rules.pedagogical.test_case_mapping
+message=Test mapping violation: function 'max_params_error_unit' must include [TEST] in the documentation block above the declaration.
+snippet=pub fn max_params_error_unit(alpha: usize, beta: usize, gamma: usize, delta: usize, epsilon: usize) -> usize {
+quick_fix=/// [TEST] ...

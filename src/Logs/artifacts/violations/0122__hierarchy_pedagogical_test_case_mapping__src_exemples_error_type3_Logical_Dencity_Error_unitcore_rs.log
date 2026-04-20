@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=122
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.test_case_mapping
+file_path=src/exemples_error/type3/Logical-Dencity-Error_unitcore.rs
+line=1
+detected_dna=unitcore
+taxonomy_path=hierarchy.pedagogical.test_case_mapping
+message=Test mapping violation: function 'logical_density_error_unitcore' must include [TEST] in the documentation block above the declaration.
+snippet=fn logical_density_error_unitcore() {
+quick_fix=/// [TEST] ...

@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=88
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.usage_example
+file_path=src/exemples_error/type3/identity_workspace/DnaSuffixError.rs
+line=1
+detected_dna=<unknown>
+taxonomy_path=hierarchy.pedagogical.usage_example
+message=Usage example violation: function 'dna_suffix_error' must include [USAGE] in the documentation block above the declaration.
+snippet=pub fn dna_suffix_error() -> usize {
+quick_fix=/// [USAGE] ...

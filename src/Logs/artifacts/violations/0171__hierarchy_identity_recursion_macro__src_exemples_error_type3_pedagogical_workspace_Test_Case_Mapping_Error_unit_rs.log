@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=171
+priority=P2
+level=note
+rule_id=hierarchy.identity.recursion.macro
+file_path=src/exemples_error/type3/pedagogical_workspace/Test-Case-Mapping-Error_unit.rs
+line=1
+detected_dna=unit
+taxonomy_path=hierarchy.identity.recursion
+message=Recursion violation: 'regras.arquivos' requires companion 'Test-Case-Mapping-Error_macro.rs', but it was not found in 'src/exemples_error/type3/pedagogical_workspace'.
+snippet=Test-Case-Mapping-Error_macro.rs

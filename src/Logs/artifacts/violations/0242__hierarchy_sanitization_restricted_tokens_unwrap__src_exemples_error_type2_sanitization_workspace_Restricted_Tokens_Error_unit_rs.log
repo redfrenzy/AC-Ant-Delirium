@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=242
+priority=P0
+level=error
+rule_id=hierarchy.sanitization.restricted_tokens.unwrap
+file_path=src/exemples_error/type2/sanitization_workspace/Restricted-Tokens-Error_unit.rs
+line=2
+detected_dna=unit
+taxonomy_path=rules.permissions.restricted_tokens
+message=Restricted Token Violation: 'unwrap' found. Hint: Security: Use expect().
+snippet=let unsafe_value = input.unwrap();
+quick_fix=// [SANITIZE] Replace 'unwrap' using the policy declared in rules.permissions.restricted_tokens.

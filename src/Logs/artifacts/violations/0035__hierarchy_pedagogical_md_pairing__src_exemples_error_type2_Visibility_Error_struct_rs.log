@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=35
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.md_pairing
+file_path=src/exemples_error/type2/Visibility-Error_struct.rs
+line=3
+detected_dna=struct
+taxonomy_path=hierarchy.pedagogical.md_pairing
+message=Where documentation violation: function 'keep_visibility_fixture_alive' must include [WHERE] in the documentation block above the declaration.
+snippet=fn keep_visibility_fixture_alive() -> usize {
+quick_fix=/// [WHERE] ...

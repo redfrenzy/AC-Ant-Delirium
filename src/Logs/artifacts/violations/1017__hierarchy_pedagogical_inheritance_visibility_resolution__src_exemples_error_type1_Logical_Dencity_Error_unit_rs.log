@@ -1,0 +1,11 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=1017
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.inheritance_visibility.resolution
+file_path=src/exemples_error/type1/Logical-Dencity-Error_unit.rs
+line=1
+detected_dna=unit
+taxonomy_path=regras.arquivos
+message=Axiom 'inheritance_visibility' possui identidade ambigua: rules.pedagogical.inheritance_visibility | regras.pedagogical.inheritance_visibility | hierarchy.pedagogical.inheritance_visibility. Deixe apenas um ramo-identidade ativo para este axioma.
+snippet=src/exemples_error/type1/Logical-Dencity-Error_unit.rs
