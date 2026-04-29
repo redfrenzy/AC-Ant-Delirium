@@ -1,0 +1,4 @@
+[
+  { "source": "Visibility-Error_struct.rs", "name": "HiddenVisibilityError;", "kind": "struct", "range": [1, 2], "complexity": 1, "narrative": "" },
+  { "source": "Visibility-Error_struct.rs", "name": "keep_visibility_fixture_alive", "kind": "function", "range": [3, 5], "complexity": 3, "narrative": "" }
+]

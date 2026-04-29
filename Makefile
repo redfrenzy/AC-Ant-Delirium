@@ -4,6 +4,7 @@
 # Aesthetic Core governance plugin lifecycle.
 
 PLUGIN_DIR := ../plugins
+RAYON_PLUGIN_DIR := ../plugins/AC_Rayon-Genetics
 WASM_TARGET := wasm32-wasip1
 BIN_NAME := delirium_cli
 
@@ -13,6 +14,7 @@ BIN_NAME := delirium_cli
 # This prevents circular dependency: the code being audited
 # cannot influence the auditor.
 NATIVE_PLUGIN := $(PLUGIN_DIR)/ac_ant_delirium
+RAYON_NATIVE_PLUGIN := $(RAYON_PLUGIN_DIR)/ac_ant_delirium
 WASM_PLUGIN := $(PLUGIN_DIR)/ac_ant_delirium.wasm
 
 # The host triple. Required because .cargo/config.toml sets
@@ -40,6 +42,23 @@ plugin:
 	@chmod +x $(NATIVE_PLUGIN)
 	@echo "[GOVERNANCE] Native plugin deployed: $(NATIVE_PLUGIN)"
 	@ls -lh $(NATIVE_PLUGIN)
+
+# -----------------------------------------------
+# make plugin-rayon
+# -----------------------------------------------
+# Compiles the governance CLI as a native Linux binary
+# and deploys it to ../plugins/AC_Rayon-Genetics/ac_ant_delirium,
+# which is the binary consumed by AC_Rayon-Genetics/build.rs.
+# -----------------------------------------------
+.PHONY: plugin-rayon
+plugin-rayon:
+	@echo "[GOVERNANCE] Building native governance plugin for AC_Rayon-Genetics..."
+	cargo build --release --target $(HOST_TARGET) --bin $(BIN_NAME)
+	@mkdir -p $(RAYON_PLUGIN_DIR)
+	cp target/$(HOST_TARGET)/release/$(BIN_NAME) $(RAYON_NATIVE_PLUGIN)
+	@chmod +x $(RAYON_NATIVE_PLUGIN)
+	@echo "[GOVERNANCE] Native Rayon plugin deployed: $(RAYON_NATIVE_PLUGIN)"
+	@ls -lh $(RAYON_NATIVE_PLUGIN)
 
 # -----------------------------------------------
 # make wasm

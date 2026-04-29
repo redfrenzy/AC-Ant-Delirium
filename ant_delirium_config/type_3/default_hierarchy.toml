@@ -9,6 +9,7 @@ what_mission = true
 why_justification = true
 usage_example = true
 test_case_mapping = true
+doc_tags = true
 inheritance_visibility = true
 root_manifest = true
 root_md_pairing = true
@@ -16,6 +17,9 @@ repository = "/home/dracker/aesthetic-core"
 max_nesting = 3
 max_params = 5
 logical_density = 40
+else_free = true
+else_free_allow_else_if = false
+else_free_bypass_token = "[REASON]"
 
 [regras.permissions]
 libres = ["ac_ant_delirium", "rayon", "std"]
@@ -25,11 +29,28 @@ restricted_tokens = { "panic!" = "Security: Use Result.", "unwrap" = "Security: 
 max_nesting = 3
 max_params = 5
 logical_density = 40
+else_free = true
+else_free_allow_else_if = false
+else_free_bypass_token = "[REASON]"
 md_pairing = true
 [regras.target]
 core =  ["src/exemples_error/type3"]
 tests = "src/tests"
 macros = "src/macros"
+
+[regras.installation]
+
+[regras.installation.config]
+
+[regras.installation.build]
+
+[regras.installation.build.strict]
+
+[regras.installation.api]
+
+[regras.installation.shadow_context]
+
+[regras.installation.security]
 
 [regras.arquivos.unidade]
 jurisdiction = "src"
@@ -39,12 +60,20 @@ manifest = true
 max_nesting = 2
 max_params = 4
 logical_density = 25
+else_free = true
 [regras.arquivos.unidade.documentation]
-WHAT = true
-WHY = true
-WHERE = true
-USAGE = true
-TEST = true
+[regras.arquivos.unidade.documentation.what]
+min = 64
+info = "Describe what this public unit declaration does."
+[regras.arquivos.unidade.documentation.why]
+min = 64
+info = "Explain why this public unit declaration exists."
+[regras.arquivos.unidade.documentation.usage]
+min = 64
+info = "Explain how this public unit declaration should be used."
+[regras.arquivos.unidade.documentation.test]
+min = 48
+info = "Describe the validation path for this public unit declaration."
 
 [regras.arquivos.unidade.unidade_nucleo]
 type_logic = ["fn", "async fn", "const fn", "unsafe fn"]
@@ -52,18 +81,24 @@ manifest = false
 max_nesting = 3
 max_params = 6
 logical_density = 40
+else_free = true
 [regras.arquivos.unidade.unidade_nucleo.documentation]
-WHAT = true
-WHY = true
-WHERE = true
-USAGE = true
-TEST = true
+[regras.arquivos.unidade.unidade_nucleo.documentation.what]
+min = 64
+info = "Describe what this internal unidade_nucleo declaration does."
+[regras.arquivos.unidade.unidade_nucleo.documentation.why]
+min = 64
+info = "Explain why this internal unidade_nucleo declaration exists."
+[regras.arquivos.unidade.unidade_nucleo.documentation.usage]
+min = 64
+info = "Explain how this internal unidade_nucleo declaration is used by the parent unit."
 
 [regras.arquivos.teste]
 jurisdiction = "src/tests"
 type_logic = ["#[test]", "#[tokio::test]", "#[cfg(test)]"]
 manifest = false
 md_pairing = false
+else_free = false
 
 [regras.arquivos.estrutura]
 jurisdiction = "src/struct"
@@ -71,23 +106,35 @@ type_logic = ["struct", "pub struct", "enum", "pub enum"]
 md_pairing = true
 manifest = true
 [regras.arquivos.estrutura.documentation]
-WHAT = true
-WHY = true
-WHERE = true
-USAGE = true
-TEST = true
+[regras.arquivos.estrutura.documentation.what]
+min = 64
+info = "Describe what this structural declaration represents."
+[regras.arquivos.estrutura.documentation.why]
+min = 64
+info = "Explain why this structural declaration exists."
+[regras.arquivos.estrutura.documentation.usage]
+min = 64
+info = "Explain how this structural declaration should be used."
+[regras.arquivos.estrutura.documentation.test]
+min = 48
+info = "Describe the validation path for this structural declaration."
 [regras.arquivos.estrutura.estrutura_nucleo]
 type_logic = ["fn", "async fn", "const fn", "unsafe fn", "impl"]
 manifest = false
 max_nesting = 3
 max_params = 4
 logical_density = 30
+else_free = true
 [regras.arquivos.estrutura.estrutura_nucleo.documentation]
-WHAT = true
-WHY = true
-WHERE = true
-USAGE = true
-TEST = true
+[regras.arquivos.estrutura.estrutura_nucleo.documentation.what]
+min = 64
+info = "Describe what this internal estrutura_nucleo helper does."
+[regras.arquivos.estrutura.estrutura_nucleo.documentation.why]
+min = 64
+info = "Explain why this internal estrutura_nucleo helper exists."
+[regras.arquivos.estrutura.estrutura_nucleo.documentation.usage]
+min = 64
+info = "Explain how this internal estrutura_nucleo helper is used by the parent structure."
 
 [regras.arquivos.macro]
 jurisdiction = "src/macros"
@@ -95,19 +142,31 @@ type_logic = ["macro_rules!", "pub macro"]
 md_pairing = true
 manifest = true
 [regras.arquivos.macro.documentation]
-WHAT = true
-WHY = true
-WHERE = true
-USAGE = true
-TEST = true
+[regras.arquivos.macro.documentation.what]
+min = 64
+info = "Describe what this public macro provides."
+[regras.arquivos.macro.documentation.why]
+min = 64
+info = "Explain why this public macro exists."
+[regras.arquivos.macro.documentation.usage]
+min = 64
+info = "Explain how this public macro should be used."
+[regras.arquivos.macro.documentation.test]
+min = 48
+info = "Describe the validation path for this public macro."
 [regras.arquivos.macro.macro_nucleo]
 type_logic = ["fn", "async fn", "const fn", "unsafe fn"]
 manifest = false
 max_nesting = 3
 logical_density = 40
+else_free = true
 [regras.arquivos.macro.macro_nucleo.documentation]
-WHAT = true
-WHY = true
-WHERE = true
-USAGE = true
-TEST = true
+[regras.arquivos.macro.macro_nucleo.documentation.what]
+min = 64
+info = "Describe what this internal macro_nucleo helper does."
+[regras.arquivos.macro.macro_nucleo.documentation.why]
+min = 64
+info = "Explain why this internal macro_nucleo helper exists."
+[regras.arquivos.macro.macro_nucleo.documentation.usage]
+min = 64
+info = "Explain how this internal macro_nucleo helper is used by the parent macro."

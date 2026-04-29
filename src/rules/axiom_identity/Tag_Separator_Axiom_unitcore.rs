@@ -6,14 +6,22 @@ mod Identity_Axiom_Common_unitcore;
 
 /// [AESTHETIC CORE - INTERNAL VACUUM]
 pub fn patrol(ctx: &mut AuditContext<'_>) {
-    let tag_separator = match ctx.require_named_global_axiom_parameter("tag_separator", "tag_separator") {
-        Ok(binding) => binding.value,
-        Err(message) => {
-            Identity_Axiom_Common_unitcore::push_resolution_violation(ctx, "tag_separator", &message);
-            return;
-        }
-    };
-    let identity_path = Identity_Axiom_Common_unitcore::resolve_axiom_identity_path_or_fallback(ctx, "tag_separator");
+    let tag_separator =
+        match ctx.require_named_global_axiom_parameter("tag_separator", "tag_separator") {
+            Ok(binding) => binding.value,
+            Err(message) => {
+                Identity_Axiom_Common_unitcore::push_resolution_violation(
+                    ctx,
+                    "tag_separator",
+                    &message,
+                );
+                return;
+            }
+        };
+    let identity_path = Identity_Axiom_Common_unitcore::resolve_axiom_identity_path_or_fallback(
+        ctx,
+        "tag_separator",
+    );
 
     if !ctx.file_path.ends_with(".rs") {
         return;
@@ -34,7 +42,10 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
         }
 
         if let Some((_, suffix)) = stem.rsplit_once(separator) {
-            if candidate_suffixes.iter().any(|candidate| candidate == suffix) {
+            if candidate_suffixes
+                .iter()
+                .any(|candidate| candidate == suffix)
+            {
                 ctx.violations.push(crate::structs::AuditViolation {
                     file_path: ctx.file_path.to_string(),
                     line: 1,
@@ -58,7 +69,8 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
     if ctx.detected_dna.is_empty() && !stem.contains(expected) {
         for separator in ['-', '.'] {
             if let Some((_, suffix)) = stem.rsplit_once(separator) {
-                let plausible_dna = !suffix.is_empty() && suffix.chars().all(|c| c.is_ascii_alphanumeric());
+                let plausible_dna =
+                    !suffix.is_empty() && suffix.chars().all(|c| c.is_ascii_alphanumeric());
                 if plausible_dna {
                     ctx.violations.push(crate::structs::AuditViolation {
                         file_path: ctx.file_path.to_string(),

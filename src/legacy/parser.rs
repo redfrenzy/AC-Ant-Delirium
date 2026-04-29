@@ -40,7 +40,7 @@ impl CodeScanner {
                 break;
             }
         }
-        
+
         if !module_doc.is_empty() {
             blocks.push(ScannedBlock {
                 name: "geode_root".to_string(),
@@ -65,19 +65,19 @@ impl CodeScanner {
 /// [WHERE] Helper function for CodeScanner::scan_blocks in parser.rs, providing localized state transitions for each discovered line of source code.
 /// [USAGE] Chamada iterativamente pelo motor de rastreamento para cada linha, decidindo se deve arquivar docstrings ou disparar a criação de uma nova entrada funcional. Esta função mantém a carga cognitiva sob controle industrial ao delegar o processamento pesado para workers especializados, assegurando que o loop de descoberta de símbolos permaneça plano e linear conforme as normas de governança Elite para sistemas de missão crítica no Aesthetic Core.
 fn process_line_in_scan<'a, 'b>(
-    idx: usize, 
-    line: &'a str, 
-    docs: &mut Vec<&'a str>, 
-    blocks: &mut Vec<ScannedBlock<'a>>, 
+    idx: usize,
+    line: &'a str,
+    docs: &mut Vec<&'a str>,
+    blocks: &mut Vec<ScannedBlock<'a>>,
     lines: &'b [&'a str],
-    source_full: &'a str
+    source_full: &'a str,
 ) {
     let trimmed = line.trim();
-    if trimmed.is_empty() { 
+    if trimmed.is_empty() {
         docs.clear();
-        return; 
+        return;
     }
-    
+
     if trimmed.starts_with("///") {
         docs.push(trimmed);
         return;
@@ -104,10 +104,20 @@ pub fn clean_line(line: &str) -> String {
     let mut chars = line.chars().peekable();
 
     while let Some(c) = chars.next() {
-        if c == '"' && !in_string { in_string = true; continue; }
-        if c == '"' && in_string { in_string = false; continue; }
-        if in_string { continue; }
-        if c == '/' && chars.peek() == Some(&'/') { break; }
+        if c == '"' && !in_string {
+            in_string = true;
+            continue;
+        }
+        if c == '"' && in_string {
+            in_string = false;
+            continue;
+        }
+        if in_string {
+            continue;
+        }
+        if c == '/' && chars.peek() == Some(&'/') {
+            break;
+        }
         out.push(c);
     }
     out
@@ -119,8 +129,8 @@ pub fn clean_line(line: &str) -> String {
 /// [USAGE] Utilizada pelo motor de rastreamento para identificar o início de uma unidade estrutural industrial, permitindo a extração subsequente de metadados e corpo técnico.
 fn is_block_start(line: &str) -> bool {
     let has_terminator = line.contains('{') || line.contains(';');
-    let has_kw = line.contains("fn ") 
-        || line.starts_with("pub fn ") 
+    let has_kw = line.contains("fn ")
+        || line.starts_with("pub fn ")
         || line.contains("struct ")
         || line.contains("enum ")
         || line.contains("trait ")
@@ -134,11 +144,11 @@ fn is_block_start(line: &str) -> bool {
 /// [WHERE] Internal helper for CodeScanner in parser.rs, providing the construction logic for function metadata artifacts during the lexical scan phase.
 /// [USAGE] Invocada quando o início de uma declaração funcional é detectado pelo escaneador de linha, acionando o cálculo de offsets de ponteiros e a captura de tags pedagógicas associadas. Este componente é vital para a arquitetura Zero-Copy, pois traduz os índices de linhas físicas em fatias (slices) de memória seguras do buffer original, permitindo que as regras de governança analisem o corpo da função sem duplicar strings no heap industrial.
 fn create_block_entry<'a, 'b>(
-    idx: usize, 
-    line: &'a str, 
-    docs: &mut Vec<&'a str>, 
-    source_lines: &'b [&'a str], 
-    source_full: &'a str
+    idx: usize,
+    line: &'a str,
+    docs: &mut Vec<&'a str>,
+    source_lines: &'b [&'a str],
+    source_full: &'a str,
 ) -> ScannedBlock<'a> {
     let name = extract_block_name(line);
     let (kind, _) = detect_block_type(line);
@@ -147,7 +157,7 @@ fn create_block_entry<'a, 'b>(
 
     let start_line = idx + 1;
     let end_line = find_closing_brace(idx, source_lines);
-    
+
     ScannedBlock {
         name,
         start_line,
@@ -163,14 +173,19 @@ fn create_block_entry<'a, 'b>(
 /// [WHY] To satisfy nesting limits by isolating pointer arithmetic and boundary checks for the geode.
 /// [WHERE] Utilitário de baixo nível do motor de parsing em parser.rs, responsável pela aritmética de ponteiros e delimitação de escopos funcionais.
 /// [USAGE] Chamado por create_function_entry para resolver as fronteiras físicas do corpo de uma função no buffer original do geode, garantindo que o slice resultante seja válido e não ultrapasse os limites de memória durante a auditoria. Esta implementação isola a aritmética de ponteiros e as validações de bound para manter o fluxo principal livre de ruído técnico, cumprindo os requisitos de clareza cognitiva e integridade industrial orquestrados pela governança.
-fn extract_body_slice<'a>(source_full: &'a str, source_lines: &[&'a str], start: usize, end: usize) -> &'a str {
+fn extract_body_slice<'a>(
+    source_full: &'a str,
+    source_lines: &[&'a str],
+    start: usize,
+    end: usize,
+) -> &'a str {
     let start_ptr = source_lines[start - 1].as_ptr();
     let end_ptr = source_lines[end - 1].as_ptr();
     let end_len = source_lines[end - 1].len();
-    
+
     let offset_start = (start_ptr as usize).saturating_sub(source_full.as_ptr() as usize);
     let offset_end = (end_ptr as usize).saturating_sub(source_full.as_ptr() as usize) + end_len;
-    
+
     if offset_end > source_full.len() || offset_start >= offset_end {
         return "";
     }
@@ -197,15 +212,18 @@ fn detect_block_type(line: &str) -> (&'static str, String) {
         ("struct ", "struct"),
         ("enum ", "enum"),
         ("trait ", "trait"),
-        ("macro_rules!", "macro")
+        ("macro_rules!", "macro"),
     ];
-    
+
     for (kw, kind) in keywords.iter() {
         if line.contains(kw) {
             let mut parts = line.split(kw);
             let _ = parts.next();
             if let Some(p) = parts.next() {
-                let name = elite_resolve_or(p.split(|c| c == '(' || c == '{' || c == '<').next(), "unknown");
+                let name = elite_resolve_or(
+                    p.split(|c| c == '(' || c == '{' || c == '<').next(),
+                    "unknown",
+                );
                 return (kind, name.trim().to_string());
             }
         }
@@ -258,9 +276,13 @@ fn find_closing_brace(start_idx: usize, source: &[&str]) -> usize {
     for (idx, line) in source.iter().enumerate().skip(start_idx) {
         depth += count_braces_in_line(line, true);
         depth -= count_braces_in_line(line, false);
-        
-        if depth != 0 { continue; }
-        if idx <= start_idx { continue; }
+
+        if depth != 0 {
+            continue;
+        }
+        if idx <= start_idx {
+            continue;
+        }
         return idx + 1;
     }
     start_idx + 1
@@ -274,7 +296,9 @@ fn count_braces_in_line(line: &str, opening: bool) -> i32 {
     let target = if opening { '\x7b' } else { '\x7d' }; // [REASON] Binary search for structural braces requires atomic identification.
     let mut count = 0;
     for c in line.chars() {
-        if c == target { count += 1; }
+        if c == target {
+            count += 1;
+        }
     }
     count
 }

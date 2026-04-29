@@ -1,0 +1,75 @@
+AESTHETIC CORE  ▸  Rule Violations
+axiom_id=hierarchy_structural_else_free_max_nesting_error_unit
+violations=3
+p0=0
+p1=3
+p2=0
+p3=0
+p4=0
+status=violations_detected
+
+[violation 1]
+ordinal=23
+priority=P1
+level=warning
+rule_id=hierarchy.structural.else_free.max_nesting_error_unit
+file_path=src/exemples_error/type1/Max-Nesting-Error_unit.rs
+line=6
+detected_dna=unit
+taxonomy_path=hierarchy.files.unit.else_free
+message=Else-Free violation: function 'max_nesting_error_unit' contains 'else' without bypass token '[REASON]'. Prefer guard clauses or smaller helpers.
+snippet=} else {
+quick_fix=// [REFAC] Replace 'else' with early return / extracted helper, or justify the branch with '[REASON]'.
+context:
+    4 |             if flag_c {
+    5 |                 3
+ >  6 |             } else {
+      |              ^ Else-Free violation: function 'max_nesting_error_unit' contains 'else' without bypass token '[REASON]'. Prefer guard clauses or smaller helpers.
+    7 |                 2
+    8 |             }
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.rule.hierarchy_structural_else_free_max_nesting_error_unit
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.files.unit.else_free
+
+[violation 2]
+ordinal=24
+priority=P1
+level=warning
+rule_id=hierarchy.structural.else_free.max_nesting_error_unit
+file_path=src/exemples_error/type1/Max-Nesting-Error_unit.rs
+line=9
+detected_dna=unit
+taxonomy_path=hierarchy.files.unit.else_free
+message=Else-Free violation: function 'max_nesting_error_unit' contains 'else' without bypass token '[REASON]'. Prefer guard clauses or smaller helpers.
+snippet=} else {
+quick_fix=// [REFAC] Replace 'else' with early return / extracted helper, or justify the branch with '[REASON]'.
+context:
+    7 |                 2
+    8 |             }
+ >  9 |         } else {
+      |          ^ Else-Free violation: function 'max_nesting_error_unit' contains 'else' without bypass token '[REASON]'. Prefer guard clauses or smaller helpers.
+   10 |             1
+   11 |         }
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.rule.hierarchy_structural_else_free_max_nesting_error_unit
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.files.unit.else_free
+
+[violation 3]
+ordinal=25
+priority=P1
+level=warning
+rule_id=hierarchy.structural.else_free.max_nesting_error_unit
+file_path=src/exemples_error/type1/Max-Nesting-Error_unit.rs
+line=12
+detected_dna=unit
+taxonomy_path=hierarchy.files.unit.else_free
+message=Else-Free violation: function 'max_nesting_error_unit' contains 'else' without bypass token '[REASON]'. Prefer guard clauses or smaller helpers.
+snippet=} else {
+quick_fix=// [REFAC] Replace 'else' with early return / extracted helper, or justify the branch with '[REASON]'.
+context:
+   10 |             1
+   11 |         }
+ > 12 |     } else {
+      |      ^ Else-Free violation: function 'max_nesting_error_unit' contains 'else' without bypass token '[REASON]'. Prefer guard clauses or smaller helpers.
+   13 |         0
+   14 |     }
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.rule.hierarchy_structural_else_free_max_nesting_error_unit
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.files.unit.else_free

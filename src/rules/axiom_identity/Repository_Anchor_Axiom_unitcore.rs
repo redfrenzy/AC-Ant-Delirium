@@ -6,14 +6,22 @@ mod Identity_Axiom_Common_unitcore;
 
 /// [AESTHETIC CORE - INTERNAL VACUUM]
 pub fn patrol(ctx: &mut AuditContext<'_>) {
-    let repository = match ctx.require_named_global_axiom_parameter("repository_anchor", "repository") {
-        Ok(binding) => binding.value,
-        Err(message) => {
-            Identity_Axiom_Common_unitcore::push_resolution_violation(ctx, "repository_anchor", &message);
-            return;
-        }
-    };
-    let identity_path = Identity_Axiom_Common_unitcore::resolve_axiom_identity_path_or_fallback(ctx, "repository_anchor");
+    let repository =
+        match ctx.require_named_global_axiom_parameter("repository_anchor", "repository") {
+            Ok(binding) => binding.value,
+            Err(message) => {
+                Identity_Axiom_Common_unitcore::push_resolution_violation(
+                    ctx,
+                    "repository_anchor",
+                    &message,
+                );
+                return;
+            }
+        };
+    let identity_path = Identity_Axiom_Common_unitcore::resolve_axiom_identity_path_or_fallback(
+        ctx,
+        "repository_anchor",
+    );
 
     if repository.trim().is_empty() {
         return;

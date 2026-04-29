@@ -1,0 +1,129 @@
+AESTHETIC CORE  ▸  Rule Violations
+axiom_id=type_logic
+violations=6
+p0=0
+p1=6
+p2=0
+p3=0
+p4=0
+status=violations_detected
+
+[violation 1]
+ordinal=2
+priority=P1
+level=warning
+rule_id=regras.structural.type_logic.logical_density_error_struct
+file_path=src/exemples_error/type3/Logical-Dencity-Error_estrutura.rs
+line=5
+detected_dna=estrutura
+taxonomy_path=regras.arquivos.estrutura.type_logic
+message=Type Logic Violation: DNA 'estrutura' only allows ["struct", "public_struct", "enum", "public_enum"], but found 'private_fn' in declaration.
+snippet=fn logical_density_error_struct() {
+quick_fix=// [TODO] Align this declaration with the 'estrutura' type_logic profile resolved from regras.arquivos.estrutura.
+context:
+    3 | }
+    4 | 
+ >  5 | fn logical_density_error_struct() {
+      |  ^ Type Logic Violation: DNA 'estrutura' only allows ["struct", "public_struct", "enum", "public_enum"], but found 'private_fn' in declaration.
+    6 |     e01();
+    7 |     e02();
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.rule.type_logic
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.arquivos.estrutura.type_logic
+
+[violation 2]
+ordinal=34
+priority=P1
+level=warning
+rule_id=regras.structural.type_logic.type_logic_error_struct
+file_path=src/exemples_error/type3/Type-Logic-Error_estrutura.rs
+line=5
+detected_dna=estrutura
+taxonomy_path=regras.arquivos.estrutura.type_logic
+message=Type Logic Violation: DNA 'estrutura' only allows ["struct", "public_struct", "enum", "public_enum"], but found 'private_fn' in declaration.
+snippet=fn type_logic_error_struct() -> usize {
+quick_fix=// [TODO] Align this declaration with the 'estrutura' type_logic profile resolved from regras.arquivos.estrutura.
+context:
+    3 | }
+    4 | 
+ >  5 | fn type_logic_error_struct() -> usize {
+      |  ^ Type Logic Violation: DNA 'estrutura' only allows ["struct", "public_struct", "enum", "public_enum"], but found 'private_fn' in declaration.
+    6 |     1
+    7 | }
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.rule.type_logic
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.arquivos.estrutura.type_logic
+
+[violation 3]
+ordinal=37
+priority=P1
+level=warning
+rule_id=regras.structural.type_logic.type_logic_error_unitcore
+file_path=src/exemples_error/type3/Type-Logic-Error_unidade_nucleo.rs
+line=1
+detected_dna=unidade_nucleo
+taxonomy_path=regras.arquivos.unidade.unidade_nucleo.type_logic
+message=Type Logic Violation: DNA 'unidade_nucleo' only allows ["private_fn", "private_async_fn", "private_const_fn", "private_unsafe_fn"], but found 'public_fn' in declaration.
+snippet=pub fn type_logic_error_unitcore() {}
+quick_fix=// [TODO] Align this declaration with the 'unidade_nucleo' type_logic profile resolved from regras.arquivos.unidade.unidade_nucleo.
+context:
+ >  1 | pub fn type_logic_error_unitcore() {}
+      |  ^ Type Logic Violation: DNA 'unidade_nucleo' only allows ["private_fn", "private_async_fn", "private_const_fn", "private_unsafe_fn"], but found 'public_fn' in declaration.
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.rule.type_logic
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.arquivos.unidade.unidade_nucleo.type_logic
+
+[violation 4]
+ordinal=40
+priority=P1
+level=warning
+rule_id=regras.structural.type_logic.HiddenVisibilityError;
+file_path=src/exemples_error/type3/Visibility-Error_estrutura.rs
+line=1
+detected_dna=estrutura
+taxonomy_path=regras.arquivos.estrutura.type_logic
+message=Type Logic Violation: DNA 'estrutura' only allows ["struct", "public_struct", "enum", "public_enum"], but found 'unit_struct' in declaration.
+snippet=struct HiddenVisibilityError;
+quick_fix=// [TODO] Align this declaration with the 'estrutura' type_logic profile resolved from regras.arquivos.estrutura.
+context:
+ >  1 | struct HiddenVisibilityError;
+      |  ^ Type Logic Violation: DNA 'estrutura' only allows ["struct", "public_struct", "enum", "public_enum"], but found 'unit_struct' in declaration.
+    2 | 
+    3 | fn keep_visibility_fixture_alive() -> usize {
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.rule.type_logic
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.arquivos.estrutura.type_logic
+
+[violation 5]
+ordinal=41
+priority=P1
+level=warning
+rule_id=regras.structural.type_logic.keep_visibility_fixture_alive
+file_path=src/exemples_error/type3/Visibility-Error_estrutura.rs
+line=3
+detected_dna=estrutura
+taxonomy_path=regras.arquivos.estrutura.type_logic
+message=Type Logic Violation: DNA 'estrutura' only allows ["struct", "public_struct", "enum", "public_enum"], but found 'private_fn' in declaration.
+snippet=fn keep_visibility_fixture_alive() -> usize {
+quick_fix=// [TODO] Align this declaration with the 'estrutura' type_logic profile resolved from regras.arquivos.estrutura.
+context:
+    1 | struct HiddenVisibilityError;
+    2 | 
+ >  3 | fn keep_visibility_fixture_alive() -> usize {
+      |  ^ Type Logic Violation: DNA 'estrutura' only allows ["struct", "public_struct", "enum", "public_enum"], but found 'private_fn' in declaration.
+    4 |     1
+    5 | }
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.rule.type_logic
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.arquivos.estrutura.type_logic
+
+[violation 6]
+ordinal=46
+priority=P1
+level=warning
+rule_id=regras.structural.type_logic.resolution
+file_path=src/exemples_error/type3/identity_workspace/DnaTypoError_unidadi.rs
+line=1
+detected_dna=unidadi
+taxonomy_path=regras.structural.type_logic
+message=Axiom 'type_logic' precisa do requirement taxonomico 'type_logic', mas nenhum valor foi encontrado a partir de 'regras.arquivos'.
+context:
+ >  1 | pub fn dna_typo_error_unidadi() {}
+      |  ^ Axiom 'type_logic' precisa do requirement taxonomico 'type_logic', mas nenhum valor foi encontrado a partir de 'regras.arquivos'.
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.rule.type_logic
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.structural.type_logic

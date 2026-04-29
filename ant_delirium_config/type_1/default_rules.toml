@@ -17,6 +17,11 @@ logical_density
 [hierarchy.structural.type_logic]
 type_logic
 
+[hierarchy.structural.else_free]
+else_free
+else_free_allow_else_if
+else_free_bypass_token
+
 [hierarchy.structural.jurisdiction]
 unit.jurisdiction
 
@@ -28,6 +33,10 @@ md_pairing
 [hierarchy.pedagogical.md_min_chars]
 operation_zone
 md_min_chars
+
+[hierarchy.pedagogical.doc_tags]
+operation_zone
+doc_tags
 
 [hierarchy.pedagogical.what_mission]
 operation_zone

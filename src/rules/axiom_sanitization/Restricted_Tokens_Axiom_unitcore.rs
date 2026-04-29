@@ -3,13 +3,14 @@ use crate::rules_logs::messages;
 use crate::structs::{AuditContext, AuditViolation};
 
 pub fn patrol(ctx: &mut AuditContext<'_>) {
-    let resolution = match ctx.require_named_global_axiom_parameter("restricted_tokens", "restricted_tokens") {
-        Ok(value) => value,
-        Err(message) => {
-            push_resolution_violation(ctx, "restricted_tokens", message);
-            return;
-        }
-    };
+    let resolution =
+        match ctx.require_named_global_axiom_parameter("restricted_tokens", "restricted_tokens") {
+            Ok(value) => value,
+            Err(message) => {
+                push_resolution_violation(ctx, "restricted_tokens", message);
+                return;
+            }
+        };
 
     let tokens = parse_restricted_tokens(&resolution.value);
     if tokens.is_empty() {
@@ -30,7 +31,12 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
                 continue;
             }
 
-            let (message, quick_fix) = build_restricted_token_feedback(token, hint, &resolution.resolved_path, ctx.file_path);
+            let (message, quick_fix) = build_restricted_token_feedback(
+                token,
+                hint,
+                &resolution.resolved_path,
+                ctx.file_path,
+            );
 
             ctx.violations.push(AuditViolation {
                 file_path: ctx.file_path.to_string(),
@@ -94,7 +100,12 @@ fn build_restricted_token_feedback(
     }
 
     (
-        format!("{}: '{}' found. Hint: {}", messages::RESTRICTED_TOKEN, token, hint),
+        format!(
+            "{}: '{}' found. Hint: {}",
+            messages::RESTRICTED_TOKEN,
+            token,
+            hint
+        ),
         Some(format!(
             "// [SANITIZE] Replace '{}' using the policy declared in {}.",
             token, resolved_path
@@ -103,7 +114,8 @@ fn build_restricted_token_feedback(
 }
 
 fn push_resolution_violation(ctx: &mut AuditContext<'_>, rule_suffix: &str, message: String) {
-    let identity_path = ctx.resolve_axiom_identity_path(rule_suffix)
+    let identity_path = ctx
+        .resolve_axiom_identity_path(rule_suffix)
         .unwrap_or_else(|_| format!("axiom.{}", rule_suffix));
     ctx.violations.push(AuditViolation {
         file_path: ctx.file_path.to_string(),

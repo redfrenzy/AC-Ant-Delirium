@@ -84,7 +84,13 @@ fn parse_industrial_array(input: &str) -> Vec<String> {
     if trimmed.starts_with('[') && trimmed.ends_with(']') {
         trimmed[1..trimmed.len() - 1]
             .split(',')
-            .map(|value| value.trim().trim_matches('"').trim_matches('\'').to_string())
+            .map(|value| {
+                value
+                    .trim()
+                    .trim_matches('"')
+                    .trim_matches('\'')
+                    .to_string()
+            })
             .filter(|value| !value.is_empty())
             .collect()
     } else {
@@ -142,7 +148,10 @@ fn normalize_profile(entry: &str) -> String {
 fn classify_logic_profile(declaration: &str, kind: &str) -> String {
     let normalized = declaration.trim().to_ascii_lowercase();
 
-    if normalized.contains("#[test]") || normalized.contains("#[tokio::test]") || normalized.contains("#[cfg(test)]") {
+    if normalized.contains("#[test]")
+        || normalized.contains("#[tokio::test]")
+        || normalized.contains("#[cfg(test)]")
+    {
         return "test_fn".to_string();
     }
 
@@ -178,8 +187,12 @@ fn classify_logic_profile(declaration: &str, kind: &str) -> String {
 fn classify_struct_profile(raw_declaration: &str, normalized: &str) -> String {
     let is_public = normalized.starts_with("pub struct ");
     let is_nested = raw_declaration.starts_with(' ') || raw_declaration.starts_with('\t');
-    let is_tuple = normalized.ends_with(';') && normalized.contains('(') && normalized.contains(')') && !normalized.contains('{');
-    let is_unit = normalized.ends_with(';') && !normalized.contains('(') && !normalized.contains('{');
+    let is_tuple = normalized.ends_with(';')
+        && normalized.contains('(')
+        && normalized.contains(')')
+        && !normalized.contains('{');
+    let is_unit =
+        normalized.ends_with(';') && !normalized.contains('(') && !normalized.contains('{');
     let is_inline_generic = normalized.contains('<')
         && normalized.contains(':')
         && normalized.contains('>')
@@ -266,7 +279,8 @@ fn classify_function_profile(normalized: &str) -> String {
 }
 
 fn push_resolution_violation(ctx: &mut AuditContext<'_>, axiom_id: &str, message: String) {
-    let identity_path = ctx.resolve_axiom_identity_path(axiom_id)
+    let identity_path = ctx
+        .resolve_axiom_identity_path(axiom_id)
         .unwrap_or_else(|_| format!("axiom.{}", axiom_id));
     ctx.violations.push(AuditViolation {
         file_path: ctx.file_path.to_string(),

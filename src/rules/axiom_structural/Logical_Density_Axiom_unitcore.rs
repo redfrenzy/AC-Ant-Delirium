@@ -1,17 +1,17 @@
 use crate::governance;
-use crate::parser::ScannedBlock;
 use crate::rules_logs::messages;
-use crate::structs::{AuditContext, AuditViolation};
+use crate::structs::{AuditContext, AuditViolation, ScannedBlock};
 
 /// [AESTHETIC CORE - LOGICAL DENSITY PATROL]
 pub fn patrol(ctx: &mut AuditContext<'_>) {
-    let requirement = match ctx.require_named_taxonomy_axiom_parameter("logical_density", "logical_density") {
-        Ok(value) => value,
-        Err(message) => {
-            push_resolution_violation(ctx, "logical_density", message);
-            return;
-        }
-    };
+    let requirement =
+        match ctx.require_named_taxonomy_axiom_parameter("logical_density", "logical_density") {
+            Ok(value) => value,
+            Err(message) => {
+                push_resolution_violation(ctx, "logical_density", message);
+                return;
+            }
+        };
 
     let resolved_path = requirement.resolved_path.clone();
     let raw_limit = requirement.value;
@@ -35,7 +35,12 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
         return;
     }
 
-    check_function_metrics(ctx, logical_limit, &resolved_path, &requirement.identity_path);
+    check_function_metrics(
+        ctx,
+        logical_limit,
+        &resolved_path,
+        &requirement.identity_path,
+    );
 }
 
 fn check_function_metrics(
@@ -97,7 +102,8 @@ fn count_logical_statements(func: &ScannedBlock<'_>) -> usize {
 }
 
 fn push_resolution_violation(ctx: &mut AuditContext<'_>, axiom_id: &str, message: String) {
-    let identity_path = ctx.resolve_axiom_identity_path(axiom_id)
+    let identity_path = ctx
+        .resolve_axiom_identity_path(axiom_id)
         .unwrap_or_else(|_| format!("axiom.{}", axiom_id));
     ctx.violations.push(AuditViolation {
         file_path: ctx.file_path.to_string(),

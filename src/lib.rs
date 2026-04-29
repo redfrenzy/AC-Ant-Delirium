@@ -1,20 +1,21 @@
 #![allow(non_snake_case)]
 
-pub mod engine;
-#[path = "legacy/parser.rs"]
-pub mod parser;
-pub mod rules;
-pub mod structs;
-#[path = "legacy/visualizer.rs"]
-pub mod visualizer;
 #[allow(non_snake_case)]
 pub mod Logs;
-#[path = "legacy/rules_logs.rs"]
-pub mod rules_logs;
-pub mod restricted_tokens;
-#[path = "legacy/governance.rs"]
+pub mod api;
+pub mod engine;
+#[path = "Governance_unit.rs"]
 pub mod governance;
+#[path = "Parser_unit.rs"]
+pub mod parser;
+pub mod restricted_tokens;
+pub mod rules;
+#[path = "Rules-Logs_unit.rs"]
+pub mod rules_logs;
+pub mod structs;
 pub mod tests;
+#[path = "Visualizer_unit.rs"]
+pub mod visualizer;
 
 pub use crate::structs::{AuditConfig, AuditViolation};
 

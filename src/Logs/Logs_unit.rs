@@ -16,7 +16,7 @@ pub struct GovernanceArtifactPaths {
 pub struct GovernanceLogs;
 
 impl GovernanceLogs {
-    pub const DEFAULT_OUTPUT_ROOT: &str = "src/Logs/artifacts";
+    pub const DEFAULT_OUTPUT_ROOT: &str = "AC_Ant-Delirium_props/Logs/artifacts";
 
     pub fn format_terminal_report(
         result: &AuditResult,

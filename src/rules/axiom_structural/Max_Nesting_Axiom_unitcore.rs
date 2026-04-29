@@ -3,7 +3,8 @@ use crate::rules_logs::messages;
 use crate::structs::{AuditContext, AuditViolation};
 
 pub fn patrol(ctx: &mut AuditContext<'_>) {
-    let requirement = match ctx.require_named_taxonomy_axiom_parameter("max_nesting", "max_nesting") {
+    let requirement = match ctx.require_named_taxonomy_axiom_parameter("max_nesting", "max_nesting")
+    {
         Ok(value) => value,
         Err(message) => {
             push_resolution_violation(ctx, "max_nesting", message);
@@ -20,7 +21,10 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
             push_resolution_violation(
                 ctx,
                 "max_nesting",
-                format!("max_nesting requires a numeric value, but '{}' was found in '{}'.", raw_limit, resolved_path),
+                format!(
+                    "max_nesting requires a numeric value, but '{}' was found in '{}'.",
+                    raw_limit, resolved_path
+                ),
             );
             return;
         }
@@ -44,7 +48,9 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
                     nesting_limit
                 ),
                 snippet: Some(func.declaration.to_string()),
-                quick_fix: Some("// [REFAC] Extract nested branches into smaller helper functions.".to_string()),
+                quick_fix: Some(
+                    "// [REFAC] Extract nested branches into smaller helper functions.".to_string(),
+                ),
                 detected_dna: ctx.detected_dna.clone(),
                 taxonomy_path: format!("{}.max_nesting", resolved_path),
             });
@@ -76,7 +82,8 @@ fn count_max_nesting(body: &str) -> usize {
 }
 
 fn push_resolution_violation(ctx: &mut AuditContext<'_>, axiom_id: &str, message: String) {
-    let identity_path = ctx.resolve_axiom_identity_path(axiom_id)
+    let identity_path = ctx
+        .resolve_axiom_identity_path(axiom_id)
         .unwrap_or_else(|_| format!("axiom.{}", axiom_id));
     ctx.violations.push(AuditViolation {
         file_path: ctx.file_path.to_string(),

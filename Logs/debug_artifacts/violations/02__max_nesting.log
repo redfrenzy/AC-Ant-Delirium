@@ -1,0 +1,49 @@
+AESTHETIC CORE  ▸  Rule Violations
+axiom_id=max_nesting
+violations=2
+p0=0
+p1=2
+p2=0
+p3=0
+p4=0
+status=violations_detected
+
+[violation 1]
+ordinal=16
+priority=P1
+level=warning
+rule_id=regras.structural.max_nesting.max_nesting_error_structcore
+file_path=src/exemples_error/type3/Max-Nesting-Error_estrutura_nucleo.rs
+line=1
+detected_dna=estrutura_nucleo
+taxonomy_path=regras.arquivos.estrutura.estrutura_nucleo.max_nesting
+message=Nesting Violation: logic tree depth exceed sovereign limits. - 5/3 levels. Flatten this logic tree.
+snippet=fn max_nesting_error_structcore(a: bool, b: bool, c: bool, d: bool) -> usize {
+quick_fix=// [REFAC] Extract nested branches into smaller helper functions.
+context:
+ >  1 | fn max_nesting_error_structcore(a: bool, b: bool, c: bool, d: bool) -> usize {
+      |  ^ Nesting Violation: logic tree depth exceed sovereign limits. - 5/3 levels. Flatten this logic tree.
+    2 |     if a {
+    3 |         if b {
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.rule.max_nesting
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.arquivos.estrutura.estrutura_nucleo.max_nesting
+
+[violation 2]
+ordinal=23
+priority=P1
+level=warning
+rule_id=regras.structural.max_nesting.max_nesting_error_unit
+file_path=src/exemples_error/type3/Max-Nesting-Error_unidade.rs
+line=1
+detected_dna=unidade
+taxonomy_path=regras.arquivos.unidade.max_nesting
+message=Nesting Violation: logic tree depth exceed sovereign limits. - 4/2 levels. Flatten this logic tree.
+snippet=pub fn max_nesting_error_unit(flag_a: bool, flag_b: bool, flag_c: bool) -> usize {
+quick_fix=// [REFAC] Extract nested branches into smaller helper functions.
+context:
+ >  1 | pub fn max_nesting_error_unit(flag_a: bool, flag_b: bool, flag_c: bool) -> usize {
+      |  ^ Nesting Violation: logic tree depth exceed sovereign limits. - 4/2 levels. Flatten this logic tree.
+    2 |     if flag_a {
+    3 |         if flag_b {
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.rule.max_nesting
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.arquivos.unidade.max_nesting

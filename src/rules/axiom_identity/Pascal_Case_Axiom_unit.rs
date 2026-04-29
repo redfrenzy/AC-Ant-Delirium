@@ -1,4 +1,4 @@
-use crate::structs::{HierarchyConfig, GovernanceAxiom, SearchFiles};
+use crate::structs::{GovernanceAxiom, HierarchyConfig, SearchFiles};
 
 #[path = "Pascal_Case_Axiom_unitcore.rs"]
 mod Pascal_Case_Axiom_unitcore;
@@ -6,12 +6,18 @@ mod Pascal_Case_Axiom_unitcore;
 pub struct PascalCaseAxiom;
 
 impl Default for PascalCaseAxiom {
-    fn default() -> Self { Self {} }
+    fn default() -> Self {
+        Self {}
+    }
 }
 
 impl GovernanceAxiom for PascalCaseAxiom {
-    fn id(&self) -> &str { "pascal_case" }
-    fn name(&self) -> &str { "PascalCaseAxiom Identity Auditor" }
+    fn id(&self) -> &str {
+        "pascal_case"
+    }
+    fn name(&self) -> &str {
+        "PascalCaseAxiom Identity Auditor"
+    }
 
     fn resolve_jurisdiction(&self, hierarchy: &HierarchyConfig) -> Vec<String> {
         SearchFiles::resolve_jurisdiction(hierarchy, SearchFiles::ID)

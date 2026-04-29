@@ -1,4 +1,4 @@
-use crate::structs::{HierarchyConfig, GovernanceAxiom, SearchFiles};
+use crate::structs::{GovernanceAxiom, HierarchyConfig, SearchFiles};
 
 #[path = "Token_Sanitization_Axiom_unitcore.rs"]
 mod Token_Sanitization_Axiom_unitcore;
@@ -6,12 +6,18 @@ mod Token_Sanitization_Axiom_unitcore;
 pub struct TokenSanitizationAxiom;
 
 impl Default for TokenSanitizationAxiom {
-    fn default() -> Self { Self {} }
+    fn default() -> Self {
+        Self {}
+    }
 }
 
 impl GovernanceAxiom for TokenSanitizationAxiom {
-    fn id(&self) -> &str { "token_sanitization" }
-    fn name(&self) -> &str { "TokenSanitizationAxiom Sanitization Auditor" }
+    fn id(&self) -> &str {
+        "token_sanitization"
+    }
+    fn name(&self) -> &str {
+        "TokenSanitizationAxiom Sanitization Auditor"
+    }
 
     fn resolve_jurisdiction(&self, hierarchy: &HierarchyConfig) -> Vec<String> {
         SearchFiles::resolve_jurisdiction(hierarchy, SearchFiles::ID)

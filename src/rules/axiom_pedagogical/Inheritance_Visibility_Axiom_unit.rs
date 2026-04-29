@@ -1,4 +1,4 @@
-use crate::structs::{HierarchyConfig, GovernanceAxiom, SearchFiles};
+use crate::structs::{GovernanceAxiom, HierarchyConfig, SearchFiles};
 
 #[path = "Inheritance_Visibility_Axiom_unitcore.rs"]
 mod Inheritance_Visibility_Axiom_unitcore;
@@ -6,12 +6,18 @@ mod Inheritance_Visibility_Axiom_unitcore;
 pub struct InheritanceVisibilityAxiom;
 
 impl Default for InheritanceVisibilityAxiom {
-    fn default() -> Self { Self {} }
+    fn default() -> Self {
+        Self {}
+    }
 }
 
 impl GovernanceAxiom for InheritanceVisibilityAxiom {
-    fn id(&self) -> &str { "inheritance_visibility" }
-    fn name(&self) -> &str { "InheritanceVisibilityAxiom Pedagogy Auditor" }
+    fn id(&self) -> &str {
+        "inheritance_visibility"
+    }
+    fn name(&self) -> &str {
+        "InheritanceVisibilityAxiom Pedagogy Auditor"
+    }
 
     fn resolve_jurisdiction(&self, hierarchy: &HierarchyConfig) -> Vec<String> {
         SearchFiles::resolve_jurisdiction(hierarchy, SearchFiles::ID)

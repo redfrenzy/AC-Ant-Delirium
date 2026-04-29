@@ -9,6 +9,7 @@ what_mission = true
 why_justification = true
 usage_example = true
 test_case_mapping = true
+doc_tags = true
 inheritance_visibility = true
 root_manifest = true
 root_md_pairing = true
@@ -16,6 +17,9 @@ repository = "/home/dracker/aesthetic-core"
 max_nesting = 3
 max_params = 5
 logical_density = 40
+else_free = true
+else_free_allow_else_if = false
+else_free_bypass_token = "[REASON]"
 
 [rules.permissions]
 libres = ["ac_ant_delirium", "rayon", "std"]
@@ -25,11 +29,28 @@ restricted_tokens = { "panic!" = "Security: Use Result.", "unwrap" = "Security: 
 max_nesting = 3
 max_params = 5
 logical_density = 40
+else_free = true
+else_free_allow_else_if = false
+else_free_bypass_token = "[REASON]"
 md_pairing = true
 [rules.target]
 core =  ["src/exemples_error/type2"]
 tests = "src/tests"
 macros = "src/macros"
+
+[rules.installation]
+
+[rules.installation.config]
+
+[rules.installation.build]
+
+[rules.installation.build.strict]
+
+[rules.installation.api]
+
+[rules.installation.shadow_context]
+
+[rules.installation.security]
 
 [rules.fichiers.unite]
 jurisdiction = "src"
@@ -39,12 +60,20 @@ manifest = true
 max_nesting = 2
 max_params = 4
 logical_density = 25
+else_free = true
 [rules.fichiers.unite.documentation]
-WHAT = true
-WHY = true
-WHERE = true
-USAGE = true
-TEST = true
+[rules.fichiers.unite.documentation.what]
+min = 64
+info = "Describe what this public unit declaration does."
+[rules.fichiers.unite.documentation.why]
+min = 64
+info = "Explain why this public unit declaration exists."
+[rules.fichiers.unite.documentation.usage]
+min = 64
+info = "Explain how this public unit declaration should be used."
+[rules.fichiers.unite.documentation.test]
+min = 48
+info = "Describe the validation path for this public unit declaration."
 
 [rules.fichiers.unite.unitecore]
 type_logic = ["fn", "async fn", "const fn", "unsafe fn"]
@@ -52,18 +81,24 @@ manifest = false
 max_nesting = 3
 max_params = 6
 logical_density = 40
+else_free = true
 [rules.fichiers.unite.unitecore.documentation]
-WHAT = true
-WHY = true
-WHERE = true
-USAGE = true
-TEST = true
+[rules.fichiers.unite.unitecore.documentation.what]
+min = 64
+info = "Describe what this internal unitcore declaration does."
+[rules.fichiers.unite.unitecore.documentation.why]
+min = 64
+info = "Explain why this internal unitcore declaration exists."
+[rules.fichiers.unite.unitecore.documentation.usage]
+min = 64
+info = "Explain how this internal unitcore declaration is used by the parent unit."
 
 [rules.fichiers.tests]
 jurisdiction = "src/tests"
 type_logic = ["#[test]", "#[tokio::test]", "#[cfg(test)]"]
 manifest = false
 md_pairing = false
+else_free = false
 
 [rules.fichiers.structure]
 jurisdiction = "src/struct"
@@ -71,23 +106,35 @@ type_logic = ["struct", "pub struct", "enum", "pub enum"]
 md_pairing = true
 manifest = true
 [rules.fichiers.structure.documentation]
-WHAT = true
-WHY = true
-WHERE = true
-USAGE = true
-TEST = true
+[rules.fichiers.structure.documentation.what]
+min = 64
+info = "Describe what this structural declaration represents."
+[rules.fichiers.structure.documentation.why]
+min = 64
+info = "Explain why this structural declaration exists."
+[rules.fichiers.structure.documentation.usage]
+min = 64
+info = "Explain how this structural declaration should be used."
+[rules.fichiers.structure.documentation.test]
+min = 48
+info = "Describe the validation path for this structural declaration."
 [rules.fichiers.structure.structurecore]
 type_logic = ["fn", "async fn", "const fn", "unsafe fn", "impl"]
 manifest = false
 max_nesting = 3
 max_params = 4
 logical_density = 30
+else_free = true
 [rules.fichiers.structure.structurecore.documentation]
-WHAT = true
-WHY = true
-WHERE = true
-USAGE = true
-TEST = true
+[rules.fichiers.structure.structurecore.documentation.what]
+min = 64
+info = "Describe what this internal structurecore helper does."
+[rules.fichiers.structure.structurecore.documentation.why]
+min = 64
+info = "Explain why this internal structurecore helper exists."
+[rules.fichiers.structure.structurecore.documentation.usage]
+min = 64
+info = "Explain how this internal structurecore helper is used by the parent structure."
 
 [rules.fichiers.macro]
 jurisdiction = "src/macros"
@@ -95,19 +142,31 @@ type_logic = ["macro_rules!", "pub macro"]
 md_pairing = true
 manifest = true
 [rules.fichiers.macro.documentation]
-WHAT = true
-WHY = true
-WHERE = true
-USAGE = true
-TEST = true
+[rules.fichiers.macro.documentation.what]
+min = 64
+info = "Describe what this public macro provides."
+[rules.fichiers.macro.documentation.why]
+min = 64
+info = "Explain why this public macro exists."
+[rules.fichiers.macro.documentation.usage]
+min = 64
+info = "Explain how this public macro should be used."
+[rules.fichiers.macro.documentation.test]
+min = 48
+info = "Describe the validation path for this public macro."
 [rules.fichiers.macro.macrocore]
 type_logic = ["fn", "async fn", "const fn", "unsafe fn"]
 manifest = false
 max_nesting = 3
 logical_density = 40
+else_free = true
 [rules.fichiers.macro.macrocore.documentation]
-WHAT = true
-WHY = true
-WHERE = true
-USAGE = true
-TEST = true
+[rules.fichiers.macro.macrocore.documentation.what]
+min = 64
+info = "Describe what this internal macrocore helper does."
+[rules.fichiers.macro.macrocore.documentation.why]
+min = 64
+info = "Explain why this internal macrocore helper exists."
+[rules.fichiers.macro.macrocore.documentation.usage]
+min = 64
+info = "Explain how this internal macrocore helper is used by the parent macro."

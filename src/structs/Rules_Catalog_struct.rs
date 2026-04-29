@@ -1,5 +1,6 @@
 use super::Global_Params_struct::{AuditConfig, AuditViolation};
-use crate::parser::ScannedBlock;
+use super::Project_Context_struct::ProjectContext;
+use crate::structs::ScannedBlock;
 
 /// [AESTHETIC CORE - GOVERNANCE CONTRACT]
 /// Soberania absoluta para execução de regras.
@@ -16,6 +17,7 @@ pub struct AuditContext<'a> {
     pub source: &'a str,
     pub functions: &'a [ScannedBlock<'a>],
     pub config: &'a AuditConfig,
+    pub project: &'a ProjectContext,
     pub detected_dna: String,
     pub taxonomy_path: String,
     pub violations: &'a mut Vec<AuditViolation>,

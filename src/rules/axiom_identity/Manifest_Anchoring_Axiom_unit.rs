@@ -1,4 +1,4 @@
-use crate::structs::{HierarchyConfig, GovernanceAxiom, SearchFiles};
+use crate::structs::{GovernanceAxiom, HierarchyConfig, SearchFiles};
 
 #[path = "Manifest_Anchoring_Axiom_unitcore.rs"]
 mod Manifest_Anchoring_Axiom_unitcore;
@@ -6,12 +6,18 @@ mod Manifest_Anchoring_Axiom_unitcore;
 pub struct ManifestAnchoringAxiom;
 
 impl Default for ManifestAnchoringAxiom {
-    fn default() -> Self { Self {} }
+    fn default() -> Self {
+        Self {}
+    }
 }
 
 impl GovernanceAxiom for ManifestAnchoringAxiom {
-    fn id(&self) -> &str { "manifest_anchoring" }
-    fn name(&self) -> &str { "ManifestAnchoringAxiom Identity Auditor" }
+    fn id(&self) -> &str {
+        "manifest_anchoring"
+    }
+    fn name(&self) -> &str {
+        "ManifestAnchoringAxiom Identity Auditor"
+    }
 
     fn resolve_jurisdiction(&self, hierarchy: &HierarchyConfig) -> Vec<String> {
         SearchFiles::resolve_jurisdiction(hierarchy, SearchFiles::ID)

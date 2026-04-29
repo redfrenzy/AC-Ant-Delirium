@@ -1,0 +1,20 @@
+{
+  "internal_id": 4,
+  "agent_id": "J8WKNCJV",
+  "branch": "",
+  "base_revision": "",
+  "workspace_revision": "",
+  "repository_revision": "",
+  "task_id": "EJ5CZR9E",
+  "task_version": 1,
+  "task_revision": "",
+  "task_content_hash": "DAC8DD3FD4D0315F",
+  "task_file_path": "src/iter/panic_fuse.rs",
+  "repository_path": "/home/dracker/Antigravity Projects/playground/aesthetic_core_project/AC_Rayon-Genetics",
+  "workspace_path": "/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium",
+  "login_path": "/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/AC_Ant-Delirium_props/login/login.json",
+  "plugin_path": "../plugins/AC_Rayon-Genetics",
+  "execution_context": "git worktree",
+  "assigned_mission": "",
+  "last_ping": 1777325516
+}

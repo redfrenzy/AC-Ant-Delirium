@@ -20,7 +20,10 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
             push_resolution_violation(
                 ctx,
                 "max_params",
-                format!("max_params requires a numeric value, but '{}' was found in '{}'.", raw_limit, resolved_path),
+                format!(
+                    "max_params requires a numeric value, but '{}' was found in '{}'.",
+                    raw_limit, resolved_path
+                ),
             );
             return;
         }
@@ -44,7 +47,10 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
                     param_limit
                 ),
                 snippet: Some(func.declaration.to_string()),
-                quick_fix: Some("// [REFAC] Group these parameters into a dedicated Config/State Struct.".to_string()),
+                quick_fix: Some(
+                    "// [REFAC] Group these parameters into a dedicated Config/State Struct."
+                        .to_string(),
+                ),
                 detected_dna: ctx.detected_dna.clone(),
                 taxonomy_path: format!("{}.max_params", resolved_path),
             });
@@ -84,7 +90,8 @@ fn count_parameters(declaration: &str) -> usize {
 }
 
 fn push_resolution_violation(ctx: &mut AuditContext<'_>, axiom_id: &str, message: String) {
-    let identity_path = ctx.resolve_axiom_identity_path(axiom_id)
+    let identity_path = ctx
+        .resolve_axiom_identity_path(axiom_id)
         .unwrap_or_else(|_| format!("axiom.{}", axiom_id));
     ctx.violations.push(AuditViolation {
         file_path: ctx.file_path.to_string(),

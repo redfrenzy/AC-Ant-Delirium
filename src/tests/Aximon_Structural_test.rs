@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use crate::Logs::GovernanceLogs;
     use crate::engine::Swarm_Engine_unit::SwarmEngine;
     use crate::structs::{AuditConfig, AuditResult, HierarchyConfig};
+    use crate::Logs::GovernanceLogs;
 
     fn fixture_result(rule_fragment: &str) -> (AuditConfig, AuditResult) {
         let config = AuditConfig {
@@ -33,30 +33,45 @@ mod tests {
         let (config, result) = fixture_result(".structural.logical_density");
         let logical_density_violations = result.violations.clone();
 
-        println!("{}", GovernanceLogs::format_terminal_report(&result, &config, None));
+        println!(
+            "{}",
+            GovernanceLogs::format_terminal_report(&result, &config, None)
+        );
 
         assert!(
-            logical_density_violations.iter().any(|violation| violation.file_path.contains("Logical-Dencity-Error_unit.rs")),
+            logical_density_violations.iter().any(|violation| violation
+                .file_path
+                .contains("Logical-Dencity-Error_unit.rs")),
             "unit fixture should be detected"
         );
         assert!(
-            logical_density_violations.iter().any(|violation| violation.file_path.contains("Logical-Dencity-Error_unitcore.rs")),
+            logical_density_violations.iter().any(|violation| violation
+                .file_path
+                .contains("Logical-Dencity-Error_unitcore.rs")),
             "unitcore fixture should be detected"
         );
         assert!(
-            logical_density_violations.iter().any(|violation| violation.file_path.contains("Logical-Dencity-Error_macro.rs")),
+            logical_density_violations.iter().any(|violation| violation
+                .file_path
+                .contains("Logical-Dencity-Error_macro.rs")),
             "macro fixture should be detected"
         );
         assert!(
-            logical_density_violations.iter().any(|violation| violation.file_path.contains("Logical-Dencity-Error_macrocore.rs")),
+            logical_density_violations.iter().any(|violation| violation
+                .file_path
+                .contains("Logical-Dencity-Error_macrocore.rs")),
             "macrocore fixture should be detected"
         );
         assert!(
-            logical_density_violations.iter().any(|violation| violation.file_path.contains("Logical-Dencity-Error_struct.rs")),
+            logical_density_violations.iter().any(|violation| violation
+                .file_path
+                .contains("Logical-Dencity-Error_struct.rs")),
             "struct fixture should be detected"
         );
         assert!(
-            logical_density_violations.iter().any(|violation| violation.file_path.contains("Logical-Dencity-Error_structcore.rs")),
+            logical_density_violations.iter().any(|violation| violation
+                .file_path
+                .contains("Logical-Dencity-Error_structcore.rs")),
             "structcore fixture should be detected"
         );
     }
@@ -66,7 +81,10 @@ mod tests {
         let (config, result) = fixture_result(".structural.type_logic");
         let type_logic_violations = result.violations.clone();
 
-        println!("{}", GovernanceLogs::format_terminal_report(&result, &config, None));
+        println!(
+            "{}",
+            GovernanceLogs::format_terminal_report(&result, &config, None)
+        );
 
         assert!(
             type_logic_violations.iter().any(|violation| violation.file_path.contains("Type-Logic-Error_struct.rs")),
@@ -82,23 +100,33 @@ mod tests {
         );
 
         assert!(
-            !type_logic_violations.iter().any(|violation| violation.file_path.contains("Logical-Dencity-Error_unit.rs")),
+            !type_logic_violations.iter().any(|violation| violation
+                .file_path
+                .contains("Logical-Dencity-Error_unit.rs")),
             "unit fixture should remain valid for type_logic"
         );
         assert!(
-            !type_logic_violations.iter().any(|violation| violation.file_path.contains("Logical-Dencity-Error_unitcore.rs")),
+            !type_logic_violations.iter().any(|violation| violation
+                .file_path
+                .contains("Logical-Dencity-Error_unitcore.rs")),
             "unitcore fixture should remain valid for type_logic"
         );
         assert!(
-            !type_logic_violations.iter().any(|violation| violation.file_path.contains("Logical-Dencity-Error_macro.rs")),
+            !type_logic_violations.iter().any(|violation| violation
+                .file_path
+                .contains("Logical-Dencity-Error_macro.rs")),
             "macro fixture should remain valid for type_logic"
         );
         assert!(
-            !type_logic_violations.iter().any(|violation| violation.file_path.contains("Logical-Dencity-Error_macrocore.rs")),
+            !type_logic_violations.iter().any(|violation| violation
+                .file_path
+                .contains("Logical-Dencity-Error_macrocore.rs")),
             "macrocore fixture should remain valid for type_logic"
         );
         assert!(
-            !type_logic_violations.iter().any(|violation| violation.file_path.contains("Logical-Dencity-Error_structcore.rs")),
+            !type_logic_violations.iter().any(|violation| violation
+                .file_path
+                .contains("Logical-Dencity-Error_structcore.rs")),
             "structcore fixture should remain valid for type_logic"
         );
     }
@@ -108,14 +136,21 @@ mod tests {
         let (config, result) = fixture_result(".structural.max_params");
         let max_params_violations = result.violations.clone();
 
-        println!("{}", GovernanceLogs::format_terminal_report(&result, &config, None));
+        println!(
+            "{}",
+            GovernanceLogs::format_terminal_report(&result, &config, None)
+        );
 
         assert!(
-            max_params_violations.iter().any(|violation| violation.file_path.contains("Max-Params-Error_unit.rs")),
+            max_params_violations
+                .iter()
+                .any(|violation| violation.file_path.contains("Max-Params-Error_unit.rs")),
             "unit fixture should violate max_params"
         );
         assert!(
-            max_params_violations.iter().any(|violation| violation.file_path.contains("Max-Params-Error_unitcore.rs")),
+            max_params_violations
+                .iter()
+                .any(|violation| violation.file_path.contains("Max-Params-Error_unitcore.rs")),
             "unitcore fixture should violate max_params"
         );
     }
@@ -125,16 +160,46 @@ mod tests {
         let (config, result) = fixture_result(".structural.max_nesting");
         let max_nesting_violations = result.violations.clone();
 
-        println!("{}", GovernanceLogs::format_terminal_report(&result, &config, None));
+        println!(
+            "{}",
+            GovernanceLogs::format_terminal_report(&result, &config, None)
+        );
 
         assert!(
-            max_nesting_violations.iter().any(|violation| violation.file_path.contains("Max-Nesting-Error_unit.rs")),
+            max_nesting_violations
+                .iter()
+                .any(|violation| violation.file_path.contains("Max-Nesting-Error_unit.rs")),
             "unit fixture should violate max_nesting"
         );
         assert!(
-            max_nesting_violations.iter().any(|violation| violation.file_path.contains("Max-Nesting-Error_structcore.rs")),
+            max_nesting_violations.iter().any(|violation| violation
+                .file_path
+                .contains("Max-Nesting-Error_structcore.rs")),
             "structcore fixture should violate max_nesting"
         );
     }
 
+    #[test]
+    fn print_else_free_violations_from_swarm_manifest() {
+        let (config, result) = fixture_result(".structural.else_free");
+        let else_free_violations = result.violations.clone();
+
+        println!(
+            "{}",
+            GovernanceLogs::format_terminal_report(&result, &config, None)
+        );
+
+        assert!(
+            else_free_violations
+                .iter()
+                .any(|violation| violation.file_path.contains("Else-Free-Error_unitcore.rs")),
+            "unitcore fixture with plain else should be detected"
+        );
+        assert!(
+            !else_free_violations.iter().any(|violation| violation
+                .file_path
+                .contains("Else-Free-Allowed_unitcore.rs")),
+            "fixture using a detailed [REASON] bypass should remain valid"
+        );
+    }
 }

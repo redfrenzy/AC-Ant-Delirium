@@ -1,0 +1,29 @@
+AESTHETIC CORE  ▸  Rule Violations
+axiom_id=tag_separator
+violations=1
+p0=0
+p1=0
+p2=1
+p3=0
+p4=0
+status=violations_detected
+
+[violation 1]
+ordinal=61
+priority=P2
+level=note
+rule_id=regras.identity.tag_separator
+file_path=src/exemples_error/type3/identity_workspace/Tag-Separator-Error-unidade.rs
+line=1
+detected_dna=<unknown>
+taxonomy_path=regras.identity.tag_separator
+message=Tag separator violation: 'Tag-Separator-Error-unidade' uses '-' before DNA 'unidade', but expected '_'.
+snippet=Tag-Separator-Error-unidade
+quick_fix=Tag_Separator_Error_unidade
+context:
+ >  1 | pub fn tag_separator_error_unit() -> usize {
+      |  ^ Tag separator violation: 'Tag-Separator-Error-unidade' uses '-' before DNA 'unidade', but expected '_'.
+    2 |     3
+    3 | }
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.rule.tag_separator
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.identity.tag_separator

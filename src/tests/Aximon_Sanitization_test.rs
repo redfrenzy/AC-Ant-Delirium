@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use crate::Logs::GovernanceLogs;
     use crate::engine::Swarm_Engine_unit::SwarmEngine;
     use crate::structs::{AuditConfig, AuditResult, HierarchyConfig};
+    use crate::Logs::GovernanceLogs;
 
     fn fixture_result(rule_fragment: &str) -> (AuditConfig, AuditResult) {
         let config = AuditConfig {
@@ -14,7 +14,11 @@ mod tests {
             .violations
             .into_iter()
             .filter(|violation| violation.rule_id.contains(rule_fragment))
-            .filter(|violation| violation.file_path.contains("src/exemples_error/sanitization_workspace/"))
+            .filter(|violation| {
+                violation
+                    .file_path
+                    .contains("src/exemples_error/sanitization_workspace/")
+            })
             .collect();
 
         let result = AuditResult {
@@ -31,14 +35,21 @@ mod tests {
     #[test]
     fn print_restricted_tokens_violations_from_swarm_manifest() {
         let (config, result) = fixture_result("hierarchy.sanitization.restricted_tokens");
-        println!("{}", GovernanceLogs::format_terminal_report(&result, &config, None));
+        println!(
+            "{}",
+            GovernanceLogs::format_terminal_report(&result, &config, None)
+        );
 
         assert!(result.violations.iter().any(|violation| {
-            violation.file_path.contains("Restricted-Tokens-Error_unit.rs")
+            violation
+                .file_path
+                .contains("Restricted-Tokens-Error_unit.rs")
                 && violation.rule_id.contains("unwrap")
         }));
         assert!(result.violations.iter().any(|violation| {
-            violation.file_path.contains("Token-Sanitization-Error_unit.rs")
+            violation
+                .file_path
+                .contains("Token-Sanitization-Error_unit.rs")
                 && violation.rule_id.contains("panic")
         }));
         assert_eq!(result.violations.len(), 2);
@@ -47,10 +58,15 @@ mod tests {
     #[test]
     fn print_token_sanitization_violations_from_swarm_manifest() {
         let (config, result) = fixture_result("hierarchy.sanitization.token_sanitization");
-        println!("{}", GovernanceLogs::format_terminal_report(&result, &config, None));
+        println!(
+            "{}",
+            GovernanceLogs::format_terminal_report(&result, &config, None)
+        );
 
         assert!(result.violations.iter().any(|violation| {
-            violation.file_path.contains("Token-Sanitization-Error_unit.rs")
+            violation
+                .file_path
+                .contains("Token-Sanitization-Error_unit.rs")
                 && violation.rule_id.contains("panic")
         }));
     }
@@ -58,21 +74,32 @@ mod tests {
     #[test]
     fn print_allowed_crates_violations_from_swarm_manifest() {
         let (config, result) = fixture_result("hierarchy.dependency_governance.allowed_crates");
-        println!("{}", GovernanceLogs::format_terminal_report(&result, &config, None));
+        println!(
+            "{}",
+            GovernanceLogs::format_terminal_report(&result, &config, None)
+        );
 
         assert!(result.violations.iter().any(|violation| {
-            violation.file_path.contains("sanitization_workspace/Cargo.toml")
+            violation
+                .file_path
+                .contains("sanitization_workspace/Cargo.toml")
                 && violation.rule_id.contains("serde_json")
         }));
     }
 
     #[test]
     fn print_dependency_purification_violations_from_swarm_manifest() {
-        let (config, result) = fixture_result("hierarchy.dependency_governance.dependency_purification");
-        println!("{}", GovernanceLogs::format_terminal_report(&result, &config, None));
+        let (config, result) =
+            fixture_result("hierarchy.dependency_governance.dependency_purification");
+        println!(
+            "{}",
+            GovernanceLogs::format_terminal_report(&result, &config, None)
+        );
 
         assert!(result.violations.iter().any(|violation| {
-            violation.file_path.contains("sanitization_workspace/Cargo.toml")
+            violation
+                .file_path
+                .contains("sanitization_workspace/Cargo.toml")
                 && violation.rule_id.contains("serde")
         }));
     }

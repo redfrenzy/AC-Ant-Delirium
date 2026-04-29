@@ -7,13 +7,14 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
         return;
     }
 
-    let resolution = match ctx.require_named_global_axiom_parameter("dependency_purification", "libres") {
-        Ok(value) => value,
-        Err(message) => {
-            push_resolution_violation(ctx, "dependency_purification", message);
-            return;
-        }
-    };
+    let resolution =
+        match ctx.require_named_global_axiom_parameter("dependency_purification", "libres") {
+            Ok(value) => value,
+            Err(message) => {
+                push_resolution_violation(ctx, "dependency_purification", message);
+                return;
+            }
+        };
 
     let allowed = parse_string_array(&resolution.value);
     if allowed.is_empty() {
@@ -68,7 +69,13 @@ fn parse_string_array(raw: &str) -> Vec<String> {
     if trimmed.starts_with('[') && trimmed.ends_with(']') {
         trimmed[1..trimmed.len() - 1]
             .split(',')
-            .map(|value| value.trim().trim_matches('"').trim_matches('\'').to_string())
+            .map(|value| {
+                value
+                    .trim()
+                    .trim_matches('"')
+                    .trim_matches('\'')
+                    .to_string()
+            })
             .filter(|value| !value.is_empty())
             .collect()
     } else {
@@ -183,7 +190,8 @@ fn is_active_dependency_section(header: &str) -> bool {
 }
 
 fn push_resolution_violation(ctx: &mut AuditContext<'_>, rule_suffix: &str, message: String) {
-    let identity_path = ctx.resolve_axiom_identity_path(rule_suffix)
+    let identity_path = ctx
+        .resolve_axiom_identity_path(rule_suffix)
         .unwrap_or_else(|_| format!("axiom.{}", rule_suffix));
     ctx.violations.push(AuditViolation {
         file_path: ctx.file_path.to_string(),

@@ -1,6 +1,7 @@
 use std::env;
 use std::fmt::Write;
 use std::fs;
+use std::io;
 use std::path::{Path, PathBuf};
 use ac_ant_delirium::api::{default_rules_path, InteractiveApi};
 use ac_ant_delirium::Logs::GovernanceLogs;
@@ -56,6 +57,85 @@ fn main() {
         return;
     }
 
+    if cli.release_stale_agent_claims {
+        match plugin_context.as_ref() {
+            Some(plugin) => match agent_runtime::release_stale_agent_claims(
+                plugin,
+                cli.json_requested,
+            ) {
+                Ok(report) => elite_out(&report),
+                Err(err) => elite_out(&wrap_text_output(
+                    "release_stale_agent_claims",
+                    &format!("[!] failed to release stale agent claims: {}", err),
+                    cli.json_requested,
+                )),
+            },
+            None => elite_out(&wrap_text_output(
+                "release_stale_agent_claims",
+                "[!] no plugin context detected for --release-stale-agent-claims",
+                cli.json_requested,
+            )),
+        }
+        return;
+    }
+
+    if cli.prune_stale_agents {
+        match plugin_context.as_ref() {
+            Some(plugin) => match agent_runtime::prune_stale_agents(plugin, cli.json_requested) {
+                Ok(report) => elite_out(&report),
+                Err(err) => elite_out(&wrap_text_output(
+                    "prune_stale_agents",
+                    &format!("[!] failed to prune stale agents: {}", err),
+                    cli.json_requested,
+                )),
+            },
+            None => elite_out(&wrap_text_output(
+                "prune_stale_agents",
+                "[!] no plugin context detected for --prune-stale-agents",
+                cli.json_requested,
+            )),
+        }
+        return;
+    }
+
+    if cli.next_action {
+        match plugin_context.as_ref() {
+            Some(plugin) => match agent_runtime::render_next_action(plugin, cli.json_requested) {
+                Ok(report) => elite_out(&report),
+                Err(err) => elite_out(&wrap_text_output(
+                    "next_action",
+                    &format!("[!] failed to determine next action: {}", err),
+                    cli.json_requested,
+                )),
+            },
+            None => elite_out(&wrap_text_output(
+                "next_action",
+                "[!] no plugin context detected for --next-action",
+                cli.json_requested,
+            )),
+        }
+        return;
+    }
+
+    if cli.governance_history {
+        match plugin_context.as_ref() {
+            Some(plugin) => match agent_runtime::render_governance_history(plugin, cli.json_requested) {
+                Ok(report) => elite_out(&report),
+                Err(err) => elite_out(&wrap_text_output(
+                    "governance_history",
+                    &format!("[!] failed to read governance history: {}", err),
+                    cli.json_requested,
+                )),
+            },
+            None => elite_out(&wrap_text_output(
+                "governance_history",
+                "[!] no plugin context detected for --governance-history",
+                cli.json_requested,
+            )),
+        }
+        return;
+    }
+
     if cli.submits || cli.submits_active || cli.submits_history || cli.submit_show.is_some() {
         match plugin_context.as_ref() {
             Some(plugin) => match agent_runtime::render_submit_queue(
@@ -88,7 +168,12 @@ fn main() {
 
     if let Some(submit_id) = cli.submit_accept.as_deref() {
         match plugin_context.as_ref() {
-            Some(plugin) => match agent_runtime::update_submit_status(plugin, submit_id, "accepted") {
+            Some(plugin) => match agent_runtime::update_submit_status(
+                plugin,
+                submit_id,
+                "accepted",
+                cli.submit_note.as_deref(),
+            ) {
                 Ok(message) => elite_out(&wrap_text_output("submit_accept", &message, cli.json_requested)),
                 Err(err) => elite_out(&wrap_text_output(
                     "submit_accept",
@@ -107,7 +192,12 @@ fn main() {
 
     if let Some(submit_id) = cli.submit_reject.as_deref() {
         match plugin_context.as_ref() {
-            Some(plugin) => match agent_runtime::update_submit_status(plugin, submit_id, "rejected") {
+            Some(plugin) => match agent_runtime::update_submit_status(
+                plugin,
+                submit_id,
+                "rejected",
+                cli.submit_note.as_deref(),
+            ) {
                 Ok(message) => elite_out(&wrap_text_output("submit_reject", &message, cli.json_requested)),
                 Err(err) => elite_out(&wrap_text_output(
                     "submit_reject",
@@ -126,7 +216,12 @@ fn main() {
 
     if let Some(submit_id) = cli.submit_close.as_deref() {
         match plugin_context.as_ref() {
-            Some(plugin) => match agent_runtime::update_submit_status(plugin, submit_id, "closed") {
+            Some(plugin) => match agent_runtime::update_submit_status(
+                plugin,
+                submit_id,
+                "closed",
+                cli.submit_note.as_deref(),
+            ) {
                 Ok(message) => elite_out(&wrap_text_output("submit_close", &message, cli.json_requested)),
                 Err(err) => elite_out(&wrap_text_output(
                     "submit_close",
@@ -485,6 +580,62 @@ fn main() {
         return;
     }
 
+    if cli.hooks_init {
+        let output = match agent_runtime::materialize_managed_git_hooks(
+            &project_root,
+            cli.project_root.as_deref(),
+            plugin_context.as_ref(),
+            &binary_name,
+        ) {
+            Ok(report) => wrap_text_output("hooks_init", &report, cli.json_requested),
+            Err(err) => wrap_text_output(
+                "hooks_init",
+                &format!("[!] failed to initialize managed git hooks: {}", err),
+                cli.json_requested,
+            ),
+        };
+        elite_out(&output);
+        return;
+    }
+
+    if cli.hooks_verify_merge {
+        let output = match agent_runtime::validate_managed_orchestration_request(
+            &project_root,
+            cli.project_root.as_deref(),
+            plugin_context.as_ref(),
+            "merge",
+            cli.json_requested,
+        ) {
+            Ok(report) => report,
+            Err(err) => wrap_text_output(
+                "hooks_verify_merge",
+                &format!("[!] failed to validate merge_request.json: {}", err),
+                cli.json_requested,
+            ),
+        };
+        elite_out(&output);
+        return;
+    }
+
+    if cli.hooks_verify_push {
+        let output = match agent_runtime::validate_managed_orchestration_request(
+            &project_root,
+            cli.project_root.as_deref(),
+            plugin_context.as_ref(),
+            "push",
+            cli.json_requested,
+        ) {
+            Ok(report) => report,
+            Err(err) => wrap_text_output(
+                "hooks_verify_push",
+                &format!("[!] failed to validate push_request.json: {}", err),
+                cli.json_requested,
+            ),
+        };
+        elite_out(&output);
+        return;
+    }
+
     if cli.api_requested {
         let info_overrides = plugin_context
             .as_ref()
@@ -524,31 +675,40 @@ fn main() {
         ..Default::default()
     };
 
-    if let Some(plugin) = plugin_context.as_ref() {
-        match agent_runtime::render_root_orchestration_violations(plugin, cli.json_requested) {
-            Ok(Some(report)) => {
-                elite_out(&report);
-                return;
+    if cli.root_checks {
+        match plugin_context.as_ref() {
+            Some(plugin) => {
+                if is_repository_root_plugin(plugin) {
+                    if let Err(err) = refresh_runtime_governance_state(plugin, &config) {
+                        elite_out(&wrap_text_output(
+                            "root_orchestration_checks",
+                            &format!("[!] failed to refresh governance before root checks: {}", err),
+                            cli.json_requested,
+                        ));
+                        return;
+                    }
+                }
+                match agent_runtime::render_root_orchestration_violations(plugin, cli.json_requested) {
+                    Ok(Some(report)) => elite_out(&report),
+                    Ok(None) => elite_out(&wrap_text_output(
+                        "root_orchestration_checks",
+                        "Root orchestration checks passed",
+                        cli.json_requested,
+                    )),
+                    Err(err) => elite_out(&wrap_text_output(
+                        "root_orchestration_checks",
+                        &format!("[!] failed to evaluate root orchestration checks: {}", err),
+                        cli.json_requested,
+                    )),
+                }
             }
-            Ok(None) => {}
-            Err(err) => {
-                elite_out(&wrap_text_output(
-                    "root_orchestration_checks",
-                    &format!("[!] failed to evaluate root orchestration checks: {}", err),
-                    cli.json_requested,
-                ));
-                return;
-            }
+            None => elite_out(&wrap_text_output(
+                "root_orchestration_checks",
+                "[!] no plugin context detected for --root-checks",
+                cli.json_requested,
+            )),
         }
-    }
-
-    let full_audit_result = SwarmEngine::audit(&config);
-    if let Some(plugin) = plugin_context.as_ref() {
-        if let Err(err) = agent_runtime::refresh_governance_from_audit(plugin, &full_audit_result) {
-            elite_out(&format!("[!] failed to refresh governance tasks: {}", err));
-        } else if let Err(err) = agent_runtime::assign_task_to_current_agent_if_missing(plugin) {
-            elite_out(&format!("[!] failed to assign governance task: {}", err));
-        }
+        return;
     }
 
     if cli.get_projects {
@@ -587,6 +747,30 @@ fn main() {
             )),
         }
         return;
+    }
+
+    let full_audit_result = SwarmEngine::audit(&config);
+    if let Some(plugin) = plugin_context.as_ref() {
+        if let Err(err) = agent_runtime::refresh_governance_from_audit(plugin, &full_audit_result) {
+            elite_out(&format!("[!] failed to refresh governance tasks: {}", err));
+        } else if let Err(err) = agent_runtime::assign_task_to_current_agent_if_missing(plugin) {
+            elite_out(&format!("[!] failed to assign governance task: {}", err));
+        }
+        match agent_runtime::render_root_orchestration_violations(plugin, cli.json_requested) {
+            Ok(Some(report)) => {
+                elite_out(&report);
+                return;
+            }
+            Ok(None) => {}
+            Err(err) => {
+                elite_out(&wrap_text_output(
+                    "root_orchestration_checks",
+                    &format!("[!] failed to evaluate root orchestration checks: {}", err),
+                    cli.json_requested,
+                ));
+                return;
+            }
+        }
     }
 
     let audit_result = match plugin_context.as_ref() {
@@ -674,6 +858,29 @@ fn parse_cli_args(args: &[String]) -> CliArgs {
                         idx += 2;
                         continue;
                     }
+                    Some("hooks")
+                        if matches!(args.get(idx + 2).map(String::as_str), Some("init")) =>
+                    {
+                        parsed.hooks_init = true;
+                        idx += 3;
+                        continue;
+                    }
+                    Some("hooks")
+                        if matches!(args.get(idx + 2).map(String::as_str), Some("verify"))
+                            && matches!(args.get(idx + 3).map(String::as_str), Some("merge")) =>
+                    {
+                        parsed.hooks_verify_merge = true;
+                        idx += 4;
+                        continue;
+                    }
+                    Some("hooks")
+                        if matches!(args.get(idx + 2).map(String::as_str), Some("verify"))
+                            && matches!(args.get(idx + 3).map(String::as_str), Some("push")) =>
+                    {
+                        parsed.hooks_verify_push = true;
+                        idx += 4;
+                        continue;
+                    }
                     _ => {}
                 }
             }
@@ -738,8 +945,33 @@ fn parse_cli_args(args: &[String]) -> CliArgs {
                 idx += 1;
                 continue;
             }
+            "--next-action" => {
+                parsed.next_action = true;
+                idx += 1;
+                continue;
+            }
+            "--root-checks" => {
+                parsed.root_checks = true;
+                idx += 1;
+                continue;
+            }
+            "--release-stale-agent-claims" => {
+                parsed.release_stale_agent_claims = true;
+                idx += 1;
+                continue;
+            }
+            "--prune-stale-agents" => {
+                parsed.prune_stale_agents = true;
+                idx += 1;
+                continue;
+            }
             "--rebase-check" => {
                 parsed.rebase_check = true;
+                idx += 1;
+                continue;
+            }
+            "--governance-history" => {
+                parsed.governance_history = true;
                 idx += 1;
                 continue;
             }
@@ -792,6 +1024,13 @@ fn parse_cli_args(args: &[String]) -> CliArgs {
             "--submit-show" => {
                 if let Some(value) = args.get(idx + 1) {
                     parsed.submit_show = Some(value.clone());
+                    idx += 2;
+                    continue;
+                }
+            }
+            "--submit-note" => {
+                if let Some(value) = args.get(idx + 1) {
+                    parsed.submit_note = Some(value.clone());
                     idx += 2;
                     continue;
                 }
@@ -1114,6 +1353,24 @@ fn select_runtime_profile_folder(path: &Path) -> PathBuf {
     }
 }
 
+fn refresh_runtime_governance_state(
+    plugin: &PluginContext,
+    config: &AuditConfig,
+) -> io::Result<()> {
+    let audit_result = SwarmEngine::audit(config);
+    agent_runtime::refresh_governance_from_audit(plugin, &audit_result)?;
+    let _ = agent_runtime::assign_task_to_current_agent_if_missing(plugin)?;
+    Ok(())
+}
+
+fn is_repository_root_plugin(plugin: &PluginContext) -> bool {
+    canonical_or_original(&plugin.workspace_path) == canonical_or_original(&plugin.repository_path)
+}
+
+fn canonical_or_original(path: &Path) -> PathBuf {
+    fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+}
+
 fn hierarchy_hint_path(project_root: &Path, source: &Path) -> String {
     let hint = if source.is_dir() {
         let selected = select_runtime_profile_folder(source);
@@ -1313,6 +1570,45 @@ fn json_escape(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ac_ant_delirium::structs::PluginContext;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn unique_temp_dir(label: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or_default();
+        let dir = env::temp_dir().join(format!("{}_{}", label, nanos));
+        fs::create_dir_all(&dir).expect("temporary test directory should exist");
+        dir
+    }
+
+    fn write_runtime_plugin_config(plugin_dir: &Path, repository_path: &Path) {
+        let config_dir = plugin_dir.join("ant_delirium_config");
+        fs::create_dir_all(&config_dir).expect("plugin config directory should exist");
+        let hierarchy = format!(
+            "[hierarchy]\nrepository = \"{}\"\n[hierarchy.target]\ncore = [\"src\"]\ntests = [\"tests\"]\n",
+            repository_path.to_string_lossy().replace('\\', "/")
+        );
+        fs::write(config_dir.join("default_hierarchy.toml"), hierarchy)
+            .expect("default_hierarchy.toml should be written");
+        fs::write(config_dir.join("default_rules.toml"), "# test rules\n")
+            .expect("default_rules.toml should be written");
+    }
+
+    fn temp_plugin_context(root: &Path, plugin_name: &str) -> PluginContext {
+        let repository_path = root.join("repo");
+        let plugin_dir = root.join("plugins").join(plugin_name);
+        fs::create_dir_all(repository_path.join("src")).expect("repo src should exist");
+        write_runtime_plugin_config(&plugin_dir, &repository_path);
+        PluginContext {
+            plugin_dir: plugin_dir.clone(),
+            config_path: plugin_dir.join("ant_delirium_config"),
+            repository_path: repository_path.clone(),
+            workspace_path: repository_path,
+            is_worktree: false,
+        }
+    }
 
     #[test]
     fn parser_supports_professional_command_surface() {
@@ -1334,6 +1630,37 @@ mod tests {
         let args = vec!["config".to_string(), "init".to_string()];
         let parsed = parse_cli_args(&args);
         assert!(parsed.config_init);
+    }
+
+    #[test]
+    fn parser_accepts_hooks_init_subcommand() {
+        let args = vec!["config".to_string(), "hooks".to_string(), "init".to_string()];
+        let parsed = parse_cli_args(&args);
+        assert!(parsed.hooks_init);
+    }
+
+    #[test]
+    fn parser_accepts_hooks_verify_merge_subcommand() {
+        let args = vec![
+            "config".to_string(),
+            "hooks".to_string(),
+            "verify".to_string(),
+            "merge".to_string(),
+        ];
+        let parsed = parse_cli_args(&args);
+        assert!(parsed.hooks_verify_merge);
+    }
+
+    #[test]
+    fn parser_accepts_hooks_verify_push_subcommand() {
+        let args = vec![
+            "config".to_string(),
+            "hooks".to_string(),
+            "verify".to_string(),
+            "push".to_string(),
+        ];
+        let parsed = parse_cli_args(&args);
+        assert!(parsed.hooks_verify_push);
     }
 
     #[test]
@@ -1363,6 +1690,34 @@ mod tests {
         let args = vec!["--rebase-check".to_string()];
         let parsed = parse_cli_args(&args);
         assert!(parsed.rebase_check);
+    }
+
+    #[test]
+    fn parser_accepts_root_checks() {
+        let args = vec!["--root-checks".to_string()];
+        let parsed = parse_cli_args(&args);
+        assert!(parsed.root_checks);
+    }
+
+    #[test]
+    fn parser_accepts_release_stale_agent_claims() {
+        let args = vec!["--release-stale-agent-claims".to_string()];
+        let parsed = parse_cli_args(&args);
+        assert!(parsed.release_stale_agent_claims);
+    }
+
+    #[test]
+    fn parser_accepts_prune_stale_agents() {
+        let args = vec!["--prune-stale-agents".to_string()];
+        let parsed = parse_cli_args(&args);
+        assert!(parsed.prune_stale_agents);
+    }
+
+    #[test]
+    fn parser_accepts_governance_history() {
+        let args = vec!["--governance-history".to_string()];
+        let parsed = parse_cli_args(&args);
+        assert!(parsed.governance_history);
     }
 
     #[test]
@@ -1423,6 +1778,13 @@ mod tests {
         assert_eq!(parsed.message_body.as_deref(), Some("sync before push"));
         assert_eq!(parsed.message_target_agent_id, Some(3));
         assert_eq!(parsed.message_sender_agent_id, Some(1));
+    }
+
+    #[test]
+    fn parser_accepts_next_action() {
+        let args = vec!["--next-action".to_string()];
+        let parsed = parse_cli_args(&args);
+        assert!(parsed.next_action);
     }
 
     #[test]
@@ -1490,6 +1852,8 @@ mod tests {
             "--submits-history".to_string(),
             "--submit-show".to_string(),
             "SUBMIT000".to_string(),
+            "--submit-note".to_string(),
+            "looks good".to_string(),
             "--submit-accept".to_string(),
             "SUBMIT001".to_string(),
             "--submit-close".to_string(),
@@ -1500,6 +1864,7 @@ mod tests {
         assert!(parsed.submits_active);
         assert!(parsed.submits_history);
         assert_eq!(parsed.submit_show.as_deref(), Some("SUBMIT000"));
+        assert_eq!(parsed.submit_note.as_deref(), Some("looks good"));
         assert_eq!(parsed.submit_accept.as_deref(), Some("SUBMIT001"));
         assert_eq!(parsed.submit_close.as_deref(), Some("SUBMIT002"));
     }
@@ -1542,5 +1907,43 @@ mod tests {
         let current = env::current_dir().expect("cwd should exist");
         let detected = detect_project_root(Some("1"));
         assert_eq!(detected, current);
+    }
+
+    #[test]
+    fn refresh_runtime_governance_state_rewrites_stale_governance_before_root_checks() {
+        let root = unique_temp_dir("ac_ant_delirium_main_logic_refreshes_stale_governance");
+        let plugin = temp_plugin_context(&root, "Bootstrap-Rayon-Lab");
+        agent_runtime::sync_agent_registration(&plugin)
+            .expect("root registration should succeed")
+            .expect("root agent should exist");
+        fs::write(plugin.repository_path.join("src/lib.rs"), "pub fn ok() {}\n")
+            .expect("source file should exist");
+        fs::write(
+            plugin.governance_path(),
+            "{\n  \"tasks\": [\n    {\n      \"task_id\": \"STALE000\",\n      \"task_version\": 1,\n      \"task_revision\": \"\",\n      \"task_content_hash\": \"\",\n      \"file_path\": \"../plugins/Bootstrap-Rayon-Lab/ac_ant_delirium\",\n      \"violation_count\": 2,\n      \"owner_id\": -1\n    }\n  ]\n}\n",
+        )
+        .expect("stale governance should be seeded");
+
+        let mut hierarchy = load_hierarchy_from_path(&plugin.config_path);
+        hierarchy.attach_runtime_project_root(&plugin.repository_path.to_string_lossy());
+        let config = AuditConfig {
+            hierarchy,
+            runtime: ac_ant_delirium::structs::RuntimeConfig {
+                project_root: plugin.repository_path.to_string_lossy().to_string(),
+                mode: GovernanceMode::Strict,
+            },
+            ..Default::default()
+        };
+
+        refresh_runtime_governance_state(&plugin, &config)
+            .expect("refresh should rewrite stale governance");
+
+        let report = agent_runtime::render_root_orchestration_violations(&plugin, false)
+            .expect("root checks should render");
+        assert!(report.is_none());
+
+        let governance =
+            fs::read_to_string(plugin.governance_path()).expect("governance should be readable");
+        assert!(!governance.contains("../plugins/Bootstrap-Rayon-Lab/ac_ant_delirium"));
     }
 }

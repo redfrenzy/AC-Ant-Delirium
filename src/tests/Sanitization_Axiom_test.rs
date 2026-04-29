@@ -29,6 +29,7 @@ ac_ant_delirium = "0.1"
             source,
             functions: &functions,
             config: &config,
+            project: crate::structs::empty_project_context(),
             detected_dna: String::new(),
             taxonomy_path: "hierarchy.dependency_governance.allowed_crates".to_string(),
             violations: &mut violations,
@@ -36,8 +37,14 @@ ac_ant_delirium = "0.1"
 
         AllowedCratesAxiom::default().execute(&mut ctx);
 
-        assert!(ctx.violations.iter().any(|violation| violation.rule_id.contains("serde")));
-        assert!(!ctx.violations.iter().any(|violation| violation.rule_id.contains("ac_ant_delirium")));
+        assert!(ctx
+            .violations
+            .iter()
+            .any(|violation| violation.rule_id.contains("serde")));
+        assert!(!ctx
+            .violations
+            .iter()
+            .any(|violation| violation.rule_id.contains("ac_ant_delirium")));
     }
 
     #[test]
@@ -64,6 +71,7 @@ serde = { version = "1", optional = true }
             source,
             functions: &functions,
             config: &config,
+            project: crate::structs::empty_project_context(),
             detected_dna: String::new(),
             taxonomy_path: "hierarchy.dependency_governance.dependency_purification".to_string(),
             violations: &mut violations,
@@ -71,7 +79,10 @@ serde = { version = "1", optional = true }
 
         DependencyPurificationAxiom::default().execute(&mut ctx);
 
-        assert!(ctx.violations.iter().any(|violation| violation.rule_id.contains("serde")));
+        assert!(ctx
+            .violations
+            .iter()
+            .any(|violation| violation.rule_id.contains("serde")));
     }
 
     #[test]
@@ -94,6 +105,7 @@ pub fn sample() {
             source,
             functions: &functions,
             config: &config,
+            project: crate::structs::empty_project_context(),
             detected_dna: "unit".to_string(),
             taxonomy_path: "hierarchy.files.unit".to_string(),
             violations: &mut violations,
@@ -101,7 +113,10 @@ pub fn sample() {
 
         RestrictedTokensAxiom::default().execute(&mut ctx);
 
-        assert!(ctx.violations.iter().any(|violation| violation.rule_id.contains("unwrap")));
+        assert!(ctx
+            .violations
+            .iter()
+            .any(|violation| violation.rule_id.contains("unwrap")));
         assert_eq!(ctx.violations.len(), 1);
     }
 
@@ -124,6 +139,7 @@ pub fn sample() {
             source,
             functions: &functions,
             config: &config,
+            project: crate::structs::empty_project_context(),
             detected_dna: "unit".to_string(),
             taxonomy_path: "hierarchy.files.unit".to_string(),
             violations: &mut violations,
@@ -131,6 +147,9 @@ pub fn sample() {
 
         TokenSanitizationAxiom::default().execute(&mut ctx);
 
-        assert!(ctx.violations.iter().any(|violation| violation.rule_id.contains("panic")));
+        assert!(ctx
+            .violations
+            .iter()
+            .any(|violation| violation.rule_id.contains("panic")));
     }
 }

@@ -6,16 +6,27 @@ mod Identity_Axiom_Common_unitcore;
 
 /// [AESTHETIC CORE - INTERNAL VACUUM]
 pub fn patrol(ctx: &mut AuditContext<'_>) {
-    let name_separator = match ctx.require_named_global_axiom_parameter("name_separator", "name_separator") {
-        Ok(binding) => binding.value,
-        Err(message) => {
-            Identity_Axiom_Common_unitcore::push_resolution_violation(ctx, "name_separator", &message);
-            return;
-        }
-    };
-    let identity_path = Identity_Axiom_Common_unitcore::resolve_axiom_identity_path_or_fallback(ctx, "name_separator");
+    let name_separator =
+        match ctx.require_named_global_axiom_parameter("name_separator", "name_separator") {
+            Ok(binding) => binding.value,
+            Err(message) => {
+                Identity_Axiom_Common_unitcore::push_resolution_violation(
+                    ctx,
+                    "name_separator",
+                    &message,
+                );
+                return;
+            }
+        };
+    let identity_path = Identity_Axiom_Common_unitcore::resolve_axiom_identity_path_or_fallback(
+        ctx,
+        "name_separator",
+    );
 
-    let tag_separator = ctx.config.hierarchy.resolve_parameter("tag_separator")
+    let tag_separator = ctx
+        .config
+        .hierarchy
+        .resolve_parameter("tag_separator")
         .unwrap_or_else(|| "_".to_string());
 
     if !ctx.file_path.ends_with(".rs") {
@@ -26,6 +37,16 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
         .file_stem()
         .and_then(|value| value.to_str())
         .unwrap_or_default();
+    if Identity_Axiom_Common_unitcore::is_generic_rust_file_stem(stem) {
+        return;
+    }
+    let has_explicit_dna_suffix = stem
+        .rsplit_once(&tag_separator)
+        .map(|(_, suffix)| !suffix.is_empty())
+        .unwrap_or(false);
+    if !has_explicit_dna_suffix && ctx.detected_dna.is_empty() {
+        return;
+    }
     let dna_suffix = if ctx.detected_dna.is_empty() {
         String::new()
     } else {
@@ -34,8 +55,7 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
     let core_name = if !dna_suffix.is_empty() && stem.ends_with(&dna_suffix) {
         stem.trim_end_matches(&dna_suffix)
     } else {
-        stem
-            .rsplit_once(&tag_separator)
+        stem.rsplit_once(&tag_separator)
             .map(|(base, _)| base)
             .unwrap_or(stem)
     };

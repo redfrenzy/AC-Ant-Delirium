@@ -1,4 +1,4 @@
-use crate::structs::{HierarchyConfig, GovernanceAxiom, SearchFiles};
+use crate::structs::{GovernanceAxiom, HierarchyConfig, SearchFiles};
 
 #[path = "Recursion_Axiom_unitcore.rs"]
 mod Recursion_Axiom_unitcore;
@@ -6,12 +6,18 @@ mod Recursion_Axiom_unitcore;
 pub struct RecursionAxiom;
 
 impl Default for RecursionAxiom {
-    fn default() -> Self { Self {} }
+    fn default() -> Self {
+        Self {}
+    }
 }
 
 impl GovernanceAxiom for RecursionAxiom {
-    fn id(&self) -> &str { "recursion" }
-    fn name(&self) -> &str { "RecursionAxiom Identity Auditor" }
+    fn id(&self) -> &str {
+        "recursion"
+    }
+    fn name(&self) -> &str {
+        "RecursionAxiom Identity Auditor"
+    }
 
     fn resolve_jurisdiction(&self, hierarchy: &HierarchyConfig) -> Vec<String> {
         SearchFiles::resolve_jurisdiction(hierarchy, SearchFiles::ID)

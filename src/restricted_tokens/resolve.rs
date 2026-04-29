@@ -27,5 +27,5 @@ pub fn elite_resolve_or<T>(val: Option<T>, default: T) -> T {
 /// [WHERE] Utilitário de tipagem primitiva no módulo unwrap.rs.
 /// [USAGE] Recomendado para uso em lógicas legadas onde a generalização para T não é necessária, garantindo que o comportamento histórico de pânico seja preservado de forma controlada.
 pub fn illegal_unwrap(val: Option<i32>) -> i32 {
-    val.unwrap() 
+    val.unwrap()
 }

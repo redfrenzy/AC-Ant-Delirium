@@ -17,6 +17,11 @@ logical_density
 [rules.structural.type_logic]
 type_logic
 
+[rules.structural.else_free]
+else_free
+else_free_allow_else_if
+else_free_bypass_token
+
 [rules.structural.jurisdiction]
 unite.jurisdiction
 
@@ -28,6 +33,10 @@ md_pairing
 [rules.pedagogical.md_min_chars]
 operation_zone
 md_min_chars
+
+[rules.pedagogical.doc_tags]
+operation_zone
+doc_tags
 
 [rules.pedagogical.what_mission]
 operation_zone

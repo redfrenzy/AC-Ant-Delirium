@@ -8,11 +8,13 @@ mod tests {
     use crate::rules::axiom_identity::Recursion_Axiom_unit::RecursionAxiom;
     use crate::rules::axiom_identity::Repository_Anchor_Axiom_unit::RepositoryAnchorAxiom;
     use crate::rules::axiom_identity::Tag_Separator_Axiom_unit::TagSeparatorAxiom;
-    use crate::structs::{AuditConfig, AuditContext, GovernanceAxiom, HierarchyConfig};
+    use crate::structs::{
+        AuditConfig, AuditContext, GovernanceAxiom, HierarchyConfig, ProjectContext,
+    };
 
     fn config() -> AuditConfig {
         AuditConfig {
-            hierarchy: HierarchyConfig::load_from_folder("ant_delirium_config"),
+            hierarchy: HierarchyConfig::load_from_folder("ant_delirium_config/type_1"),
             ..AuditConfig::default()
         }
     }
@@ -28,13 +30,17 @@ mod tests {
             source,
             functions: &functions,
             config: &config,
+            project: crate::structs::empty_project_context(),
             detected_dna: String::new(),
             taxonomy_path: "hierarchy.files".to_string(),
             violations: &mut violations,
         };
 
         TagSeparatorAxiom::default().execute(&mut ctx);
-        assert!(ctx.violations.iter().any(|v| v.rule_id.contains("tag_separator")));
+        assert!(ctx
+            .violations
+            .iter()
+            .any(|v| v.rule_id.contains("tag_separator")));
     }
 
     #[test]
@@ -48,13 +54,17 @@ mod tests {
             source,
             functions: &functions,
             config: &config,
+            project: crate::structs::empty_project_context(),
             detected_dna: "unit".to_string(),
             taxonomy_path: "hierarchy.files.unit".to_string(),
             violations: &mut violations,
         };
 
         NameSeparatorAxiom::default().execute(&mut ctx);
-        assert!(ctx.violations.iter().any(|v| v.rule_id.contains("name_separator")));
+        assert!(ctx
+            .violations
+            .iter()
+            .any(|v| v.rule_id.contains("name_separator")));
     }
 
     #[test]
@@ -68,13 +78,17 @@ mod tests {
             source,
             functions: &functions,
             config: &config,
+            project: crate::structs::empty_project_context(),
             detected_dna: "unit".to_string(),
             taxonomy_path: "hierarchy.files.unit".to_string(),
             violations: &mut violations,
         };
 
         PascalCaseAxiom::default().execute(&mut ctx);
-        assert!(ctx.violations.iter().any(|v| v.rule_id.contains("pascal_case")));
+        assert!(ctx
+            .violations
+            .iter()
+            .any(|v| v.rule_id.contains("pascal_case")));
     }
 
     #[test]
@@ -88,13 +102,89 @@ mod tests {
             source,
             functions: &functions,
             config: &config,
+            project: crate::structs::empty_project_context(),
             detected_dna: String::new(),
             taxonomy_path: "hierarchy.files".to_string(),
             violations: &mut violations,
         };
 
         DnaSuffixAxiom::default().execute(&mut ctx);
-        assert!(ctx.violations.iter().any(|v| v.rule_id.contains("dna_suffix")));
+        assert!(ctx
+            .violations
+            .iter()
+            .any(|v| v.rule_id.contains("dna_suffix")));
+    }
+
+    #[test]
+    fn dna_suffix_ignores_generic_rust_entrypoints() {
+        let config = config();
+        let source = "pub fn main() {}";
+        let functions = CodeScanner::scan_blocks(source);
+        let mut violations = Vec::new();
+        let mut ctx = AuditContext {
+            file_path: "build.rs",
+            source,
+            functions: &functions,
+            config: &config,
+            project: crate::structs::empty_project_context(),
+            detected_dna: String::new(),
+            taxonomy_path: "hierarchy.files".to_string(),
+            violations: &mut violations,
+        };
+
+        DnaSuffixAxiom::default().execute(&mut ctx);
+        assert!(ctx
+            .violations
+            .iter()
+            .all(|v| !v.rule_id.contains("dna_suffix")));
+    }
+
+    #[test]
+    fn name_separator_ignores_generic_rust_entrypoints() {
+        let config = config();
+        let source = "pub fn main() {}";
+        let functions = CodeScanner::scan_blocks(source);
+        let mut violations = Vec::new();
+        let mut ctx = AuditContext {
+            file_path: "main.rs",
+            source,
+            functions: &functions,
+            config: &config,
+            project: crate::structs::empty_project_context(),
+            detected_dna: String::new(),
+            taxonomy_path: "hierarchy.files".to_string(),
+            violations: &mut violations,
+        };
+
+        NameSeparatorAxiom::default().execute(&mut ctx);
+        assert!(ctx
+            .violations
+            .iter()
+            .all(|v| !v.rule_id.contains("name_separator")));
+    }
+
+    #[test]
+    fn pascal_case_accepts_hyphenated_pascal_name_with_dna_suffix() {
+        let config = config();
+        let source = "pub fn demo() {}";
+        let functions = CodeScanner::scan_blocks(source);
+        let mut violations = Vec::new();
+        let mut ctx = AuditContext {
+            file_path: "src/exemples_error/identity_workspace/Example-Name_unit.rs",
+            source,
+            functions: &functions,
+            config: &config,
+            project: crate::structs::empty_project_context(),
+            detected_dna: "unit".to_string(),
+            taxonomy_path: "hierarchy.files.unit".to_string(),
+            violations: &mut violations,
+        };
+
+        PascalCaseAxiom::default().execute(&mut ctx);
+        assert!(ctx
+            .violations
+            .iter()
+            .all(|v| !v.rule_id.contains("pascal_case")));
     }
 
     #[test]
@@ -108,13 +198,17 @@ mod tests {
             source,
             functions: &functions,
             config: &config,
+            project: crate::structs::empty_project_context(),
             detected_dna: "unit".to_string(),
             taxonomy_path: "hierarchy.files.unit".to_string(),
             violations: &mut violations,
         };
 
         ManifestAnchoringAxiom::default().execute(&mut ctx);
-        assert!(ctx.violations.iter().any(|v| v.rule_id.contains("manifest_anchoring")));
+        assert!(ctx
+            .violations
+            .iter()
+            .any(|v| v.rule_id.contains("manifest_anchoring")));
     }
 
     #[test]
@@ -128,13 +222,17 @@ mod tests {
             source,
             functions: &functions,
             config: &config,
+            project: crate::structs::empty_project_context(),
             detected_dna: "unit".to_string(),
             taxonomy_path: "hierarchy.files.unit".to_string(),
             violations: &mut violations,
         };
 
         RecursionAxiom::default().execute(&mut ctx);
-        assert!(ctx.violations.iter().any(|v| v.rule_id.contains("hierarchy.identity.recursion")));
+        assert!(ctx
+            .violations
+            .iter()
+            .any(|v| v.rule_id.contains("hierarchy.identity.recursion")));
     }
 
     #[test]
@@ -148,12 +246,46 @@ mod tests {
             source,
             functions: &functions,
             config: &config,
+            project: crate::structs::empty_project_context(),
             detected_dna: "unit".to_string(),
             taxonomy_path: "hierarchy.files.unit".to_string(),
             violations: &mut violations,
         };
 
         RepositoryAnchorAxiom::default().execute(&mut ctx);
-        assert!(ctx.violations.iter().any(|v| v.rule_id.contains("repository_anchor")));
+        assert!(ctx
+            .violations
+            .iter()
+            .any(|v| v.rule_id.contains("repository_anchor")));
+    }
+
+    #[test]
+    fn recursion_accepts_companion_present_in_project_index() {
+        let config = config();
+        let source = "pub fn recursion_ok_unit() -> usize { 5 }";
+        let functions = CodeScanner::scan_blocks(source);
+        let mut violations = Vec::new();
+        let mut project = ProjectContext::default();
+        project.register_known_path("src/exemples_error/identity_workspace/Recursion-Ok_unit.rs");
+        project
+            .register_known_path("src/exemples_error/identity_workspace/Recursion-Ok_unitcore.rs");
+
+        let mut ctx = AuditContext {
+            file_path: "src/exemples_error/identity_workspace/Recursion-Ok_unit.rs",
+            source,
+            functions: &functions,
+            config: &config,
+            project: &project,
+            detected_dna: "unit".to_string(),
+            taxonomy_path: "hierarchy.files.unit".to_string(),
+            violations: &mut violations,
+        };
+
+        RecursionAxiom::default().execute(&mut ctx);
+
+        assert!(ctx
+            .violations
+            .iter()
+            .all(|violation| !violation.rule_id.contains("hierarchy.identity.recursion")));
     }
 }

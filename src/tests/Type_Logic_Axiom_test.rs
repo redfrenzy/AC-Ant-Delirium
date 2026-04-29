@@ -21,6 +21,7 @@ pub fn exposed_api() {}
             source,
             functions: &functions,
             config: &config,
+            project: crate::structs::empty_project_context(),
             detected_dna: "unit".to_string(),
             taxonomy_path: "hierarchy.files.unit".to_string(),
             violations: &mut violations,
@@ -48,6 +49,7 @@ pub fn leaked_api() {}
             source,
             functions: &functions,
             config: &config,
+            project: crate::structs::empty_project_context(),
             detected_dna: "unitcore".to_string(),
             taxonomy_path: "hierarchy.files.unit.unitcore".to_string(),
             violations: &mut violations,
@@ -56,7 +58,10 @@ pub fn leaked_api() {}
         TypeLogicAxiom::default().execute(&mut ctx);
 
         assert_eq!(ctx.violations.len(), 1);
-        assert_eq!(ctx.violations[0].taxonomy_path, "hierarchy.files.unit.unitcore.type_logic");
+        assert_eq!(
+            ctx.violations[0].taxonomy_path,
+            "hierarchy.files.unit.unitcore.type_logic"
+        );
         assert!(ctx.violations[0].message.contains("unitcore"));
         assert!(ctx.violations[0].message.contains("public_fn"));
     }
@@ -80,6 +85,7 @@ impl WorkerState {
             source,
             functions: &functions,
             config: &config,
+            project: crate::structs::empty_project_context(),
             detected_dna: "structcore".to_string(),
             taxonomy_path: "hierarchy.files.struct.structcore".to_string(),
             violations: &mut violations,
@@ -107,6 +113,7 @@ fn neutral_file() {}
             source,
             functions: &functions,
             config: &config,
+            project: crate::structs::empty_project_context(),
             detected_dna: String::new(),
             taxonomy_path: "hierarchy.files".to_string(),
             violations: &mut violations,

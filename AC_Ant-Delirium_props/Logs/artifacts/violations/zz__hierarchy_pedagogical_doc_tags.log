@@ -1,0 +1,488 @@
+AESTHETIC CORE  ▸  Rule Violations
+axiom_id=hierarchy_pedagogical_doc_tags
+violations=21
+p0=0
+p1=0
+p2=0
+p3=21
+p4=0
+status=violations_detected
+
+[violation 1]
+ordinal=1
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.doc_tags
+file_path=src/exemples_error/type1/Else-Free-Allowed_unitcore.rs
+line=1
+detected_dna=unitcore
+taxonomy_path=hierarchy.pedagogical.doc_tags
+message=Doc tags violation: function 'else_free_allowed_unitcore' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE].
+snippet=fn else_free_allowed_unitcore(value: bool, fallback: usize) -> usize {
+quick_fix=/// [WHAT] Describe what this internal implementation symbol does.
+/// [WHY] Explain why this internal implementation exists in unitcore instead of the parent public unit layer.
+/// [USAGE] Explain how this internal implementation is invoked or composed by the parent unit.
+context:
+ >  1 | fn else_free_allowed_unitcore(value: bool, fallback: usize) -> usize {
+      |  ^ Doc tags violation: function 'else_free_allowed_unitcore' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE].
+    2 |     if value {
+    3 |         return 1;
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.rule.hierarchy_pedagogical_doc_tags
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.pedagogical.doc_tags
+
+[violation 2]
+ordinal=3
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.doc_tags
+file_path=src/exemples_error/type1/Else-Free-Error_unitcore.rs
+line=1
+detected_dna=unitcore
+taxonomy_path=hierarchy.pedagogical.doc_tags
+message=Doc tags violation: function 'else_free_error_unitcore' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE].
+snippet=fn else_free_error_unitcore(value: bool) -> usize {
+quick_fix=/// [WHAT] Describe what this internal implementation symbol does.
+/// [WHY] Explain why this internal implementation exists in unitcore instead of the parent public unit layer.
+/// [USAGE] Explain how this internal implementation is invoked or composed by the parent unit.
+context:
+ >  1 | fn else_free_error_unitcore(value: bool) -> usize {
+      |  ^ Doc tags violation: function 'else_free_error_unitcore' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE].
+    2 |     if value {
+    3 |         return 1;
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.rule.hierarchy_pedagogical_doc_tags
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.pedagogical.doc_tags
+
+[violation 3]
+ordinal=6
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.doc_tags
+file_path=src/exemples_error/type1/Logical-Dencity-Error_macrocore.rs
+line=1
+detected_dna=macrocore
+taxonomy_path=hierarchy.pedagogical.doc_tags
+message=Doc tags violation: function 'logical_density_error_macrocore' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE].
+snippet=fn logical_density_error_macrocore() {
+quick_fix=/// [WHAT] Describe what this macrocore helper does for the macro expansion pipeline.
+/// [WHY] Explain why this helper exists in macrocore and what expansion concern it isolates.
+/// [USAGE] Explain how this macrocore helper is invoked or consumed by the parent macro layer.
+context:
+ >  1 | fn logical_density_error_macrocore() {
+      |  ^ Doc tags violation: function 'logical_density_error_macrocore' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE].
+    2 |     d01();
+    3 |     d02();
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.rule.hierarchy_pedagogical_doc_tags
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.pedagogical.doc_tags
+
+[violation 4]
+ordinal=9
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.doc_tags
+file_path=src/exemples_error/type1/Logical-Dencity-Error_struct.rs
+line=5
+detected_dna=struct
+taxonomy_path=hierarchy.pedagogical.doc_tags
+message=Doc tags violation: function 'logical_density_error_struct' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE], [TEST].
+snippet=fn logical_density_error_struct() {
+quick_fix=/// [WHAT] Describe what this structural type or public declaration represents.
+/// [WHY] Explain why this structural type exists and which domain or architectural need it stabilizes.
+/// [USAGE] Explain how this structural type should be instantiated, consumed, or extended.
+/// [TEST] Describe the validation path or invariants that prove this structural contract remains correct.
+context:
+    3 | }
+    4 | 
+ >  5 | fn logical_density_error_struct() {
+      |  ^ Doc tags violation: function 'logical_density_error_struct' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE], [TEST].
+    6 |     e01();
+    7 |     e02();
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.rule.hierarchy_pedagogical_doc_tags
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.pedagogical.doc_tags
+
+[violation 5]
+ordinal=11
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.doc_tags
+file_path=src/exemples_error/type1/Logical-Dencity-Error_structcore.rs
+line=1
+detected_dna=structcore
+taxonomy_path=hierarchy.pedagogical.doc_tags
+message=Doc tags violation: function 'logical_density_error_structcore' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE].
+snippet=fn logical_density_error_structcore() {
+quick_fix=/// [WHAT] Describe what this structcore helper or impl-level routine does.
+/// [WHY] Explain why this structcore helper exists and why the logic stays attached to the structural layer.
+/// [USAGE] Explain how this structcore helper is called or composed by the parent structural surface.
+context:
+ >  1 | fn logical_density_error_structcore() {
+      |  ^ Doc tags violation: function 'logical_density_error_structcore' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE].
+    2 |     f01();
+    3 |     f02();
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.rule.hierarchy_pedagogical_doc_tags
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.pedagogical.doc_tags
+
+[violation 6]
+ordinal=13
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.doc_tags
+file_path=src/exemples_error/type1/Logical-Dencity-Error_unit.rs
+line=1
+detected_dna=unit
+taxonomy_path=hierarchy.pedagogical.doc_tags
+message=Doc tags violation: function 'logical_density_error_unit' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE], [TEST].
+snippet=pub fn logical_density_error_unit() {
+quick_fix=/// [WHAT] Describe what this public unit function or declaration does in externally relevant terms.
+/// [WHY] Explain why this public unit symbol exists and which design pressure or boundary it answers.
+/// [USAGE] Explain how this public unit symbol should be called, consumed, or observed in practice.
+/// [TEST] Describe the validation path, test scenario, or verification contract for this public unit symbol.
+context:
+ >  1 | pub fn logical_density_error_unit() {
+      |  ^ Doc tags violation: function 'logical_density_error_unit' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE], [TEST].
+    2 |     a01();
+    3 |     a02();
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.rule.hierarchy_pedagogical_doc_tags
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.pedagogical.doc_tags
+
+[violation 7]
+ordinal=15
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.doc_tags
+file_path=src/exemples_error/type1/Logical-Dencity-Error_unitcore.rs
+line=1
+detected_dna=unitcore
+taxonomy_path=hierarchy.pedagogical.doc_tags
+message=Doc tags violation: function 'logical_density_error_unitcore' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE].
+snippet=fn logical_density_error_unitcore() {
+quick_fix=/// [WHAT] Describe what this internal implementation symbol does.
+/// [WHY] Explain why this internal implementation exists in unitcore instead of the parent public unit layer.
+/// [USAGE] Explain how this internal implementation is invoked or composed by the parent unit.
+context:
+ >  1 | fn logical_density_error_unitcore() {
+      |  ^ Doc tags violation: function 'logical_density_error_unitcore' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE].
+    2 |     b01();
+    3 |     b02();
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.rule.hierarchy_pedagogical_doc_tags
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.pedagogical.doc_tags
+
+[violation 8]
+ordinal=21
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.doc_tags
+file_path=src/exemples_error/type1/Max-Nesting-Error_structcore.rs
+line=1
+detected_dna=structcore
+taxonomy_path=hierarchy.pedagogical.doc_tags
+message=Doc tags violation: function 'max_nesting_error_structcore' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE].
+snippet=fn max_nesting_error_structcore(a: bool, b: bool, c: bool, d: bool) -> usize {
+quick_fix=/// [WHAT] Describe what this structcore helper or impl-level routine does.
+/// [WHY] Explain why this structcore helper exists and why the logic stays attached to the structural layer.
+/// [USAGE] Explain how this structcore helper is called or composed by the parent structural surface.
+context:
+ >  1 | fn max_nesting_error_structcore(a: bool, b: bool, c: bool, d: bool) -> usize {
+      |  ^ Doc tags violation: function 'max_nesting_error_structcore' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE].
+    2 |     if a {
+    3 |         if b {
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.rule.hierarchy_pedagogical_doc_tags
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.pedagogical.doc_tags
+
+[violation 9]
+ordinal=26
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.doc_tags
+file_path=src/exemples_error/type1/Max-Nesting-Error_unit.rs
+line=1
+detected_dna=unit
+taxonomy_path=hierarchy.pedagogical.doc_tags
+message=Doc tags violation: function 'max_nesting_error_unit' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE], [TEST].
+snippet=pub fn max_nesting_error_unit(flag_a: bool, flag_b: bool, flag_c: bool) -> usize {
+quick_fix=/// [WHAT] Describe what this public unit function or declaration does in externally relevant terms.
+/// [WHY] Explain why this public unit symbol exists and which design pressure or boundary it answers.
+/// [USAGE] Explain how this public unit symbol should be called, consumed, or observed in practice.
+/// [TEST] Describe the validation path, test scenario, or verification contract for this public unit symbol.
+context:
+ >  1 | pub fn max_nesting_error_unit(flag_a: bool, flag_b: bool, flag_c: bool) -> usize {
+      |  ^ Doc tags violation: function 'max_nesting_error_unit' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE], [TEST].
+    2 |     if flag_a {
+    3 |         if flag_b {
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.rule.hierarchy_pedagogical_doc_tags
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.pedagogical.doc_tags
+
+[violation 10]
+ordinal=29
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.doc_tags
+file_path=src/exemples_error/type1/Max-Params-Error_unit.rs
+line=1
+detected_dna=unit
+taxonomy_path=hierarchy.pedagogical.doc_tags
+message=Doc tags violation: function 'max_params_error_unit' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE], [TEST].
+snippet=pub fn max_params_error_unit(alpha: usize, beta: usize, gamma: usize, delta: usize, epsilon: usize) -> usize {
+quick_fix=/// [WHAT] Describe what this public unit function or declaration does in externally relevant terms.
+/// [WHY] Explain why this public unit symbol exists and which design pressure or boundary it answers.
+/// [USAGE] Explain how this public unit symbol should be called, consumed, or observed in practice.
+/// [TEST] Describe the validation path, test scenario, or verification contract for this public unit symbol.
+context:
+ >  1 | pub fn max_params_error_unit(alpha: usize, beta: usize, gamma: usize, delta: usize, epsilon: usize) -> usize {
+      |  ^ Doc tags violation: function 'max_params_error_unit' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE], [TEST].
+    2 |     alpha + beta + gamma + delta + epsilon
+    3 | }
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.rule.hierarchy_pedagogical_doc_tags
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.pedagogical.doc_tags
+
+[violation 11]
+ordinal=31
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.doc_tags
+file_path=src/exemples_error/type1/Max-Params-Error_unitcore.rs
+line=1
+detected_dna=unitcore
+taxonomy_path=hierarchy.pedagogical.doc_tags
+message=Doc tags violation: function 'max_params_error_unitcore' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE].
+snippet=fn max_params_error_unitcore(alpha: usize, beta: usize, gamma: usize, delta: usize, epsilon: usize, zeta: usize, eta: usize) -> usize {
+quick_fix=/// [WHAT] Describe what this internal implementation symbol does.
+/// [WHY] Explain why this internal implementation exists in unitcore instead of the parent public unit layer.
+/// [USAGE] Explain how this internal implementation is invoked or composed by the parent unit.
+context:
+ >  1 | fn max_params_error_unitcore(alpha: usize, beta: usize, gamma: usize, delta: usize, epsilon: usize, zeta: usize, eta: usize) -> usize {
+      |  ^ Doc tags violation: function 'max_params_error_unitcore' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE].
+    2 |     alpha + beta + gamma + delta + epsilon + zeta + eta
+    3 | }
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.rule.hierarchy_pedagogical_doc_tags
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.pedagogical.doc_tags
+
+[violation 12]
+ordinal=33
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.doc_tags
+file_path=src/exemples_error/type1/Type-Logic-Error_struct.rs
+line=5
+detected_dna=struct
+taxonomy_path=hierarchy.pedagogical.doc_tags
+message=Doc tags violation: function 'type_logic_error_struct' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE], [TEST].
+snippet=fn type_logic_error_struct() -> usize {
+quick_fix=/// [WHAT] Describe what this structural type or public declaration represents.
+/// [WHY] Explain why this structural type exists and which domain or architectural need it stabilizes.
+/// [USAGE] Explain how this structural type should be instantiated, consumed, or extended.
+/// [TEST] Describe the validation path or invariants that prove this structural contract remains correct.
+context:
+    3 | }
+    4 | 
+ >  5 | fn type_logic_error_struct() -> usize {
+      |  ^ Doc tags violation: function 'type_logic_error_struct' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE], [TEST].
+    6 |     1
+    7 | }
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.rule.hierarchy_pedagogical_doc_tags
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.pedagogical.doc_tags
+
+[violation 13]
+ordinal=36
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.doc_tags
+file_path=src/exemples_error/type1/Type-Logic-Error_unitcore.rs
+line=1
+detected_dna=unitcore
+taxonomy_path=hierarchy.pedagogical.doc_tags
+message=Doc tags violation: function 'type_logic_error_unitcore' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE].
+snippet=pub fn type_logic_error_unitcore() {}
+quick_fix=/// [WHAT] Describe what this internal implementation symbol does.
+/// [WHY] Explain why this internal implementation exists in unitcore instead of the parent public unit layer.
+/// [USAGE] Explain how this internal implementation is invoked or composed by the parent unit.
+context:
+ >  1 | pub fn type_logic_error_unitcore() {}
+      |  ^ Doc tags violation: function 'type_logic_error_unitcore' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE].
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.rule.hierarchy_pedagogical_doc_tags
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.pedagogical.doc_tags
+
+[violation 14]
+ordinal=39
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.doc_tags
+file_path=src/exemples_error/type1/Visibility-Error_struct.rs
+line=3
+detected_dna=struct
+taxonomy_path=hierarchy.pedagogical.doc_tags
+message=Doc tags violation: function 'keep_visibility_fixture_alive' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE], [TEST].
+snippet=fn keep_visibility_fixture_alive() -> usize {
+quick_fix=/// [WHAT] Describe what this structural type or public declaration represents.
+/// [WHY] Explain why this structural type exists and which domain or architectural need it stabilizes.
+/// [USAGE] Explain how this structural type should be instantiated, consumed, or extended.
+/// [TEST] Describe the validation path or invariants that prove this structural contract remains correct.
+context:
+    1 | struct HiddenVisibilityError;
+    2 | 
+ >  3 | fn keep_visibility_fixture_alive() -> usize {
+      |  ^ Doc tags violation: function 'keep_visibility_fixture_alive' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE], [TEST].
+    4 |     1
+    5 | }
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.rule.hierarchy_pedagogical_doc_tags
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.pedagogical.doc_tags
+
+[violation 15]
+ordinal=50
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.doc_tags
+file_path=src/exemples_error/type1/identity_workspace/Name_Separator_Error_unit.rs
+line=1
+detected_dna=unit
+taxonomy_path=hierarchy.pedagogical.doc_tags
+message=Doc tags violation: function 'name_separator_error_unit' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE], [TEST].
+snippet=pub fn name_separator_error_unit() -> usize {
+quick_fix=/// [WHAT] Describe what this public unit function or declaration does in externally relevant terms.
+/// [WHY] Explain why this public unit symbol exists and which design pressure or boundary it answers.
+/// [USAGE] Explain how this public unit symbol should be called, consumed, or observed in practice.
+/// [TEST] Describe the validation path, test scenario, or verification contract for this public unit symbol.
+context:
+ >  1 | pub fn name_separator_error_unit() -> usize {
+      |  ^ Doc tags violation: function 'name_separator_error_unit' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE], [TEST].
+    2 |     2
+    3 | }
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.rule.hierarchy_pedagogical_doc_tags
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.pedagogical.doc_tags
+
+[violation 16]
+ordinal=54
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.doc_tags
+file_path=src/exemples_error/type1/identity_workspace/Recursion-Missing_unit.rs
+line=1
+detected_dna=unit
+taxonomy_path=hierarchy.pedagogical.doc_tags
+message=Doc tags violation: function 'recursion_missing_unit' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE], [TEST].
+snippet=pub fn recursion_missing_unit() -> usize {
+quick_fix=/// [WHAT] Describe what this public unit function or declaration does in externally relevant terms.
+/// [WHY] Explain why this public unit symbol exists and which design pressure or boundary it answers.
+/// [USAGE] Explain how this public unit symbol should be called, consumed, or observed in practice.
+/// [TEST] Describe the validation path, test scenario, or verification contract for this public unit symbol.
+context:
+ >  1 | pub fn recursion_missing_unit() -> usize {
+      |  ^ Doc tags violation: function 'recursion_missing_unit' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE], [TEST].
+    2 |     5
+    3 | }
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.rule.hierarchy_pedagogical_doc_tags
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.pedagogical.doc_tags
+
+[violation 17]
+ordinal=59
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.doc_tags
+file_path=src/exemples_error/type1/identity_workspace/pascal_case_error_unit.rs
+line=1
+detected_dna=unit
+taxonomy_path=hierarchy.pedagogical.doc_tags
+message=Doc tags violation: function 'pascal_case_error_unit' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE], [TEST].
+snippet=pub fn pascal_case_error_unit() -> usize {
+quick_fix=/// [WHAT] Describe what this public unit function or declaration does in externally relevant terms.
+/// [WHY] Explain why this public unit symbol exists and which design pressure or boundary it answers.
+/// [USAGE] Explain how this public unit symbol should be called, consumed, or observed in practice.
+/// [TEST] Describe the validation path, test scenario, or verification contract for this public unit symbol.
+context:
+ >  1 | pub fn pascal_case_error_unit() -> usize {
+      |  ^ Doc tags violation: function 'pascal_case_error_unit' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE], [TEST].
+    2 |     1
+    3 | }
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.rule.hierarchy_pedagogical_doc_tags
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.pedagogical.doc_tags
+
+[violation 18]
+ordinal=63
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.doc_tags
+file_path=src/exemples_error/type1/pedagogical_workspace/Md-Pairing-Error_unit.rs
+line=1
+detected_dna=unit
+taxonomy_path=hierarchy.pedagogical.doc_tags
+message=Doc tags violation: function 'md_pairing_error_unit' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE], [TEST].
+snippet=pub fn md_pairing_error_unit() -> usize {
+quick_fix=/// [WHAT] Describe what this public unit function or declaration does in externally relevant terms.
+/// [WHY] Explain why this public unit symbol exists and which design pressure or boundary it answers.
+/// [USAGE] Explain how this public unit symbol should be called, consumed, or observed in practice.
+/// [TEST] Describe the validation path, test scenario, or verification contract for this public unit symbol.
+context:
+ >  1 | pub fn md_pairing_error_unit() -> usize {
+      |  ^ Doc tags violation: function 'md_pairing_error_unit' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE], [TEST].
+    2 |     10
+    3 | }
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.rule.hierarchy_pedagogical_doc_tags
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.pedagogical.doc_tags
+
+[violation 19]
+ordinal=65
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.doc_tags
+file_path=src/exemples_error/type1/pedagogical_workspace/Test-Case-Mapping-Error_unit.rs
+line=1
+detected_dna=unit
+taxonomy_path=hierarchy.pedagogical.doc_tags
+message=Doc tags violation: function 'test_case_mapping_error_unit' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE], [TEST].
+snippet=pub fn test_case_mapping_error_unit() -> usize {
+quick_fix=/// [WHAT] Describe what this public unit function or declaration does in externally relevant terms.
+/// [WHY] Explain why this public unit symbol exists and which design pressure or boundary it answers.
+/// [USAGE] Explain how this public unit symbol should be called, consumed, or observed in practice.
+/// [TEST] Describe the validation path, test scenario, or verification contract for this public unit symbol.
+context:
+ >  1 | pub fn test_case_mapping_error_unit() -> usize {
+      |  ^ Doc tags violation: function 'test_case_mapping_error_unit' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE], [TEST].
+    2 |     11
+    3 | }
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.rule.hierarchy_pedagogical_doc_tags
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.pedagogical.doc_tags
+
+[violation 20]
+ordinal=67
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.doc_tags
+file_path=src/exemples_error/type1/sanitization_workspace/Restricted-Tokens-Error_unit.rs
+line=1
+detected_dna=unit
+taxonomy_path=hierarchy.pedagogical.doc_tags
+message=Doc tags violation: function 'restricted_tokens_error_unit' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE], [TEST].
+snippet=pub fn restricted_tokens_error_unit(input: Option<usize>) -> usize {
+quick_fix=/// [WHAT] Describe what this public unit function or declaration does in externally relevant terms.
+/// [WHY] Explain why this public unit symbol exists and which design pressure or boundary it answers.
+/// [USAGE] Explain how this public unit symbol should be called, consumed, or observed in practice.
+/// [TEST] Describe the validation path, test scenario, or verification contract for this public unit symbol.
+context:
+ >  1 | pub fn restricted_tokens_error_unit(input: Option<usize>) -> usize {
+      |  ^ Doc tags violation: function 'restricted_tokens_error_unit' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE], [TEST].
+    2 |     let unsafe_value = input.unwrap();
+    3 |     let _ = input.unwrap(); // [TEMP_ALLOWED]
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.rule.hierarchy_pedagogical_doc_tags
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.pedagogical.doc_tags
+
+[violation 21]
+ordinal=71
+priority=P3
+level=note
+rule_id=hierarchy.pedagogical.doc_tags
+file_path=src/exemples_error/type1/sanitization_workspace/Token-Sanitization-Error_unit.rs
+line=1
+detected_dna=unit
+taxonomy_path=hierarchy.pedagogical.doc_tags
+message=Doc tags violation: function 'token_sanitization_error_unit' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE], [TEST].
+snippet=pub fn token_sanitization_error_unit() {
+quick_fix=/// [WHAT] Describe what this public unit function or declaration does in externally relevant terms.
+/// [WHY] Explain why this public unit symbol exists and which design pressure or boundary it answers.
+/// [USAGE] Explain how this public unit symbol should be called, consumed, or observed in practice.
+/// [TEST] Describe the validation path, test scenario, or verification contract for this public unit symbol.
+context:
+ >  1 | pub fn token_sanitization_error_unit() {
+      |  ^ Doc tags violation: function 'token_sanitization_error_unit' has incomplete pedagogical contract: missing [WHAT], [WHY], [USAGE], [TEST].
+    2 |     panic!("token sanitization fixture");
+    3 | }
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.rule.hierarchy_pedagogical_doc_tags
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.pedagogical.doc_tags

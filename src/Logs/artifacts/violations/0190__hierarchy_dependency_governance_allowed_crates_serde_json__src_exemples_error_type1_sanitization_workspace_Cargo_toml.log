@@ -1,0 +1,12 @@
+AESTHETIC CORE  ▸  Violation Detail
+ordinal=190
+priority=P0
+level=error
+rule_id=hierarchy.dependency_governance.allowed_crates.serde_json
+file_path=src/exemples_error/type1/sanitization_workspace/Cargo.toml
+line=11
+detected_dna=<unknown>
+taxonomy_path=hierarchy.permissions.libres
+message=Allowed Crates Violation: crate 'serde_json' is not authorized by hierarchy.permissions.libres.
+snippet=serde_json = "1"
+quick_fix=# [SANITIZE] Add 'serde_json' to the allowed crate policy or remove it from Cargo.toml.

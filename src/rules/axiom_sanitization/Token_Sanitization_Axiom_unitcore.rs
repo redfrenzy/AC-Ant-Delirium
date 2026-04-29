@@ -2,13 +2,14 @@ use crate::governance;
 use crate::structs::{AuditContext, AuditViolation};
 
 pub fn patrol(ctx: &mut AuditContext<'_>) {
-    let resolution = match ctx.require_named_global_axiom_parameter("token_sanitization", "restricted_tokens") {
-        Ok(value) => value,
-        Err(message) => {
-            push_resolution_violation(ctx, "token_sanitization", message);
-            return;
-        }
-    };
+    let resolution =
+        match ctx.require_named_global_axiom_parameter("token_sanitization", "restricted_tokens") {
+            Ok(value) => value,
+            Err(message) => {
+                push_resolution_violation(ctx, "token_sanitization", message);
+                return;
+            }
+        };
 
     let tokens = parse_restricted_tokens(&resolution.value);
     if tokens.is_empty() {
@@ -78,7 +79,8 @@ fn has_manual_bypass(trimmed: &str) -> bool {
 }
 
 fn push_resolution_violation(ctx: &mut AuditContext<'_>, rule_suffix: &str, message: String) {
-    let identity_path = ctx.resolve_axiom_identity_path(rule_suffix)
+    let identity_path = ctx
+        .resolve_axiom_identity_path(rule_suffix)
         .unwrap_or_else(|_| format!("axiom.{}", rule_suffix));
     ctx.violations.push(AuditViolation {
         file_path: ctx.file_path.to_string(),

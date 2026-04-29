@@ -7,7 +7,11 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
     let min_chars = match ctx.require_named_global_axiom_parameter("md_min_chars", "md_min_chars") {
         Ok(binding) => binding.value.parse::<usize>().unwrap_or(80),
         Err(message) => {
-            Pedagogical_Tag_Common_unitcore::push_resolution_violation(ctx, "md_min_chars", &message);
+            Pedagogical_Tag_Common_unitcore::push_resolution_violation(
+                ctx,
+                "md_min_chars",
+                &message,
+            );
             return;
         }
     };
@@ -17,7 +21,11 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
     }
     let chars = ctx.source.chars().filter(|c| !c.is_whitespace()).count();
     if chars < min_chars {
-        let identity_path = Pedagogical_Tag_Common_unitcore::resolve_axiom_identity_path_or_fallback(ctx, "md_min_chars");
+        let identity_path =
+            Pedagogical_Tag_Common_unitcore::resolve_axiom_identity_path_or_fallback(
+                ctx,
+                "md_min_chars",
+            );
         ctx.violations.push(crate::structs::AuditViolation {
             file_path: ctx.file_path.to_string(),
             line: 1,

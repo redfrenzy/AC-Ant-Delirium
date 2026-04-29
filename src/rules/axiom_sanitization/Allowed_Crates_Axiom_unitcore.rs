@@ -64,7 +64,13 @@ fn parse_string_array(raw: &str) -> Vec<String> {
     if trimmed.starts_with('[') && trimmed.ends_with(']') {
         trimmed[1..trimmed.len() - 1]
             .split(',')
-            .map(|value| value.trim().trim_matches('"').trim_matches('\'').to_string())
+            .map(|value| {
+                value
+                    .trim()
+                    .trim_matches('"')
+                    .trim_matches('\'')
+                    .to_string()
+            })
             .filter(|value| !value.is_empty())
             .collect()
     } else {
@@ -159,7 +165,8 @@ fn is_local_dependency(value: &str) -> bool {
 }
 
 fn push_resolution_violation(ctx: &mut AuditContext<'_>, rule_suffix: &str, message: String) {
-    let identity_path = ctx.resolve_axiom_identity_path(rule_suffix)
+    let identity_path = ctx
+        .resolve_axiom_identity_path(rule_suffix)
         .unwrap_or_else(|_| format!("axiom.{}", rule_suffix));
     ctx.violations.push(AuditViolation {
         file_path: ctx.file_path.to_string(),

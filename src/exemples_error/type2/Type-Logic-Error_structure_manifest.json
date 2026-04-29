@@ -1,0 +1,4 @@
+[
+  { "source": "Type-Logic-Error_structure.rs", "name": "TypeLogicErrorStruct", "kind": "struct", "range": [1, 3], "complexity": 3, "narrative": "" },
+  { "source": "Type-Logic-Error_structure.rs", "name": "type_logic_error_struct", "kind": "function", "range": [5, 7], "complexity": 3, "narrative": "" }
+]

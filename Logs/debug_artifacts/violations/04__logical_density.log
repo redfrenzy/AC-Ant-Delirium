@@ -1,0 +1,131 @@
+AESTHETIC CORE  ▸  Rule Violations
+axiom_id=logical_density
+violations=6
+p0=0
+p1=6
+p2=0
+p3=0
+p4=0
+status=violations_detected
+
+[violation 1]
+ordinal=1
+priority=P1
+level=warning
+rule_id=regras.structural.logical_density.logical_density_error_struct
+file_path=src/exemples_error/type3/Logical-Dencity-Error_estrutura.rs
+line=5
+detected_dna=estrutura
+taxonomy_path=regras.arquivos.logical_density
+message=Logical Density Violation: function exceeds authorized atomic complexity. - 41/40 statements. Fragment this logic.
+snippet=fn logical_density_error_struct() {
+quick_fix=// [REFAC] Fragment this function into smaller atomic units to reduce logical mass.
+context:
+    3 | }
+    4 | 
+ >  5 | fn logical_density_error_struct() {
+      |  ^ Logical Density Violation: function exceeds authorized atomic complexity. - 41/40 statements. Fragment this logic.
+    6 |     e01();
+    7 |     e02();
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.rule.logical_density
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.arquivos.logical_density
+
+[violation 2]
+ordinal=4
+priority=P1
+level=warning
+rule_id=regras.structural.logical_density.logical_density_error_structcore
+file_path=src/exemples_error/type3/Logical-Dencity-Error_estrutura_nucleo.rs
+line=1
+detected_dna=estrutura_nucleo
+taxonomy_path=regras.arquivos.estrutura.estrutura_nucleo.logical_density
+message=Logical Density Violation: function exceeds authorized atomic complexity. - 32/30 statements. Fragment this logic.
+snippet=fn logical_density_error_structcore() {
+quick_fix=// [REFAC] Fragment this function into smaller atomic units to reduce logical mass.
+context:
+ >  1 | fn logical_density_error_structcore() {
+      |  ^ Logical Density Violation: function exceeds authorized atomic complexity. - 32/30 statements. Fragment this logic.
+    2 |     f01();
+    3 |     f02();
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.rule.logical_density
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.arquivos.estrutura.estrutura_nucleo.logical_density
+
+[violation 3]
+ordinal=7
+priority=P1
+level=warning
+rule_id=regras.structural.logical_density.logical_density_error_macro
+file_path=src/exemples_error/type3/Logical-Dencity-Error_macro.rs
+line=1
+detected_dna=macro
+taxonomy_path=regras.arquivos.logical_density
+message=Logical Density Violation: function exceeds authorized atomic complexity. - 44/40 statements. Fragment this logic.
+snippet=macro_rules! logical_density_error_macro {
+quick_fix=// [REFAC] Fragment this function into smaller atomic units to reduce logical mass.
+context:
+ >  1 | macro_rules! logical_density_error_macro {
+      |  ^ Logical Density Violation: function exceeds authorized atomic complexity. - 44/40 statements. Fragment this logic.
+    2 |     () => {
+    3 |         c01();
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.rule.logical_density
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.arquivos.logical_density
+
+[violation 4]
+ordinal=8
+priority=P1
+level=warning
+rule_id=regras.structural.logical_density.logical_density_error_macrocore
+file_path=src/exemples_error/type3/Logical-Dencity-Error_macro_nucleo.rs
+line=1
+detected_dna=macro_nucleo
+taxonomy_path=regras.arquivos.macro.macro_nucleo.logical_density
+message=Logical Density Violation: function exceeds authorized atomic complexity. - 41/40 statements. Fragment this logic.
+snippet=fn logical_density_error_macrocore() {
+quick_fix=// [REFAC] Fragment this function into smaller atomic units to reduce logical mass.
+context:
+ >  1 | fn logical_density_error_macrocore() {
+      |  ^ Logical Density Violation: function exceeds authorized atomic complexity. - 41/40 statements. Fragment this logic.
+    2 |     d01();
+    3 |     d02();
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.rule.logical_density
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.arquivos.macro.macro_nucleo.logical_density
+
+[violation 5]
+ordinal=11
+priority=P1
+level=warning
+rule_id=regras.structural.logical_density.logical_density_error_unit
+file_path=src/exemples_error/type3/Logical-Dencity-Error_unidade.rs
+line=1
+detected_dna=unidade
+taxonomy_path=regras.arquivos.unidade.logical_density
+message=Logical Density Violation: function exceeds authorized atomic complexity. - 28/25 statements. Fragment this logic.
+snippet=pub fn logical_density_error_unit() {
+quick_fix=// [REFAC] Fragment this function into smaller atomic units to reduce logical mass.
+context:
+ >  1 | pub fn logical_density_error_unit() {
+      |  ^ Logical Density Violation: function exceeds authorized atomic complexity. - 28/25 statements. Fragment this logic.
+    2 |     a01();
+    3 |     a02();
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.rule.logical_density
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.arquivos.unidade.logical_density
+
+[violation 6]
+ordinal=13
+priority=P1
+level=warning
+rule_id=regras.structural.logical_density.logical_density_error_unitcore
+file_path=src/exemples_error/type3/Logical-Dencity-Error_unidade_nucleo.rs
+line=1
+detected_dna=unidade_nucleo
+taxonomy_path=regras.arquivos.unidade.unidade_nucleo.logical_density
+message=Logical Density Violation: function exceeds authorized atomic complexity. - 41/40 statements. Fragment this logic.
+snippet=fn logical_density_error_unitcore() {
+quick_fix=// [REFAC] Fragment this function into smaller atomic units to reduce logical mass.
+context:
+ >  1 | fn logical_density_error_unitcore() {
+      |  ^ Logical Density Violation: function exceeds authorized atomic complexity. - 41/40 statements. Fragment this logic.
+    2 |     b01();
+    3 |     b02();
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.rule.logical_density
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.arquivos.unidade.unidade_nucleo.logical_density

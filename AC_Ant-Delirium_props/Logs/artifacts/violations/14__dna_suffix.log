@@ -1,0 +1,66 @@
+AESTHETIC CORE  ▸  Rule Violations
+axiom_id=dna_suffix
+violations=3
+p0=0
+p1=0
+p2=3
+p3=0
+p4=0
+status=violations_detected
+
+[violation 1]
+ordinal=42
+priority=P2
+level=note
+rule_id=hierarchy.identity.dna_suffix
+file_path=src/exemples_error/type1/identity_workspace/DnaSuffixError.rs
+line=1
+detected_dna=<unknown>
+taxonomy_path=hierarchy.identity.dna_suffix
+message=DNA suffix missing: 'DnaSuffixError' contains logic but has no '_' DNA tag in filename.
+snippet=DnaSuffixError
+quick_fix=DnaSuffixError_unit.rs
+context:
+ >  1 | pub fn dna_suffix_error() -> usize {
+      |  ^ DNA suffix missing: 'DnaSuffixError' contains logic but has no '_' DNA tag in filename.
+    2 |     4
+    3 | }
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.rule.dna_suffix
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.identity.dna_suffix
+
+[violation 2]
+ordinal=45
+priority=P2
+level=note
+rule_id=hierarchy.identity.dna_suffix
+file_path=src/exemples_error/type1/identity_workspace/DnaTypoError_unti.rs
+line=1
+detected_dna=unti
+taxonomy_path=hierarchy.identity.dna_suffix
+message=DNA suffix invalid: 'DnaTypoError_unti' uses 'unti' after '_', but this suffix is not defined in the active taxonomy.
+snippet=DnaTypoError_unti
+context:
+ >  1 | pub fn dna_typo_error_unti() {}
+      |  ^ DNA suffix invalid: 'DnaTypoError_unti' uses 'unti' after '_', but this suffix is not defined in the active taxonomy.
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.rule.dna_suffix
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.identity.dna_suffix
+
+[violation 3]
+ordinal=57
+priority=P2
+level=note
+rule_id=hierarchy.identity.dna_suffix
+file_path=src/exemples_error/type1/identity_workspace/Tag-Separator-Error-unit.rs
+line=1
+detected_dna=<unknown>
+taxonomy_path=hierarchy.identity.dna_suffix
+message=DNA suffix missing: 'Tag-Separator-Error-unit' contains logic but has no '_' DNA tag in filename.
+snippet=Tag-Separator-Error-unit
+quick_fix=Tag-Separator-Error-unit_unit.rs
+context:
+ >  1 | pub fn tag_separator_error_unit() -> usize {
+      |  ^ DNA suffix missing: 'Tag-Separator-Error-unit' contains logic but has no '_' DNA tag in filename.
+    2 |     3
+    3 | }
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.rule.dna_suffix
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.identity.dna_suffix

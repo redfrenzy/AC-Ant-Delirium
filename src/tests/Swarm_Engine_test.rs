@@ -1,15 +1,18 @@
 #[cfg(test)]
 mod tests {
+    use crate::engine::Swarm_Engine_unit::SwarmEngine;
+    use crate::structs::{AuditConfig, HierarchyConfig};
+    use crate::Logs::GovernanceLogs;
     use std::collections::BTreeMap;
     use std::fs;
     use std::path::Path;
-    use crate::Logs::GovernanceLogs;
-    use crate::engine::Swarm_Engine_unit::SwarmEngine;
-    use crate::structs::{AuditConfig, HierarchyConfig};
 
     fn config_for(profile: &str) -> AuditConfig {
         AuditConfig {
-            hierarchy: HierarchyConfig::load_from_folder(&format!("ant_delirium_config/{}", profile)),
+            hierarchy: HierarchyConfig::load_from_folder(&format!(
+                "ant_delirium_config/{}",
+                profile
+            )),
             ..AuditConfig::default()
         }
     }
@@ -58,10 +61,8 @@ mod tests {
     fn test_swarm_falls_back_to_scope_root_when_file_has_no_suffix() {
         let config = config_for("type_1");
 
-        let (detected_dna, taxonomy_path) = SwarmEngine::resolve_file_taxonomy(
-            &config,
-            "src/rules/metrics.rs",
-        );
+        let (detected_dna, taxonomy_path) =
+            SwarmEngine::resolve_file_taxonomy(&config, "src/rules/metrics.rs");
 
         assert_eq!(detected_dna, "");
         assert_eq!(taxonomy_path, "hierarchy.files");
@@ -73,7 +74,10 @@ mod tests {
         config.shadow.output = "shadow_context.json".to_string();
 
         let audit_result = SwarmEngine::audit(&config);
-        assert!(!audit_result.logs.is_empty(), "swarm should emit orchestration logs");
+        assert!(
+            !audit_result.logs.is_empty(),
+            "swarm should emit orchestration logs"
+        );
 
         let output_root = GovernanceLogs::DEFAULT_OUTPUT_ROOT;
         let paths = GovernanceLogs::write_artifacts(&audit_result, &config, output_root)
@@ -84,12 +88,40 @@ mod tests {
         eprintln!("[TEST][SWARM] manifest: {}", paths.violations_manifest_path);
         eprintln!("[TEST][SWARM] shadow:   {}", paths.shadow_context_path);
 
-        assert!(Path::new(&paths.shadow_context_path).exists(), "shadow context artifact must exist");
-        assert!(Path::new(&paths.violations_manifest_path).exists(), "manifest artifact must exist");
+        assert!(
+            paths
+                .terminal_report_path
+                .contains("AC_Ant-Delirium_props/Logs/artifacts"),
+            "terminal report should live outside the audited src tree"
+        );
+        assert!(
+            paths
+                .violations_manifest_path
+                .contains("AC_Ant-Delirium_props/Logs/artifacts"),
+            "violations manifest should live outside the audited src tree"
+        );
+        assert!(
+            paths
+                .shadow_context_path
+                .contains("AC_Ant-Delirium_props/Logs/artifacts"),
+            "shadow context should live outside the audited src tree"
+        );
+
+        assert!(
+            Path::new(&paths.shadow_context_path).exists(),
+            "shadow context artifact must exist"
+        );
+        assert!(
+            Path::new(&paths.violations_manifest_path).exists(),
+            "manifest artifact must exist"
+        );
 
         let shadow = fs::read_to_string(&paths.shadow_context_path)
             .expect("shadow context must be readable");
-        assert!(shadow.contains("\"results\""), "shadow context must include SARIF results array");
+        assert!(
+            shadow.contains("\"results\""),
+            "shadow context must include SARIF results array"
+        );
         assert!(
             shadow.contains("\"ruleId\": \""),
             "shadow context should include rule identifiers from the active catalog"
@@ -175,8 +207,13 @@ mod tests {
             "type_3 total diverged from type_1: {:?} vs {:?}",
             type_1.0, type_3.0
         );
-        assert_eq!(type_1.1, type_2.1, "type_2 normalized rule distribution diverged from type_1");
-        assert_eq!(type_1.1, type_3.1, "type_3 normalized rule distribution diverged from type_1");
+        assert_eq!(
+            type_1.1, type_2.1,
+            "type_2 normalized rule distribution diverged from type_1"
+        );
+        assert_eq!(
+            type_1.1, type_3.1,
+            "type_3 normalized rule distribution diverged from type_1"
+        );
     }
-
 }

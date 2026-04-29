@@ -44,7 +44,11 @@ impl HierarchyConfig {
     }
 
     /// [WHAT] Resolve um parâmetro a partir de um caminho taxonômico, subindo pelos ancestrais até o root.
-    pub fn resolve_taxonomy_parameter(&self, taxonomy_path: &str, parameter: &str) -> Result<(String, String), String> {
+    pub fn resolve_taxonomy_parameter(
+        &self,
+        taxonomy_path: &str,
+        parameter: &str,
+    ) -> Result<(String, String), String> {
         internal::HierarchyResolver::resolve_taxonomy_parameter(self, taxonomy_path, parameter)
     }
 
@@ -67,6 +71,16 @@ impl HierarchyConfig {
     /// Interroga a hierarquia para descobrir funcionalidades e jurisdições físicas.
     pub fn search_functionalities(&self, id: &str) -> Vec<(String, Vec<String>)> {
         internal::HierarchyResolver::search_functionalities(self, id)
+    }
+
+    /// [WHAT] Anexa contexto efêmero de execução sem hardcode no manifesto persistido.
+    pub fn attach_runtime_project_root(&mut self, project_root: &str) {
+        let node = self
+            .nodes
+            .entry("runtime".to_string())
+            .or_insert_with(crate::structs::DynamicNode::default);
+        node.properties
+            .insert("project_root".to_string(), project_root.to_string());
     }
 }
 

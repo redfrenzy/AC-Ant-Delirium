@@ -51,7 +51,8 @@ mod tests {
             ..AuditConfig::default()
         };
 
-        let written = ManifestEngine::generate(&config).expect("manifest generation should succeed");
+        let written =
+            ManifestEngine::generate(&config).expect("manifest generation should succeed");
 
         let unit_manifest = format!("{}/Sample_unit_manifest.json", workspace);
         let unitcore_manifest = format!("{}/Sample_unitcore_manifest.json", workspace);
@@ -80,7 +81,8 @@ mod tests {
     fn plain_rs_generates_its_own_manifest() {
         let workspace = temp_dir("manifest_engine_plain");
         let file_path = format!("{}/alpha.rs", workspace);
-        fs::write(&file_path, "/// [WHAT] Plain\npub fn alpha() {}\n").expect("fixture should be written");
+        fs::write(&file_path, "/// [WHAT] Plain\npub fn alpha() {}\n")
+            .expect("fixture should be written");
 
         let mut hierarchy = HierarchyConfig::load_from_folder("ant_delirium_config");
         set_target_core(&mut hierarchy, &workspace);
@@ -89,7 +91,8 @@ mod tests {
             ..AuditConfig::default()
         };
 
-        let written = ManifestEngine::generate(&config).expect("manifest generation should succeed");
+        let written =
+            ManifestEngine::generate(&config).expect("manifest generation should succeed");
         let manifest = format!("{}/alpha_manifest.json", workspace);
 
         assert!(written.iter().any(|path| path == &manifest));

@@ -4,38 +4,38 @@
     "version": "0.1.0"
   },
   "summary": {
-    "total": 178,
-    "audited_files": 30,
+    "total": 189,
+    "audited_files": 31,
     "p0": 6,
-    "p1": 15,
-    "p2": 38,
-    "p3": 119
+    "p1": 16,
+    "p2": 43,
+    "p3": 124
   },
   "logs": [
     "[SWARM] Iniciando patrulha massiva com 23 axiomas.",
     "[SWARM][max_nesting] 2 violation(s) detectada(s).",
     "[SWARM][max_params] 2 violation(s) detectada(s).",
     "[SWARM][logical_density] 6 violation(s) detectada(s).",
-    "[SWARM][type_logic] 5 violation(s) detectada(s).",
-    "[SWARM][md_pairing] 21 violation(s) detectada(s).",
+    "[SWARM][type_logic] 6 violation(s) detectada(s).",
+    "[SWARM][md_pairing] 22 violation(s) detectada(s).",
     "[SWARM][md_min_chars] 7 violation(s) detectada(s).",
-    "[SWARM][what_mission] 21 violation(s) detectada(s).",
-    "[SWARM][why_justification] 21 violation(s) detectada(s).",
-    "[SWARM][usage_example] 21 violation(s) detectada(s).",
-    "[SWARM][test_case_mapping] 21 violation(s) detectada(s).",
+    "[SWARM][what_mission] 22 violation(s) detectada(s).",
+    "[SWARM][why_justification] 22 violation(s) detectada(s).",
+    "[SWARM][usage_example] 22 violation(s) detectada(s).",
+    "[SWARM][test_case_mapping] 22 violation(s) detectada(s).",
     "[SWARM][root_md_pairing] 5 violation(s) detectada(s).",
     "[SWARM][inheritance_visibility] 2 violation(s) detectada(s).",
-    "[SWARM][dna_suffix] 2 violation(s) detectada(s).",
+    "[SWARM][dna_suffix] 3 violation(s) detectada(s).",
     "[SWARM][tag_separator] 1 violation(s) detectada(s).",
     "[SWARM][pascal_case] 21 violation(s) detectada(s).",
-    "[SWARM][recursion] 10 violation(s) detectada(s).",
+    "[SWARM][recursion] 14 violation(s) detectada(s).",
     "[SWARM][manifest_anchoring] 2 violation(s) detectada(s).",
     "[SWARM][name_separator] 2 violation(s) detectada(s).",
     "[SWARM][restricted_tokens] 2 violation(s) detectada(s).",
     "[SWARM][allowed_crates] 1 violation(s) detectada(s).",
     "[SWARM][token_sanitization] 2 violation(s) detectada(s).",
     "[SWARM][dependency_purification] 1 violation(s) detectada(s).",
-    "[SWARM] Patrulha encerrada com 178 violation(s)."
+    "[SWARM] Patrulha encerrada com 189 violation(s)."
   ],
   "audited_files": [
     "src/exemples_error/type1/Logical-Dencity-Error_macro.rs",
@@ -52,6 +52,7 @@
     "src/exemples_error/type1/Type-Logic-Error_unitcore.rs",
     "src/exemples_error/type1/Visibility-Error_struct.rs",
     "src/exemples_error/type1/identity_workspace/DnaSuffixError.rs",
+    "src/exemples_error/type1/identity_workspace/DnaTypoError_unti.rs",
     "src/exemples_error/type1/identity_workspace/Guide_unit.md",
     "src/exemples_error/type1/identity_workspace/Name_Separator_Error_unit.rs",
     "src/exemples_error/type1/identity_workspace/Recursion-Missing_unit.rs",
@@ -201,7 +202,20 @@
       "quick_fix": "// [REFAC] Fragment this function into smaller atomic units to reduce logical mass."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0011__hierarchy_structural_type_logic_logical_density_error_struct__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0011__hierarchy_structural_type_logic_resolution__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
+      "file_path": "src/exemples_error/type1/identity_workspace/DnaTypoError_unti.rs",
+      "line": 1,
+      "rule_id": "hierarchy.structural.type_logic.resolution",
+      "priority": "P1",
+      "level": "warning",
+      "detected_dna": "unti",
+      "taxonomy_path": "hierarchy.structural.type_logic",
+      "message": "Axiom 'type_logic' precisa do requirement taxonomico 'type_logic', mas nenhum valor foi encontrado a partir de 'hierarchy.files'.",
+      "snippet": null,
+      "quick_fix": null
+    },
+    {
+      "log_file": "src/Logs/artifacts/violations/0012__hierarchy_structural_type_logic_logical_density_error_struct__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_struct.rs",
       "line": 5,
       "rule_id": "hierarchy.structural.type_logic.logical_density_error_struct",
@@ -214,7 +228,7 @@
       "quick_fix": "// [TODO] Align this declaration with the 'struct' type_logic profile resolved from hierarchy.files.struct."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0012__hierarchy_structural_type_logic_HiddenVisibilityError___src_exemples_error_type1_Visibility_Error_struct_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0013__hierarchy_structural_type_logic_HiddenVisibilityError___src_exemples_error_type1_Visibility_Error_struct_rs.log",
       "file_path": "src/exemples_error/type1/Visibility-Error_struct.rs",
       "line": 1,
       "rule_id": "hierarchy.structural.type_logic.HiddenVisibilityError;",
@@ -227,7 +241,7 @@
       "quick_fix": "// [TODO] Align this declaration with the 'struct' type_logic profile resolved from hierarchy.files.struct."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0013__hierarchy_structural_type_logic_keep_visibility_fixture_alive__src_exemples_error_type1_Visibility_Error_struct_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0014__hierarchy_structural_type_logic_keep_visibility_fixture_alive__src_exemples_error_type1_Visibility_Error_struct_rs.log",
       "file_path": "src/exemples_error/type1/Visibility-Error_struct.rs",
       "line": 3,
       "rule_id": "hierarchy.structural.type_logic.keep_visibility_fixture_alive",
@@ -240,7 +254,7 @@
       "quick_fix": "// [TODO] Align this declaration with the 'struct' type_logic profile resolved from hierarchy.files.struct."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0014__hierarchy_structural_type_logic_type_logic_error_struct__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0015__hierarchy_structural_type_logic_type_logic_error_struct__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
       "file_path": "src/exemples_error/type1/Type-Logic-Error_struct.rs",
       "line": 5,
       "rule_id": "hierarchy.structural.type_logic.type_logic_error_struct",
@@ -253,7 +267,7 @@
       "quick_fix": "// [TODO] Align this declaration with the 'struct' type_logic profile resolved from hierarchy.files.struct."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0015__hierarchy_structural_type_logic_type_logic_error_unitcore__src_exemples_error_type1_Type_Logic_Error_unitcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0016__hierarchy_structural_type_logic_type_logic_error_unitcore__src_exemples_error_type1_Type_Logic_Error_unitcore_rs.log",
       "file_path": "src/exemples_error/type1/Type-Logic-Error_unitcore.rs",
       "line": 1,
       "rule_id": "hierarchy.structural.type_logic.type_logic_error_unitcore",
@@ -266,7 +280,7 @@
       "quick_fix": "// [TODO] Align this declaration with the 'unitcore' type_logic profile resolved from hierarchy.files.unit.unitcore."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0016__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_pedagogical_workspace_Test_Case_Mapping_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0017__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_pedagogical_workspace_Test_Case_Mapping_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/pedagogical_workspace/Test-Case-Mapping-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.md_pairing",
@@ -279,7 +293,7 @@
       "quick_fix": "/// [WHERE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0017__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_pedagogical_workspace_Md_Pairing_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0018__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_pedagogical_workspace_Md_Pairing_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/pedagogical_workspace/Md-Pairing-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.md_pairing",
@@ -292,7 +306,20 @@
       "quick_fix": "/// [WHERE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0018__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_identity_workspace_DnaSuffixError_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0019__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
+      "file_path": "src/exemples_error/type1/identity_workspace/DnaTypoError_unti.rs",
+      "line": 1,
+      "rule_id": "hierarchy.pedagogical.md_pairing",
+      "priority": "P3",
+      "level": "note",
+      "detected_dna": "unti",
+      "taxonomy_path": "hierarchy.pedagogical.md_pairing",
+      "message": "Where documentation violation: function 'dna_typo_error_unti' must include [WHERE] in the documentation block above the declaration.",
+      "snippet": "pub fn dna_typo_error_unti() {}",
+      "quick_fix": "/// [WHERE] ..."
+    },
+    {
+      "log_file": "src/Logs/artifacts/violations/0020__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_identity_workspace_DnaSuffixError_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/DnaSuffixError.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.md_pairing",
@@ -305,7 +332,7 @@
       "quick_fix": "/// [WHERE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0019__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0021__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/pascal_case_error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.md_pairing",
@@ -318,7 +345,7 @@
       "quick_fix": "/// [WHERE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0020__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_identity_workspace_Recursion_Missing_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0022__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_identity_workspace_Recursion_Missing_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/Recursion-Missing_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.md_pairing",
@@ -331,7 +358,7 @@
       "quick_fix": "/// [WHERE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0021__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0023__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/Name_Separator_Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.md_pairing",
@@ -344,7 +371,7 @@
       "quick_fix": "/// [WHERE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0022__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0024__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/Tag-Separator-Error-unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.md_pairing",
@@ -357,7 +384,7 @@
       "quick_fix": "/// [WHERE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0023__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0025__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_struct.rs",
       "line": 5,
       "rule_id": "hierarchy.pedagogical.md_pairing",
@@ -370,7 +397,7 @@
       "quick_fix": "/// [WHERE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0024__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Logical_Dencity_Error_macrocore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0026__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Logical_Dencity_Error_macrocore_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_macrocore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.md_pairing",
@@ -383,7 +410,7 @@
       "quick_fix": "/// [WHERE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0025__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Visibility_Error_struct_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0027__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Visibility_Error_struct_rs.log",
       "file_path": "src/exemples_error/type1/Visibility-Error_struct.rs",
       "line": 3,
       "rule_id": "hierarchy.pedagogical.md_pairing",
@@ -396,7 +423,7 @@
       "quick_fix": "/// [WHERE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0026__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Max_Params_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0028__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Max_Params_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/Max-Params-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.md_pairing",
@@ -409,7 +436,7 @@
       "quick_fix": "/// [WHERE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0027__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Logical_Dencity_Error_structcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0029__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Logical_Dencity_Error_structcore_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_structcore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.md_pairing",
@@ -422,7 +449,7 @@
       "quick_fix": "/// [WHERE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0028__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0030__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/Max-Nesting-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.md_pairing",
@@ -435,7 +462,7 @@
       "quick_fix": "/// [WHERE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0029__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0031__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
       "file_path": "src/exemples_error/type1/Type-Logic-Error_struct.rs",
       "line": 5,
       "rule_id": "hierarchy.pedagogical.md_pairing",
@@ -448,7 +475,7 @@
       "quick_fix": "/// [WHERE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0030__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Logical_Dencity_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0032__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Logical_Dencity_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.md_pairing",
@@ -461,7 +488,7 @@
       "quick_fix": "/// [WHERE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0031__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Max_Nesting_Error_structcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0033__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Max_Nesting_Error_structcore_rs.log",
       "file_path": "src/exemples_error/type1/Max-Nesting-Error_structcore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.md_pairing",
@@ -474,7 +501,7 @@
       "quick_fix": "/// [WHERE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0032__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Type_Logic_Error_unitcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0034__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Type_Logic_Error_unitcore_rs.log",
       "file_path": "src/exemples_error/type1/Type-Logic-Error_unitcore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.md_pairing",
@@ -487,7 +514,7 @@
       "quick_fix": "/// [WHERE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0033__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Logical_Dencity_Error_unitcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0035__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Logical_Dencity_Error_unitcore_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_unitcore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.md_pairing",
@@ -500,7 +527,7 @@
       "quick_fix": "/// [WHERE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0034__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Max_Params_Error_unitcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0036__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_Max_Params_Error_unitcore_rs.log",
       "file_path": "src/exemples_error/type1/Max-Params-Error_unitcore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.md_pairing",
@@ -513,7 +540,7 @@
       "quick_fix": "/// [WHERE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0035__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0037__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/sanitization_workspace/Token-Sanitization-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.md_pairing",
@@ -526,7 +553,7 @@
       "quick_fix": "/// [WHERE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0036__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0038__hierarchy_pedagogical_md_pairing__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/sanitization_workspace/Restricted-Tokens-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.md_pairing",
@@ -539,7 +566,7 @@
       "quick_fix": "/// [WHERE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0037__hierarchy_pedagogical_md_min_chars__src_exemples_error_type1_pedagogical_workspace_Md_Min_Chars_Error_md.log",
+      "log_file": "src/Logs/artifacts/violations/0039__hierarchy_pedagogical_md_min_chars__src_exemples_error_type1_pedagogical_workspace_Md_Min_Chars_Error_md.log",
       "file_path": "src/exemples_error/type1/pedagogical_workspace/Md-Min-Chars-Error.md",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.md_min_chars",
@@ -552,7 +579,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0038__hierarchy_pedagogical_md_min_chars__src_exemples_error_type1_pedagogical_workspace_Inheritance_Visibility_Error_unit_md.log",
+      "log_file": "src/Logs/artifacts/violations/0040__hierarchy_pedagogical_md_min_chars__src_exemples_error_type1_pedagogical_workspace_Inheritance_Visibility_Error_unit_md.log",
       "file_path": "src/exemples_error/type1/pedagogical_workspace/Inheritance-Visibility-Error_unit.md",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.md_min_chars",
@@ -565,7 +592,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0039__hierarchy_pedagogical_md_min_chars__src_exemples_error_type1_pedagogical_workspace_RootGuide_md.log",
+      "log_file": "src/Logs/artifacts/violations/0041__hierarchy_pedagogical_md_min_chars__src_exemples_error_type1_pedagogical_workspace_RootGuide_md.log",
       "file_path": "src/exemples_error/type1/pedagogical_workspace/RootGuide.md",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.md_min_chars",
@@ -578,7 +605,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0040__hierarchy_pedagogical_md_min_chars__src_exemples_error_type1_pedagogical_workspace_What_Mission_Error_md.log",
+      "log_file": "src/Logs/artifacts/violations/0042__hierarchy_pedagogical_md_min_chars__src_exemples_error_type1_pedagogical_workspace_What_Mission_Error_md.log",
       "file_path": "src/exemples_error/type1/pedagogical_workspace/What-Mission-Error.md",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.md_min_chars",
@@ -591,7 +618,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0041__hierarchy_pedagogical_md_min_chars__src_exemples_error_type1_pedagogical_workspace_Usage_Example_Error_md.log",
+      "log_file": "src/Logs/artifacts/violations/0043__hierarchy_pedagogical_md_min_chars__src_exemples_error_type1_pedagogical_workspace_Usage_Example_Error_md.log",
       "file_path": "src/exemples_error/type1/pedagogical_workspace/Usage-Example-Error.md",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.md_min_chars",
@@ -604,7 +631,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0042__hierarchy_pedagogical_md_min_chars__src_exemples_error_type1_pedagogical_workspace_Why_Justification_Error_md.log",
+      "log_file": "src/Logs/artifacts/violations/0044__hierarchy_pedagogical_md_min_chars__src_exemples_error_type1_pedagogical_workspace_Why_Justification_Error_md.log",
       "file_path": "src/exemples_error/type1/pedagogical_workspace/Why-Justification-Error.md",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.md_min_chars",
@@ -617,7 +644,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0043__hierarchy_pedagogical_md_min_chars__src_exemples_error_type1_identity_workspace_Guide_unit_md.log",
+      "log_file": "src/Logs/artifacts/violations/0045__hierarchy_pedagogical_md_min_chars__src_exemples_error_type1_identity_workspace_Guide_unit_md.log",
       "file_path": "src/exemples_error/type1/identity_workspace/Guide_unit.md",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.md_min_chars",
@@ -630,7 +657,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0044__hierarchy_pedagogical_what_mission__src_exemples_error_type1_pedagogical_workspace_Test_Case_Mapping_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0046__hierarchy_pedagogical_what_mission__src_exemples_error_type1_pedagogical_workspace_Test_Case_Mapping_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/pedagogical_workspace/Test-Case-Mapping-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.what_mission",
@@ -643,7 +670,7 @@
       "quick_fix": "/// [WHAT] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0045__hierarchy_pedagogical_what_mission__src_exemples_error_type1_pedagogical_workspace_Md_Pairing_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0047__hierarchy_pedagogical_what_mission__src_exemples_error_type1_pedagogical_workspace_Md_Pairing_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/pedagogical_workspace/Md-Pairing-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.what_mission",
@@ -656,7 +683,20 @@
       "quick_fix": "/// [WHAT] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0046__hierarchy_pedagogical_what_mission__src_exemples_error_type1_identity_workspace_DnaSuffixError_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0048__hierarchy_pedagogical_what_mission__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
+      "file_path": "src/exemples_error/type1/identity_workspace/DnaTypoError_unti.rs",
+      "line": 1,
+      "rule_id": "hierarchy.pedagogical.what_mission",
+      "priority": "P3",
+      "level": "note",
+      "detected_dna": "unti",
+      "taxonomy_path": "hierarchy.pedagogical.what_mission",
+      "message": "What mission violation: function 'dna_typo_error_unti' must include [WHAT] in the documentation block above the declaration.",
+      "snippet": "pub fn dna_typo_error_unti() {}",
+      "quick_fix": "/// [WHAT] ..."
+    },
+    {
+      "log_file": "src/Logs/artifacts/violations/0049__hierarchy_pedagogical_what_mission__src_exemples_error_type1_identity_workspace_DnaSuffixError_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/DnaSuffixError.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.what_mission",
@@ -669,7 +709,7 @@
       "quick_fix": "/// [WHAT] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0047__hierarchy_pedagogical_what_mission__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0050__hierarchy_pedagogical_what_mission__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/pascal_case_error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.what_mission",
@@ -682,7 +722,7 @@
       "quick_fix": "/// [WHAT] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0048__hierarchy_pedagogical_what_mission__src_exemples_error_type1_identity_workspace_Recursion_Missing_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0051__hierarchy_pedagogical_what_mission__src_exemples_error_type1_identity_workspace_Recursion_Missing_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/Recursion-Missing_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.what_mission",
@@ -695,7 +735,7 @@
       "quick_fix": "/// [WHAT] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0049__hierarchy_pedagogical_what_mission__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0052__hierarchy_pedagogical_what_mission__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/Name_Separator_Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.what_mission",
@@ -708,7 +748,7 @@
       "quick_fix": "/// [WHAT] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0050__hierarchy_pedagogical_what_mission__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0053__hierarchy_pedagogical_what_mission__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/Tag-Separator-Error-unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.what_mission",
@@ -721,7 +761,7 @@
       "quick_fix": "/// [WHAT] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0051__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0054__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_struct.rs",
       "line": 5,
       "rule_id": "hierarchy.pedagogical.what_mission",
@@ -734,7 +774,7 @@
       "quick_fix": "/// [WHAT] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0052__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Logical_Dencity_Error_macrocore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0055__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Logical_Dencity_Error_macrocore_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_macrocore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.what_mission",
@@ -747,7 +787,7 @@
       "quick_fix": "/// [WHAT] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0053__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Visibility_Error_struct_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0056__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Visibility_Error_struct_rs.log",
       "file_path": "src/exemples_error/type1/Visibility-Error_struct.rs",
       "line": 3,
       "rule_id": "hierarchy.pedagogical.what_mission",
@@ -760,7 +800,7 @@
       "quick_fix": "/// [WHAT] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0054__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Max_Params_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0057__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Max_Params_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/Max-Params-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.what_mission",
@@ -773,7 +813,7 @@
       "quick_fix": "/// [WHAT] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0055__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Logical_Dencity_Error_structcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0058__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Logical_Dencity_Error_structcore_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_structcore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.what_mission",
@@ -786,7 +826,7 @@
       "quick_fix": "/// [WHAT] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0056__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0059__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/Max-Nesting-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.what_mission",
@@ -799,7 +839,7 @@
       "quick_fix": "/// [WHAT] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0057__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0060__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
       "file_path": "src/exemples_error/type1/Type-Logic-Error_struct.rs",
       "line": 5,
       "rule_id": "hierarchy.pedagogical.what_mission",
@@ -812,7 +852,7 @@
       "quick_fix": "/// [WHAT] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0058__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Logical_Dencity_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0061__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Logical_Dencity_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.what_mission",
@@ -825,7 +865,7 @@
       "quick_fix": "/// [WHAT] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0059__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Max_Nesting_Error_structcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0062__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Max_Nesting_Error_structcore_rs.log",
       "file_path": "src/exemples_error/type1/Max-Nesting-Error_structcore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.what_mission",
@@ -838,7 +878,7 @@
       "quick_fix": "/// [WHAT] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0060__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Type_Logic_Error_unitcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0063__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Type_Logic_Error_unitcore_rs.log",
       "file_path": "src/exemples_error/type1/Type-Logic-Error_unitcore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.what_mission",
@@ -851,7 +891,7 @@
       "quick_fix": "/// [WHAT] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0061__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Logical_Dencity_Error_unitcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0064__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Logical_Dencity_Error_unitcore_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_unitcore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.what_mission",
@@ -864,7 +904,7 @@
       "quick_fix": "/// [WHAT] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0062__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Max_Params_Error_unitcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0065__hierarchy_pedagogical_what_mission__src_exemples_error_type1_Max_Params_Error_unitcore_rs.log",
       "file_path": "src/exemples_error/type1/Max-Params-Error_unitcore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.what_mission",
@@ -877,7 +917,7 @@
       "quick_fix": "/// [WHAT] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0063__hierarchy_pedagogical_what_mission__src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0066__hierarchy_pedagogical_what_mission__src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/sanitization_workspace/Token-Sanitization-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.what_mission",
@@ -890,7 +930,7 @@
       "quick_fix": "/// [WHAT] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0064__hierarchy_pedagogical_what_mission__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0067__hierarchy_pedagogical_what_mission__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/sanitization_workspace/Restricted-Tokens-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.what_mission",
@@ -903,7 +943,7 @@
       "quick_fix": "/// [WHAT] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0065__hierarchy_pedagogical_why_justification__src_exemples_error_type1_pedagogical_workspace_Test_Case_Mapping_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0068__hierarchy_pedagogical_why_justification__src_exemples_error_type1_pedagogical_workspace_Test_Case_Mapping_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/pedagogical_workspace/Test-Case-Mapping-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.why_justification",
@@ -916,7 +956,7 @@
       "quick_fix": "/// [WHY] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0066__hierarchy_pedagogical_why_justification__src_exemples_error_type1_pedagogical_workspace_Md_Pairing_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0069__hierarchy_pedagogical_why_justification__src_exemples_error_type1_pedagogical_workspace_Md_Pairing_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/pedagogical_workspace/Md-Pairing-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.why_justification",
@@ -929,7 +969,20 @@
       "quick_fix": "/// [WHY] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0067__hierarchy_pedagogical_why_justification__src_exemples_error_type1_identity_workspace_DnaSuffixError_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0070__hierarchy_pedagogical_why_justification__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
+      "file_path": "src/exemples_error/type1/identity_workspace/DnaTypoError_unti.rs",
+      "line": 1,
+      "rule_id": "hierarchy.pedagogical.why_justification",
+      "priority": "P3",
+      "level": "note",
+      "detected_dna": "unti",
+      "taxonomy_path": "hierarchy.pedagogical.why_justification",
+      "message": "Why justification violation: function 'dna_typo_error_unti' must include [WHY] in the documentation block above the declaration.",
+      "snippet": "pub fn dna_typo_error_unti() {}",
+      "quick_fix": "/// [WHY] ..."
+    },
+    {
+      "log_file": "src/Logs/artifacts/violations/0071__hierarchy_pedagogical_why_justification__src_exemples_error_type1_identity_workspace_DnaSuffixError_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/DnaSuffixError.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.why_justification",
@@ -942,7 +995,7 @@
       "quick_fix": "/// [WHY] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0068__hierarchy_pedagogical_why_justification__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0072__hierarchy_pedagogical_why_justification__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/pascal_case_error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.why_justification",
@@ -955,7 +1008,7 @@
       "quick_fix": "/// [WHY] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0069__hierarchy_pedagogical_why_justification__src_exemples_error_type1_identity_workspace_Recursion_Missing_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0073__hierarchy_pedagogical_why_justification__src_exemples_error_type1_identity_workspace_Recursion_Missing_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/Recursion-Missing_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.why_justification",
@@ -968,7 +1021,7 @@
       "quick_fix": "/// [WHY] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0070__hierarchy_pedagogical_why_justification__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0074__hierarchy_pedagogical_why_justification__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/Name_Separator_Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.why_justification",
@@ -981,7 +1034,7 @@
       "quick_fix": "/// [WHY] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0071__hierarchy_pedagogical_why_justification__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0075__hierarchy_pedagogical_why_justification__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/Tag-Separator-Error-unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.why_justification",
@@ -994,7 +1047,7 @@
       "quick_fix": "/// [WHY] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0072__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0076__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_struct.rs",
       "line": 5,
       "rule_id": "hierarchy.pedagogical.why_justification",
@@ -1007,7 +1060,7 @@
       "quick_fix": "/// [WHY] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0073__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Logical_Dencity_Error_macrocore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0077__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Logical_Dencity_Error_macrocore_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_macrocore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.why_justification",
@@ -1020,7 +1073,7 @@
       "quick_fix": "/// [WHY] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0074__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Visibility_Error_struct_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0078__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Visibility_Error_struct_rs.log",
       "file_path": "src/exemples_error/type1/Visibility-Error_struct.rs",
       "line": 3,
       "rule_id": "hierarchy.pedagogical.why_justification",
@@ -1033,7 +1086,7 @@
       "quick_fix": "/// [WHY] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0075__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Max_Params_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0079__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Max_Params_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/Max-Params-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.why_justification",
@@ -1046,7 +1099,7 @@
       "quick_fix": "/// [WHY] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0076__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Logical_Dencity_Error_structcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0080__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Logical_Dencity_Error_structcore_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_structcore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.why_justification",
@@ -1059,7 +1112,7 @@
       "quick_fix": "/// [WHY] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0077__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0081__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/Max-Nesting-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.why_justification",
@@ -1072,7 +1125,7 @@
       "quick_fix": "/// [WHY] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0078__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0082__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
       "file_path": "src/exemples_error/type1/Type-Logic-Error_struct.rs",
       "line": 5,
       "rule_id": "hierarchy.pedagogical.why_justification",
@@ -1085,7 +1138,7 @@
       "quick_fix": "/// [WHY] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0079__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Logical_Dencity_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0083__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Logical_Dencity_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.why_justification",
@@ -1098,7 +1151,7 @@
       "quick_fix": "/// [WHY] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0080__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Max_Nesting_Error_structcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0084__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Max_Nesting_Error_structcore_rs.log",
       "file_path": "src/exemples_error/type1/Max-Nesting-Error_structcore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.why_justification",
@@ -1111,7 +1164,7 @@
       "quick_fix": "/// [WHY] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0081__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Type_Logic_Error_unitcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0085__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Type_Logic_Error_unitcore_rs.log",
       "file_path": "src/exemples_error/type1/Type-Logic-Error_unitcore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.why_justification",
@@ -1124,7 +1177,7 @@
       "quick_fix": "/// [WHY] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0082__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Logical_Dencity_Error_unitcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0086__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Logical_Dencity_Error_unitcore_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_unitcore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.why_justification",
@@ -1137,7 +1190,7 @@
       "quick_fix": "/// [WHY] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0083__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Max_Params_Error_unitcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0087__hierarchy_pedagogical_why_justification__src_exemples_error_type1_Max_Params_Error_unitcore_rs.log",
       "file_path": "src/exemples_error/type1/Max-Params-Error_unitcore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.why_justification",
@@ -1150,7 +1203,7 @@
       "quick_fix": "/// [WHY] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0084__hierarchy_pedagogical_why_justification__src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0088__hierarchy_pedagogical_why_justification__src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/sanitization_workspace/Token-Sanitization-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.why_justification",
@@ -1163,7 +1216,7 @@
       "quick_fix": "/// [WHY] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0085__hierarchy_pedagogical_why_justification__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0089__hierarchy_pedagogical_why_justification__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/sanitization_workspace/Restricted-Tokens-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.why_justification",
@@ -1176,7 +1229,7 @@
       "quick_fix": "/// [WHY] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0086__hierarchy_pedagogical_usage_example__src_exemples_error_type1_pedagogical_workspace_Test_Case_Mapping_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0090__hierarchy_pedagogical_usage_example__src_exemples_error_type1_pedagogical_workspace_Test_Case_Mapping_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/pedagogical_workspace/Test-Case-Mapping-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.usage_example",
@@ -1189,7 +1242,7 @@
       "quick_fix": "/// [USAGE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0087__hierarchy_pedagogical_usage_example__src_exemples_error_type1_pedagogical_workspace_Md_Pairing_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0091__hierarchy_pedagogical_usage_example__src_exemples_error_type1_pedagogical_workspace_Md_Pairing_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/pedagogical_workspace/Md-Pairing-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.usage_example",
@@ -1202,7 +1255,20 @@
       "quick_fix": "/// [USAGE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0088__hierarchy_pedagogical_usage_example__src_exemples_error_type1_identity_workspace_DnaSuffixError_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0092__hierarchy_pedagogical_usage_example__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
+      "file_path": "src/exemples_error/type1/identity_workspace/DnaTypoError_unti.rs",
+      "line": 1,
+      "rule_id": "hierarchy.pedagogical.usage_example",
+      "priority": "P3",
+      "level": "note",
+      "detected_dna": "unti",
+      "taxonomy_path": "hierarchy.pedagogical.usage_example",
+      "message": "Usage example violation: function 'dna_typo_error_unti' must include [USAGE] in the documentation block above the declaration.",
+      "snippet": "pub fn dna_typo_error_unti() {}",
+      "quick_fix": "/// [USAGE] ..."
+    },
+    {
+      "log_file": "src/Logs/artifacts/violations/0093__hierarchy_pedagogical_usage_example__src_exemples_error_type1_identity_workspace_DnaSuffixError_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/DnaSuffixError.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.usage_example",
@@ -1215,7 +1281,7 @@
       "quick_fix": "/// [USAGE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0089__hierarchy_pedagogical_usage_example__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0094__hierarchy_pedagogical_usage_example__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/pascal_case_error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.usage_example",
@@ -1228,7 +1294,7 @@
       "quick_fix": "/// [USAGE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0090__hierarchy_pedagogical_usage_example__src_exemples_error_type1_identity_workspace_Recursion_Missing_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0095__hierarchy_pedagogical_usage_example__src_exemples_error_type1_identity_workspace_Recursion_Missing_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/Recursion-Missing_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.usage_example",
@@ -1241,7 +1307,7 @@
       "quick_fix": "/// [USAGE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0091__hierarchy_pedagogical_usage_example__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0096__hierarchy_pedagogical_usage_example__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/Name_Separator_Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.usage_example",
@@ -1254,7 +1320,7 @@
       "quick_fix": "/// [USAGE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0092__hierarchy_pedagogical_usage_example__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0097__hierarchy_pedagogical_usage_example__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/Tag-Separator-Error-unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.usage_example",
@@ -1267,7 +1333,7 @@
       "quick_fix": "/// [USAGE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0093__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0098__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_struct.rs",
       "line": 5,
       "rule_id": "hierarchy.pedagogical.usage_example",
@@ -1280,7 +1346,7 @@
       "quick_fix": "/// [USAGE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0094__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Logical_Dencity_Error_macrocore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0099__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Logical_Dencity_Error_macrocore_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_macrocore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.usage_example",
@@ -1293,7 +1359,7 @@
       "quick_fix": "/// [USAGE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0095__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Visibility_Error_struct_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0100__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Visibility_Error_struct_rs.log",
       "file_path": "src/exemples_error/type1/Visibility-Error_struct.rs",
       "line": 3,
       "rule_id": "hierarchy.pedagogical.usage_example",
@@ -1306,7 +1372,7 @@
       "quick_fix": "/// [USAGE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0096__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Max_Params_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0101__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Max_Params_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/Max-Params-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.usage_example",
@@ -1319,7 +1385,7 @@
       "quick_fix": "/// [USAGE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0097__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Logical_Dencity_Error_structcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0102__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Logical_Dencity_Error_structcore_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_structcore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.usage_example",
@@ -1332,7 +1398,7 @@
       "quick_fix": "/// [USAGE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0098__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0103__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/Max-Nesting-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.usage_example",
@@ -1345,7 +1411,7 @@
       "quick_fix": "/// [USAGE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0099__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0104__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
       "file_path": "src/exemples_error/type1/Type-Logic-Error_struct.rs",
       "line": 5,
       "rule_id": "hierarchy.pedagogical.usage_example",
@@ -1358,7 +1424,7 @@
       "quick_fix": "/// [USAGE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0100__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Logical_Dencity_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0105__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Logical_Dencity_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.usage_example",
@@ -1371,7 +1437,7 @@
       "quick_fix": "/// [USAGE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0101__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Max_Nesting_Error_structcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0106__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Max_Nesting_Error_structcore_rs.log",
       "file_path": "src/exemples_error/type1/Max-Nesting-Error_structcore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.usage_example",
@@ -1384,7 +1450,7 @@
       "quick_fix": "/// [USAGE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0102__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Type_Logic_Error_unitcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0107__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Type_Logic_Error_unitcore_rs.log",
       "file_path": "src/exemples_error/type1/Type-Logic-Error_unitcore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.usage_example",
@@ -1397,7 +1463,7 @@
       "quick_fix": "/// [USAGE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0103__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Logical_Dencity_Error_unitcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0108__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Logical_Dencity_Error_unitcore_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_unitcore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.usage_example",
@@ -1410,7 +1476,7 @@
       "quick_fix": "/// [USAGE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0104__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Max_Params_Error_unitcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0109__hierarchy_pedagogical_usage_example__src_exemples_error_type1_Max_Params_Error_unitcore_rs.log",
       "file_path": "src/exemples_error/type1/Max-Params-Error_unitcore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.usage_example",
@@ -1423,7 +1489,7 @@
       "quick_fix": "/// [USAGE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0105__hierarchy_pedagogical_usage_example__src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0110__hierarchy_pedagogical_usage_example__src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/sanitization_workspace/Token-Sanitization-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.usage_example",
@@ -1436,7 +1502,7 @@
       "quick_fix": "/// [USAGE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0106__hierarchy_pedagogical_usage_example__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0111__hierarchy_pedagogical_usage_example__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/sanitization_workspace/Restricted-Tokens-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.usage_example",
@@ -1449,7 +1515,7 @@
       "quick_fix": "/// [USAGE] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0107__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_pedagogical_workspace_Test_Case_Mapping_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0112__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_pedagogical_workspace_Test_Case_Mapping_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/pedagogical_workspace/Test-Case-Mapping-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.test_case_mapping",
@@ -1462,7 +1528,7 @@
       "quick_fix": "/// [TEST] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0108__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_pedagogical_workspace_Md_Pairing_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0113__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_pedagogical_workspace_Md_Pairing_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/pedagogical_workspace/Md-Pairing-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.test_case_mapping",
@@ -1475,7 +1541,20 @@
       "quick_fix": "/// [TEST] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0109__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_identity_workspace_DnaSuffixError_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0114__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
+      "file_path": "src/exemples_error/type1/identity_workspace/DnaTypoError_unti.rs",
+      "line": 1,
+      "rule_id": "hierarchy.pedagogical.test_case_mapping",
+      "priority": "P3",
+      "level": "note",
+      "detected_dna": "unti",
+      "taxonomy_path": "hierarchy.pedagogical.test_case_mapping",
+      "message": "Test mapping violation: function 'dna_typo_error_unti' must include [TEST] in the documentation block above the declaration.",
+      "snippet": "pub fn dna_typo_error_unti() {}",
+      "quick_fix": "/// [TEST] ..."
+    },
+    {
+      "log_file": "src/Logs/artifacts/violations/0115__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_identity_workspace_DnaSuffixError_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/DnaSuffixError.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.test_case_mapping",
@@ -1488,7 +1567,7 @@
       "quick_fix": "/// [TEST] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0110__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0116__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/pascal_case_error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.test_case_mapping",
@@ -1501,7 +1580,7 @@
       "quick_fix": "/// [TEST] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0111__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_identity_workspace_Recursion_Missing_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0117__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_identity_workspace_Recursion_Missing_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/Recursion-Missing_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.test_case_mapping",
@@ -1514,7 +1593,7 @@
       "quick_fix": "/// [TEST] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0112__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0118__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/Name_Separator_Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.test_case_mapping",
@@ -1527,7 +1606,7 @@
       "quick_fix": "/// [TEST] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0113__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0119__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/Tag-Separator-Error-unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.test_case_mapping",
@@ -1540,7 +1619,7 @@
       "quick_fix": "/// [TEST] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0114__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0120__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_struct.rs",
       "line": 5,
       "rule_id": "hierarchy.pedagogical.test_case_mapping",
@@ -1553,7 +1632,7 @@
       "quick_fix": "/// [TEST] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0115__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Logical_Dencity_Error_macrocore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0121__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Logical_Dencity_Error_macrocore_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_macrocore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.test_case_mapping",
@@ -1566,7 +1645,7 @@
       "quick_fix": "/// [TEST] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0116__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Visibility_Error_struct_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0122__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Visibility_Error_struct_rs.log",
       "file_path": "src/exemples_error/type1/Visibility-Error_struct.rs",
       "line": 3,
       "rule_id": "hierarchy.pedagogical.test_case_mapping",
@@ -1579,7 +1658,7 @@
       "quick_fix": "/// [TEST] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0117__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Max_Params_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0123__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Max_Params_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/Max-Params-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.test_case_mapping",
@@ -1592,7 +1671,7 @@
       "quick_fix": "/// [TEST] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0118__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Logical_Dencity_Error_structcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0124__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Logical_Dencity_Error_structcore_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_structcore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.test_case_mapping",
@@ -1605,7 +1684,7 @@
       "quick_fix": "/// [TEST] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0119__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0125__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/Max-Nesting-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.test_case_mapping",
@@ -1618,7 +1697,7 @@
       "quick_fix": "/// [TEST] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0120__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0126__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
       "file_path": "src/exemples_error/type1/Type-Logic-Error_struct.rs",
       "line": 5,
       "rule_id": "hierarchy.pedagogical.test_case_mapping",
@@ -1631,7 +1710,7 @@
       "quick_fix": "/// [TEST] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0121__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Logical_Dencity_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0127__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Logical_Dencity_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.test_case_mapping",
@@ -1644,7 +1723,7 @@
       "quick_fix": "/// [TEST] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0122__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Max_Nesting_Error_structcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0128__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Max_Nesting_Error_structcore_rs.log",
       "file_path": "src/exemples_error/type1/Max-Nesting-Error_structcore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.test_case_mapping",
@@ -1657,7 +1736,7 @@
       "quick_fix": "/// [TEST] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0123__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Type_Logic_Error_unitcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0129__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Type_Logic_Error_unitcore_rs.log",
       "file_path": "src/exemples_error/type1/Type-Logic-Error_unitcore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.test_case_mapping",
@@ -1670,7 +1749,7 @@
       "quick_fix": "/// [TEST] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0124__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Logical_Dencity_Error_unitcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0130__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Logical_Dencity_Error_unitcore_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_unitcore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.test_case_mapping",
@@ -1683,7 +1762,7 @@
       "quick_fix": "/// [TEST] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0125__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Max_Params_Error_unitcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0131__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_Max_Params_Error_unitcore_rs.log",
       "file_path": "src/exemples_error/type1/Max-Params-Error_unitcore.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.test_case_mapping",
@@ -1696,7 +1775,7 @@
       "quick_fix": "/// [TEST] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0126__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0132__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/sanitization_workspace/Token-Sanitization-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.test_case_mapping",
@@ -1709,7 +1788,7 @@
       "quick_fix": "/// [TEST] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0127__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0133__hierarchy_pedagogical_test_case_mapping__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/sanitization_workspace/Restricted-Tokens-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.test_case_mapping",
@@ -1722,7 +1801,7 @@
       "quick_fix": "/// [TEST] ..."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0128__hierarchy_pedagogical_root_md_pairing__src_exemples_error_type1_pedagogical_workspace_Md_Min_Chars_Error_md.log",
+      "log_file": "src/Logs/artifacts/violations/0134__hierarchy_pedagogical_root_md_pairing__src_exemples_error_type1_pedagogical_workspace_Md_Min_Chars_Error_md.log",
       "file_path": "src/exemples_error/type1/pedagogical_workspace/Md-Min-Chars-Error.md",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.root_md_pairing",
@@ -1735,7 +1814,7 @@
       "quick_fix": "Create src/exemples_error/type1/pedagogical_workspace/Md-Min-Chars-Error_manifest.json"
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0129__hierarchy_pedagogical_root_md_pairing__src_exemples_error_type1_pedagogical_workspace_RootGuide_md.log",
+      "log_file": "src/Logs/artifacts/violations/0135__hierarchy_pedagogical_root_md_pairing__src_exemples_error_type1_pedagogical_workspace_RootGuide_md.log",
       "file_path": "src/exemples_error/type1/pedagogical_workspace/RootGuide.md",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.root_md_pairing",
@@ -1748,7 +1827,7 @@
       "quick_fix": "Create src/exemples_error/type1/pedagogical_workspace/RootGuide_manifest.json"
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0130__hierarchy_pedagogical_root_md_pairing__src_exemples_error_type1_pedagogical_workspace_What_Mission_Error_md.log",
+      "log_file": "src/Logs/artifacts/violations/0136__hierarchy_pedagogical_root_md_pairing__src_exemples_error_type1_pedagogical_workspace_What_Mission_Error_md.log",
       "file_path": "src/exemples_error/type1/pedagogical_workspace/What-Mission-Error.md",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.root_md_pairing",
@@ -1761,7 +1840,7 @@
       "quick_fix": "Create src/exemples_error/type1/pedagogical_workspace/What-Mission-Error_manifest.json"
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0131__hierarchy_pedagogical_root_md_pairing__src_exemples_error_type1_pedagogical_workspace_Usage_Example_Error_md.log",
+      "log_file": "src/Logs/artifacts/violations/0137__hierarchy_pedagogical_root_md_pairing__src_exemples_error_type1_pedagogical_workspace_Usage_Example_Error_md.log",
       "file_path": "src/exemples_error/type1/pedagogical_workspace/Usage-Example-Error.md",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.root_md_pairing",
@@ -1774,7 +1853,7 @@
       "quick_fix": "Create src/exemples_error/type1/pedagogical_workspace/Usage-Example-Error_manifest.json"
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0132__hierarchy_pedagogical_root_md_pairing__src_exemples_error_type1_pedagogical_workspace_Why_Justification_Error_md.log",
+      "log_file": "src/Logs/artifacts/violations/0138__hierarchy_pedagogical_root_md_pairing__src_exemples_error_type1_pedagogical_workspace_Why_Justification_Error_md.log",
       "file_path": "src/exemples_error/type1/pedagogical_workspace/Why-Justification-Error.md",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.root_md_pairing",
@@ -1787,7 +1866,7 @@
       "quick_fix": "Create src/exemples_error/type1/pedagogical_workspace/Why-Justification-Error_manifest.json"
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0133__hierarchy_pedagogical_inheritance_visibility__src_exemples_error_type1_pedagogical_workspace_Inheritance_Visibility_Error_unit_md.log",
+      "log_file": "src/Logs/artifacts/violations/0139__hierarchy_pedagogical_inheritance_visibility__src_exemples_error_type1_pedagogical_workspace_Inheritance_Visibility_Error_unit_md.log",
       "file_path": "src/exemples_error/type1/pedagogical_workspace/Inheritance-Visibility-Error_unit.md",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.inheritance_visibility",
@@ -1800,7 +1879,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0134__hierarchy_pedagogical_inheritance_visibility__src_exemples_error_type1_identity_workspace_Guide_unit_md.log",
+      "log_file": "src/Logs/artifacts/violations/0140__hierarchy_pedagogical_inheritance_visibility__src_exemples_error_type1_identity_workspace_Guide_unit_md.log",
       "file_path": "src/exemples_error/type1/identity_workspace/Guide_unit.md",
       "line": 1,
       "rule_id": "hierarchy.pedagogical.inheritance_visibility",
@@ -1813,7 +1892,20 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0135__hierarchy_identity_dna_suffix__src_exemples_error_type1_identity_workspace_DnaSuffixError_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0141__hierarchy_identity_dna_suffix__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
+      "file_path": "src/exemples_error/type1/identity_workspace/DnaTypoError_unti.rs",
+      "line": 1,
+      "rule_id": "hierarchy.identity.dna_suffix",
+      "priority": "P2",
+      "level": "note",
+      "detected_dna": "unti",
+      "taxonomy_path": "hierarchy.identity.dna_suffix",
+      "message": "DNA suffix invalid: 'DnaTypoError_unti' uses 'unti' after '_', but this suffix is not defined in the active taxonomy.",
+      "snippet": "DnaTypoError_unti",
+      "quick_fix": null
+    },
+    {
+      "log_file": "src/Logs/artifacts/violations/0142__hierarchy_identity_dna_suffix__src_exemples_error_type1_identity_workspace_DnaSuffixError_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/DnaSuffixError.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.dna_suffix",
@@ -1826,7 +1918,7 @@
       "quick_fix": "DnaSuffixError_unit.rs"
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0136__hierarchy_identity_dna_suffix__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0143__hierarchy_identity_dna_suffix__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/Tag-Separator-Error-unit.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.dna_suffix",
@@ -1839,7 +1931,7 @@
       "quick_fix": "Tag-Separator-Error-unit_unit.rs"
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0137__hierarchy_identity_tag_separator__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0144__hierarchy_identity_tag_separator__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/Tag-Separator-Error-unit.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.tag_separator",
@@ -1852,7 +1944,7 @@
       "quick_fix": "Tag_Separator_Error_unit"
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0138__hierarchy_identity_pascal_case__src_exemples_error_type1_pedagogical_workspace_Test_Case_Mapping_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0145__hierarchy_identity_pascal_case__src_exemples_error_type1_pedagogical_workspace_Test_Case_Mapping_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/pedagogical_workspace/Test-Case-Mapping-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.pascal_case",
@@ -1865,7 +1957,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0139__hierarchy_identity_pascal_case__src_exemples_error_type1_pedagogical_workspace_Md_Pairing_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0146__hierarchy_identity_pascal_case__src_exemples_error_type1_pedagogical_workspace_Md_Pairing_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/pedagogical_workspace/Md-Pairing-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.pascal_case",
@@ -1878,7 +1970,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0140__hierarchy_identity_pascal_case__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0147__hierarchy_identity_pascal_case__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/pascal_case_error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.pascal_case",
@@ -1891,7 +1983,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0141__hierarchy_identity_pascal_case__src_exemples_error_type1_identity_workspace_Recursion_Missing_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0148__hierarchy_identity_pascal_case__src_exemples_error_type1_identity_workspace_Recursion_Missing_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/Recursion-Missing_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.pascal_case",
@@ -1904,7 +1996,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0142__hierarchy_identity_pascal_case__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0149__hierarchy_identity_pascal_case__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/Name_Separator_Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.pascal_case",
@@ -1917,7 +2009,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0143__hierarchy_identity_pascal_case__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0150__hierarchy_identity_pascal_case__src_exemples_error_type1_identity_workspace_Tag_Separator_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/Tag-Separator-Error-unit.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.pascal_case",
@@ -1930,7 +2022,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0144__hierarchy_identity_pascal_case__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0151__hierarchy_identity_pascal_case__src_exemples_error_type1_Logical_Dencity_Error_struct_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_struct.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.pascal_case",
@@ -1943,7 +2035,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0145__hierarchy_identity_pascal_case__src_exemples_error_type1_Logical_Dencity_Error_macrocore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0152__hierarchy_identity_pascal_case__src_exemples_error_type1_Logical_Dencity_Error_macrocore_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_macrocore.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.pascal_case",
@@ -1956,7 +2048,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0146__hierarchy_identity_pascal_case__src_exemples_error_type1_Visibility_Error_struct_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0153__hierarchy_identity_pascal_case__src_exemples_error_type1_Visibility_Error_struct_rs.log",
       "file_path": "src/exemples_error/type1/Visibility-Error_struct.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.pascal_case",
@@ -1969,7 +2061,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0147__hierarchy_identity_pascal_case__src_exemples_error_type1_Max_Params_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0154__hierarchy_identity_pascal_case__src_exemples_error_type1_Max_Params_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/Max-Params-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.pascal_case",
@@ -1982,7 +2074,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0148__hierarchy_identity_pascal_case__src_exemples_error_type1_Logical_Dencity_Error_structcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0155__hierarchy_identity_pascal_case__src_exemples_error_type1_Logical_Dencity_Error_structcore_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_structcore.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.pascal_case",
@@ -1995,7 +2087,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0149__hierarchy_identity_pascal_case__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0156__hierarchy_identity_pascal_case__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/Max-Nesting-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.pascal_case",
@@ -2008,7 +2100,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0150__hierarchy_identity_pascal_case__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0157__hierarchy_identity_pascal_case__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
       "file_path": "src/exemples_error/type1/Type-Logic-Error_struct.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.pascal_case",
@@ -2021,7 +2113,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0151__hierarchy_identity_pascal_case__src_exemples_error_type1_Logical_Dencity_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0158__hierarchy_identity_pascal_case__src_exemples_error_type1_Logical_Dencity_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.pascal_case",
@@ -2034,7 +2126,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0152__hierarchy_identity_pascal_case__src_exemples_error_type1_Max_Nesting_Error_structcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0159__hierarchy_identity_pascal_case__src_exemples_error_type1_Max_Nesting_Error_structcore_rs.log",
       "file_path": "src/exemples_error/type1/Max-Nesting-Error_structcore.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.pascal_case",
@@ -2047,7 +2139,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0153__hierarchy_identity_pascal_case__src_exemples_error_type1_Type_Logic_Error_unitcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0160__hierarchy_identity_pascal_case__src_exemples_error_type1_Type_Logic_Error_unitcore_rs.log",
       "file_path": "src/exemples_error/type1/Type-Logic-Error_unitcore.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.pascal_case",
@@ -2060,7 +2152,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0154__hierarchy_identity_pascal_case__src_exemples_error_type1_Logical_Dencity_Error_unitcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0161__hierarchy_identity_pascal_case__src_exemples_error_type1_Logical_Dencity_Error_unitcore_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_unitcore.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.pascal_case",
@@ -2073,7 +2165,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0155__hierarchy_identity_pascal_case__src_exemples_error_type1_Logical_Dencity_Error_macro_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0162__hierarchy_identity_pascal_case__src_exemples_error_type1_Logical_Dencity_Error_macro_rs.log",
       "file_path": "src/exemples_error/type1/Logical-Dencity-Error_macro.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.pascal_case",
@@ -2086,7 +2178,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0156__hierarchy_identity_pascal_case__src_exemples_error_type1_Max_Params_Error_unitcore_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0163__hierarchy_identity_pascal_case__src_exemples_error_type1_Max_Params_Error_unitcore_rs.log",
       "file_path": "src/exemples_error/type1/Max-Params-Error_unitcore.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.pascal_case",
@@ -2099,7 +2191,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0157__hierarchy_identity_pascal_case__src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0164__hierarchy_identity_pascal_case__src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/sanitization_workspace/Token-Sanitization-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.pascal_case",
@@ -2112,7 +2204,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0158__hierarchy_identity_pascal_case__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0165__hierarchy_identity_pascal_case__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/sanitization_workspace/Restricted-Tokens-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.pascal_case",
@@ -2125,7 +2217,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0159__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_pedagogical_workspace_Test_Case_Mapping_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0166__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_pedagogical_workspace_Test_Case_Mapping_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/pedagogical_workspace/Test-Case-Mapping-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.recursion.unitcore",
@@ -2138,7 +2230,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0160__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_pedagogical_workspace_Md_Pairing_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0167__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_pedagogical_workspace_Md_Pairing_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/pedagogical_workspace/Md-Pairing-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.recursion.unitcore",
@@ -2151,7 +2243,59 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0161__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0168__hierarchy_identity_recursion_macro__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
+      "file_path": "src/exemples_error/type1/identity_workspace/DnaTypoError_unti.rs",
+      "line": 1,
+      "rule_id": "hierarchy.identity.recursion.macro",
+      "priority": "P2",
+      "level": "note",
+      "detected_dna": "unti",
+      "taxonomy_path": "hierarchy.identity.recursion",
+      "message": "Recursion violation: 'hierarchy.files' requires companion 'DnaTypoError_macro.rs', but it was not found in 'src/exemples_error/type1/identity_workspace'.",
+      "snippet": "DnaTypoError_macro.rs",
+      "quick_fix": null
+    },
+    {
+      "log_file": "src/Logs/artifacts/violations/0169__hierarchy_identity_recursion_struct__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
+      "file_path": "src/exemples_error/type1/identity_workspace/DnaTypoError_unti.rs",
+      "line": 1,
+      "rule_id": "hierarchy.identity.recursion.struct",
+      "priority": "P2",
+      "level": "note",
+      "detected_dna": "unti",
+      "taxonomy_path": "hierarchy.identity.recursion",
+      "message": "Recursion violation: 'hierarchy.files' requires companion 'DnaTypoError_struct.rs', but it was not found in 'src/exemples_error/type1/identity_workspace'.",
+      "snippet": "DnaTypoError_struct.rs",
+      "quick_fix": null
+    },
+    {
+      "log_file": "src/Logs/artifacts/violations/0170__hierarchy_identity_recursion_test__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
+      "file_path": "src/exemples_error/type1/identity_workspace/DnaTypoError_unti.rs",
+      "line": 1,
+      "rule_id": "hierarchy.identity.recursion.test",
+      "priority": "P2",
+      "level": "note",
+      "detected_dna": "unti",
+      "taxonomy_path": "hierarchy.identity.recursion",
+      "message": "Recursion violation: 'hierarchy.files' requires companion 'DnaTypoError_test.rs', but it was not found in 'src/exemples_error/type1/identity_workspace'.",
+      "snippet": "DnaTypoError_test.rs",
+      "quick_fix": null
+    },
+    {
+      "log_file": "src/Logs/artifacts/violations/0171__hierarchy_identity_recursion_unit__src_exemples_error_type1_identity_workspace_DnaTypoError_unti_rs.log",
+      "file_path": "src/exemples_error/type1/identity_workspace/DnaTypoError_unti.rs",
+      "line": 1,
+      "rule_id": "hierarchy.identity.recursion.unit",
+      "priority": "P2",
+      "level": "note",
+      "detected_dna": "unti",
+      "taxonomy_path": "hierarchy.identity.recursion",
+      "message": "Recursion violation: 'hierarchy.files' requires companion 'DnaTypoError_unit.rs', but it was not found in 'src/exemples_error/type1/identity_workspace'.",
+      "snippet": "DnaTypoError_unit.rs",
+      "quick_fix": null
+    },
+    {
+      "log_file": "src/Logs/artifacts/violations/0172__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/pascal_case_error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.recursion.unitcore",
@@ -2164,7 +2308,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0162__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_identity_workspace_Recursion_Missing_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0173__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_identity_workspace_Recursion_Missing_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/Recursion-Missing_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.recursion.unitcore",
@@ -2177,7 +2321,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0163__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0174__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/Name_Separator_Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.recursion.unitcore",
@@ -2190,7 +2334,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0164__hierarchy_identity_recursion_structcore__src_exemples_error_type1_Visibility_Error_struct_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0175__hierarchy_identity_recursion_structcore__src_exemples_error_type1_Visibility_Error_struct_rs.log",
       "file_path": "src/exemples_error/type1/Visibility-Error_struct.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.recursion.structcore",
@@ -2203,7 +2347,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0165__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0176__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_Max_Nesting_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/Max-Nesting-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.recursion.unitcore",
@@ -2216,7 +2360,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0166__hierarchy_identity_recursion_structcore__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0177__hierarchy_identity_recursion_structcore__src_exemples_error_type1_Type_Logic_Error_struct_rs.log",
       "file_path": "src/exemples_error/type1/Type-Logic-Error_struct.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.recursion.structcore",
@@ -2229,7 +2373,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0167__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0178__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/sanitization_workspace/Token-Sanitization-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.recursion.unitcore",
@@ -2242,7 +2386,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0168__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0179__hierarchy_identity_recursion_unitcore__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/sanitization_workspace/Restricted-Tokens-Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.recursion.unitcore",
@@ -2255,7 +2399,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0169__hierarchy_identity_manifest_anchoring__src_exemples_error_type1_pedagogical_workspace_Inheritance_Visibility_Error_unit_md.log",
+      "log_file": "src/Logs/artifacts/violations/0180__hierarchy_identity_manifest_anchoring__src_exemples_error_type1_pedagogical_workspace_Inheritance_Visibility_Error_unit_md.log",
       "file_path": "src/exemples_error/type1/pedagogical_workspace/Inheritance-Visibility-Error_unit.md",
       "line": 1,
       "rule_id": "hierarchy.identity.manifest_anchoring",
@@ -2268,7 +2412,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0170__hierarchy_identity_manifest_anchoring__src_exemples_error_type1_identity_workspace_Guide_unit_md.log",
+      "log_file": "src/Logs/artifacts/violations/0181__hierarchy_identity_manifest_anchoring__src_exemples_error_type1_identity_workspace_Guide_unit_md.log",
       "file_path": "src/exemples_error/type1/identity_workspace/Guide_unit.md",
       "line": 1,
       "rule_id": "hierarchy.identity.manifest_anchoring",
@@ -2281,7 +2425,7 @@
       "quick_fix": null
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0171__hierarchy_identity_name_separator__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0182__hierarchy_identity_name_separator__src_exemples_error_type1_identity_workspace_pascal_case_error_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/pascal_case_error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.name_separator",
@@ -2294,7 +2438,7 @@
       "quick_fix": "pascal-case-error"
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0172__hierarchy_identity_name_separator__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0183__hierarchy_identity_name_separator__src_exemples_error_type1_identity_workspace_Name_Separator_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/identity_workspace/Name_Separator_Error_unit.rs",
       "line": 1,
       "rule_id": "hierarchy.identity.name_separator",
@@ -2307,7 +2451,7 @@
       "quick_fix": "Name-Separator-Error"
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0173__hierarchy_sanitization_restricted_tokens_panic___src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0184__hierarchy_sanitization_restricted_tokens_panic___src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/sanitization_workspace/Token-Sanitization-Error_unit.rs",
       "line": 2,
       "rule_id": "hierarchy.sanitization.restricted_tokens.panic!",
@@ -2320,7 +2464,7 @@
       "quick_fix": "// [SANITIZE] Replace 'panic!' using the policy declared in hierarchy.permissions.restricted_tokens."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0174__hierarchy_sanitization_restricted_tokens_unwrap__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0185__hierarchy_sanitization_restricted_tokens_unwrap__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/sanitization_workspace/Restricted-Tokens-Error_unit.rs",
       "line": 2,
       "rule_id": "hierarchy.sanitization.restricted_tokens.unwrap",
@@ -2333,7 +2477,7 @@
       "quick_fix": "// [SANITIZE] Replace 'unwrap' using the policy declared in hierarchy.permissions.restricted_tokens."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0175__hierarchy_dependency_governance_allowed_crates_serde_json__src_exemples_error_type1_sanitization_workspace_Cargo_toml.log",
+      "log_file": "src/Logs/artifacts/violations/0186__hierarchy_dependency_governance_allowed_crates_serde_json__src_exemples_error_type1_sanitization_workspace_Cargo_toml.log",
       "file_path": "src/exemples_error/type1/sanitization_workspace/Cargo.toml",
       "line": 11,
       "rule_id": "hierarchy.dependency_governance.allowed_crates.serde_json",
@@ -2346,7 +2490,7 @@
       "quick_fix": "# [SANITIZE] Add 'serde_json' to the allowed crate policy or remove it from Cargo.toml."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0176__hierarchy_sanitization_token_sanitization_panic___src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0187__hierarchy_sanitization_token_sanitization_panic___src_exemples_error_type1_sanitization_workspace_Token_Sanitization_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/sanitization_workspace/Token-Sanitization-Error_unit.rs",
       "line": 2,
       "rule_id": "hierarchy.sanitization.token_sanitization.panic!",
@@ -2359,7 +2503,7 @@
       "quick_fix": "// [SANITIZE] Rewrite this usage so 'panic!' no longer appears in governed source."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0177__hierarchy_sanitization_token_sanitization_unwrap__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
+      "log_file": "src/Logs/artifacts/violations/0188__hierarchy_sanitization_token_sanitization_unwrap__src_exemples_error_type1_sanitization_workspace_Restricted_Tokens_Error_unit_rs.log",
       "file_path": "src/exemples_error/type1/sanitization_workspace/Restricted-Tokens-Error_unit.rs",
       "line": 2,
       "rule_id": "hierarchy.sanitization.token_sanitization.unwrap",
@@ -2372,7 +2516,7 @@
       "quick_fix": "// [SANITIZE] Rewrite this usage so 'unwrap' no longer appears in governed source."
     },
     {
-      "log_file": "src/Logs/artifacts/violations/0178__hierarchy_dependency_governance_dependency_purification_serde__src_exemples_error_type1_sanitization_workspace_Cargo_toml.log",
+      "log_file": "src/Logs/artifacts/violations/0189__hierarchy_dependency_governance_dependency_purification_serde__src_exemples_error_type1_sanitization_workspace_Cargo_toml.log",
       "file_path": "src/exemples_error/type1/sanitization_workspace/Cargo.toml",
       "line": 10,
       "rule_id": "hierarchy.dependency_governance.dependency_purification.serde",

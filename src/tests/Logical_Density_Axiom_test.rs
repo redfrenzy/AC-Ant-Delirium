@@ -62,6 +62,7 @@ fn overloaded_unitcore() {
             source,
             functions: &functions,
             config: &config,
+            project: crate::structs::empty_project_context(),
             detected_dna: "unitcore".to_string(),
             taxonomy_path: "hierarchy.files.unit.unitcore".to_string(),
             violations: &mut violations,
@@ -70,8 +71,15 @@ fn overloaded_unitcore() {
         LogicalDensityAxiom::default().execute(&mut ctx);
 
         assert_eq!(ctx.violations.len(), 1);
-        assert_eq!(ctx.violations[0].taxonomy_path, "hierarchy.files.unit.unitcore.logical_density");
-        assert!(ctx.violations[0].message.contains("40/40") || ctx.violations[0].message.contains("41/40") || ctx.violations[0].message.contains("/40"));
+        assert_eq!(
+            ctx.violations[0].taxonomy_path,
+            "hierarchy.files.unit.unitcore.logical_density"
+        );
+        assert!(
+            ctx.violations[0].message.contains("40/40")
+                || ctx.violations[0].message.contains("41/40")
+                || ctx.violations[0].message.contains("/40")
+        );
     }
 
     #[test]
@@ -123,6 +131,7 @@ fn structcore_heavy() {
             source,
             functions: &functions,
             config: &config,
+            project: crate::structs::empty_project_context(),
             detected_dna: "structcore".to_string(),
             taxonomy_path: "hierarchy.files.struct.structcore".to_string(),
             violations: &mut violations,
@@ -131,6 +140,9 @@ fn structcore_heavy() {
         LogicalDensityAxiom::default().execute(&mut ctx);
 
         assert_eq!(ctx.violations.len(), 1);
-        assert_eq!(ctx.violations[0].taxonomy_path, "hierarchy.files.struct.structcore.logical_density");
+        assert_eq!(
+            ctx.violations[0].taxonomy_path,
+            "hierarchy.files.struct.structcore.logical_density"
+        );
     }
 }

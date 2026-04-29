@@ -1,33 +1,47 @@
+use crate::structs::{DynamicNode, HierarchyConfig, SearchFiles};
 use std::collections::HashMap;
 use std::fs;
-use crate::structs::{HierarchyConfig, DynamicNode, SearchFiles};
 
 /// [WHAT] Abstract Hierarchy Motor & Query Engine.
 pub(crate) struct HierarchyResolver;
 
-
 impl SearchFiles {
     /// [AESTHETIC CORE - PHYSICAL SCANNER]
     /// Varre recursivamente o sistema de arquivos para materializar caminhos abstratos em arquivos reais.
-    pub(crate) fn scan_physical_jurisdiction(base_path: &str) -> Vec<String> {
+    pub(crate) fn scan_physical_jurisdiction(
+        base_path: &str,
+        project_root: &std::path::Path,
+        ignored_patterns: &[String],
+    ) -> Vec<String> {
         let mut files = Vec::new();
         let path = std::path::Path::new(base_path);
 
+        if should_ignore_path(path, project_root, ignored_patterns) {
+            return files;
+        }
+
         if path.is_file() {
-            files.push(base_path.to_string());
+            files.push(relativize_for_display(path, project_root));
         } else if path.is_dir() {
             if let Ok(entries) = fs::read_dir(path) {
                 for entry in entries.filter_map(|e| e.ok()) {
                     let entry_path = entry.path();
-                    let path_str = entry_path.to_string_lossy().into_owned();
-                    
+                    if should_ignore_path(&entry_path, project_root, ignored_patterns) {
+                        continue;
+                    }
+
                     if entry_path.is_dir() {
                         // Mergulho recursivo no abismo de pastas
-                        files.extend(Self::scan_physical_jurisdiction(&path_str));
+                        let path_str = entry_path.to_string_lossy().into_owned();
+                        files.extend(Self::scan_physical_jurisdiction(
+                            &path_str,
+                            project_root,
+                            ignored_patterns,
+                        ));
                     } else {
-                        // Manifesto técnico é artefato de leitura para IA, não alvo de auditoria.
-                        if !path_str.ends_with("_manifest.json") {
-                            files.push(path_str);
+                        // O motor ativo audita apenas código Rust fonte.
+                        if entry_path.extension().and_then(|ext| ext.to_str()) == Some("rs") {
+                            files.push(relativize_for_display(&entry_path, project_root));
                         }
                     }
                 }
@@ -42,13 +56,119 @@ impl SearchFiles {
 pub(crate) fn resolve_jurisdiction(hierarchy: &HierarchyConfig, id: &str) -> Vec<String> {
     let functionalities = hierarchy.search_functionalities(id);
     let mut physical_files = Vec::new();
+    let project_root = runtime_project_root(hierarchy);
+    let ignored_patterns = resolve_ignored_patterns(hierarchy);
 
     for (_, jurisdictions) in functionalities {
         for folder in jurisdictions {
-            physical_files.extend(SearchFiles::scan_physical_jurisdiction(&folder));
+            let resolved = resolve_runtime_path(&project_root, &folder);
+            physical_files.extend(SearchFiles::scan_physical_jurisdiction(
+                &resolved.to_string_lossy(),
+                &project_root,
+                &ignored_patterns,
+            ));
         }
     }
+    physical_files.sort();
+    physical_files.dedup();
     physical_files
+}
+
+fn runtime_project_root(hierarchy: &HierarchyConfig) -> std::path::PathBuf {
+    hierarchy
+        .search_params("runtime.project_root")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| {
+            std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
+        })
+}
+
+fn resolve_runtime_path(project_root: &std::path::Path, value: &str) -> std::path::PathBuf {
+    let candidate = std::path::Path::new(value);
+    if candidate.is_absolute() {
+        candidate.to_path_buf()
+    } else {
+        project_root.join(candidate)
+    }
+}
+
+fn relativize_for_display(path: &std::path::Path, project_root: &std::path::Path) -> String {
+    path.strip_prefix(project_root)
+        .ok()
+        .map(|relative| relative.to_string_lossy().replace('\\', "/"))
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| path.to_string_lossy().replace('\\', "/"))
+}
+
+fn resolve_ignored_patterns(hierarchy: &HierarchyConfig) -> Vec<String> {
+    let mut patterns = Vec::new();
+
+    for node in hierarchy.nodes.values() {
+        let ignore_enabled = node
+            .properties
+            .get("ignore")
+            .map(|value| is_truthy(value))
+            .unwrap_or(false);
+        if !ignore_enabled {
+            continue;
+        }
+
+        if let Some(pattern) = node.properties.get("match") {
+            let trimmed = pattern.trim().trim_matches('"');
+            if !trimmed.is_empty() {
+                patterns.push(trimmed.replace('\\', "/"));
+            }
+        }
+    }
+
+    patterns.sort();
+    patterns.dedup();
+    patterns
+}
+
+fn should_ignore_path(
+    path: &std::path::Path,
+    project_root: &std::path::Path,
+    ignored_patterns: &[String],
+) -> bool {
+    if ignored_patterns.is_empty() {
+        return false;
+    }
+
+    let relative = relativize_for_display(path, project_root);
+    let absolute = path.to_string_lossy().replace('\\', "/");
+
+    ignored_patterns.iter().any(|pattern| {
+        path_matches_ignore_pattern(&relative, pattern)
+            || path_matches_ignore_pattern(&absolute, pattern)
+    })
+}
+
+fn path_matches_ignore_pattern(path: &str, pattern: &str) -> bool {
+    let normalized_path = path.trim_matches('/');
+    let normalized_pattern = pattern.trim_matches('/');
+
+    if normalized_path.is_empty() || normalized_pattern.is_empty() {
+        return false;
+    }
+
+    if normalized_pattern.contains('/') {
+        return normalized_path == normalized_pattern
+            || normalized_path.starts_with(&format!("{}/", normalized_pattern))
+            || normalized_path.ends_with(&format!("/{}", normalized_pattern))
+            || normalized_path.contains(&format!("/{}/", normalized_pattern));
+    }
+
+    normalized_path
+        .split('/')
+        .any(|segment| segment == normalized_pattern)
+}
+
+fn is_truthy(value: &str) -> bool {
+    !matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "false" | "0" | "off" | "no" | "disabled"
+    )
 }
 
 impl HierarchyResolver {
@@ -75,12 +195,16 @@ impl HierarchyResolver {
                     result.push_str(&format!("{} = {}\n", k, v));
                 }
             }
-            return if result.is_empty() { None } else { Some(result) };
+            return if result.is_empty() {
+                None
+            } else {
+                Some(result)
+            };
         }
 
         if let Some(idx) = path.rfind('.') {
             let parent_path = &path[..idx];
-            let attr = &path[idx+1..];
+            let attr = &path[idx + 1..];
             if let Some(node) = config.nodes.get(parent_path) {
                 if let Some(val) = node.properties.get(attr) {
                     return Some(val.clone());
@@ -90,12 +214,11 @@ impl HierarchyResolver {
         None
     }
 
-
     /// [WHAT] Retorna todos os caminhos da hierarquia que terminam com o identificador fornecido (IDENTIDADE).
     pub(crate) fn find_paths_by_id(config: &HierarchyConfig, id: &str) -> Vec<String> {
         let mut results = Vec::new();
         let dot_id = format!(".{}", id);
-        
+
         for key in config.nodes.keys() {
             let key_str: &String = key;
             if key_str == id || key_str.ends_with(&dot_id) {
@@ -109,17 +232,17 @@ impl HierarchyResolver {
         let mut requirements = Vec::new();
 
         if let Some(node) = config.nodes.get(identity_path) {
-            requirements.extend(
-                node.properties.keys()
-                    .filter_map(|key| key.strip_prefix(Self::REQUIREMENT_PREFIX).map(|value| value.to_string()))
-            );
+            requirements.extend(node.properties.keys().filter_map(|key| {
+                key.strip_prefix(Self::REQUIREMENT_PREFIX)
+                    .map(|value| value.to_string())
+            }));
         }
 
         let legacy_prefix = format!("{}.", identity_path);
-        requirements.extend(
-            config.nodes.keys()
-                .filter_map(|path| path.strip_prefix(&legacy_prefix).map(|value| value.to_string()))
-        );
+        requirements.extend(config.nodes.keys().filter_map(|path| {
+            path.strip_prefix(&legacy_prefix)
+                .map(|value| value.to_string())
+        }));
 
         requirements.sort();
         requirements.dedup();
@@ -138,9 +261,12 @@ impl HierarchyResolver {
     }
 
     /// [WHAT] Resolve um ID de parâmetro e informa o caminho concreto que materializou o valor final.
-    pub(crate) fn resolve_parameter_binding(config: &HierarchyConfig, id: &str) -> Option<(String, String)> {
+    pub(crate) fn resolve_parameter_binding(
+        config: &HierarchyConfig,
+        id: &str,
+    ) -> Option<(String, String)> {
         let path = Self::resolve_id(config, id);
-        
+
         // [1] Tentativa de busca direta pelo path/id
         if let Some(val) = Self::search_concrete_value(config, &path) {
             return Some((path, val));
@@ -163,7 +289,7 @@ impl HierarchyResolver {
                 return Some((p, val));
             }
         }
-        
+
         None
     }
 
@@ -221,13 +347,13 @@ impl HierarchyResolver {
             if let Some(jumped_value) = Self::search_params(config, value) {
                 return Self::resolve_taxonomic_jump(config, &jumped_value);
             }
-            
+
             // Tentativa de salto por ID se o path falhar
             let discovery_paths = Self::find_paths_by_id(config, value);
             if let Some(p) = discovery_paths.get(0) {
-                 if let Some(jumped_value) = Self::search_params(config, p) {
-                     return Self::resolve_taxonomic_jump(config, &jumped_value);
-                 }
+                if let Some(jumped_value) = Self::search_params(config, p) {
+                    return Self::resolve_taxonomic_jump(config, &jumped_value);
+                }
             }
         }
         Self::parse_industrial_array(value)
@@ -237,7 +363,7 @@ impl HierarchyResolver {
     fn parse_industrial_array(input: &str) -> Vec<String> {
         let trimmed = input.trim();
         if trimmed.starts_with('[') && trimmed.ends_with(']') {
-            trimmed[1..trimmed.len()-1]
+            trimmed[1..trimmed.len() - 1]
                 .split(',')
                 .map(|s| s.trim().trim_matches('"').trim_matches('\'').to_string())
                 .filter(|s| !s.is_empty())
@@ -249,10 +375,11 @@ impl HierarchyResolver {
 
     fn search_concrete_value(config: &HierarchyConfig, path: &str) -> Option<String> {
         if let Some(node) = config.nodes.get(path) {
-            let mut concrete: Vec<(&String, &String)> = node.properties.iter()
+            let mut concrete: Vec<(&String, &String)> = node
+                .properties
+                .iter()
                 .filter(|(key, _)| {
-                    key.as_str() != "is_requirement"
-                    && !key.starts_with(Self::REQUIREMENT_PREFIX)
+                    key.as_str() != "is_requirement" && !key.starts_with(Self::REQUIREMENT_PREFIX)
                 })
                 .collect();
             concrete.sort_by(|a, b| a.0.cmp(b.0));
@@ -284,16 +411,23 @@ impl HierarchyResolver {
     }
 
     fn find_property_value(config: &HierarchyConfig, property: &str) -> Option<(String, String)> {
-        let mut matches: Vec<(&String, &String)> = config.nodes.iter()
+        let mut matches: Vec<(&String, &String)> = config
+            .nodes
+            .iter()
             .filter_map(|(path, node)| node.properties.get(property).map(|value| (path, value)))
             .collect();
         matches.sort_by_key(|(path, _)| path.matches('.').count());
-        matches.first().map(|(path, value)| (format!("{}.{}", path, property), (*value).clone()))
+        matches
+            .first()
+            .map(|(path, value)| (format!("{}.{}", path, property), (*value).clone()))
     }
 
     /// [AESTHETIC CORE - TRIPLE SEARCH ORCHESTRATOR]
     /// Centraliza a interrogação abissal em 3 estágios: Identidade -> Requisição -> Resolução.
-    pub(crate) fn search_functionalities(config: &HierarchyConfig, master_id: &str) -> Vec<(String, Vec<String>)> {
+    pub(crate) fn search_functionalities(
+        config: &HierarchyConfig,
+        master_id: &str,
+    ) -> Vec<(String, Vec<String>)> {
         let mut results = Vec::new();
 
         // [STAGE 1: IDENTITY] - "Quem sou eu?"
@@ -320,7 +454,6 @@ impl HierarchyResolver {
     }
 }
 
-
 pub(crate) struct AgnosticScanner;
 
 impl AgnosticScanner {
@@ -343,10 +476,7 @@ impl AgnosticScanner {
         paths
     }
 
-    fn collect_toml_paths_worker(
-        root: &std::path::Path,
-        paths: &mut Vec<std::path::PathBuf>,
-    ) {
+    fn collect_toml_paths_worker(root: &std::path::Path, paths: &mut Vec<std::path::PathBuf>) {
         if let Ok(entries) = fs::read_dir(root) {
             for entry in entries.filter_map(|e| e.ok()) {
                 let path = entry.path();
@@ -364,14 +494,20 @@ impl AgnosticScanner {
         let mut current_node_path = String::new();
         for line in input.lines() {
             let trimmed = line.trim();
-            if trimmed.is_empty() || trimmed.starts_with('#') { continue; }
-            
+            if trimmed.is_empty() || trimmed.starts_with('#') {
+                continue;
+            }
+
             let clean_line = trimmed.split('#').next().unwrap_or("").trim();
-            if clean_line.is_empty() { continue; }
+            if clean_line.is_empty() {
+                continue;
+            }
 
             if clean_line.starts_with('[') && clean_line.ends_with(']') {
-                current_node_path = clean_line[1..clean_line.len()-1].to_string();
-                nodes.entry(current_node_path.clone()).or_insert_with(DynamicNode::default);
+                current_node_path = clean_line[1..clean_line.len() - 1].to_string();
+                nodes
+                    .entry(current_node_path.clone())
+                    .or_insert_with(DynamicNode::default);
             } else if !current_node_path.is_empty() {
                 if clean_line.contains('=') {
                     let parts: Vec<&str> = clean_line.splitn(2, '=').collect();
@@ -381,9 +517,11 @@ impl AgnosticScanner {
                         let val = val_raw.trim_matches('"').to_string();
                         if let Some(last_dot_idx) = full_key.rfind('.') {
                             let path_ext = &full_key[..last_dot_idx];
-                            let real_key = &full_key[last_dot_idx+1..];
+                            let real_key = &full_key[last_dot_idx + 1..];
                             let target_node_path = format!("{}.{}", current_node_path, path_ext);
-                            let node = nodes.entry(target_node_path).or_insert_with(DynamicNode::default);
+                            let node = nodes
+                                .entry(target_node_path)
+                                .or_insert_with(DynamicNode::default);
                             node.properties.insert(real_key.to_string(), val);
                         } else {
                             if let Some(node) = nodes.get_mut(&current_node_path) {
@@ -392,8 +530,11 @@ impl AgnosticScanner {
                         }
                     }
                 } else {
-                    let node = nodes.entry(current_node_path.clone()).or_insert_with(DynamicNode::default);
-                    let requirement_key = format!("{}{}", HierarchyResolver::REQUIREMENT_PREFIX, clean_line);
+                    let node = nodes
+                        .entry(current_node_path.clone())
+                        .or_insert_with(DynamicNode::default);
+                    let requirement_key =
+                        format!("{}{}", HierarchyResolver::REQUIREMENT_PREFIX, clean_line);
                     node.properties.insert(requirement_key, "true".to_string());
                 }
             }

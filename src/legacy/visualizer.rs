@@ -16,17 +16,20 @@ impl TaxonomyVisualizer {
             let depth = path.split('.').count();
             let indent = "  ".repeat(depth.saturating_sub(1));
             let prefix = if path == "root" { "▸" } else { "└─" };
-            
+
             out.push_str(&format!("{} {} {}\n", indent, prefix, path));
-            
+
             // Atributos locais do nó
             let node = &config.nodes[path];
             let mut prop_keys: Vec<&String> = node.properties.keys().collect();
             prop_keys.sort();
-            
+
             let attr_indent = "  ".repeat(depth);
             for pk in prop_keys {
-                out.push_str(&format!("{} [P] {} = {}\n", attr_indent, pk, node.properties[pk]));
+                out.push_str(&format!(
+                    "{} [P] {} = {}\n",
+                    attr_indent, pk, node.properties[pk]
+                ));
             }
         }
         out
@@ -37,7 +40,7 @@ impl TaxonomyVisualizer {
         if path == "hierarchy.map" {
             return Some(Self::generate_tree(config));
         }
-        
+
         // [SOVEREIGNTY] Consulta direta ao motor agnóstico
         match config.search_params(path) {
             Some(result) => {
@@ -45,8 +48,8 @@ impl TaxonomyVisualizer {
                 out.push_str("============================\n\n");
                 out.push_str(&result);
                 Some(out)
-            },
-            None => None
+            }
+            None => None,
         }
     }
 }

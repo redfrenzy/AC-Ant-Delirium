@@ -18,22 +18,29 @@ mod tests {
             source,
             functions: &functions,
             config: &config,
+            project: crate::structs::empty_project_context(),
             detected_dna: "unit".to_string(),
             taxonomy_path: "hierarchy.files.unit".to_string(),
             violations: &mut violations,
         };
 
-        let identity = ctx.resolve_axiom_identity_path("logical_density")
+        let identity = ctx
+            .resolve_axiom_identity_path("logical_density")
             .expect("logical_density deveria ter identidade unica");
         assert_eq!(identity, "hierarchy.structural.logical_density");
 
-        let requirements = ctx.resolve_axiom_requirements("logical_density")
+        let requirements = ctx
+            .resolve_axiom_requirements("logical_density")
             .expect("logical_density deveria declarar requirements");
         assert_eq!(requirements, vec!["logical_density".to_string()]);
 
-        let resolution = ctx.require_axiom_parameter("logical_density", "logical_density")
+        let resolution = ctx
+            .require_axiom_parameter("logical_density", "logical_density")
             .expect("logical_density deveria resolver seu valor concreto");
-        assert_eq!(resolution.identity_path, "hierarchy.structural.logical_density");
+        assert_eq!(
+            resolution.identity_path,
+            "hierarchy.structural.logical_density"
+        );
         assert_eq!(resolution.requirement_id, "logical_density");
         assert_eq!(resolution.resolved_path, "hierarchy.logical_density");
         assert_eq!(resolution.value, "40");
@@ -54,12 +61,14 @@ mod tests {
             source,
             functions: &functions,
             config: &config,
+            project: crate::structs::empty_project_context(),
             detected_dna: "unit".to_string(),
             taxonomy_path: "hierarchy.files.unit".to_string(),
             violations: &mut violations,
         };
 
-        let error = ctx.require_axiom_parameter("logical_density", "max_params")
+        let error = ctx
+            .require_axiom_parameter("logical_density", "max_params")
             .expect_err("logical_density nao deveria declarar max_params");
         assert!(error.contains("nao declarou o requirement 'max_params'"));
     }
@@ -79,18 +88,24 @@ mod tests {
             source,
             functions: &functions,
             config: &config,
+            project: crate::structs::empty_project_context(),
             detected_dna: "unit".to_string(),
             taxonomy_path: "hierarchy.files.unit".to_string(),
             violations: &mut violations,
         };
 
-        let restricted_tokens = ctx.require_named_global_axiom_parameter("restricted_tokens", "restricted_tokens")
+        let restricted_tokens = ctx
+            .require_named_global_axiom_parameter("restricted_tokens", "restricted_tokens")
             .expect("restricted_tokens deveria resolver requirement global explicito");
         assert_eq!(restricted_tokens.requirement_id, "restricted_tokens");
-        assert_eq!(restricted_tokens.resolved_path, "hierarchy.permissions.restricted_tokens");
+        assert_eq!(
+            restricted_tokens.resolved_path,
+            "hierarchy.permissions.restricted_tokens"
+        );
         assert!(restricted_tokens.value.contains("panic!"));
 
-        let type_logic = ctx.require_axiom_parameter_with_scope("type_logic", AxiomParameterScope::Taxonomy)
+        let type_logic = ctx
+            .require_axiom_parameter_with_scope("type_logic", AxiomParameterScope::Taxonomy)
             .expect("type_logic deveria resolver via taxonomia");
         assert_eq!(type_logic.requirement_id, "type_logic");
         assert_eq!(type_logic.resolved_path, "hierarchy.files.unit");

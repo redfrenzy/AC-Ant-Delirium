@@ -30,7 +30,8 @@ impl<'a> AuditContext<'a> {
 
         paths.sort_by_key(|path| path.matches('.').count());
         let shallowest_depth = paths[0].matches('.').count();
-        let shallowest: Vec<String> = paths.into_iter()
+        let shallowest: Vec<String> = paths
+            .into_iter()
             .filter(|path| path.matches('.').count() == shallowest_depth)
             .collect();
 
@@ -68,7 +69,10 @@ impl<'a> AuditContext<'a> {
         let identity_path = self.resolve_axiom_identity_path(axiom_id)?;
         let requirements = self.resolve_axiom_requirements(axiom_id)?;
 
-        if !requirements.iter().any(|requirement| requirement == requirement_id) {
+        if !requirements
+            .iter()
+            .any(|requirement| requirement == requirement_id)
+        {
             return Err(format!(
                 "Axiom '{}' nao declarou o requirement '{}'. Requirements ativos: {}.",
                 axiom_id,
@@ -95,7 +99,10 @@ impl<'a> AuditContext<'a> {
     }
 
     /// [WHAT] Resolve o único requirement declarado pelo axioma atual.
-    pub fn resolve_single_axiom_requirement(&self, axiom_id: &str) -> Result<(String, String), String> {
+    pub fn resolve_single_axiom_requirement(
+        &self,
+        axiom_id: &str,
+    ) -> Result<(String, String), String> {
         let identity_path = self.resolve_axiom_identity_path(axiom_id)?;
         let requirements = self.resolve_axiom_requirements(axiom_id)?;
 
@@ -138,7 +145,10 @@ impl<'a> AuditContext<'a> {
         let identity_path = self.resolve_axiom_identity_path(axiom_id)?;
         let requirements = self.resolve_axiom_requirements(axiom_id)?;
 
-        if !requirements.iter().any(|requirement| requirement == requirement_id) {
+        if !requirements
+            .iter()
+            .any(|requirement| requirement == requirement_id)
+        {
             return Err(format!(
                 "Axiom '{}' nao declarou o requirement '{}'. Requirements ativos: {}.",
                 axiom_id,
@@ -163,12 +173,22 @@ impl<'a> AuditContext<'a> {
         scope: AxiomParameterScope,
     ) -> Result<AxiomParameterResolution, String> {
         let resolved = match scope {
-            AxiomParameterScope::Global => self.resolve_global_requirement(axiom_id, &identity_path, &requirement_id),
-            AxiomParameterScope::Taxonomy => self.resolve_taxonomy_requirement(axiom_id, &identity_path, &requirement_id),
-            AxiomParameterScope::TaxonomyThenGlobal => self.resolve_taxonomy_requirement(axiom_id, &identity_path, &requirement_id)
-                .or_else(|_| self.resolve_global_requirement(axiom_id, &identity_path, &requirement_id)),
-            AxiomParameterScope::GlobalThenTaxonomy => self.resolve_global_requirement(axiom_id, &identity_path, &requirement_id)
-                .or_else(|_| self.resolve_taxonomy_requirement(axiom_id, &identity_path, &requirement_id)),
+            AxiomParameterScope::Global => {
+                self.resolve_global_requirement(axiom_id, &identity_path, &requirement_id)
+            }
+            AxiomParameterScope::Taxonomy => {
+                self.resolve_taxonomy_requirement(axiom_id, &identity_path, &requirement_id)
+            }
+            AxiomParameterScope::TaxonomyThenGlobal => self
+                .resolve_taxonomy_requirement(axiom_id, &identity_path, &requirement_id)
+                .or_else(|_| {
+                    self.resolve_global_requirement(axiom_id, &identity_path, &requirement_id)
+                }),
+            AxiomParameterScope::GlobalThenTaxonomy => self
+                .resolve_global_requirement(axiom_id, &identity_path, &requirement_id)
+                .or_else(|_| {
+                    self.resolve_taxonomy_requirement(axiom_id, &identity_path, &requirement_id)
+                }),
         }?;
 
         Ok(AxiomParameterResolution {
@@ -180,7 +200,10 @@ impl<'a> AuditContext<'a> {
         })
     }
 
-    pub fn require_global_axiom_parameter(&self, axiom_id: &str) -> Result<AxiomParameterResolution, String> {
+    pub fn require_global_axiom_parameter(
+        &self,
+        axiom_id: &str,
+    ) -> Result<AxiomParameterResolution, String> {
         self.require_axiom_parameter_with_scope(axiom_id, AxiomParameterScope::Global)
     }
 
@@ -189,10 +212,17 @@ impl<'a> AuditContext<'a> {
         axiom_id: &str,
         requirement_id: &str,
     ) -> Result<AxiomParameterResolution, String> {
-        self.require_named_axiom_parameter_with_scope(axiom_id, requirement_id, AxiomParameterScope::Global)
+        self.require_named_axiom_parameter_with_scope(
+            axiom_id,
+            requirement_id,
+            AxiomParameterScope::Global,
+        )
     }
 
-    pub fn require_taxonomy_axiom_parameter(&self, axiom_id: &str) -> Result<AxiomParameterResolution, String> {
+    pub fn require_taxonomy_axiom_parameter(
+        &self,
+        axiom_id: &str,
+    ) -> Result<AxiomParameterResolution, String> {
         self.require_axiom_parameter_with_scope(axiom_id, AxiomParameterScope::Taxonomy)
     }
 
@@ -201,10 +231,17 @@ impl<'a> AuditContext<'a> {
         axiom_id: &str,
         requirement_id: &str,
     ) -> Result<AxiomParameterResolution, String> {
-        self.require_named_axiom_parameter_with_scope(axiom_id, requirement_id, AxiomParameterScope::Taxonomy)
+        self.require_named_axiom_parameter_with_scope(
+            axiom_id,
+            requirement_id,
+            AxiomParameterScope::Taxonomy,
+        )
     }
 
-    pub fn require_hybrid_axiom_parameter(&self, axiom_id: &str) -> Result<AxiomParameterResolution, String> {
+    pub fn require_hybrid_axiom_parameter(
+        &self,
+        axiom_id: &str,
+    ) -> Result<AxiomParameterResolution, String> {
         self.require_axiom_parameter_with_scope(axiom_id, AxiomParameterScope::TaxonomyThenGlobal)
     }
 
@@ -213,7 +250,11 @@ impl<'a> AuditContext<'a> {
         axiom_id: &str,
         requirement_id: &str,
     ) -> Result<AxiomParameterResolution, String> {
-        self.require_named_axiom_parameter_with_scope(axiom_id, requirement_id, AxiomParameterScope::TaxonomyThenGlobal)
+        self.require_named_axiom_parameter_with_scope(
+            axiom_id,
+            requirement_id,
+            AxiomParameterScope::TaxonomyThenGlobal,
+        )
     }
 
     fn resolve_global_requirement(
@@ -249,5 +290,18 @@ impl<'a> AuditContext<'a> {
                     axiom_id, requirement_id, self.taxonomy_path
                 )
             })
+    }
+
+    pub fn project_contains_path(&self, path: &str) -> bool {
+        self.project.contains_path(path)
+    }
+
+    pub fn project_contains_sibling(&self, sibling_name: &str) -> bool {
+        self.project.contains_sibling(self.file_path, sibling_name)
+    }
+
+    pub fn resolve_sibling_project_path(&self, sibling_name: &str) -> String {
+        self.project
+            .resolve_sibling_path(self.file_path, sibling_name)
     }
 }

@@ -1,0 +1,15 @@
+P0: 4 erros
+P1: 24 erros
+P2: 22 erros
+P3: 24 erros
+P4: 0 erros
+
+Total: 74 erros
+
+Audited Files: 25
+Violations Manifest: AC_Ant-Delirium_props/Logs/artifacts/violations_manifest.json
+Shadow Context: shadow_context.json
+
+API Help: "/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api hierarchy.help
+
+Modo estrito: ativo. A compilacao deve ser interrompida ate a correcao das violacoes.

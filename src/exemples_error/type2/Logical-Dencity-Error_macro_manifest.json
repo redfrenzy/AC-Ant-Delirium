@@ -1,0 +1,4 @@
+[
+  { "source": "Logical-Dencity-Error_macro.rs", "name": "logical_density_error_macro", "kind": "macro", "range": [1, 44], "complexity": 44, "narrative": "" },
+  { "source": "Logical-Dencity-Error_macrocore.rs", "name": "logical_density_error_macrocore", "kind": "function", "range": [1, 42], "complexity": 42, "narrative": "" }
+]

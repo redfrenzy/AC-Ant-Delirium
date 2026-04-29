@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 /// [AESTHETIC CORE - GLOBAL DATA SOVEREIGNTY]
 /// Todas as definições de structs industriais residem aqui.
 
@@ -34,10 +34,17 @@ pub struct AuditConfig {
     pub shadow: ShadowConfig,
     pub debug: DebugConfig,
     pub info: InfoConfig,
+    pub runtime: RuntimeConfig,
 }
 
-#[derive(Default, Debug, Clone)] pub struct ArchitectureConfig { pub global_excludes: Vec<String> }
-#[derive(Default, Debug, Clone)] pub struct JurisdictionConfig { pub exclusive_to: HashMap<String, Vec<String>> }
+#[derive(Default, Debug, Clone)]
+pub struct ArchitectureConfig {
+    pub global_excludes: Vec<String>,
+}
+#[derive(Default, Debug, Clone)]
+pub struct JurisdictionConfig {
+    pub exclusive_to: HashMap<String, Vec<String>>,
+}
 #[derive(Default, Debug, Clone)]
 pub struct RulesConfig {
     pub structural: StructuralAxiom,
@@ -74,9 +81,30 @@ pub struct SanitizationAxiom {
     pub allowed_crates: Vec<String>,
     pub purify_strings: bool,
 }
-#[derive(Default, Debug, Clone)] pub struct ShadowConfig { pub output: String }
-#[derive(Default, Debug, Clone)] pub struct DebugConfig {}
-#[derive(Default, Debug, Clone)] pub struct InfoConfig { pub tools: Vec<String>, pub terminal_commands: Vec<String> }
+#[derive(Default, Debug, Clone)]
+pub struct ShadowConfig {
+    pub output: String,
+}
+#[derive(Default, Debug, Clone)]
+pub struct DebugConfig {}
+#[derive(Default, Debug, Clone)]
+pub struct InfoConfig {
+    pub tools: Vec<String>,
+    pub terminal_commands: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum GovernanceMode {
+    #[default]
+    Strict,
+    Creative,
+}
+
+#[derive(Default, Debug, Clone)]
+pub struct RuntimeConfig {
+    pub project_root: String,
+    pub mode: GovernanceMode,
+}
 
 // --- ESTRUTURAS DO MOTOR (ENGINE) ---
 
@@ -101,7 +129,7 @@ pub struct SearchFiles {
 pub trait GovernanceAxiom: Send + Sync {
     /// [ATOMIC ID] O identificador único do axioma (Ex: "complexity").
     fn id(&self) -> &str;
-    
+
     /// [LITERAL NAME] Nome legível para humanos e logs industriais.
     fn name(&self) -> &str;
 
@@ -110,4 +138,38 @@ pub trait GovernanceAxiom: Send + Sync {
 
     /// [PATROL] Executa a lógica de auditoria ativa no contexto de um arquivo.
     fn execute(&self, ctx: &mut crate::structs::AuditContext<'_>);
+}
+
+impl AuditConfig {
+    pub fn project_root_path(&self) -> PathBuf {
+        if self.runtime.project_root.trim().is_empty() {
+            std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+        } else {
+            PathBuf::from(&self.runtime.project_root)
+        }
+    }
+
+    pub fn resolve_project_path(&self, path: &str) -> PathBuf {
+        let candidate = Path::new(path);
+        if candidate.is_absolute() {
+            candidate.to_path_buf()
+        } else {
+            self.project_root_path().join(candidate)
+        }
+    }
+
+    pub fn display_path<P: AsRef<Path>>(&self, path: P) -> String {
+        let path = path.as_ref();
+        let root = self.project_root_path();
+
+        path.strip_prefix(&root)
+            .ok()
+            .map(|relative| relative.to_string_lossy().replace('\\', "/"))
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| path.to_string_lossy().replace('\\', "/"))
+    }
+
+    pub fn is_creative_mode(&self) -> bool {
+        self.runtime.mode == GovernanceMode::Creative
+    }
 }

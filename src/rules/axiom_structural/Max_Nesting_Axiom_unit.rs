@@ -1,4 +1,4 @@
-use crate::structs::{HierarchyConfig, GovernanceAxiom, SearchFiles};
+use crate::structs::{GovernanceAxiom, HierarchyConfig, SearchFiles};
 
 #[path = "Max_Nesting_Axiom_unitcore.rs"]
 mod Max_Nesting_Axiom_unitcore;
@@ -6,12 +6,18 @@ mod Max_Nesting_Axiom_unitcore;
 pub struct MaxNestingAxiom;
 
 impl Default for MaxNestingAxiom {
-    fn default() -> Self { Self {} }
+    fn default() -> Self {
+        Self {}
+    }
 }
 
 impl GovernanceAxiom for MaxNestingAxiom {
-    fn id(&self) -> &str { "max_nesting" }
-    fn name(&self) -> &str { "MaxNestingAxiom Auditor" }
+    fn id(&self) -> &str {
+        "max_nesting"
+    }
+    fn name(&self) -> &str {
+        "MaxNestingAxiom Auditor"
+    }
 
     fn resolve_jurisdiction(&self, hierarchy: &HierarchyConfig) -> Vec<String> {
         SearchFiles::resolve_jurisdiction(hierarchy, SearchFiles::ID)

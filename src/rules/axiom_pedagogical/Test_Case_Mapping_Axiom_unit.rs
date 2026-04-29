@@ -1,4 +1,4 @@
-use crate::structs::{HierarchyConfig, GovernanceAxiom, SearchFiles};
+use crate::structs::{GovernanceAxiom, HierarchyConfig, SearchFiles};
 
 #[path = "Test_Case_Mapping_Axiom_unitcore.rs"]
 mod Test_Case_Mapping_Axiom_unitcore;
@@ -6,12 +6,18 @@ mod Test_Case_Mapping_Axiom_unitcore;
 pub struct TestCaseMappingAxiom;
 
 impl Default for TestCaseMappingAxiom {
-    fn default() -> Self { Self {} }
+    fn default() -> Self {
+        Self {}
+    }
 }
 
 impl GovernanceAxiom for TestCaseMappingAxiom {
-    fn id(&self) -> &str { "test_case_mapping" }
-    fn name(&self) -> &str { "TestCaseMappingAxiom Pedagogy Auditor" }
+    fn id(&self) -> &str {
+        "test_case_mapping"
+    }
+    fn name(&self) -> &str {
+        "TestCaseMappingAxiom Pedagogy Auditor"
+    }
 
     fn resolve_jurisdiction(&self, hierarchy: &HierarchyConfig) -> Vec<String> {
         SearchFiles::resolve_jurisdiction(hierarchy, SearchFiles::ID)

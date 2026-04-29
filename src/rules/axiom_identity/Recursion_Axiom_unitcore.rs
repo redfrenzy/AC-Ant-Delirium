@@ -6,7 +6,8 @@ mod Identity_Axiom_Common_unitcore;
 
 /// [AESTHETIC CORE - INTERNAL VACUUM]
 pub fn patrol(ctx: &mut AuditContext<'_>) {
-    let recursion_enabled = match ctx.require_named_hybrid_axiom_parameter("recursion", "recursion") {
+    let recursion_enabled = match ctx.require_named_hybrid_axiom_parameter("recursion", "recursion")
+    {
         Ok(binding) => binding.value == "true",
         Err(message) => {
             Identity_Axiom_Common_unitcore::push_resolution_violation(ctx, "recursion", &message);
@@ -16,25 +17,34 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
     if !recursion_enabled || ctx.detected_dna.is_empty() || !ctx.file_path.ends_with(".rs") {
         return;
     }
-    let identity_path = Identity_Axiom_Common_unitcore::resolve_axiom_identity_path_or_fallback(ctx, "recursion");
+    let identity_path =
+        Identity_Axiom_Common_unitcore::resolve_axiom_identity_path_or_fallback(ctx, "recursion");
 
-    let tag_separator = ctx.config.hierarchy.resolve_parameter("tag_separator")
+    let tag_separator = ctx
+        .config
+        .hierarchy
+        .resolve_parameter("tag_separator")
         .unwrap_or_else(|| "_".to_string());
     let file_path = Path::new(ctx.file_path);
-    let stem = file_path.file_stem().and_then(|v| v.to_str()).unwrap_or_default();
+    let stem = file_path
+        .file_stem()
+        .and_then(|v| v.to_str())
+        .unwrap_or_default();
     let dna_suffix = format!("{}{}", tag_separator, ctx.detected_dna);
     let core_name = if stem.ends_with(&dna_suffix) {
         stem.trim_end_matches(&dna_suffix)
     } else {
-        stem.rsplit_once(&tag_separator).map(|(base, _)| base).unwrap_or(stem)
+        stem.rsplit_once(&tag_separator)
+            .map(|(base, _)| base)
+            .unwrap_or(stem)
     };
     let parent = file_path.parent().unwrap_or_else(|| Path::new("."));
 
     let child_suffixes = find_immediate_child_suffixes(ctx);
     for suffix in child_suffixes {
         let companion = format!("{}{}{}.rs", core_name, tag_separator, suffix);
-        let companion_path = parent.join(&companion);
-        if !companion_path.exists() {
+        let companion_path = ctx.resolve_sibling_project_path(&companion);
+        if !ctx.project_contains_path(&companion_path) {
             ctx.violations.push(crate::structs::AuditViolation {
                 file_path: ctx.file_path.to_string(),
                 line: 1,

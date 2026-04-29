@@ -1,0 +1,97 @@
+AESTHETIC CORE  ▸  Rule Violations
+axiom_id=regras_structural_else_free_max_nesting_error_structcore
+violations=4
+p0=0
+p1=4
+p2=0
+p3=0
+p4=0
+status=violations_detected
+
+[violation 1]
+ordinal=17
+priority=P1
+level=warning
+rule_id=regras.structural.else_free.max_nesting_error_structcore
+file_path=src/exemples_error/type3/Max-Nesting-Error_estrutura_nucleo.rs
+line=7
+detected_dna=estrutura_nucleo
+taxonomy_path=regras.arquivos.estrutura.estrutura_nucleo.else_free
+message=Else-Free violation: function 'max_nesting_error_structcore' contains 'else' without bypass token '[REASON]'. Prefer guard clauses or smaller helpers.
+snippet=} else {
+quick_fix=// [REFAC] Replace 'else' with early return / extracted helper, or justify the branch with '[REASON]'.
+context:
+    5 |                 if d {
+    6 |                     4
+ >  7 |                 } else {
+      |                  ^ Else-Free violation: function 'max_nesting_error_structcore' contains 'else' without bypass token '[REASON]'. Prefer guard clauses or smaller helpers.
+    8 |                     3
+    9 |                 }
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.rule.regras_structural_else_free_max_nesting_error_structcore
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.arquivos.estrutura.estrutura_nucleo.else_free
+
+[violation 2]
+ordinal=18
+priority=P1
+level=warning
+rule_id=regras.structural.else_free.max_nesting_error_structcore
+file_path=src/exemples_error/type3/Max-Nesting-Error_estrutura_nucleo.rs
+line=10
+detected_dna=estrutura_nucleo
+taxonomy_path=regras.arquivos.estrutura.estrutura_nucleo.else_free
+message=Else-Free violation: function 'max_nesting_error_structcore' contains 'else' without bypass token '[REASON]'. Prefer guard clauses or smaller helpers.
+snippet=} else {
+quick_fix=// [REFAC] Replace 'else' with early return / extracted helper, or justify the branch with '[REASON]'.
+context:
+    8 |                     3
+    9 |                 }
+ > 10 |             } else {
+      |              ^ Else-Free violation: function 'max_nesting_error_structcore' contains 'else' without bypass token '[REASON]'. Prefer guard clauses or smaller helpers.
+   11 |                 2
+   12 |             }
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.rule.regras_structural_else_free_max_nesting_error_structcore
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.arquivos.estrutura.estrutura_nucleo.else_free
+
+[violation 3]
+ordinal=19
+priority=P1
+level=warning
+rule_id=regras.structural.else_free.max_nesting_error_structcore
+file_path=src/exemples_error/type3/Max-Nesting-Error_estrutura_nucleo.rs
+line=13
+detected_dna=estrutura_nucleo
+taxonomy_path=regras.arquivos.estrutura.estrutura_nucleo.else_free
+message=Else-Free violation: function 'max_nesting_error_structcore' contains 'else' without bypass token '[REASON]'. Prefer guard clauses or smaller helpers.
+snippet=} else {
+quick_fix=// [REFAC] Replace 'else' with early return / extracted helper, or justify the branch with '[REASON]'.
+context:
+   11 |                 2
+   12 |             }
+ > 13 |         } else {
+      |          ^ Else-Free violation: function 'max_nesting_error_structcore' contains 'else' without bypass token '[REASON]'. Prefer guard clauses or smaller helpers.
+   14 |             1
+   15 |         }
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.rule.regras_structural_else_free_max_nesting_error_structcore
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.arquivos.estrutura.estrutura_nucleo.else_free
+
+[violation 4]
+ordinal=20
+priority=P1
+level=warning
+rule_id=regras.structural.else_free.max_nesting_error_structcore
+file_path=src/exemples_error/type3/Max-Nesting-Error_estrutura_nucleo.rs
+line=16
+detected_dna=estrutura_nucleo
+taxonomy_path=regras.arquivos.estrutura.estrutura_nucleo.else_free
+message=Else-Free violation: function 'max_nesting_error_structcore' contains 'else' without bypass token '[REASON]'. Prefer guard clauses or smaller helpers.
+snippet=} else {
+quick_fix=// [REFAC] Replace 'else' with early return / extracted helper, or justify the branch with '[REASON]'.
+context:
+   14 |             1
+   15 |         }
+ > 16 |     } else {
+      |      ^ Else-Free violation: function 'max_nesting_error_structcore' contains 'else' without bypass token '[REASON]'. Prefer guard clauses or smaller helpers.
+   17 |         0
+   18 |     }
+api_rule_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.rule.regras_structural_else_free_max_nesting_error_structcore
+api_taxonomy_command="/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/target/x86_64-unknown-linux-gnu/debug/deps/ac_ant_delirium-f48ac203571f40bb" --api regras.arquivos.estrutura.estrutura_nucleo.else_free

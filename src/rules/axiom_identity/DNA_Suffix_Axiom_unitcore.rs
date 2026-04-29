@@ -6,7 +6,9 @@ mod Identity_Axiom_Common_unitcore;
 
 /// [AESTHETIC CORE - INTERNAL VACUUM]
 pub fn patrol(ctx: &mut AuditContext<'_>) {
-    let tag_separator = match ctx.require_named_global_axiom_parameter("dna_suffix", "tag_separator") {
+    let tag_separator = match ctx
+        .require_named_global_axiom_parameter("dna_suffix", "tag_separator")
+    {
         Ok(binding) => binding.value,
         Err(message) => {
             Identity_Axiom_Common_unitcore::push_resolution_violation(ctx, "dna_suffix", &message);
@@ -22,15 +24,23 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
         .file_stem()
         .and_then(|value| value.to_str())
         .unwrap_or_default();
+    if Identity_Axiom_Common_unitcore::is_generic_rust_file_stem(stem) {
+        return;
+    }
     let has_logic = !ctx.functions.is_empty()
         || ctx.source.contains("fn ")
         || ctx.source.contains("struct ")
         || ctx.source.contains("enum ")
         || ctx.source.contains("macro_rules!");
-    let has_dna_in_name = stem.contains(&tag_separator);
-    let identity_path = Identity_Axiom_Common_unitcore::resolve_axiom_identity_path_or_fallback(ctx, "dna_suffix");
+    let has_dna_in_name = stem
+        .rsplit_once(&tag_separator)
+        .map(|(_, suffix)| !suffix.is_empty())
+        .unwrap_or(false);
+    let identity_path =
+        Identity_Axiom_Common_unitcore::resolve_axiom_identity_path_or_fallback(ctx, "dna_suffix");
     let dna_matches_taxonomy = !ctx.detected_dna.is_empty()
-        && ctx.taxonomy_path
+        && ctx
+            .taxonomy_path
             .rsplit('.')
             .next()
             .map(|segment| segment == ctx.detected_dna)

@@ -1,12 +1,15 @@
 #[cfg(test)]
 mod tests {
-    use crate::Logs::GovernanceLogs;
     use crate::engine::Swarm_Engine_unit::SwarmEngine;
     use crate::structs::{AuditConfig, AuditResult, HierarchyConfig};
+    use crate::Logs::GovernanceLogs;
 
     fn config_for(profile: &str) -> AuditConfig {
         AuditConfig {
-            hierarchy: HierarchyConfig::load_from_folder(&format!("ant_delirium_config/{}", profile)),
+            hierarchy: HierarchyConfig::load_from_folder(&format!(
+                "ant_delirium_config/{}",
+                profile
+            )),
             ..AuditConfig::default()
         }
     }
@@ -25,8 +28,7 @@ mod tests {
             violations,
             logs: vec![format!(
                 "[TEST] Identity sweep filtered by '{}' in profile '{}'.",
-                rule_suffix,
-                profile
+                rule_suffix, profile
             )],
         };
 
@@ -43,11 +45,19 @@ mod tests {
 
         for (profile, rule_suffix, expected_file) in cases {
             let (config, result) = fixture_result(profile, rule_suffix);
-            println!("{}", GovernanceLogs::format_terminal_report(&result, &config, None));
+            println!(
+                "{}",
+                GovernanceLogs::format_terminal_report(&result, &config, None)
+            );
 
-            assert!(result.violations.iter().any(|violation| {
-                violation.file_path.contains(expected_file)
-            }), "missing tag_separator violation for {}", profile);
+            assert!(
+                result
+                    .violations
+                    .iter()
+                    .any(|violation| { violation.file_path.contains(expected_file) }),
+                "missing tag_separator violation for {}",
+                profile
+            );
         }
     }
 
@@ -56,16 +66,28 @@ mod tests {
         let cases = [
             ("type_1", "name_separator", "Name_Separator_Error_unit.rs"),
             ("type_2", "name_separator", "Name_Separator_Error_unite.rs"),
-            ("type_3", "name_separator", "Name_Separator_Error_unidade.rs"),
+            (
+                "type_3",
+                "name_separator",
+                "Name_Separator_Error_unidade.rs",
+            ),
         ];
 
         for (profile, rule_suffix, expected_file) in cases {
             let (config, result) = fixture_result(profile, rule_suffix);
-            println!("{}", GovernanceLogs::format_terminal_report(&result, &config, None));
+            println!(
+                "{}",
+                GovernanceLogs::format_terminal_report(&result, &config, None)
+            );
 
-            assert!(result.violations.iter().any(|violation| {
-                violation.file_path.contains(expected_file)
-            }), "missing name_separator violation for {}", profile);
+            assert!(
+                result
+                    .violations
+                    .iter()
+                    .any(|violation| { violation.file_path.contains(expected_file) }),
+                "missing name_separator violation for {}",
+                profile
+            );
         }
     }
 
@@ -79,11 +101,19 @@ mod tests {
 
         for (profile, rule_suffix, expected_file) in cases {
             let (config, result) = fixture_result(profile, rule_suffix);
-            println!("{}", GovernanceLogs::format_terminal_report(&result, &config, None));
+            println!(
+                "{}",
+                GovernanceLogs::format_terminal_report(&result, &config, None)
+            );
 
-            assert!(result.violations.iter().any(|violation| {
-                violation.file_path.contains(expected_file)
-            }), "missing pascal_case violation for {}", profile);
+            assert!(
+                result
+                    .violations
+                    .iter()
+                    .any(|violation| { violation.file_path.contains(expected_file) }),
+                "missing pascal_case violation for {}",
+                profile
+            );
         }
     }
 
@@ -97,11 +127,19 @@ mod tests {
 
         for (profile, rule_suffix, expected_file) in cases {
             let (config, result) = fixture_result(profile, rule_suffix);
-            println!("{}", GovernanceLogs::format_terminal_report(&result, &config, None));
+            println!(
+                "{}",
+                GovernanceLogs::format_terminal_report(&result, &config, None)
+            );
 
-            assert!(result.violations.iter().any(|violation| {
-                violation.file_path.contains(expected_file)
-            }), "missing dna_suffix violation for {}", profile);
+            assert!(
+                result
+                    .violations
+                    .iter()
+                    .any(|violation| { violation.file_path.contains(expected_file) }),
+                "missing dna_suffix violation for {}",
+                profile
+            );
         }
     }
 
@@ -115,11 +153,19 @@ mod tests {
 
         for (profile, rule_suffix, expected_file) in cases {
             let (config, result) = fixture_result(profile, rule_suffix);
-            println!("{}", GovernanceLogs::format_terminal_report(&result, &config, None));
+            println!(
+                "{}",
+                GovernanceLogs::format_terminal_report(&result, &config, None)
+            );
 
-            assert!(result.violations.iter().any(|violation| {
-                violation.file_path.contains(expected_file)
-            }), "missing invalid dna_suffix violation for {}", profile);
+            assert!(
+                result
+                    .violations
+                    .iter()
+                    .any(|violation| { violation.file_path.contains(expected_file) }),
+                "missing invalid dna_suffix violation for {}",
+                profile
+            );
         }
     }
 
@@ -133,11 +179,19 @@ mod tests {
 
         for (profile, rule_suffix, expected_file) in cases {
             let (config, result) = fixture_result(profile, rule_suffix);
-            println!("{}", GovernanceLogs::format_terminal_report(&result, &config, None));
+            println!(
+                "{}",
+                GovernanceLogs::format_terminal_report(&result, &config, None)
+            );
 
-            assert!(result.violations.iter().any(|violation| {
-                violation.file_path.contains(expected_file)
-            }), "missing manifest_anchoring violation for {}", profile);
+            assert!(
+                result
+                    .violations
+                    .iter()
+                    .any(|violation| { violation.file_path.contains(expected_file) }),
+                "missing manifest_anchoring violation for {}",
+                profile
+            );
         }
     }
 
@@ -151,11 +205,19 @@ mod tests {
 
         for (profile, rule_suffix, expected_file) in cases {
             let (config, result) = fixture_result(profile, rule_suffix);
-            println!("{}", GovernanceLogs::format_terminal_report(&result, &config, None));
+            println!(
+                "{}",
+                GovernanceLogs::format_terminal_report(&result, &config, None)
+            );
 
-            assert!(result.violations.iter().any(|violation| {
-                violation.file_path.contains(expected_file)
-            }), "missing recursion violation for {}", profile);
+            assert!(
+                result
+                    .violations
+                    .iter()
+                    .any(|violation| { violation.file_path.contains(expected_file) }),
+                "missing recursion violation for {}",
+                profile
+            );
         }
     }
 }

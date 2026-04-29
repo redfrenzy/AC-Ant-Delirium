@@ -4,20 +4,31 @@ use crate::structs::AuditContext;
 mod Pedagogical_Tag_Common_unitcore;
 
 pub fn patrol(ctx: &mut AuditContext<'_>) {
+    if !ctx.file_path.ends_with(".rs") {
+        return;
+    }
+    if Pedagogical_Tag_Common_unitcore::resolve_doc_tags_aggregator_enabled(ctx).unwrap_or(false) {
+        return;
+    }
+
     let test_enabled = match Pedagogical_Tag_Common_unitcore::resolve_rule_enabled(
         ctx,
         "test_case_mapping",
         "test_case_mapping",
-        "TEST",
+        "test",
     ) {
         Ok(value) => value,
         Err(message) => {
-            Pedagogical_Tag_Common_unitcore::push_resolution_violation(ctx, "test_case_mapping", &message);
+            Pedagogical_Tag_Common_unitcore::push_resolution_violation(
+                ctx,
+                "test_case_mapping",
+                &message,
+            );
             return;
         }
     };
 
-    if !test_enabled || !ctx.file_path.ends_with(".rs") {
+    if !test_enabled {
         return;
     }
 

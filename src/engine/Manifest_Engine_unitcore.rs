@@ -17,7 +17,10 @@ struct ManifestEntry {
     source_file: String,
 }
 
-pub fn generate_file_manifests(config: &AuditConfig, files: &[String]) -> std::io::Result<Vec<String>> {
+pub fn generate_file_manifests(
+    config: &AuditConfig,
+    files: &[String],
+) -> std::io::Result<Vec<String>> {
     let tag_separator = SwarmEngine::resolve_tag_separator(config);
     let mut grouped: HashMap<PathBuf, Vec<ManifestEntry>> = HashMap::new();
 
@@ -26,7 +29,8 @@ pub fn generate_file_manifests(config: &AuditConfig, files: &[String]) -> std::i
             continue;
         }
 
-        let source = match fs::read_to_string(file_path) {
+        let physical_file_path = config.resolve_project_path(file_path);
+        let source = match fs::read_to_string(&physical_file_path) {
             Ok(content) => content,
             Err(_) => continue,
         };
@@ -43,7 +47,7 @@ pub fn generate_file_manifests(config: &AuditConfig, files: &[String]) -> std::i
         }
 
         let manifest_path = build_manifest_path(
-            file_path,
+            &physical_file_path.to_string_lossy(),
             &detected_dna,
             manifest_anchor.as_deref(),
             &tag_separator,
@@ -90,7 +94,7 @@ pub fn generate_file_manifests(config: &AuditConfig, files: &[String]) -> std::i
             let _ = fs::create_dir_all(parent);
         }
         fs::write(&manifest_path, payload)?;
-        written_paths.push(manifest_path.to_string_lossy().to_string());
+        written_paths.push(config.display_path(&manifest_path));
     }
 
     written_paths.sort();
@@ -128,7 +132,10 @@ fn build_manifest_path(
 ) -> PathBuf {
     let path = Path::new(file_path);
     let parent = path.parent().unwrap_or_else(|| Path::new("."));
-    let stem = path.file_stem().and_then(|value| value.to_str()).unwrap_or_default();
+    let stem = path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default();
 
     let manifest_stem = if detected_dna.is_empty() {
         stem.to_string()

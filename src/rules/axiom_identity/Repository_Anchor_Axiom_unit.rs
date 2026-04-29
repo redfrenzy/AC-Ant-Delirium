@@ -1,4 +1,4 @@
-use crate::structs::{HierarchyConfig, GovernanceAxiom, SearchFiles};
+use crate::structs::{GovernanceAxiom, HierarchyConfig, SearchFiles};
 
 #[path = "Repository_Anchor_Axiom_unitcore.rs"]
 mod Repository_Anchor_Axiom_unitcore;
@@ -6,12 +6,18 @@ mod Repository_Anchor_Axiom_unitcore;
 pub struct RepositoryAnchorAxiom;
 
 impl Default for RepositoryAnchorAxiom {
-    fn default() -> Self { Self {} }
+    fn default() -> Self {
+        Self {}
+    }
 }
 
 impl GovernanceAxiom for RepositoryAnchorAxiom {
-    fn id(&self) -> &str { "repository_anchor" }
-    fn name(&self) -> &str { "RepositoryAnchorAxiom Identity Auditor" }
+    fn id(&self) -> &str {
+        "repository_anchor"
+    }
+    fn name(&self) -> &str {
+        "RepositoryAnchorAxiom Identity Auditor"
+    }
 
     fn resolve_jurisdiction(&self, hierarchy: &HierarchyConfig) -> Vec<String> {
         SearchFiles::resolve_jurisdiction(hierarchy, SearchFiles::ID)

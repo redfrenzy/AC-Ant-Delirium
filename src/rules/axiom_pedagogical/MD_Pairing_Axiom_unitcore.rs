@@ -4,11 +4,15 @@ use crate::structs::AuditContext;
 mod Pedagogical_Tag_Common_unitcore;
 
 pub fn patrol(ctx: &mut AuditContext<'_>) {
+    if !ctx.file_path.ends_with(".rs") {
+        return;
+    }
+
     let where_enabled = match Pedagogical_Tag_Common_unitcore::resolve_rule_enabled(
         ctx,
         "md_pairing",
         "md_pairing",
-        "WHERE",
+        "where",
     ) {
         Ok(value) => value,
         Err(message) => {
@@ -16,7 +20,7 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
             return;
         }
     };
-    if !where_enabled || !ctx.file_path.ends_with(".rs") {
+    if !where_enabled {
         return;
     }
 

@@ -1,4 +1,4 @@
-use crate::structs::{HierarchyConfig, GovernanceAxiom, SearchFiles};
+use crate::structs::{GovernanceAxiom, HierarchyConfig, SearchFiles};
 
 #[path = "Root_MD_Pairing_Axiom_unitcore.rs"]
 mod Root_MD_Pairing_Axiom_unitcore;
@@ -6,12 +6,18 @@ mod Root_MD_Pairing_Axiom_unitcore;
 pub struct RootMdPairingAxiom;
 
 impl Default for RootMdPairingAxiom {
-    fn default() -> Self { Self {} }
+    fn default() -> Self {
+        Self {}
+    }
 }
 
 impl GovernanceAxiom for RootMdPairingAxiom {
-    fn id(&self) -> &str { "root_md_pairing" }
-    fn name(&self) -> &str { "RootMdPairingAxiom Pedagogy Auditor" }
+    fn id(&self) -> &str {
+        "root_md_pairing"
+    }
+    fn name(&self) -> &str {
+        "RootMdPairingAxiom Pedagogy Auditor"
+    }
 
     fn resolve_jurisdiction(&self, hierarchy: &HierarchyConfig) -> Vec<String> {
         SearchFiles::resolve_jurisdiction(hierarchy, SearchFiles::ID)
