@@ -106,7 +106,7 @@ mod tests {
         assert!(Path::new(&paths.shadow_context_path).exists());
         assert!(Path::new(&paths.violations_dir).exists());
 
-        let grouped_log = Path::new(&paths.violations_dir).join("04__type_logic.log");
+        let grouped_log = Path::new(&paths.violations_dir).join("05__type_logic.log");
         assert!(grouped_log.exists());
 
         let grouped_content =
@@ -118,7 +118,7 @@ mod tests {
             .expect("violations dir should be readable")
             .filter_map(Result::ok)
             .count();
-        assert_eq!(log_count, 23, "should keep one grouped log per axiom");
+        assert_eq!(log_count, 24, "should keep one grouped log per axiom");
 
         let stale_log = Path::new(&paths.violations_dir).join("zz__stale.log");
         fs::write(&stale_log, "stale").expect("should create stale log");
@@ -136,7 +136,7 @@ mod tests {
             .expect("violations dir should stay readable")
             .filter_map(Result::ok)
             .count();
-        assert_eq!(rewritten_count, 23);
+        assert_eq!(rewritten_count, 24);
     }
 
     #[test]

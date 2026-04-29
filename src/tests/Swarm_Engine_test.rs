@@ -103,7 +103,13 @@ mod tests {
         assert!(
             paths
                 .shadow_context_path
-                .contains("AC_Ant-Delirium_props/Logs/artifacts"),
+                .ends_with("shadow_context.json"),
+            "shadow context should honor the configured output path"
+        );
+        assert!(
+            !paths
+                .shadow_context_path
+                .contains("/src/"),
             "shadow context should live outside the audited src tree"
         );
 
