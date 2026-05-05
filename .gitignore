@@ -1,6 +1,13 @@
 /target/
 **/*.rs.bk
 *.manifest.json
+*.sarif.json
 violations.log
+final_violations.log
 audit_log.txt
+/audit
+shadow_context*.json
+AC_Ant-Delirium_props/
+Logs/debug_artifacts/
+src/Logs/artifacts/
 delirium_cli
