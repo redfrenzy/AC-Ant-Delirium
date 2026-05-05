@@ -1,9 +1,17 @@
 use super::test_bridge::*;
 use super::*;
+use ac_ant_delirium::engine_identity;
 use ac_ant_delirium::engine::Swarm_Engine_unit::SwarmEngine;
 use ac_ant_delirium::structs::{
     AuditConfig, AuditResult, AuditViolation, GovernanceMode, RuntimeConfig,
 };
+
+fn canonical_runtime_plugin_command() -> String {
+    format!(
+        "./plugins/AC_Rayon-Genetics/{}",
+        engine_identity::DEFAULT_PLUGIN_BINARY_NAME
+    )
+}
 
 fn unique_temp_dir(label: &str) -> PathBuf {
     let nanos = SystemTime::now()
@@ -426,7 +434,7 @@ fn governance_refresh_marks_open_submit_record_stale_when_task_changes() {
         Some("ROOT1"),
         Some("WORK1"),
         Some("ROOT1"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("submit should persist");
 
@@ -681,7 +689,7 @@ fn submit_command_materializes_submit_queue_record() {
         Some("ROOT1"),
         Some("ROOT1"),
         Some("ROOT1"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("submit should persist");
 
@@ -715,7 +723,7 @@ fn newer_submit_supersedes_previous_open_submit_for_same_agent() {
         Some("ROOT1"),
         Some("ROOT1"),
         Some("ROOT1"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("first submit should persist");
     append_submit(
@@ -727,7 +735,7 @@ fn newer_submit_supersedes_previous_open_submit_for_same_agent() {
         Some("ROOT2"),
         Some("ROOT2"),
         Some("ROOT2"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("second submit should persist");
 
@@ -789,7 +797,7 @@ fn submit_record_captures_active_governance_task_version() {
         Some("ROOT3"),
         Some("ROOT3"),
         Some("ROOT3"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("submit should persist");
 
@@ -837,7 +845,7 @@ fn submit_record_backfills_legacy_governance_task_metadata() {
         Some("ROOT1"),
         Some("ROOT1"),
         Some("ROOT1"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("submit should hydrate legacy metadata");
 
@@ -883,7 +891,7 @@ fn root_can_accept_and_close_submit_queue_record() {
         Some("ROOT1"),
         Some("ROOT1"),
         Some("ROOT1"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("submit should persist");
 
@@ -966,7 +974,7 @@ fn accepted_submit_releases_agent_claim_and_suppresses_same_task_until_governanc
         Some("ROOT1"),
         Some("ROOT1"),
         Some("ROOT1"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("submit should persist");
 
@@ -1076,7 +1084,7 @@ fn rejected_submit_preserves_agent_claim() {
         Some("ROOT1"),
         Some("ROOT1"),
         Some("ROOT1"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("submit should persist");
 
@@ -1160,7 +1168,7 @@ fn submit_queue_report_summarizes_lifecycle_statuses() {
         Some("ROOT1"),
         Some("ROOT1"),
         Some("ROOT1"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("submit a should persist");
     append_submit(
@@ -1172,7 +1180,7 @@ fn submit_queue_report_summarizes_lifecycle_statuses() {
         Some("ROOT1"),
         Some("ROOT1"),
         Some("ROOT1"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("submit b should persist");
 
@@ -1236,7 +1244,7 @@ fn submit_queue_views_support_active_history_and_single_submit() {
         Some("ROOT1"),
         Some("ROOT1"),
         Some("ROOT1"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("submit a should persist");
     append_submit(
@@ -1248,7 +1256,7 @@ fn submit_queue_views_support_active_history_and_single_submit() {
         Some("ROOT1"),
         Some("ROOT1"),
         Some("ROOT1"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("submit b should persist");
 
@@ -1334,7 +1342,7 @@ fn submit_queue_marks_stale_task_versions_in_views() {
         Some("ROOT1"),
         Some("ROOT1"),
         Some("ROOT1"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("submit should persist");
 
@@ -1640,7 +1648,7 @@ fn canonical_submit_records_public_message_and_feedback() {
         Some("BASE1"),
         Some("WORK2"),
         Some("ROOT3"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("submit should store both artifacts");
 
@@ -1725,7 +1733,7 @@ fn next_action_guides_root_toward_submit_triage() {
         Some("ROOT1"),
         Some("ROOT1"),
         Some("ROOT1"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("submit should persist");
 
@@ -1781,7 +1789,7 @@ fn next_action_guides_root_toward_stale_task_submit_review() {
         Some("ROOT1"),
         Some("ROOT1"),
         Some("ROOT1"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("submit should persist");
 
@@ -1833,7 +1841,7 @@ fn identity_reports_operational_and_pedagogical_feedback_counts() {
         None,
         None,
         None,
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("pedagogical feedback should persist");
     append_feedback(
@@ -1845,7 +1853,7 @@ fn identity_reports_operational_and_pedagogical_feedback_counts() {
         Some("BASE1"),
         Some("WORK1"),
         Some("ROOT1"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("operational feedback should persist");
 
@@ -2073,7 +2081,7 @@ fn root_orchestration_checks_report_missing_submit_message() {
         Some("BASE1"),
         Some("WORK2"),
         Some("ROOT3"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("submit feedback should be stored");
 
@@ -2117,7 +2125,7 @@ fn root_orchestration_accepts_canonical_submit_pair() {
         Some("ROOT1"),
         Some("ROOT1"),
         Some("ROOT1"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("canonical submit should store a consistent pair");
 
@@ -2163,7 +2171,7 @@ fn swarm_status_and_identity_render_ready_submit_state() {
         Some("ROOT1"),
         Some("ROOT1"),
         Some("ROOT1"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("submit should persist");
 
@@ -2224,7 +2232,7 @@ fn swarm_status_and_root_checks_render_blocked_submit_state() {
         Some("ROOT2"),
         Some("ROOT2"),
         Some("ROOT2"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("root sync should persist");
     append_submit(
@@ -2236,7 +2244,7 @@ fn swarm_status_and_root_checks_render_blocked_submit_state() {
         Some("ROOT1"),
         Some("WORK1"),
         Some("ROOT2"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("stale submit should still persist");
 
@@ -2293,7 +2301,7 @@ fn root_checks_ignore_consumed_submit_history() {
         Some("ROOT2"),
         Some("ROOT2"),
         Some("ROOT2"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("root sync should persist");
     append_submit(
@@ -2305,7 +2313,7 @@ fn root_checks_ignore_consumed_submit_history() {
         Some("ROOT1"),
         Some("WORK1"),
         Some("ROOT2"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("stale submit should persist");
 
@@ -2374,7 +2382,7 @@ fn root_checks_report_submit_task_stale_when_governance_version_advances() {
         Some("ROOT1"),
         Some("ROOT1"),
         Some("ROOT1"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("submit should persist");
 
@@ -2466,7 +2474,7 @@ fn submit_rejects_stale_task_metadata_before_recording() {
         Some("ROOT2"),
         Some("ROOT2"),
         Some("ROOT2"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect_err("submit should reject stale task metadata");
     assert!(err.to_string().contains("submit task metadata is stale"));
@@ -2531,7 +2539,7 @@ fn submit_feedback_rejects_stale_task_metadata_before_recording() {
         Some("ROOT2"),
         Some("ROOT2"),
         Some("ROOT2"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect_err("submit feedback should reject stale task metadata");
     assert!(err
@@ -2754,7 +2762,7 @@ fn prune_stale_agents_removes_only_idle_stale_entries() {
         "AC_Rayon-Genetics",
     );
     let active_workspace = root.join("Ant-Delirium-Agent-1_RAYON");
-    let idle_workspace = root.join("ac_ant_delirium");
+    let idle_workspace = root.join(engine_identity::DEFAULT_PLUGIN_BINARY_NAME);
     let active_login = active_workspace.join("AC_Ant-Delirium_props/login/login.json");
     let idle_login = idle_workspace.join("AC_Ant-Delirium_props/login/login.json");
     let root_login = expected_login_path_from_workspace_path(plugin.repository_path.as_path());
@@ -3265,7 +3273,7 @@ fn feedback_entries_store_taxonomy_context_and_commands() {
         None,
         None,
         None,
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("feedback should be stored");
 
@@ -3274,8 +3282,14 @@ fn feedback_entries_store_taxonomy_context_and_commands() {
     assert!(raw.contains("\"agent_id\": \""));
     assert!(raw.contains("\"execution_context\": \"repository root\""));
     assert!(raw.contains("\"taxonomy_path\": \"hierarchy.files.max_nesting\""));
-    assert!(raw.contains("\"api_taxonomy_command\": \"./plugins/AC_Rayon-Genetics/ac_ant_delirium --api hierarchy.files.max_nesting\""));
-    assert!(raw.contains("\"feedback_help_command\": \"./plugins/AC_Rayon-Genetics/ac_ant_delirium --help.feedback\""));
+    assert!(raw.contains(&format!(
+        "\"api_taxonomy_command\": \"{} --api hierarchy.files.max_nesting\"",
+        canonical_runtime_plugin_command()
+    )));
+    assert!(raw.contains(&format!(
+        "\"feedback_help_command\": \"{} --help.feedback\"",
+        canonical_runtime_plugin_command()
+    )));
     assert!(raw.contains("\"login_path\":"));
     assert!(raw.contains("\"repository_path\":"));
     assert!(raw.contains(plugin.login_path().to_string_lossy().as_ref()));
@@ -3302,7 +3316,7 @@ fn feedback_requires_reconciled_agent_identity() {
         None,
         None,
         None,
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect_err("feedback should require a reconciled agent");
     assert!(err.to_string().contains("reconciled agent"));
@@ -3384,7 +3398,7 @@ fn submit_requires_explicit_metadata_before_recording() {
         None,
         None,
         None,
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect_err("submit should require explicit metadata");
     let err = err.to_string();
@@ -3426,7 +3440,7 @@ fn submit_feedback_requires_explicit_metadata_guidance() {
         None,
         None,
         None,
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect_err("submit feedback should require explicit metadata");
     let err = err.to_string();
@@ -3475,7 +3489,7 @@ fn feedback_append_does_not_copy_message_entries_into_feedback_file() {
         None,
         None,
         None,
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("feedback should be stored");
 
@@ -3519,7 +3533,7 @@ fn rebase_check_detects_stale_state_from_persisted_metadata() {
         Some("ROOT2"),
         Some("ROOT2"),
         Some("ROOT2"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("root feedback should persist sync metadata");
 
@@ -3532,7 +3546,7 @@ fn rebase_check_detects_stale_state_from_persisted_metadata() {
         Some("ROOT1"),
         Some("WORK1"),
         Some("ROOT2"),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("worktree feedback should persist sync metadata");
 
@@ -3570,7 +3584,7 @@ fn inbox_unavailable_after_login_file_is_removed() {
 
 #[test]
 fn plugin_help_keeps_installation_canonical() {
-    let rendered = render_plugin_help(None, "./plugins/AC_Rayon-Genetics/ac_ant_delirium");
+    let rendered = render_plugin_help(None, &canonical_runtime_plugin_command());
     assert!(rendered.contains("--installation"));
     assert!(!rendered.contains("--instalation"));
     assert!(!rendered.contains("--installtion"));
@@ -3608,7 +3622,10 @@ fn config_init_materializes_default_tomls_and_build_guard_for_new_project() {
     let plugin_dir = root.join("plugins").join("AC_Rayon-Genetics");
     fs::create_dir_all(&plugin_dir).expect("plugin dir should exist");
 
-    let copied_binary = copy_binary_if_needed(&fake_bin, &plugin_dir.join("ac_ant_delirium"))
+    let copied_binary = copy_binary_if_needed(
+        &fake_bin,
+        &plugin_dir.join(engine_identity::DEFAULT_PLUGIN_BINARY_NAME),
+    )
         .expect("binary copy should succeed");
     assert!(copied_binary);
 
@@ -3624,7 +3641,7 @@ fn config_init_materializes_default_tomls_and_build_guard_for_new_project() {
     .expect("rules should be written");
     let guard_written = write_default_template_if_missing(
         &project_root.join("AC_Ant-Delirium_props/ant_delirium_build_guard.rs"),
-        DEFAULT_NEW_PROJECT_BUILD_GUARD,
+        &render_new_project_build_guard(),
     )
     .expect("guard should be written");
 
@@ -3740,7 +3757,7 @@ fn hooks_verify_merge_accepts_matching_explicit_metadata() {
         &plugin.repository_path,
         Some(plugin.repository_path.to_string_lossy().as_ref()),
         Some(&plugin),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("hooks should materialize");
 
@@ -3788,7 +3805,7 @@ fn hooks_verify_push_rejects_missing_or_mismatched_metadata() {
         &plugin.repository_path,
         Some(plugin.repository_path.to_string_lossy().as_ref()),
         Some(&plugin),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("hooks should materialize");
 
@@ -3861,7 +3878,7 @@ fn materialize_project_local_plugin_package_creates_guard_in_repository_root() {
         &plugin.repository_path,
         None,
         Some(&plugin),
-        "./plugins/AC_Rayon-Genetics/ac_ant_delirium",
+        &canonical_runtime_plugin_command(),
     )
     .expect("materialization should succeed");
 
@@ -3883,7 +3900,7 @@ fn bootstrap_context_prefers_plugin_dir_when_running_inside_plugins_folder() {
     fs::create_dir_all(&project_root).expect("project root should exist");
     fs::create_dir_all(&plugin_dir).expect("plugin dir should exist");
 
-    let fake_exe = plugin_dir.join("ac_ant_delirium");
+    let fake_exe = plugin_dir.join(engine_identity::DEFAULT_PLUGIN_BINARY_NAME);
     let (effective_root, effective_plugin_dir) =
         infer_bootstrap_context(&plugin_dir, None, &fake_exe);
 
@@ -3899,7 +3916,7 @@ fn copy_binary_if_needed_skips_when_paths_point_to_same_existing_file() {
     let bin_path = root
         .join("plugins")
         .join("AC_Rayon-Genetics")
-        .join("ac_ant_delirium");
+        .join(engine_identity::DEFAULT_PLUGIN_BINARY_NAME);
     if let Some(parent) = bin_path.parent() {
         fs::create_dir_all(parent).expect("parent should exist");
     }

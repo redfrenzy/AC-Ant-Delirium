@@ -6,7 +6,7 @@ mod tests {
 
     #[test]
     fn test_type_logic_accepts_public_api_in_unit_files() {
-        let hierarchy = HierarchyConfig::load_from_folder("ant_delirium_config");
+        let hierarchy = HierarchyConfig::load_from_folder("ant_delirium_config/type_1");
         let config = AuditConfig {
             hierarchy,
             ..AuditConfig::default()
@@ -34,7 +34,7 @@ pub fn exposed_api() {}
 
     #[test]
     fn test_type_logic_rejects_public_api_in_unitcore_files() {
-        let hierarchy = HierarchyConfig::load_from_folder("ant_delirium_config");
+        let hierarchy = HierarchyConfig::load_from_folder("ant_delirium_config/type_1");
         let config = AuditConfig {
             hierarchy,
             ..AuditConfig::default()
@@ -68,7 +68,7 @@ pub fn leaked_api() {}
 
     #[test]
     fn test_type_logic_accepts_impl_blocks_in_structcore_files() {
-        let hierarchy = HierarchyConfig::load_from_folder("ant_delirium_config");
+        let hierarchy = HierarchyConfig::load_from_folder("ant_delirium_config/type_1");
         let config = AuditConfig {
             hierarchy,
             ..AuditConfig::default()
@@ -98,7 +98,7 @@ impl WorkerState {
 
     #[test]
     fn test_type_logic_skips_files_without_detected_dna() {
-        let hierarchy = HierarchyConfig::load_from_folder("ant_delirium_config");
+        let hierarchy = HierarchyConfig::load_from_folder("ant_delirium_config/type_1");
         let config = AuditConfig {
             hierarchy,
             ..AuditConfig::default()

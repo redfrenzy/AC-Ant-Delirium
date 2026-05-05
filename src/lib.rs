@@ -3,6 +3,7 @@
 #[allow(non_snake_case)]
 pub mod Logs;
 pub mod api;
+pub mod engine_identity;
 pub mod engine;
 #[path = "Governance_unit.rs"]
 pub mod governance;

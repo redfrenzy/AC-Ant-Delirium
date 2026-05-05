@@ -11,8 +11,8 @@
       },
       "properties": {
         "governance": {
-          "terminal_report": "/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/src/Logs/artifacts/governance_terminal.log",
-          "violations_manifest": "/home/dracker/Antigravity Projects/playground/aesthetic_core_project/ac_ant_delirium/src/Logs/artifacts/violations_manifest.json",
+          "terminal_report": "/home/dracker/Antigravity Projects/playground/aesthetic_core_project/AC-Ant-Delirium/src/Logs/artifacts/governance_terminal.log",
+          "violations_manifest": "/home/dracker/Antigravity Projects/playground/aesthetic_core_project/AC-Ant-Delirium/src/Logs/artifacts/violations_manifest.json",
           "priority_order": "P0 → P1 → P2 → P3 → P4",
           "total_violations": 0,
           "audited_files": 0,

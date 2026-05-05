@@ -319,9 +319,9 @@ mod test_bridge {
         is_manager_task_active, is_valid_registered_workspace_path, load_hierarchy_from_path,
         match_plugin_context, normalize_path, normalize_path_str, read_connected_agents,
         read_governance_history, read_governance_tasks, read_manager_tasks, read_submit_records,
-        render_new_project_hierarchy, unix_timestamp, write_connected_agents,
+        render_new_project_build_guard, render_new_project_hierarchy, unix_timestamp, write_connected_agents,
         write_default_template_if_missing, write_entry_collection, write_governance_tasks,
-        write_manager_tasks, DEFAULT_NEW_PROJECT_BUILD_GUARD, DEFAULT_NEW_PROJECT_RULES,
+        write_manager_tasks, DEFAULT_NEW_PROJECT_RULES,
     };
 }
 

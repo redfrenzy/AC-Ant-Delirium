@@ -6,7 +6,7 @@ mod tests {
 
     #[test]
     fn test_logical_density_axiom_resolves_taxonomy_limit_and_reports_violation() {
-        let hierarchy = HierarchyConfig::load_from_folder("ant_delirium_config");
+        let hierarchy = HierarchyConfig::load_from_folder("ant_delirium_config/type_1");
         let config = AuditConfig {
             hierarchy,
             ..AuditConfig::default()
@@ -84,7 +84,7 @@ fn overloaded_unitcore() {
 
     #[test]
     fn test_logical_density_axiom_uses_parent_fallback() {
-        let hierarchy = HierarchyConfig::load_from_folder("ant_delirium_config");
+        let hierarchy = HierarchyConfig::load_from_folder("ant_delirium_config/type_1");
         let config = AuditConfig {
             hierarchy,
             ..AuditConfig::default()

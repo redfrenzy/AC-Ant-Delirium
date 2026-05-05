@@ -5,7 +5,7 @@ mod tests {
 
     #[test]
     fn test_axiom_parameter_resolution_contract() {
-        let hierarchy = crate::structs::HierarchyConfig::load_from_folder("ant_delirium_config");
+        let hierarchy = crate::structs::HierarchyConfig::load_from_folder("ant_delirium_config/type_1");
         let config = AuditConfig {
             hierarchy,
             ..AuditConfig::default()
@@ -48,7 +48,7 @@ mod tests {
 
     #[test]
     fn test_axiom_parameter_resolution_errors_when_requirement_is_missing() {
-        let hierarchy = crate::structs::HierarchyConfig::load_from_folder("ant_delirium_config");
+        let hierarchy = crate::structs::HierarchyConfig::load_from_folder("ant_delirium_config/type_1");
         let config = AuditConfig {
             hierarchy,
             ..AuditConfig::default()
@@ -75,7 +75,7 @@ mod tests {
 
     #[test]
     fn test_global_and_taxonomy_resolution_contracts() {
-        let hierarchy = crate::structs::HierarchyConfig::load_from_folder("ant_delirium_config");
+        let hierarchy = crate::structs::HierarchyConfig::load_from_folder("ant_delirium_config/type_1");
         let config = AuditConfig {
             hierarchy,
             ..AuditConfig::default()

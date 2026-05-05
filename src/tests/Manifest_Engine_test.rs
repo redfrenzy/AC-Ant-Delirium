@@ -43,7 +43,7 @@ mod tests {
         )
         .expect("unitcore fixture should be written");
 
-        let mut hierarchy = HierarchyConfig::load_from_folder("ant_delirium_config");
+        let mut hierarchy = HierarchyConfig::load_from_folder("ant_delirium_config/type_1");
         set_target_core(&mut hierarchy, &workspace);
 
         let config = AuditConfig {
@@ -84,7 +84,7 @@ mod tests {
         fs::write(&file_path, "/// [WHAT] Plain\npub fn alpha() {}\n")
             .expect("fixture should be written");
 
-        let mut hierarchy = HierarchyConfig::load_from_folder("ant_delirium_config");
+        let mut hierarchy = HierarchyConfig::load_from_folder("ant_delirium_config/type_1");
         set_target_core(&mut hierarchy, &workspace);
         let config = AuditConfig {
             hierarchy,

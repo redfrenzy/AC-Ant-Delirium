@@ -8,7 +8,7 @@ mod tests {
 
     #[test]
     fn test_rule_identity_and_requirement_resolution() {
-        let config_path = "ant_delirium_config";
+        let config_path = "ant_delirium_config/type_1";
         let config = AgnosticScanner::load_from_folder(config_path);
 
         let identity_paths = config.find_paths_by_id("dna_suffix");
@@ -32,9 +32,9 @@ mod tests {
 
     #[test]
     fn test_rule_resolution_with_custom_root_name() {
-        let raw = fs::read_to_string("ant_delirium_config/default_hierarchy.toml")
+        let raw = fs::read_to_string("ant_delirium_config/type_1/default_hierarchy.toml")
             .expect("default_hierarchy.toml deveria existir");
-        let raw_rules = fs::read_to_string("ant_delirium_config/default_rules.toml")
+        let raw_rules = fs::read_to_string("ant_delirium_config/type_1/default_rules.toml")
             .expect("default_rules.toml deveria existir");
         let custom_hierarchy = raw
             .replace("[hierarchy", "[rule")
@@ -67,7 +67,7 @@ mod tests {
 
     #[test]
     fn test_taxonomy_parameter_resolution_with_fallback() {
-        let config = AgnosticScanner::load_from_folder("ant_delirium_config");
+        let config = AgnosticScanner::load_from_folder("ant_delirium_config/type_1");
 
         let (scope, value) = config
             .resolve_taxonomy_parameter("hierarchy.files.unit.unitcore", "logical_density")

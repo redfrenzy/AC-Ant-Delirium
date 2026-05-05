@@ -5,7 +5,9 @@ pub mod axiom_pedagogical;
 pub mod axiom_sanitization;
 pub mod axiom_structural;
 
-use crate::structs::{AuditConfig, AuditViolation, GovernanceAxiom, ScannedBlock};
+use crate::structs::{
+    empty_project_context, AuditConfig, AuditContext, AuditViolation, GovernanceAxiom, ScannedBlock,
+};
 
 // [CATALOG DISCOVERY]
 /// Coleta todos os Axiomas de Governança ativos para execução massiva.
@@ -106,13 +108,27 @@ pub fn get_full_catalog() -> Vec<Box<dyn crate::structs::AuditRule>> {
 
 /// [AESTHETIC CORE - DIAGNOSTIC ORCHESTRATOR]
 pub fn run_diagnostics(
-    _config: &AuditConfig,
-    _file_path: &str,
-    _source: &str,
-    _functions: &[ScannedBlock<'_>],
-    _violations: &mut Vec<AuditViolation>,
-    _detected_dna: String,
-    _taxonomy_path: String,
+    config: &AuditConfig,
+    file_path: &str,
+    source: &str,
+    functions: &[ScannedBlock<'_>],
+    violations: &mut Vec<AuditViolation>,
+    detected_dna: String,
+    taxonomy_path: String,
 ) {
-    // [TODO] Migrar para executar os Axiomas em vez das regras legadas
+    let axioms = get_full_axioms();
+
+    for axiom in axioms {
+        let mut ctx = AuditContext {
+            file_path,
+            source,
+            functions,
+            config,
+            project: empty_project_context(),
+            detected_dna: detected_dna.clone(),
+            taxonomy_path: taxonomy_path.clone(),
+            violations,
+        };
+        axiom.execute(&mut ctx);
+    }
 }

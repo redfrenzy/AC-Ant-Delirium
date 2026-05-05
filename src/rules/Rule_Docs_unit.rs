@@ -303,15 +303,15 @@ pub fn all_api_docs() -> &'static [ApiDoc] {
     &[
         ApiDoc {
             path: "hierarchy.installation",
-            body: "This is a project-scoped installation node under the active taxonomy root. Direct plugin information belongs to `ac_ant_delirium --installation` and `ac_ant_delirium --plugin.help`. The supported layout keeps the project-local binary at `plugins/<project>/ac_ant_delirium` and the authoritative TOML package at `plugins/<project>/ant_delirium_config`, beside the binary, so multiple branches and worktrees reuse the same governance package.",
+            body: "This is a project-scoped installation node under the active taxonomy root. Direct plugin information belongs to `<plugin-binary> --installation` and `<plugin-binary> --plugin.help`. The supported layout keeps the project-local binary at `plugins/<project>/<plugin-binary>` and the authoritative TOML package at `plugins/<project>/ant_delirium_config`, beside the binary, so multiple branches and worktrees reuse the same governance package.",
         },
         ApiDoc {
             path: "hierarchy.installation.build",
-            body: "The target crate `build.rs` should resolve `plugins/<project>/ac_ant_delirium` plus `plugins/<project>/ant_delirium_config`, call the standardized guard as the first operational statement inside `fn main()`, and stop compilation when the guard returns a non-zero status. Keep the TOMLs outside the crate, beside the final binary, instead of copying them into every branch or worktree.",
+            body: "The target crate `build.rs` should resolve `plugins/<project>/<plugin-binary>` plus `plugins/<project>/ant_delirium_config`, call the standardized guard as the first operational statement inside `fn main()`, and stop compilation when the guard returns a non-zero status. Keep the TOMLs outside the crate, beside the final binary, instead of copying them into every branch or worktree.",
         },
         ApiDoc {
             path: "hierarchy.installation.api",
-            body: "Use direct binary commands for plugin operations such as `ac_ant_delirium --installation`, `ac_ant_delirium --plugin.help`, `ac_ant_delirium config init`, `ac_ant_delirium swarm status`, `ac_ant_delirium --help.feedback`, and `ac_ant_delirium --feedback \"...\" --context <taxonomy.path>`. Use `--api <root>...` only for project taxonomy commands such as `ac_ant_delirium --api hierarchy.installation` and `ac_ant_delirium --api hierarchy.dependency_governance.allowed_crates`.",
+            body: "Use direct binary commands for plugin operations such as `<plugin-binary> --installation`, `<plugin-binary> --plugin.help`, `<plugin-binary> config init`, `<plugin-binary> swarm status`, `<plugin-binary> --help.feedback`, and `<plugin-binary> --feedback \"...\" --context <taxonomy.path>`. Use `--api <root>...` only for project taxonomy commands such as `<plugin-binary> --api hierarchy.installation` and `<plugin-binary> --api hierarchy.dependency_governance.allowed_crates`.",
         },
         ApiDoc {
             path: "hierarchy.installation.security",
@@ -323,27 +323,27 @@ pub fn all_api_docs() -> &'static [ApiDoc] {
         },
         ApiDoc {
             path: "hierarchy.installation.agents",
-            body: "Connected agents are stored in connected.json. Use `ac_ant_delirium swarm status` to inspect active workspaces, assigned missions, and aggregated violation counts.",
+            body: "Connected agents are stored in connected.json. Use `<plugin-binary> swarm status` to inspect active workspaces, assigned missions, and aggregated violation counts.",
         },
         ApiDoc {
             path: "hierarchy.installation.messages",
-            body: "Agent-to-agent communication is stored in messages.json. Use `ac_ant_delirium --message \"...\" --to-agent <id>` for a directed instruction, `--from-agent <id>` when you must override sender identity, and `ac_ant_delirium --broadcast \"...\"` for a global message. Use `ac_ant_delirium swarm status` to inspect active agents before routing work.",
+            body: "Agent-to-agent communication is stored in messages.json. Use `<plugin-binary> --message \"...\" --to-agent <id>` for a directed instruction, `--from-agent <id>` when you must override sender identity, and `<plugin-binary> --broadcast \"...\"` for a global message. Use `<plugin-binary> swarm status` to inspect active agents before routing work.",
         },
         ApiDoc {
             path: "hierarchy.installation.feedback",
-            body: "Human feedback is stored in feedback.json. Use `ac_ant_delirium --feedback \"...\" --context <taxonomy.path>` to record confusion points, missing explanations, or governance problems tied to a specific taxonomy node. Use `ac_ant_delirium --help.feedback` for the canonical pattern.",
+            body: "Human feedback is stored in feedback.json. Use `<plugin-binary> --feedback \"...\" --context <taxonomy.path>` to record confusion points, missing explanations, or governance problems tied to a specific taxonomy node. Use `<plugin-binary> --help.feedback` for the canonical pattern.",
         },
         ApiDoc {
             path: "rules.installation",
-            body: "This is a project-scoped installation node under the active taxonomy root. Direct plugin information belongs to `ac_ant_delirium --installation` and `ac_ant_delirium --plugin.help`. The supported layout keeps the project-local binary at `plugins/<project>/ac_ant_delirium` and the authoritative TOML package at `plugins/<project>/ant_delirium_config`, beside the binary, so multiple branches and worktrees reuse the same governance package.",
+            body: "This is a project-scoped installation node under the active taxonomy root. Direct plugin information belongs to `<plugin-binary> --installation` and `<plugin-binary> --plugin.help`. The supported layout keeps the project-local binary at `plugins/<project>/<plugin-binary>` and the authoritative TOML package at `plugins/<project>/ant_delirium_config`, beside the binary, so multiple branches and worktrees reuse the same governance package.",
         },
         ApiDoc {
             path: "rules.installation.build",
-            body: "The target crate `build.rs` should resolve `plugins/<project>/ac_ant_delirium` plus `plugins/<project>/ant_delirium_config`, call the standardized guard as the first operational statement inside `fn main()`, and stop compilation when the guard returns a non-zero status. Keep the TOMLs outside the crate, beside the final binary, instead of copying them into every branch or worktree.",
+            body: "The target crate `build.rs` should resolve `plugins/<project>/<plugin-binary>` plus `plugins/<project>/ant_delirium_config`, call the standardized guard as the first operational statement inside `fn main()`, and stop compilation when the guard returns a non-zero status. Keep the TOMLs outside the crate, beside the final binary, instead of copying them into every branch or worktree.",
         },
         ApiDoc {
             path: "rules.installation.api",
-            body: "Use direct binary commands for plugin operations such as `ac_ant_delirium --installation`, `ac_ant_delirium --plugin.help`, `ac_ant_delirium config init`, `ac_ant_delirium swarm status`, `ac_ant_delirium --help.feedback`, and `ac_ant_delirium --feedback \"...\" --context <taxonomy.path>`. Use `--api <root>...` only for project taxonomy commands such as `ac_ant_delirium --api rules.installation` and `ac_ant_delirium --api rules.dependency_governance.allowed_crates`.",
+            body: "Use direct binary commands for plugin operations such as `<plugin-binary> --installation`, `<plugin-binary> --plugin.help`, `<plugin-binary> config init`, `<plugin-binary> swarm status`, `<plugin-binary> --help.feedback`, and `<plugin-binary> --feedback \"...\" --context <taxonomy.path>`. Use `--api <root>...` only for project taxonomy commands such as `<plugin-binary> --api rules.installation` and `<plugin-binary> --api rules.dependency_governance.allowed_crates`.",
         },
         ApiDoc {
             path: "rules.installation.security",
@@ -355,27 +355,27 @@ pub fn all_api_docs() -> &'static [ApiDoc] {
         },
         ApiDoc {
             path: "rules.installation.agents",
-            body: "Connected agents are stored in connected.json. Use `ac_ant_delirium swarm status` to inspect active workspaces, assigned missions, and aggregated violation counts.",
+            body: "Connected agents are stored in connected.json. Use `<plugin-binary> swarm status` to inspect active workspaces, assigned missions, and aggregated violation counts.",
         },
         ApiDoc {
             path: "rules.installation.messages",
-            body: "Agent-to-agent communication is stored in messages.json. Use `ac_ant_delirium --message \"...\" --to-agent <id>` for a directed instruction, `--from-agent <id>` when you must override sender identity, and `ac_ant_delirium --broadcast \"...\"` for a global message. Use `ac_ant_delirium swarm status` to inspect active agents before routing work.",
+            body: "Agent-to-agent communication is stored in messages.json. Use `<plugin-binary> --message \"...\" --to-agent <id>` for a directed instruction, `--from-agent <id>` when you must override sender identity, and `<plugin-binary> --broadcast \"...\"` for a global message. Use `<plugin-binary> swarm status` to inspect active agents before routing work.",
         },
         ApiDoc {
             path: "rules.installation.feedback",
-            body: "Human feedback is stored in feedback.json. Use `ac_ant_delirium --feedback \"...\" --context <taxonomy.path>` to record confusion points, missing explanations, or governance problems tied to a specific taxonomy node. Use `ac_ant_delirium --help.feedback` for the canonical pattern.",
+            body: "Human feedback is stored in feedback.json. Use `<plugin-binary> --feedback \"...\" --context <taxonomy.path>` to record confusion points, missing explanations, or governance problems tied to a specific taxonomy node. Use `<plugin-binary> --help.feedback` for the canonical pattern.",
         },
         ApiDoc {
             path: "regras.installation",
-            body: "Este no de instalacao e da API do projeto, nao do comando direto do plugin. As informacoes diretas do plugin ficam em `ac_ant_delirium --installation` e `ac_ant_delirium --plugin.help`. O layout suportado mantem o binario final em `plugins/<projeto>/ac_ant_delirium` e o pacote TOML autoritativo em `plugins/<projeto>/ant_delirium_config`, ao lado do binario, para reutilizacao entre branches e worktrees.",
+            body: "Este no de instalacao e da API do projeto, nao do comando direto do plugin. As informacoes diretas do plugin ficam em `<plugin-binary> --installation` e `<plugin-binary> --plugin.help`. O layout suportado mantem o binario final em `plugins/<projeto>/<plugin-binary>` e o pacote TOML autoritativo em `plugins/<projeto>/ant_delirium_config`, ao lado do binario, para reutilizacao entre branches e worktrees.",
         },
         ApiDoc {
             path: "regras.installation.build",
-            body: "O `build.rs` do crate alvo deve resolver `plugins/<projeto>/ac_ant_delirium` e `plugins/<projeto>/ant_delirium_config`, chamar o guard padronizado como a primeira instrucao operacional dentro de `fn main()`, e interromper a compilacao quando o guard retornar status diferente de zero. Os TOMLs devem ficar fora do crate, ao lado do binario final, e nao copiados para cada branch ou worktree.",
+            body: "O `build.rs` do crate alvo deve resolver `plugins/<projeto>/<plugin-binary>` e `plugins/<projeto>/ant_delirium_config`, chamar o guard padronizado como a primeira instrucao operacional dentro de `fn main()`, e interromper a compilacao quando o guard retornar status diferente de zero. Os TOMLs devem ficar fora do crate, ao lado do binario final, e nao copiados para cada branch ou worktree.",
         },
         ApiDoc {
             path: "regras.installation.api",
-            body: "Use comandos diretos do plugin para operacoes do proprio plugin, como `ac_ant_delirium --installation`, `ac_ant_delirium --plugin.help`, `ac_ant_delirium config init`, `ac_ant_delirium swarm status`, `ac_ant_delirium --help.feedback` e `ac_ant_delirium --feedback \"...\" --context <taxonomy.path>`. Use `--api <root>...` apenas para comandos da taxonomia do projeto, como `ac_ant_delirium --api regras.installation` e `ac_ant_delirium --api regras.dependency_governance.allowed_crates`.",
+            body: "Use comandos diretos do plugin para operacoes do proprio plugin, como `<plugin-binary> --installation`, `<plugin-binary> --plugin.help`, `<plugin-binary> config init`, `<plugin-binary> swarm status`, `<plugin-binary> --help.feedback` e `<plugin-binary> --feedback \"...\" --context <taxonomy.path>`. Use `--api <root>...` apenas para comandos da taxonomia do projeto, como `<plugin-binary> --api regras.installation` e `<plugin-binary> --api regras.dependency_governance.allowed_crates`.",
         },
         ApiDoc {
             path: "regras.installation.security",
@@ -387,15 +387,15 @@ pub fn all_api_docs() -> &'static [ApiDoc] {
         },
         ApiDoc {
             path: "regras.installation.agents",
-            body: "Os agentes conectados sao armazenados em connected.json. Use `ac_ant_delirium swarm status` para inspecionar workspaces ativos, missoes atribuidas e contagem agregada de violacoes.",
+            body: "Os agentes conectados sao armazenados em connected.json. Use `<plugin-binary> swarm status` para inspecionar workspaces ativos, missoes atribuidas e contagem agregada de violacoes.",
         },
         ApiDoc {
             path: "regras.installation.messages",
-            body: "A comunicacao entre agentes fica em messages.json. Use `ac_ant_delirium --message \"...\" --to-agent <id>` para uma instrucao direcionada, `--from-agent <id>` quando precisar sobrescrever a identidade do remetente, e `ac_ant_delirium --broadcast \"...\"` para uma mensagem global. Use `ac_ant_delirium swarm status` para inspecionar os agentes ativos antes de rotear trabalho.",
+            body: "A comunicacao entre agentes fica em messages.json. Use `<plugin-binary> --message \"...\" --to-agent <id>` para uma instrucao direcionada, `--from-agent <id>` quando precisar sobrescrever a identidade do remetente, e `<plugin-binary> --broadcast \"...\"` para uma mensagem global. Use `<plugin-binary> swarm status` para inspecionar os agentes ativos antes de rotear trabalho.",
         },
         ApiDoc {
             path: "regras.installation.feedback",
-            body: "O feedback humano fica em feedback.json. Use `ac_ant_delirium --feedback \"...\" --context <taxonomy.path>` para registrar pontos de confusao, falta de explicacao ou problemas de governanca ligados a um no taxonomico especifico. Use `ac_ant_delirium --help.feedback` para o formato canonico.",
+            body: "O feedback humano fica em feedback.json. Use `<plugin-binary> --feedback \"...\" --context <taxonomy.path>` para registrar pontos de confusao, falta de explicacao ou problemas de governanca ligados a um no taxonomico especifico. Use `<plugin-binary> --help.feedback` para o formato canonico.",
         },
     ]
 }
@@ -429,7 +429,7 @@ mod tests {
             doc,
             Some(ApiDoc {
                 path: "hierarchy.installation",
-                body: "This is a project-scoped installation node under the active taxonomy root. Direct plugin information belongs to `ac_ant_delirium --installation` and `ac_ant_delirium --plugin.help`. The supported layout keeps the project-local binary at `plugins/<project>/ac_ant_delirium` and the authoritative TOML package at `plugins/<project>/ant_delirium_config`, beside the binary, so multiple branches and worktrees reuse the same governance package.",
+                body: "This is a project-scoped installation node under the active taxonomy root. Direct plugin information belongs to `<plugin-binary> --installation` and `<plugin-binary> --plugin.help`. The supported layout keeps the project-local binary at `plugins/<project>/<plugin-binary>` and the authoritative TOML package at `plugins/<project>/ant_delirium_config`, beside the binary, so multiple branches and worktrees reuse the same governance package.",
             })
         );
     }

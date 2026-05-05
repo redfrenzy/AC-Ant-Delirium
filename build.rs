@@ -4,6 +4,9 @@ use std::path::Path;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+#[path = "src/engine_identity.rs"]
+mod engine_identity;
+
 /// [AESTHETIC CORE - TAXONOMY COMPILER]
 /// Transmuta arquivos TOML em código Rust estático para performance Elite.
 fn main() {
@@ -24,10 +27,6 @@ fn main() {
 
     if config_dir.exists() {
         let selected_profile = select_profile_folder(&config_dir);
-        println!(
-            "cargo:warning=[ac_ant_delirium] selected config profile: {}",
-            selected_profile.display()
-        );
         for path in collect_toml_files(&selected_profile) {
             if let Ok(content) = fs::read_to_string(&path) {
                 compile_toml_to_rust(&content, &mut generated_code);
@@ -61,7 +60,10 @@ fn emit_build_metadata(manifest_dir: &str) {
 
 fn run_governance_build_hook(manifest_dir: &str) {
     if env_flag("ANT_DELIRIUM_SKIP_BUILD_HOOK") {
-        println!("cargo:warning=[ac_ant_delirium] governance build hook skipped by ANT_DELIRIUM_SKIP_BUILD_HOOK");
+        println!(
+            "cargo:warning=[{}] governance build hook skipped by ANT_DELIRIUM_SKIP_BUILD_HOOK",
+            engine_identity::ENGINE_PACKAGE_NAME
+        );
         return;
     }
 
@@ -71,12 +73,16 @@ fn run_governance_build_hook(manifest_dir: &str) {
         .unwrap_or_else(|_| manifest_path.to_path_buf());
     let plugin_path = env::var("ANT_DELIRIUM_BIN")
         .map(std::path::PathBuf::from)
-        .unwrap_or_else(|_| manifest_path.join("../plugins/ac_ant_delirium"));
+        .unwrap_or_else(|_| manifest_path.join(format!(
+            "../plugins/{}",
+            engine_identity::DEFAULT_PLUGIN_BINARY_NAME
+        )));
     let enforce_hook = env_flag("ANT_DELIRIUM_ENFORCE_BUILD_HOOK");
 
     if !plugin_path.is_file() {
         let msg = format!(
-            "[ac_ant_delirium] governance binary not found at {}. Build hook stays advisory until an external ant_delirium binary is installed. See docs/PROJECT_INSTALLATION.md.",
+            "[{}] governance binary not found at {}. Build hook stays advisory until an external ant_delirium binary is installed. See docs/PROJECT_INSTALLATION.md.",
+            engine_identity::ENGINE_PACKAGE_NAME,
             plugin_path.display()
         );
         if enforce_hook {
@@ -98,14 +104,16 @@ fn run_governance_build_hook(manifest_dir: &str) {
 
     let status = command.status().unwrap_or_else(|err| {
         panic!(
-            "[ac_ant_delirium] failed to execute governance build hook: {}",
+            "[{}] failed to execute governance build hook: {}",
+            engine_identity::ENGINE_PACKAGE_NAME,
             err
         )
     });
 
     if !status.success() {
         let message = format!(
-            "[ac_ant_delirium] governance violations detected during build hook. Inspect the terminal output or run the API guide with: {} --api hierarchy.installation",
+            "[{}] governance violations detected during build hook. Inspect the terminal output or run the API guide with: {} --api hierarchy.installation",
+            engine_identity::ENGINE_PACKAGE_NAME,
             plugin_path.display()
         );
         if enforce_hook {

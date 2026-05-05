@@ -1,10 +1,11 @@
 use super::*;
+use ac_ant_delirium::engine_identity;
 
 pub(super) const DEFAULT_NEW_PROJECT_HIERARCHY: &str =
     include_str!("../get_toml_for_new/default_hierarchy.toml");
 pub(super) const DEFAULT_NEW_PROJECT_RULES: &str =
     include_str!("../get_toml_for_new/default_rules.toml");
-pub(super) const DEFAULT_NEW_PROJECT_BUILD_GUARD: &str =
+pub(super) const DEFAULT_NEW_PROJECT_BUILD_GUARD_TEMPLATE: &str =
     include_str!("../get_toml_for_new/ant_delirium_build_guard.rs");
 pub(super) const DEFAULT_GITHOOKS_README: &str = r#"Managed Ant-Delirium Git hooks.
 
@@ -2459,7 +2460,7 @@ pub(super) fn render_messages_feed(
 
 pub(super) fn render_plugin_help(plugin: Option<&PluginContext>, binary_name: &str) -> String {
     let mut out = String::new();
-    out.push_str("Aesthetic Core Ant-Delirium\n\n");
+    out.push_str(&format!("{}\n\n", engine_identity::ENGINE_DISPLAY_NAME));
     out.push_str("Direct plugin interface.\n");
     out.push_str("Project taxonomy commands remain isolated behind the `--api` entrypoint.\n\n");
     out.push_str("Quick start:\n");
@@ -2609,7 +2610,10 @@ pub(super) fn render_plugin_help(plugin: Option<&PluginContext>, binary_name: &s
     );
     out.push('\n');
     out.push_str("Canonical multi-agent bootstrap:\n");
-    out.push_str("1. Place the plugin binary at `plugins/<project>/ac_ant_delirium`.\n");
+    out.push_str(&format!(
+        "1. Place the plugin binary at `{}`.\n",
+        engine_identity::canonical_plugin_binary_example()
+    ));
     out.push_str("2. Run `config init` and review `ant_delirium_config/default_hierarchy.toml`.\n");
     out.push_str("3. Install the generated build guard into every enforced `build.rs` before creating worktrees.\n");
     out.push_str("4. Keep generated login files under `AC_Ant-Delirium_props/login/` out of manual edits and per-agent copies.\n");
@@ -2685,11 +2689,17 @@ pub(super) fn render_plugin_installation(
     binary_name: &str,
 ) -> String {
     let mut out = String::new();
-    out.push_str("Ant-Delirium plugin installation guide.\n\n");
+    out.push_str(&format!(
+        "{} plugin installation guide.\n\n",
+        engine_identity::ENGINE_DISPLAY_NAME
+    ));
     out.push_str("Direct binary scope:\n");
     out.push_str("This command explains the plugin package itself. It is not project-taxonomy API and does not require `<root>`.\n\n");
     out.push_str("Required package layout:\n");
-    out.push_str("1. Place the final binary at `plugins/<project>/ac_ant_delirium`.\n");
+    out.push_str(&format!(
+        "1. Place the final binary at `{}`.\n",
+        engine_identity::canonical_plugin_binary_example()
+    ));
     out.push_str("2. Place the TOML package at `plugins/<project>/ant_delirium_config`.\n");
     out.push_str("3. Keep `default_hierarchy.toml` and `default_rules.toml` inside that external config folder.\n");
     out.push_str("4. Generate those two base TOMLs with `config init`; do not expose the internal test profiles type_1/type_2/type_3 to the target project.\n");
@@ -2704,7 +2714,10 @@ pub(super) fn render_plugin_installation(
     out.push_str("1. Run `config init` so the repository root receives `AC_Ant-Delirium_props/ant_delirium_build_guard.rs` together with the external TOMLs.\n");
     out.push_str("2. In each compilable package, call `ant_delirium_build_guard::run(...)` as the first operational statement inside `fn main()` of `build.rs`.\n");
     out.push_str("3. Resolve the external plugin folder from `CARGO_MANIFEST_DIR`.\n");
-    out.push_str("4. Point `plugin_bin` to `../plugins/<project>/ac_ant_delirium`.\n");
+    out.push_str(&format!(
+        "4. Point `plugin_bin` to `{}`.\n",
+        engine_identity::relative_plugin_binary_example()
+    ));
     out.push_str("5. Point `config_dir` to `../plugins/<project>/ant_delirium_config`.\n");
     out.push_str("6. Abort the build when the guard exits with non-zero status.\n");
     out.push_str("7. Add `cargo:rerun-if-changed` for the crate sources, plugin binary, and plugin config directory.\n");
@@ -2755,7 +2768,7 @@ pub(super) fn render_plugin_installation(
         out.push_str("Detected plugin package:\n");
         out.push_str(&format!(
             "Binary path: {}\nConfig path: {}\nRepository path: {}\nWorkspace path: {}\n",
-            plugin.plugin_dir.join("ac_ant_delirium").to_string_lossy(),
+            engine_identity::default_plugin_binary_path(&plugin.plugin_dir).to_string_lossy(),
             plugin.config_path.to_string_lossy(),
             plugin.repository_path.to_string_lossy(),
             plugin.workspace_path.to_string_lossy(),
@@ -2776,7 +2789,7 @@ pub(super) fn materialize_project_local_plugin_package(
         None => infer_bootstrap_context(project_root, explicit_project_root, &current_exe),
     };
     let config_dir = plugin_dir.join("ant_delirium_config");
-    let plugin_bin = plugin_dir.join("ac_ant_delirium");
+    let plugin_bin = engine_identity::default_plugin_binary_path(&plugin_dir);
     let props_dir = effective_project_root.join("AC_Ant-Delirium_props");
     let guard_path = props_dir.join("ant_delirium_build_guard.rs");
 
@@ -2794,7 +2807,7 @@ pub(super) fn materialize_project_local_plugin_package(
     )?;
     let rules_written = write_default_template_if_missing(&rules_path, DEFAULT_NEW_PROJECT_RULES)?;
     let guard_written =
-        write_default_template_if_missing(&guard_path, DEFAULT_NEW_PROJECT_BUILD_GUARD)?;
+        write_default_template_if_missing(&guard_path, &render_new_project_build_guard())?;
 
     let mut out = String::new();
     out.push_str("Project-local plugin package ensured.\n\n");
@@ -3191,7 +3204,7 @@ pub(super) fn build_api_overrides(
     } else {
         "repository root"
     };
-    let plugin_binary_path = plugin.plugin_dir.join("ac_ant_delirium");
+    let plugin_binary_path = engine_identity::default_plugin_binary_path(&plugin.plugin_dir);
 
     let mut installation = String::new();
     installation.push_str("Multi-agent execution system.\n\n");
@@ -3209,7 +3222,10 @@ pub(super) fn build_api_overrides(
     ));
     installation.push('\n');
     installation.push_str("How registration works:\n");
-    installation.push_str("1. Place the project binary inside the project plugin folder, for example `plugins/<project>/ac_ant_delirium`.\n");
+    installation.push_str(&format!(
+        "1. Place the project binary inside the project plugin folder, for example `{}`.\n",
+        engine_identity::canonical_plugin_binary_example()
+    ));
     installation.push_str(
         "2. Place the project configuration folder at `plugins/<project>/ant_delirium_config`.\n",
     );
@@ -3645,6 +3661,14 @@ pub(super) fn render_new_project_hierarchy(project_root: &Path) -> String {
             &project_root.to_string_lossy().replace('\\', "/"),
         )
         .replace("__ANT_DELIRIUM_PROJECT__", project_name)
+        .replace(
+            engine_identity::DEFAULT_PLUGIN_BINARY_PLACEHOLDER,
+            engine_identity::DEFAULT_PLUGIN_BINARY_NAME,
+        )
+}
+
+pub(super) fn render_new_project_build_guard() -> String {
+    engine_identity::render_identity_template(DEFAULT_NEW_PROJECT_BUILD_GUARD_TEMPLATE)
 }
 
 pub(super) fn copy_binary_if_needed(source: &Path, target: &Path) -> io::Result<bool> {
@@ -7931,7 +7955,7 @@ where
 
 impl RuntimeLockGuard {
     fn acquire(plugin_dir: &Path) -> io::Result<Self> {
-        let lock_path = plugin_dir.join(".ac_ant_delirium_runtime.lock");
+        let lock_path = engine_identity::default_runtime_lock_path(plugin_dir);
         let mut attempts = 0usize;
 
         loop {

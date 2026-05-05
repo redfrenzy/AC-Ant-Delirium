@@ -9,7 +9,7 @@ mod tests {
 
     #[test]
     fn allowed_crates_flags_unauthorized_external_dependency() {
-        let hierarchy = HierarchyConfig::load_from_folder("ant_delirium_config");
+        let hierarchy = HierarchyConfig::load_from_folder("ant_delirium_config/type_1");
         let config = AuditConfig {
             hierarchy,
             ..AuditConfig::default()
@@ -49,7 +49,7 @@ ac_ant_delirium = "0.1"
 
     #[test]
     fn dependency_purification_flags_optional_dependency_forced_by_default_feature() {
-        let hierarchy = HierarchyConfig::load_from_folder("ant_delirium_config");
+        let hierarchy = HierarchyConfig::load_from_folder("ant_delirium_config/type_1");
         let config = AuditConfig {
             hierarchy,
             ..AuditConfig::default()
@@ -87,7 +87,7 @@ serde = { version = "1", optional = true }
 
     #[test]
     fn restricted_tokens_flags_forbidden_token_and_respects_bypass() {
-        let hierarchy = HierarchyConfig::load_from_folder("ant_delirium_config");
+        let hierarchy = HierarchyConfig::load_from_folder("ant_delirium_config/type_1");
         let config = AuditConfig {
             hierarchy,
             ..AuditConfig::default()
@@ -122,7 +122,7 @@ pub fn sample() {
 
     #[test]
     fn token_sanitization_flags_forbidden_token_usage() {
-        let hierarchy = HierarchyConfig::load_from_folder("ant_delirium_config");
+        let hierarchy = HierarchyConfig::load_from_folder("ant_delirium_config/type_1");
         let config = AuditConfig {
             hierarchy,
             ..AuditConfig::default()
