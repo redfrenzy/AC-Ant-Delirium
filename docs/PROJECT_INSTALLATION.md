@@ -1,17 +1,36 @@
-# Ant-Delirium Project Installation
+# AC-Ant-Delirium Pre-Binary Installation
 
-This document defines the supported integration contract for projects that want Ant-Delirium to run before compilation.
+This document keeps only the information needed before the binary exists:
 
-## What is supported
+- how to compile the project
+- where to place the generated binary
+- how to configure `build.rs`
+- how to configure project `.toml`
+- how to reach the terminal API after the binary exists
 
-- Strict-by-default governance before `cargo check` and `cargo build`
-- Automatic config discovery from the project root
-- Compact terminal output plus `shadow_context` and manifest artifacts
-- Hierarchical API queries such as `ant_delirium --api hierarchy.installation`
+Everything else should be discovered from the binary itself through `--installation`, `--plugin.help`, and `--api`.
 
-## Recommended layout
+## 1. Build the binary
 
-Keep the authoritative binary and config inside the project plugin folder. In this workspace the reference pattern is:
+From the source repository root:
+
+```bash
+cargo build --release --target x86_64-unknown-linux-gnu
+```
+
+The generated binary will be:
+
+```text
+target/x86_64-unknown-linux-gnu/release/ac_ant_delirium
+```
+
+If you want a project-local plugin layout, copy the binary to:
+
+```text
+plugins/<project>/ac_ant_delirium
+```
+
+## 2. Recommended project layout
 
 ```text
 plugins/My-Project/
@@ -24,16 +43,30 @@ my_project/
   src/
 ```
 
-The runtime auto-discovers:
+The runtime resolves configuration in this order:
 
 1. `plugins/<project>/ant_delirium_config`
 2. `ant_delirium_config/type_1`
 3. `delirium.toml`
-4. Embedded defaults inside `ac_ant_delirium`
+4. embedded defaults inside the engine
 
-## Consumer build.rs template
+## 3. Generate the initial config
 
-Use this in the project being audited, not inside the Ant-Delirium source tree:
+After the binary exists, the simplest bootstrap is:
+
+```bash
+plugins/My-Project/ac_ant_delirium config init
+```
+
+This materializes project-local templates such as:
+
+- `plugins/My-Project/ant_delirium_config/default_hierarchy.toml`
+- `plugins/My-Project/ant_delirium_config/default_rules.toml`
+- `AC_Ant-Delirium_props/ant_delirium_build_guard.rs`
+
+## 4. Configure build.rs in the consumer project
+
+Use this in the project being audited, not inside the AC-Ant-Delirium source repository:
 
 ```rust
 use std::env;
@@ -54,8 +87,14 @@ fn main() {
         .map(PathBuf::from)
         .unwrap_or_else(|_| project_plugin.join("ant_delirium_config"));
 
-    println!("cargo:rerun-if-changed={}", config.join("default_hierarchy.toml").display());
-    println!("cargo:rerun-if-changed={}", config.join("default_rules.toml").display());
+    println!(
+        "cargo:rerun-if-changed={}",
+        config.join("default_hierarchy.toml").display()
+    );
+    println!(
+        "cargo:rerun-if-changed={}",
+        config.join("default_rules.toml").display()
+    );
 
     let mut cmd = Command::new(&plugin);
     cmd.current_dir(&manifest_dir);
@@ -69,33 +108,26 @@ fn main() {
 }
 ```
 
-Inside the `ac_ant_delirium` source crate itself, the bundled `build.rs` keeps the hook advisory by default to avoid deadlocking local development while the engine still audits its own legacy debt. Set `ANT_DELIRIUM_ENFORCE_BUILD_HOOK=1` when you want the source crate to fail hard as well.
+Inside the AC-Ant-Delirium source crate itself, the bundled `build.rs` stays advisory by default. Set `ANT_DELIRIUM_ENFORCE_BUILD_HOOK=1` if you want the source crate to fail hard too.
 
-## Expected runtime behavior
+## 5. Configure the project TOML
 
-In strict mode:
+You can either:
 
-- `build.rs` runs Ant-Delirium before compilation
-- violations stop the build
-- the terminal shows the compact summary
-- the output points to `shadow_context`
-- the output points to `--api <root>.installation`
+- keep `plugins/<project>/ant_delirium_config/default_hierarchy.toml` and `default_rules.toml` as the canonical source
+- or provide `delirium.toml` for legacy/simple compatibility
 
-## Simplified commands
+The project-local plugin config is the preferred contract.
 
-From the project root:
+## 6. Access the terminal API after build
+
+Once the binary exists, use the binary itself as the source of truth:
 
 ```bash
-ant_delirium --api hierarchy.installation
-ant_delirium --api hierarchy.dependency_governance.allowed_crates
+plugins/My-Project/ac_ant_delirium --installation
+plugins/My-Project/ac_ant_delirium --plugin.help
+plugins/My-Project/ac_ant_delirium --api
+plugins/My-Project/ac_ant_delirium --api hierarchy.installation
 ```
 
-Manual commands should target the project-local plugin, for example `../plugins/My-Project/ac_ant_delirium --config ../plugins/My-Project/ant_delirium_config`.
-
-## Security recommendations
-
-- Keep `build.rs` write-protected for automation when possible
-- Keep external `.toml` files outside the main code tree when practical
-- Keep the authoritative binary and config in the project plugin folder
-- Do not let agents silently remove or bypass the build hook
-- Treat `shadow_context` and manifests as the detailed audit record
+Do not maintain a parallel manual API document when the binary can answer the same surface directly.
