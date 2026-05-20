@@ -1,5 +1,8 @@
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
     use crate::parser::CodeScanner;
     use crate::rules::axiom_identity::DNA_Suffix_Axiom_unit::DnaSuffixAxiom;
     use crate::rules::axiom_identity::Manifest_Anchoring_Axiom_unit::ManifestAnchoringAxiom;
@@ -17,6 +20,16 @@ mod tests {
             hierarchy: HierarchyConfig::load_from_folder("ant_delirium_config/type_1"),
             ..AuditConfig::default()
         }
+    }
+
+    fn unique_temp_dir(label: &str) -> std::path::PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or_default();
+        let dir = std::env::temp_dir().join(format!("{}_{}", label, nanos));
+        fs::create_dir_all(&dir).expect("temporary directory should be created");
+        dir
     }
 
     #[test]
@@ -233,6 +246,99 @@ mod tests {
             .violations
             .iter()
             .any(|v| v.rule_id.contains("hierarchy.identity.recursion")));
+    }
+
+    #[test]
+    fn recursion_flags_file_outside_resolved_jurisdiction() {
+        let config = config();
+        let source = "pub struct RedcoreStruct {}";
+        let functions = CodeScanner::scan_blocks(source);
+        let mut violations = Vec::new();
+        let mut ctx = AuditContext {
+            file_path: "facets/red_core/src/Redcore_struct.rs",
+            source,
+            functions: &functions,
+            config: &config,
+            project: crate::structs::empty_project_context(),
+            detected_dna: "struct".to_string(),
+            taxonomy_path: "hierarchy.files.struct".to_string(),
+            violations: &mut violations,
+        };
+
+        RecursionAxiom::default().execute(&mut ctx);
+        assert!(ctx.violations.iter().any(|v| {
+            v.rule_id.contains("hierarchy.identity.recursion.jurisdiction")
+        }));
+    }
+
+    #[test]
+    fn recursion_accepts_file_inside_resolved_jurisdiction() {
+        let config = config();
+        let source = "pub struct TypesStruct {}";
+        let functions = CodeScanner::scan_blocks(source);
+        let mut violations = Vec::new();
+        let mut project = ProjectContext::default();
+        project.register_known_path("src/struct/Types-Ok_struct.rs");
+        project.register_known_path("src/struct/Types-Ok_structcore.rs");
+
+        let mut ctx = AuditContext {
+            file_path: "src/struct/Types-Ok_struct.rs",
+            source,
+            functions: &functions,
+            config: &config,
+            project: &project,
+            detected_dna: "struct".to_string(),
+            taxonomy_path: "hierarchy.files.struct".to_string(),
+            violations: &mut violations,
+        };
+
+        RecursionAxiom::default().execute(&mut ctx);
+        assert!(ctx
+            .violations
+            .iter()
+            .all(|v| !v.rule_id.contains("hierarchy.identity.recursion.jurisdiction")));
+    }
+
+    #[test]
+    fn recursion_accepts_file_inside_nested_package_jurisdiction() {
+        let workspace = unique_temp_dir("ac_ant_delirium_nested_package_jurisdiction");
+        let package_root = workspace.join("facets").join("red_core");
+        let struct_dir = package_root.join("src").join("struct");
+        fs::create_dir_all(&struct_dir).expect("struct dir should exist");
+        fs::write(
+            package_root.join("Cargo.toml"),
+            "[package]\nname = \"red_core\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        )
+        .expect("package Cargo.toml should exist");
+
+        let mut config = config();
+        config.runtime.project_root = workspace.to_string_lossy().to_string();
+
+        let source = "pub struct TypesStruct {}";
+        let functions = CodeScanner::scan_blocks(source);
+        let mut violations = Vec::new();
+        let mut project = ProjectContext::default();
+        project.register_known_path("facets/red_core/src/struct/Types-Ok_struct.rs");
+        project.register_known_path("facets/red_core/src/struct/Types-Ok_structcore.rs");
+
+        let mut ctx = AuditContext {
+            file_path: "facets/red_core/src/struct/Types-Ok_struct.rs",
+            source,
+            functions: &functions,
+            config: &config,
+            project: &project,
+            detected_dna: "struct".to_string(),
+            taxonomy_path: "hierarchy.files.struct".to_string(),
+            violations: &mut violations,
+        };
+
+        RecursionAxiom::default().execute(&mut ctx);
+        assert!(ctx
+            .violations
+            .iter()
+            .all(|v| !v.rule_id.contains("hierarchy.identity.recursion.jurisdiction")));
+
+        let _ = fs::remove_dir_all(workspace);
     }
 
     #[test]

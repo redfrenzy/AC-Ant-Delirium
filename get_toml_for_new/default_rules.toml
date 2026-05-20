@@ -111,6 +111,10 @@ super_block.watch_files
 operation_zone
 libres
 
+[hierarchy.dependency_governance.strict_wrapper_boundary]
+operation_zone
+wrapper_boundary_contract
+
 [hierarchy.sanitization.token_sanitization]
 operation_zone
 restricted_tokens

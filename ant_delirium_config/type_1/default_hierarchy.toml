@@ -25,6 +25,7 @@ else_free_bypass_token = "[REASON]"
 [hierarchy.permissions]
 info = "Global permission layer for dependency and token governance. This branch describes which external crates are allowed in the active project and which code tokens are restricted because they are noisy, unsafe, or hostile to review. Users typically edit this node when governance policy changes and the plugin must adapt its sanitization behavior."
 libres = ["ac_ant_delirium", "rayon", "std"]
+wrapper_boundary_contract = "explicit_ac_alias"
 restricted_tokens = { "panic!" = "Security: Use Result.", "unwrap" = "Security: Use expect()." }
 
 [hierarchy.files]

@@ -58,6 +58,8 @@ pub fn format_terminal_report(
     let (p0, p1, p2, p3, p4) = count_priorities(&result.violations);
     let audited_files = SearchFiles::resolve_jurisdiction(&config.hierarchy, SearchFiles::ID);
     let audited_file_count = unique_file_count(&audited_files);
+    let violation_files = violation_files_from_violations(&result.violations);
+    let external_usage_files = external_usage_files_from_violations(&result.violations);
     let shadow_path = config.display_path(&paths.shadow_context_path);
     let manifest_path = config.display_path(&paths.violations_manifest_path);
     let api_help_command = runtime_help_command(config);
@@ -70,6 +72,14 @@ pub fn format_terminal_report(
     let _ = writeln!(out, "Total: {} erros", total);
     out.push('\n');
     let _ = writeln!(out, "Audited Files: {}", audited_file_count);
+    let _ = writeln!(out, "Violation Files: {}", violation_files.len());
+    if !external_usage_files.is_empty() {
+        let _ = writeln!(
+            out,
+            "External Usage Files: {}",
+            external_usage_files.join(", ")
+        );
+    }
     let _ = writeln!(out, "Violations Manifest: {}", manifest_path);
     let _ = writeln!(out, "Shadow Context: {}", shadow_path);
     out.push('\n');
@@ -109,6 +119,8 @@ pub fn to_violation_manifest(
     let audited_files = SearchFiles::resolve_jurisdiction(&config.hierarchy, SearchFiles::ID);
     let (p0, p1, p2, p3, p4) = count_priorities(&result.violations);
     let audited_file_list = unique_sorted_files(&audited_files);
+    let violation_file_list = violation_files_from_violations(&result.violations);
+    let external_usage_files = external_usage_files_from_violations(&result.violations);
 
     out.push_str("{\n");
     out.push_str("  \"tool\": {\n");
@@ -161,6 +173,18 @@ pub fn to_violation_manifest(
         let _ = writeln!(out, "    \"{}\"{}", json_escape(file_path), comma);
     }
     out.push_str("  ],\n");
+    out.push_str("  \"violation_files\": [\n");
+    for (idx, file_path) in violation_file_list.iter().enumerate() {
+        let comma = item_separator(idx, violation_file_list.len());
+        let _ = writeln!(out, "    \"{}\"{}", json_escape(file_path), comma);
+    }
+    out.push_str("  ],\n");
+    out.push_str("  \"external_usage_files\": [\n");
+    for (idx, file_path) in external_usage_files.iter().enumerate() {
+        let comma = item_separator(idx, external_usage_files.len());
+        let _ = writeln!(out, "    \"{}\"{}", json_escape(file_path), comma);
+    }
+    out.push_str("  ],\n");
     out.push_str("  \"violations\": [\n");
 
     for (idx, violation) in result.violations.iter().enumerate() {
@@ -174,6 +198,11 @@ pub fn to_violation_manifest(
         let feedback_help_command = runtime_feedback_help_command();
         let taxonomy_guidance = taxonomy_guidance(&api_taxonomy_path);
         let rule_guidance = rule_guidance(&api_rule_path, &rule_doc_id);
+        let policy_target = if violation.taxonomy_path.trim().is_empty() {
+            api_taxonomy_path.clone()
+        } else {
+            violation.taxonomy_path.clone()
+        };
         out.push_str("    {\n");
         let _ = writeln!(
             out,
@@ -184,6 +213,30 @@ pub fn to_violation_manifest(
             out,
             "      \"file_path\": \"{}\",",
             json_escape(&violation.file_path)
+        );
+        out.push_str("      \"offending_files\": [\n");
+        let _ = writeln!(
+            out,
+            "        \"{}\"",
+            json_escape(&violation.file_path)
+        );
+        out.push_str("      ],\n");
+        let _ = writeln!(
+            out,
+            "      \"observed_in\": \"{}\",",
+            json_escape(&violation.file_path)
+        );
+        out.push_str("      \"offense_targets\": [\n");
+        let _ = writeln!(
+            out,
+            "        \"{}\"",
+            json_escape(&violation.file_path)
+        );
+        out.push_str("      ],\n");
+        let _ = writeln!(
+            out,
+            "      \"policy_target\": \"{}\",",
+            json_escape(&policy_target)
         );
         let _ = writeln!(out, "      \"line\": {},", violation.line);
         let _ = writeln!(
@@ -300,6 +353,7 @@ pub fn to_shadow_context(
     let audited_files = SearchFiles::resolve_jurisdiction(&config.hierarchy, SearchFiles::ID);
     let (p0, p1, p2, p3, p4) = count_priorities(&result.violations);
     let audited_file_list = unique_sorted_files(&audited_files);
+    let violation_file_list = violation_files_from_violations(&result.violations);
     let context_items = default_shadow_context_lines();
     let tools = if config.info.tools.is_empty() {
         default_shadow_tools()
@@ -359,9 +413,20 @@ pub fn to_shadow_context(
         "          \"audited_files\": {},",
         unique_file_count(&audited_files)
     );
+    let _ = writeln!(
+        out,
+        "          \"violation_files\": {},",
+        violation_file_list.len()
+    );
     out.push_str("          \"audited_file_paths\": [\n");
     for (idx, file_path) in audited_file_list.iter().enumerate() {
         let comma = item_separator(idx, audited_file_list.len());
+        let _ = writeln!(out, "            \"{}\"{}", json_escape(file_path), comma);
+    }
+    out.push_str("          ],\n");
+    out.push_str("          \"violation_file_paths\": [\n");
+    for (idx, file_path) in violation_file_list.iter().enumerate() {
+        let comma = item_separator(idx, violation_file_list.len());
         let _ = writeln!(out, "            \"{}\"{}", json_escape(file_path), comma);
     }
     out.push_str("          ],\n");
@@ -407,6 +472,11 @@ pub fn to_shadow_context(
         let feedback_help_command = runtime_feedback_help_command();
         let taxonomy_guidance = taxonomy_guidance(&api_taxonomy_path);
         let rule_guidance = rule_guidance(&api_rule_path, &rule_doc_id);
+        let policy_target = if violation.taxonomy_path.trim().is_empty() {
+            api_taxonomy_path.clone()
+        } else {
+            violation.taxonomy_path.clone()
+        };
         out.push_str("        {\n");
         let _ = writeln!(
             out,
@@ -465,6 +535,30 @@ pub fn to_shadow_context(
             out,
             "            \"remediation_kind\": \"{}\",",
             json_escape(remediation_kind(&rule_doc_id)),
+        );
+        out.push_str("            \"offending_files\": [\n");
+        let _ = writeln!(
+            out,
+            "              \"{}\"",
+            json_escape(&violation.file_path)
+        );
+        out.push_str("            ],\n");
+        let _ = writeln!(
+            out,
+            "            \"observed_in\": \"{}\",",
+            json_escape(&violation.file_path),
+        );
+        out.push_str("            \"offense_targets\": [\n");
+        let _ = writeln!(
+            out,
+            "              \"{}\"",
+            json_escape(&violation.file_path)
+        );
+        out.push_str("            ],\n");
+        let _ = writeln!(
+            out,
+            "            \"policy_target\": \"{}\",",
+            json_escape(&policy_target),
         );
         out.push_str("            \"taxonomy_guidance\": [\n");
         write_json_string_array_items(&mut out, &taxonomy_guidance, 14);
@@ -830,6 +924,9 @@ fn classify_priority(rule_id: &str) -> (&'static str, &'static str) {
     if rule_id.contains(".sanitization.") || rule_id.contains(".dependency_governance.") {
         return ("P0", "error");
     }
+    if rule_id.contains(".identity.recursion.jurisdiction") {
+        return ("P1", "warning");
+    }
     if rule_id.contains(".structural.") {
         return ("P1", "warning");
     }
@@ -850,6 +947,31 @@ fn unique_file_count(paths: &[String]) -> usize {
 fn unique_sorted_files(paths: &[String]) -> Vec<String> {
     let set: BTreeSet<String> = paths.iter().cloned().collect();
     set.into_iter().collect()
+}
+
+fn violation_files_from_violations(violations: &[AuditViolation]) -> Vec<String> {
+    let mut files: BTreeSet<String> = BTreeSet::new();
+    for violation in violations.iter() {
+        if violation.file_path.trim().is_empty() {
+            continue;
+        }
+        files.insert(violation.file_path.clone());
+    }
+    files.into_iter().collect()
+}
+
+fn external_usage_files_from_violations(violations: &[AuditViolation]) -> Vec<String> {
+    let mut files: BTreeSet<String> = BTreeSet::new();
+    for violation in violations.iter() {
+        if !violation.rule_id.contains(".allowed_crates.") {
+            continue;
+        }
+        if !violation.file_path.ends_with(".rs") {
+            continue;
+        }
+        files.insert(violation.file_path.clone());
+    }
+    files.into_iter().collect()
 }
 
 fn empty_as_unknown(value: &str) -> &str {
@@ -1081,7 +1203,7 @@ fn remediation_kind(rule_doc_id: &str) -> &'static str {
         "dna_suffix" | "tag_separator" | "pascal_case" | "name_separator" | "repository_anchor"
         | "manifest_anchoring" | "recursion" => "align_file_identity",
         "restricted_tokens" | "token_sanitization" => "sanitize_tokens",
-        "allowed_crates" | "dependency_purification" => "align_dependencies",
+        "allowed_crates" | "dependency_purification" | "strict_wrapper_boundary" => "align_dependencies",
         _ => "inspect_rule_contract",
     }
 }

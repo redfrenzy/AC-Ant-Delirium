@@ -515,6 +515,21 @@ impl AgnosticScanner {
                         let full_key = parts[0].trim();
                         let val_raw = parts[1].trim();
                         let val = val_raw.trim_matches('"').to_string();
+                        if full_key == "requirements" {
+                            let requirement_values = parse_requirement_array_literal(val_raw);
+                            let node = nodes
+                                .entry(current_node_path.clone())
+                                .or_insert_with(DynamicNode::default);
+                            for requirement in requirement_values {
+                                let requirement_key = format!(
+                                    "{}{}",
+                                    HierarchyResolver::REQUIREMENT_PREFIX,
+                                    requirement
+                                );
+                                node.properties.insert(requirement_key, "true".to_string());
+                            }
+                            continue;
+                        }
                         if let Some(last_dot_idx) = full_key.rfind('.') {
                             let path_ext = &full_key[..last_dot_idx];
                             let real_key = &full_key[last_dot_idx + 1..];
@@ -541,4 +556,16 @@ impl AgnosticScanner {
         }
         HierarchyConfig { nodes }
     }
+}
+
+fn parse_requirement_array_literal(raw: &str) -> Vec<String> {
+    let trimmed = raw.trim();
+    if !(trimmed.starts_with('[') && trimmed.ends_with(']')) {
+        return Vec::new();
+    }
+    trimmed[1..trimmed.len() - 1]
+        .split(',')
+        .map(|item| item.trim().trim_matches('"').trim_matches('\'').to_string())
+        .filter(|item| !item.is_empty())
+        .collect()
 }

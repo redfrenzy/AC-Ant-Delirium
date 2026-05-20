@@ -23,6 +23,7 @@ else_free_bypass_token = "[REASON]"
 
 [regras.permissions]
 libres = ["ac_ant_delirium", "rayon", "std"]
+wrapper_boundary_contract = "explicit_ac_alias"
 restricted_tokens = { "panic!" = "Security: Use Result.", "unwrap" = "Security: Use expect()." }
 
 [regras.arquivos]

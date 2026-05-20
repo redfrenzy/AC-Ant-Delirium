@@ -65,6 +65,7 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
     }
 }
 
+
 fn is_pascal_case(input: &str) -> bool {
     if input.is_empty() || input.contains('_') || input.contains('.') {
         return false;

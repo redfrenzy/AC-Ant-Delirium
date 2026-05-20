@@ -25,6 +25,7 @@ else_free_bypass_token = "[REASON]"
 [hierarchy.permissions]
 info = "Global dependency and token governance. Keep libres empty during bootstrap if you still need to map the dependency policy for a new repository."
 libres = []
+wrapper_boundary_contract = "explicit_ac_alias"
 restricted_tokens = { "panic!" = "Security: Use Result.", "unwrap" = "Security: Use expect()." }
 
 [hierarchy.super_block]

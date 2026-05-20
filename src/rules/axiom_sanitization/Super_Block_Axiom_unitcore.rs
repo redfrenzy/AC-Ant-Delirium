@@ -2,8 +2,11 @@ use crate::governance;
 use crate::structs::{AuditConfig, AuditViolation};
 use std::collections::HashSet;
 use std::fs;
+use std::path::Path;
 #[cfg(unix)]
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
+#[cfg(unix)]
+use std::process::Command;
 
 #[derive(Debug, Default)]
 pub struct SuperBlockPreflight {
@@ -24,10 +27,21 @@ pub fn run_preflight(config: &AuditConfig) -> SuperBlockPreflight {
     let guard_owner =
         resolve_string(config, "super_block.guard_owner").unwrap_or_else(|| "root".to_string());
     let guard_readonly = resolve_bool(config, "super_block.guard_readonly", true);
+    let guard_immutable = resolve_bool(
+        config,
+        "super_block.guard_immutable",
+        owner_policy_requires_immutable(&guard_owner),
+    );
     let enforced_files = resolve_string_array(config, "super_block.enforced_files");
     let enforced_owner =
         resolve_string(config, "super_block.enforced_owner").unwrap_or_else(|| "root".to_string());
     let enforced_readonly = resolve_bool(config, "super_block.enforced_readonly", true);
+    let enforced_immutable =
+        resolve_bool(
+            config,
+            "super_block.enforced_immutable",
+            owner_policy_requires_immutable(&enforced_owner),
+        );
     let watch_files = resolve_string_array(config, "super_block.watch_files");
     let abort_on_violation = resolve_bool(config, "super_block.abort_on_violation", true);
 
@@ -44,6 +58,7 @@ pub fn run_preflight(config: &AuditConfig) -> SuperBlockPreflight {
                 &guard_display,
                 &guard_owner,
                 guard_readonly,
+                guard_immutable,
                 true,
                 "guard",
             );
@@ -60,6 +75,7 @@ pub fn run_preflight(config: &AuditConfig) -> SuperBlockPreflight {
                 &normalized,
                 &enforced_owner,
                 enforced_readonly,
+                enforced_immutable,
                 true,
                 "enforced",
             );
@@ -89,6 +105,7 @@ pub fn run_preflight(config: &AuditConfig) -> SuperBlockPreflight {
             "any",
             false,
             false,
+            false,
             "watch",
         );
     }
@@ -110,6 +127,7 @@ fn validate_protected_file(
     relative_path: &str,
     owner_policy: &str,
     require_readonly: bool,
+    require_immutable: bool,
     enforced: bool,
     level: &str,
 ) {
@@ -144,7 +162,17 @@ fn validate_protected_file(
         }
     };
 
-    if !owner_matches(owner_policy, &metadata) {
+    let readonly_ok = !require_readonly || is_readonly_locked(&metadata);
+    let immutable_state = if require_immutable {
+        is_immutable_locked(&path)
+    } else {
+        Some(true)
+    };
+    let immutable_ok = immutable_state.unwrap_or(false);
+    let owner_ok = owner_matches(owner_policy, &metadata)
+        || owner_is_squashed_superuser(owner_policy, &metadata, readonly_ok, immutable_ok);
+
+    if !owner_ok {
         violations.push(AuditViolation {
             file_path: relative_path.to_string(),
             line: 1,
@@ -163,7 +191,7 @@ fn validate_protected_file(
         });
     }
 
-    if require_readonly && !is_readonly_locked(&metadata) {
+    if require_readonly && !readonly_ok {
         violations.push(AuditViolation {
             file_path: relative_path.to_string(),
             line: 1,
@@ -180,6 +208,54 @@ fn validate_protected_file(
             detected_dna: String::new(),
             taxonomy_path: taxonomy_path.to_string(),
         });
+    }
+
+    if require_immutable {
+        match immutable_state {
+            Some(true) => {}
+            Some(false) => {
+                violations.push(AuditViolation {
+                    file_path: relative_path.to_string(),
+                    line: 1,
+                    rule_id: governance::rule_id(
+                        rule_path,
+                        &format!("{}.immutable.{}", level_segment, suffix),
+                    ),
+                    message: format!(
+                        "Super Block violation: protected file '{}' is mutable; expected immutable lock to prevent delete-and-replace attacks.",
+                        relative_path
+                    ),
+                    snippet: None,
+                    quick_fix: Some(format!(
+                        "// [SECURE] Apply immutable lock on '{}' (example: sudo chattr +i '{}').",
+                        relative_path, relative_path
+                    )),
+                    detected_dna: String::new(),
+                    taxonomy_path: taxonomy_path.to_string(),
+                });
+            }
+            None => {
+                violations.push(AuditViolation {
+                    file_path: relative_path.to_string(),
+                    line: 1,
+                    rule_id: governance::rule_id(
+                        rule_path,
+                        &format!("{}.immutable_probe.{}", level_segment, suffix),
+                    ),
+                    message: format!(
+                        "Super Block violation: unable to verify immutable lock for '{}'; install/allow 'lsattr' verification on this host.",
+                        relative_path
+                    ),
+                    snippet: None,
+                    quick_fix: Some(
+                        "// [SECURE] Ensure immutable-bit verification is available (lsattr) and re-run the audit."
+                            .to_string(),
+                    ),
+                    detected_dna: String::new(),
+                    taxonomy_path: taxonomy_path.to_string(),
+                });
+            }
+        }
     }
 }
 
@@ -358,6 +434,38 @@ fn normalize_display_path(value: &str) -> String {
     value.trim().replace('\\', "/")
 }
 
+fn owner_policy_requires_immutable(policy: &str) -> bool {
+    matches!(
+        policy.trim().to_ascii_lowercase().as_str(),
+        "root" | "sudo" | "superuser"
+    )
+}
+
+#[cfg(unix)]
+fn owner_is_squashed_superuser(
+    policy: &str,
+    metadata: &fs::Metadata,
+    readonly_ok: bool,
+    immutable_ok: bool,
+) -> bool {
+    matches!(
+        policy.trim().to_ascii_lowercase().as_str(),
+        "root" | "sudo" | "superuser"
+    ) && metadata.uid() == 65534
+        && readonly_ok
+        && immutable_ok
+}
+
+#[cfg(not(unix))]
+fn owner_is_squashed_superuser(
+    _policy: &str,
+    _metadata: &fs::Metadata,
+    _readonly_ok: bool,
+    _immutable_ok: bool,
+) -> bool {
+    false
+}
+
 #[cfg(unix)]
 fn is_readonly_locked(metadata: &fs::Metadata) -> bool {
     metadata.permissions().mode() & 0o222 == 0
@@ -380,4 +488,20 @@ fn owner_matches(policy: &str, metadata: &fs::Metadata) -> bool {
 #[cfg(not(unix))]
 fn owner_matches(policy: &str, _metadata: &fs::Metadata) -> bool {
     matches!(policy.trim().to_ascii_lowercase().as_str(), "" | "any")
+}
+
+#[cfg(unix)]
+fn is_immutable_locked(path: &Path) -> Option<bool> {
+    let output = Command::new("lsattr").arg("-d").arg(path).output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let stdout = String::from_utf8(output.stdout).ok()?;
+    let attrs = stdout.split_whitespace().next()?;
+    Some(attrs.contains('i'))
+}
+
+#[cfg(not(unix))]
+fn is_immutable_locked(_path: &Path) -> Option<bool> {
+    Some(true)
 }

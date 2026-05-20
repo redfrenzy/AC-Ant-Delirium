@@ -185,4 +185,36 @@ mod tests {
 
         let _ = fs::remove_dir_all(workspace);
     }
+
+    #[test]
+    fn recursion_jurisdiction_is_reported_as_p1() {
+        let config = AuditConfig {
+            hierarchy: HierarchyConfig::load_from_folder("ant_delirium_config/type_1"),
+            ..AuditConfig::default()
+        };
+
+        let result = AuditResult {
+            violations: vec![AuditViolation {
+                file_path: "facets/red_core/src/Redcore_struct.rs".to_string(),
+                line: 1,
+                rule_id: "hierarchy.identity.recursion.jurisdiction".to_string(),
+                message: "Recursion violation: 'hierarchy.files.struct' must stay inside jurisdiction 'src/structs', but observed 'facets/red_core/src/Redcore_struct.rs'.".to_string(),
+                snippet: Some("src/structs".to_string()),
+                quick_fix: Some("// [TODO] Move this file into the resolved jurisdiction or revise the hierarchy if the topology intentionally changed.".to_string()),
+                detected_dna: "struct".to_string(),
+                taxonomy_path: "hierarchy.identity.recursion".to_string(),
+            }],
+            logs: vec![],
+        };
+
+        let terminal = GovernanceLogs::format_terminal_report(&result, &config, None);
+        let manifest = GovernanceLogs::to_violation_manifest(&result, &config, None);
+
+        assert!(terminal.contains("P0: 0 erros"));
+        assert!(terminal.contains("P1: 1 erros"));
+        assert!(terminal.contains("P2: 0 erros"));
+        assert!(manifest.contains("\"rule_id\": \"hierarchy.identity.recursion.jurisdiction\""));
+        assert!(manifest.contains("\"priority\": \"P1\""));
+        assert!(manifest.contains("\"level\": \"warning\""));
+    }
 }

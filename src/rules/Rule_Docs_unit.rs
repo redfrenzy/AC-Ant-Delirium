@@ -267,6 +267,16 @@ pub fn all_rule_docs() -> &'static [RuleDoc] {
             example: None,
         },
         RuleDoc {
+            id: "strict_wrapper_boundary",
+            name: "Strict Wrapper Boundary",
+            category: "dependency_governance",
+            summary: "Forces src/libres wrappers to expose only explicit dependency boundaries instead of full third-party crate surfaces.",
+            detection_model: "The rule inspects src/libres wrappers, rejects wildcard/full forwarding such as `pub use crate_name::*;`, and requires explicit AC_* aliases so only selected items cross the boundary.",
+            failure_semantics: "A violation means the wrapper leaked too much external API or failed to publish a canonical AC_* boundary, increasing blast radius and coupling in call sites.",
+            remediation: "Expose only the exact used items and map them to AC_* aliases. Pattern: `pub use crate_name::{TypeA, TypeB}; pub type AC_TypeA = TypeA; pub type AC_TypeB = TypeB;`.",
+            example: Some("Std-like boundary: `pub use std::{string::String, vec::Vec}; pub type AC_String = String; pub type AC_Vec<T> = Vec<T>;`."),
+        },
+        RuleDoc {
             id: "token_sanitization",
             name: "Token Sanitization",
             category: "sanitization",

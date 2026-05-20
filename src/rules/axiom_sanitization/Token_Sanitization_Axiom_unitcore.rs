@@ -2,6 +2,10 @@ use crate::governance;
 use crate::structs::{AuditContext, AuditViolation};
 
 pub fn patrol(ctx: &mut AuditContext<'_>) {
+    if !ctx.file_path.ends_with(".rs") {
+        return;
+    }
+
     let resolution =
         match ctx.require_named_global_axiom_parameter("token_sanitization", "restricted_tokens") {
             Ok(value) => value,
