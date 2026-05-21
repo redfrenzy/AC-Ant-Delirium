@@ -104,9 +104,6 @@ fn patrol_cargo_dependencies_for_manifest(
         if entry.name.is_empty() {
             continue;
         }
-        if is_local_dependency(&entry.value) {
-            continue;
-        }
         let normalized_entry_name = normalize_crate_name(&entry.name);
         if allowed_normalized.contains(&normalized_entry_name) {
             used_allowed_crates.insert(normalized_entry_name.clone());
@@ -329,6 +326,9 @@ fn collect_dependency_entries(source: &str) -> Vec<DependencyEntry> {
     let mut in_deps = false;
     let mut buffer = String::new();
     let mut buffer_line = 0usize;
+    let mut scoped_dependency_name: Option<String> = None;
+    let mut scoped_dependency_line = 0usize;
+    let mut scoped_dependency_body = String::new();
 
     for (idx, raw_line) in source.lines().enumerate() {
         let stripped = strip_inline_comment(raw_line);
@@ -338,7 +338,46 @@ fn collect_dependency_entries(source: &str) -> Vec<DependencyEntry> {
         }
 
         if line.starts_with('[') && line.ends_with(']') {
+            if let Some(name) = scoped_dependency_name.take() {
+                let raw = if scoped_dependency_body.trim().is_empty() {
+                    format!("[dependencies.{name}]")
+                } else {
+                    format!("[dependencies.{name}] {}", scoped_dependency_body.trim())
+                };
+                entries.push(DependencyEntry {
+                    line: scoped_dependency_line,
+                    name,
+                    value: scoped_dependency_body.trim().to_string(),
+                    raw,
+                });
+                scoped_dependency_body.clear();
+                scoped_dependency_line = 0;
+            }
             in_deps = is_active_dependency_section(line);
+            scoped_dependency_name = parse_scoped_dependency_header(line);
+            if scoped_dependency_name.is_some() {
+                scoped_dependency_line = idx + 1;
+            }
+            continue;
+        }
+
+        if let Some(name) = scoped_dependency_name.clone() {
+            if !scoped_dependency_body.is_empty() {
+                scoped_dependency_body.push(' ');
+            }
+            scoped_dependency_body.push_str(line);
+            if line.contains("optional = true") {
+                entries.push(DependencyEntry {
+                    line: scoped_dependency_line.max(idx + 1),
+                    name,
+                    value: scoped_dependency_body.trim().to_string(),
+                    raw: format!(
+                        "[dependencies.{}] {}",
+                        scoped_dependency_name.as_deref().unwrap_or("crate"),
+                        scoped_dependency_body.trim()
+                    ),
+                });
+            }
             continue;
         }
 
@@ -366,6 +405,20 @@ fn collect_dependency_entries(source: &str) -> Vec<DependencyEntry> {
         buffer_line = 0;
     }
 
+    if let Some(name) = scoped_dependency_name.take() {
+        let raw = if scoped_dependency_body.trim().is_empty() {
+            format!("[dependencies.{name}]")
+        } else {
+            format!("[dependencies.{name}] {}", scoped_dependency_body.trim())
+        };
+        entries.push(DependencyEntry {
+            line: scoped_dependency_line.max(1),
+            name,
+            value: scoped_dependency_body.trim().to_string(),
+            raw,
+        });
+    }
+
     entries
 }
 
@@ -389,17 +442,73 @@ fn strip_inline_comment(line: &str) -> String {
 }
 
 fn is_active_dependency_section(header: &str) -> bool {
-    header.contains("dependencies")
-        && !header.contains("dev-dependencies")
-        && !header.contains("build-dependencies")
+    if let Some(name) = scoped_dependency_section_name(header) {
+        return is_dependencies_section_name(&name);
+    }
+    false
+}
+
+fn parse_scoped_dependency_header(header: &str) -> Option<String> {
+    let section = scoped_dependency_section_name(header)?;
+    if section.starts_with("dependencies.") {
+        return section
+            .split_once('.')
+            .map(|(_, value)| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+    }
+    if section.starts_with("dev-dependencies.") {
+        return section
+            .split_once('.')
+            .map(|(_, value)| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+    }
+    if section.starts_with("build-dependencies.") {
+        return section
+            .split_once('.')
+            .map(|(_, value)| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+    }
+    if section.starts_with("workspace.dependencies.") {
+        return section
+            .split_once("workspace.dependencies.")
+            .map(|(_, value)| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+    }
+    if let Some(target_tail) = section.strip_prefix("target.") {
+        if let Some((_, dep_tail)) = target_tail.split_once(".dependencies.") {
+            return Some(dep_tail.trim().to_string()).filter(|value| !value.is_empty());
+        }
+        if let Some((_, dep_tail)) = target_tail.split_once(".dev-dependencies.") {
+            return Some(dep_tail.trim().to_string()).filter(|value| !value.is_empty());
+        }
+        if let Some((_, dep_tail)) = target_tail.split_once(".build-dependencies.") {
+            return Some(dep_tail.trim().to_string()).filter(|value| !value.is_empty());
+        }
+    }
+    None
+}
+
+fn scoped_dependency_section_name(header: &str) -> Option<String> {
+    if !header.starts_with('[') || !header.ends_with(']') {
+        return None;
+    }
+    Some(
+        header[1..header.len() - 1]
+            .trim()
+            .to_string(),
+    )
+}
+
+fn is_dependencies_section_name(section: &str) -> bool {
+    section == "dependencies"
+        || section == "dev-dependencies"
+        || section == "build-dependencies"
+        || section == "workspace.dependencies"
+        || section.starts_with("target.") && section.contains(".dependencies")
 }
 
 fn is_intrinsic_crate(name: &str) -> bool {
     matches!(name, "std" | "core" | "alloc")
-}
-
-fn is_local_dependency(value: &str) -> bool {
-    value.contains("path =")
 }
 
 #[derive(Debug, Clone)]
