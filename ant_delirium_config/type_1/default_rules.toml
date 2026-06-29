@@ -2,112 +2,140 @@
 # Onde estamos (Identidade) | O que precisamos (Requisição Atômica)
 
 [hierarchy.engine.search_file] # onde estamos
+priority = 4.0000
 target.core # o que precisamos encontrar
 
 # [STRUCTURAL]
 [hierarchy.structural.max_nesting]
+priority = 1.1000
 max_nesting
 
 [hierarchy.structural.max_params]
+priority = 1.2000
 max_params
 
 [hierarchy.structural.logical_density]
+priority = 1.3000
 logical_density
 
 [hierarchy.structural.type_logic]
+priority = 0.0000
 type_logic
 
 [hierarchy.structural.else_free]
+priority = 1.4000
 else_free
 else_free_allow_else_if
 else_free_bypass_token
 
 [hierarchy.structural.jurisdiction]
+priority = 0.0700
 unit.jurisdiction
 
 # [PEDAGOGICAL]
 [hierarchy.pedagogical.md_pairing]
+priority = 3.1000
 operation_zone
 md_pairing
 
 [hierarchy.pedagogical.md_min_chars]
+priority = 3.2000
 operation_zone
 md_min_chars
 
 [hierarchy.pedagogical.doc_tags]
+priority = 3.3000
 operation_zone
 doc_tags
 
 [hierarchy.pedagogical.what_mission]
+priority = 3.4000
 operation_zone
 what_mission
 
 [hierarchy.pedagogical.why_justification]
+priority = 3.5000
 operation_zone
 why_justification
 
 [hierarchy.pedagogical.usage_example]
+priority = 3.6000
 operation_zone
 usage_example
 
 [hierarchy.pedagogical.test_case_mapping]
+priority = 3.7000
 operation_zone
 test_case_mapping
 
 [hierarchy.pedagogical.root_md_pairing]
+priority = 3.8000
 operation_zone
 root_md_pairing
 
 [hierarchy.pedagogical.inheritance_visibility]
+priority = 3.9000
 operation_zone
 inheritance_visibility
 
 # [IDENTITY]
 [hierarchy.identity.dna_suffix] ##onde estou?
+priority = 0.0200
 operation_zone ## oque preciso
 tag_separator ## oque preciso
 
 [hierarchy.identity.tag_separator]
+priority = 0.0400
 operation_zone
 tag_separator
 
 [hierarchy.identity.pascal_case]
+priority = 0.0100
 operation_zone
 casing
 
 [hierarchy.identity.name_separator]
+priority = 0.0300
 operation_zone
 name_separator
 
 [hierarchy.identity.repository_anchor]
+priority = 0.0500
 operation_zone
 repository
 
 [hierarchy.identity.recursion]
+priority = 2.0600
 operation_zone
 recursion
 
 [hierarchy.identity.manifest_anchoring]
+priority = 0.0550
 operation_zone
 manifest
 
 # [SANITIZATION]
 [hierarchy.sanitization.restricted_tokens]
+priority = 0.1000
 operation_zone
 restricted_tokens
 
 [hierarchy.dependency_governance.allowed_crates]
+priority = 0.1100
 operation_zone
 libres
 
 [hierarchy.dependency_governance.strict_wrapper_boundary]
+priority = 0.1200
 operation_zone
 wrapper_boundary_contract
 
 [hierarchy.sanitization.token_sanitization]
+priority = 0.1300
 operation_zone
 restricted_tokens
 
 [hierarchy.dependency_governance.dependency_purification]
+priority = 0.1400
 operation_zone
 libres

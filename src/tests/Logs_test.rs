@@ -47,8 +47,8 @@ mod tests {
         let manifest = GovernanceLogs::to_violation_manifest(&result, &config, None);
         let shadow = GovernanceLogs::to_shadow_context(&result, &config, None);
 
-        assert!(terminal.contains("P0: 0 erros"));
-        assert!(terminal.contains("P1: 1 erros"));
+        assert!(terminal.contains("P0: 1 erros"));
+        assert!(terminal.contains("P1: 0 erros"));
         assert!(terminal.contains("P2: 0 erros"));
         assert!(terminal.contains("P3: 0 erros"));
         assert!(terminal.contains("P4: 0 erros"));
@@ -140,6 +140,46 @@ mod tests {
     }
 
     #[test]
+    fn logical_density_metadata_is_serialized_in_artifacts() {
+        let config = AuditConfig {
+            hierarchy: HierarchyConfig::load_from_folder("ant_delirium_config/type_1"),
+            ..AuditConfig::default()
+        };
+
+        let result = AuditResult {
+            violations: vec![AuditViolation {
+                file_path: "src/translator/Wgsl-Material-Translator_unit.rs".to_string(),
+                line: 77,
+                rule_id: "hierarchy.structural.logical_density.WGSLMaterialTranslator"
+                    .to_string(),
+                message: "logical density overflow - 185/56 statements. Fragment this logic."
+                    .to_string(),
+                snippet: None,
+                quick_fix: None,
+                detected_dna: "unit".to_string(),
+                taxonomy_path: "hierarchy.files.unit.logical_density".to_string(),
+            }],
+            logs: vec![],
+        };
+
+        let manifest = GovernanceLogs::to_violation_manifest(&result, &config, None);
+        let shadow = GovernanceLogs::to_shadow_context(&result, &config, None);
+
+        assert!(manifest.contains("\"measurement_scope\": \"function\""));
+        assert!(manifest.contains("\"metric_name\": \"logical_density\""));
+        assert!(manifest.contains("\"metric_unit\": \"statements\""));
+        assert!(manifest.contains("\"measured_value\": 185"));
+        assert!(manifest.contains("\"threshold_value\": 56"));
+        assert!(manifest.contains("\"measured_target_name\": \"WGSLMaterialTranslator\""));
+        assert!(manifest.contains("\"remediation_hints\""));
+
+        assert!(shadow.contains("\"measurement_scope\": \"function\""));
+        assert!(shadow.contains("\"metric_name\": \"logical_density\""));
+        assert!(shadow.contains("\"measured_value\": 185"));
+        assert!(shadow.contains("\"threshold_value\": 56"));
+    }
+
+    #[test]
     fn terminal_report_stays_compact_and_keeps_diagnostics_in_artifacts() {
         let workspace = unique_temp_dir("ac_ant_delirium_terminal_diagnostics");
         let source_path = workspace.join("src").join("sample.rs");
@@ -187,7 +227,7 @@ mod tests {
     }
 
     #[test]
-    fn recursion_jurisdiction_is_reported_as_p1() {
+    fn recursion_jurisdiction_is_reported_as_p0() {
         let config = AuditConfig {
             hierarchy: HierarchyConfig::load_from_folder("ant_delirium_config/type_1"),
             ..AuditConfig::default()
@@ -210,11 +250,11 @@ mod tests {
         let terminal = GovernanceLogs::format_terminal_report(&result, &config, None);
         let manifest = GovernanceLogs::to_violation_manifest(&result, &config, None);
 
-        assert!(terminal.contains("P0: 0 erros"));
-        assert!(terminal.contains("P1: 1 erros"));
+        assert!(terminal.contains("P0: 1 erros"));
+        assert!(terminal.contains("P1: 0 erros"));
         assert!(terminal.contains("P2: 0 erros"));
         assert!(manifest.contains("\"rule_id\": \"hierarchy.identity.recursion.jurisdiction\""));
-        assert!(manifest.contains("\"priority\": \"P1\""));
-        assert!(manifest.contains("\"level\": \"warning\""));
+        assert!(manifest.contains("\"priority\": \"P-0."));
+        assert!(manifest.contains("\"level\": \"error\""));
     }
 }

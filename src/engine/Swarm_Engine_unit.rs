@@ -26,6 +26,7 @@ impl SwarmEngine {
         let axioms = get_full_axioms();
         let mut per_axiom_counts: BTreeMap<String, usize> = BTreeMap::new();
         let mut per_axiom_millis: BTreeMap<String, u128> = BTreeMap::new();
+        let mut config_preflight = Self::validate_rule_priority_conflicts(config);
         let preflight = Super_Block_Axiom_unitcore::run_preflight(config);
         let preflight_enforced = preflight
             .violations
@@ -54,17 +55,26 @@ impl SwarmEngine {
                 preflight_enforced, preflight_watch
             ));
         }
-        if preflight.abort_scan {
+        let has_config_priority_conflict = !config_preflight.is_empty();
+        if preflight.abort_scan || has_config_priority_conflict {
             logs.push(
-                "[SWARM] Preflight abortado antes da patrulha de arquivos por violacao critica de super_block."
+                "[SWARM] Preflight abortado antes da patrulha de arquivos por violacao critica de configuracao."
                     .to_string(),
             );
+            if has_config_priority_conflict {
+                logs.push(
+                    "[SWARM] Preflight abortado por conflito de prioridade em default_rules.toml."
+                        .to_string(),
+                );
+            }
+            config_preflight.extend(preflight.violations);
             return AuditResult {
-                violations: preflight.violations,
+                violations: config_preflight,
                 logs,
             };
         }
         let mut all_violations = Vec::new();
+        all_violations.extend(config_preflight);
         all_violations.extend(preflight.violations);
         let tag_separator = Self::resolve_tag_separator(config);
         let prepared_project =
@@ -166,5 +176,60 @@ impl SwarmEngine {
             .hierarchy
             .resolve_parameter("tag_separator")
             .unwrap_or_else(|| "_".to_string())
+    }
+
+    fn validate_rule_priority_conflicts(config: &AuditConfig) -> Vec<AuditViolation> {
+        let mut by_priority: BTreeMap<String, Vec<String>> = BTreeMap::new();
+
+        for (path, node) in config.hierarchy.nodes.iter() {
+            let is_rule_manifest_node = node
+                .properties
+                .keys()
+                .any(|key| key.starts_with("requirement::"));
+            if !is_rule_manifest_node {
+                continue;
+            }
+
+            let Some(raw_priority) = node.properties.get("priority") else {
+                continue;
+            };
+            let Ok(value) = raw_priority.parse::<f64>() else {
+                continue;
+            };
+            let normalized = format!("{value:.4}");
+            by_priority
+                .entry(normalized)
+                .or_default()
+                .push(path.to_string());
+        }
+
+        let mut violations = Vec::new();
+        for (priority, mut rules) in by_priority {
+            if rules.len() < 2 {
+                continue;
+            }
+            rules.sort();
+            let joined = rules.join(", ");
+            violations.push(AuditViolation {
+                file_path: "ant_delirium_config/default_rules.toml".to_string(),
+                line: 1,
+                rule_id: "hierarchy.sanitization.rule_priority_conflict".to_string(),
+                message: format!(
+                    "Priority conflict detected in default_rules.toml: {} rules share priority '{}': {}. The engine requires unique rule priorities to produce a deterministic fix order (P0.xxxx/P1.xxxx). Open the TOML and assign a different priority to each listed rule according to your desired correction order.",
+                    rules.len(),
+                    priority,
+                    joined
+                ),
+                snippet: Some(format!("priority = {}", priority)),
+                quick_fix: Some(
+                    "// [CONFIG] Edit default_rules.toml and choose unique `priority` values for each conflicting rule."
+                        .to_string(),
+                ),
+                detected_dna: "rules".to_string(),
+                taxonomy_path: "hierarchy.sanitization.rule_priority_conflict".to_string(),
+            });
+        }
+
+        violations
     }
 }

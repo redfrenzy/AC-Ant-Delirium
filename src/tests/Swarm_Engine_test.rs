@@ -176,6 +176,46 @@ mod tests {
     }
 
     #[test]
+    fn test_swarm_blocks_when_rule_priorities_conflict() {
+        let hierarchy = r#"
+[hierarchy.rules.alpha]
+priority = 0.1000
+requirements = ["operation_zone"]
+
+[hierarchy.rules.beta]
+priority = 0.1000
+requirements = ["operation_zone"]
+"#;
+
+        let config = AuditConfig {
+            hierarchy: HierarchyConfig::parse_brute(hierarchy),
+            ..AuditConfig::default()
+        };
+
+        let result = SwarmEngine::audit(&config);
+        assert!(
+            result
+                .violations
+                .iter()
+                .any(|v| v.rule_id.contains("rule_priority_conflict")),
+            "duplicate rule priority should produce explicit preflight violation"
+        );
+        let conflict = result
+            .violations
+            .iter()
+            .find(|v| v.rule_id.contains("rule_priority_conflict"))
+            .expect("rule priority conflict violation should exist");
+        assert!(
+            conflict.message.contains("default_rules.toml"),
+            "conflict message should direct user to fix TOML"
+        );
+        assert!(
+            conflict.message.contains("assign a different priority"),
+            "conflict message should explain why and how to fix"
+        );
+    }
+
+    #[test]
     fn test_swarm_keeps_same_violation_totals_across_profiles() {
         let type_1 = violation_counts_by_rule("type_1");
         let type_2 = violation_counts_by_rule("type_2");

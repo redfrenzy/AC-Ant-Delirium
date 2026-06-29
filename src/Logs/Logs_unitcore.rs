@@ -38,6 +38,22 @@ const ORDERED_AXIOM_IDS: [&str; 24] = [
 
 const CONTEXT_RADIUS: usize = 2;
 
+#[derive(Default)]
+struct ViolationDiagnosticMetadata {
+    measurement_scope: Option<String>,
+    measured_target_kind: Option<String>,
+    measured_target_name: Option<String>,
+    measured_target_start_line: Option<usize>,
+    measured_target_end_line: Option<usize>,
+    metric_name: Option<String>,
+    metric_unit: Option<String>,
+    measured_value: Option<usize>,
+    threshold_value: Option<usize>,
+    count_method: Option<String>,
+    primary_offender_kind: Option<String>,
+    remediation_hints: Vec<String>,
+}
+
 pub fn format_terminal_report(
     result: &AuditResult,
     config: &AuditConfig,
@@ -55,7 +71,7 @@ pub fn format_terminal_report(
 
     let mut out = String::new();
     let total = result.violations.len();
-    let (p0, p1, p2, p3, p4) = count_priorities(&result.violations);
+    let (p0, p1, p2, p3, p4) = count_priorities(&result.violations, &config.hierarchy);
     let audited_files = SearchFiles::resolve_jurisdiction(&config.hierarchy, SearchFiles::ID);
     let audited_file_count = unique_file_count(&audited_files);
     let violation_files = violation_files_from_violations(&result.violations);
@@ -117,7 +133,7 @@ pub fn to_violation_manifest(
 
     let mut out = String::new();
     let audited_files = SearchFiles::resolve_jurisdiction(&config.hierarchy, SearchFiles::ID);
-    let (p0, p1, p2, p3, p4) = count_priorities(&result.violations);
+    let (p0, p1, p2, p3, p4) = count_priorities(&result.violations, &config.hierarchy);
     let audited_file_list = unique_sorted_files(&audited_files);
     let violation_file_list = violation_files_from_violations(&result.violations);
     let external_usage_files = external_usage_files_from_violations(&result.violations);
@@ -188,7 +204,8 @@ pub fn to_violation_manifest(
     out.push_str("  \"violations\": [\n");
 
     for (idx, violation) in result.violations.iter().enumerate() {
-        let (priority, level) = classify_priority(&violation.rule_id);
+        let (priority, level) = classify_priority(&violation.rule_id, &config.hierarchy);
+        let metadata = derive_violation_metadata(violation);
         let log_path = rule_log_path(paths, &grouped_rule_key(&violation.rule_id));
         let rule_doc_id = grouped_rule_key(&violation.rule_id);
         let api_rule_path = runtime_rule_doc_path(&config.hierarchy, &rule_doc_id);
@@ -322,9 +339,75 @@ pub fn to_violation_manifest(
         );
         let _ = writeln!(
             out,
-            "      \"quick_fix\": {}",
+            "      \"quick_fix\": {},",
             option_to_json_string(violation.quick_fix.as_deref())
         );
+        let _ = writeln!(
+            out,
+            "      \"measurement_scope\": {},",
+            option_to_json_string(metadata.measurement_scope.as_deref())
+        );
+        let _ = writeln!(
+            out,
+            "      \"measured_target_kind\": {},",
+            option_to_json_string(metadata.measured_target_kind.as_deref())
+        );
+        let _ = writeln!(
+            out,
+            "      \"measured_target_name\": {},",
+            option_to_json_string(metadata.measured_target_name.as_deref())
+        );
+        let _ = writeln!(
+            out,
+            "      \"measured_target_span\": {{ \"start_line\": {}, \"end_line\": {} }},",
+            metadata
+                .measured_target_start_line
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "null".to_string()),
+            metadata
+                .measured_target_end_line
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "null".to_string())
+        );
+        let _ = writeln!(
+            out,
+            "      \"metric_name\": {},",
+            option_to_json_string(metadata.metric_name.as_deref())
+        );
+        let _ = writeln!(
+            out,
+            "      \"metric_unit\": {},",
+            option_to_json_string(metadata.metric_unit.as_deref())
+        );
+        let _ = writeln!(
+            out,
+            "      \"measured_value\": {},",
+            metadata
+                .measured_value
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "null".to_string())
+        );
+        let _ = writeln!(
+            out,
+            "      \"threshold_value\": {},",
+            metadata
+                .threshold_value
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "null".to_string())
+        );
+        let _ = writeln!(
+            out,
+            "      \"count_method\": {},",
+            option_to_json_string(metadata.count_method.as_deref())
+        );
+        let _ = writeln!(
+            out,
+            "      \"primary_offender_kind\": {},",
+            option_to_json_string(metadata.primary_offender_kind.as_deref())
+        );
+        out.push_str("      \"remediation_hints\": [\n");
+        write_json_string_array_items(&mut out, &metadata.remediation_hints, 8);
+        out.push_str("      ]\n");
         let comma = item_separator(idx, result.violations.len());
         let _ = writeln!(out, "    }}{}", comma);
     }
@@ -351,7 +434,7 @@ pub fn to_shadow_context(
 
     let mut out = String::new();
     let audited_files = SearchFiles::resolve_jurisdiction(&config.hierarchy, SearchFiles::ID);
-    let (p0, p1, p2, p3, p4) = count_priorities(&result.violations);
+    let (p0, p1, p2, p3, p4) = count_priorities(&result.violations, &config.hierarchy);
     let audited_file_list = unique_sorted_files(&audited_files);
     let violation_file_list = violation_files_from_violations(&result.violations);
     let context_items = default_shadow_context_lines();
@@ -463,7 +546,8 @@ pub fn to_shadow_context(
     out.push_str("      \"results\": [\n");
 
     for (idx, violation) in result.violations.iter().enumerate() {
-        let (priority, level) = classify_priority(&violation.rule_id);
+        let (priority, level) = classify_priority(&violation.rule_id, &config.hierarchy);
+        let metadata = derive_violation_metadata(violation);
         let log_path = rule_log_path(paths, &grouped_rule_key(&violation.rule_id));
         let rule_doc_id = grouped_rule_key(&violation.rule_id);
         let api_rule_path = runtime_rule_doc_path(&config.hierarchy, &rule_doc_id);
@@ -565,6 +649,72 @@ pub fn to_shadow_context(
         out.push_str("            ],\n");
         out.push_str("            \"rule_guidance\": [\n");
         write_json_string_array_items(&mut out, &rule_guidance, 14);
+        out.push_str("            ],\n");
+        let _ = writeln!(
+            out,
+            "            \"measurement_scope\": {},",
+            option_to_json_string(metadata.measurement_scope.as_deref())
+        );
+        let _ = writeln!(
+            out,
+            "            \"measured_target_kind\": {},",
+            option_to_json_string(metadata.measured_target_kind.as_deref())
+        );
+        let _ = writeln!(
+            out,
+            "            \"measured_target_name\": {},",
+            option_to_json_string(metadata.measured_target_name.as_deref())
+        );
+        let _ = writeln!(
+            out,
+            "            \"measured_target_span\": {{ \"start_line\": {}, \"end_line\": {} }},",
+            metadata
+                .measured_target_start_line
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "null".to_string()),
+            metadata
+                .measured_target_end_line
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "null".to_string())
+        );
+        let _ = writeln!(
+            out,
+            "            \"metric_name\": {},",
+            option_to_json_string(metadata.metric_name.as_deref())
+        );
+        let _ = writeln!(
+            out,
+            "            \"metric_unit\": {},",
+            option_to_json_string(metadata.metric_unit.as_deref())
+        );
+        let _ = writeln!(
+            out,
+            "            \"measured_value\": {},",
+            metadata
+                .measured_value
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "null".to_string())
+        );
+        let _ = writeln!(
+            out,
+            "            \"threshold_value\": {},",
+            metadata
+                .threshold_value
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "null".to_string())
+        );
+        let _ = writeln!(
+            out,
+            "            \"count_method\": {},",
+            option_to_json_string(metadata.count_method.as_deref())
+        );
+        let _ = writeln!(
+            out,
+            "            \"primary_offender_kind\": {},",
+            option_to_json_string(metadata.primary_offender_kind.as_deref())
+        );
+        out.push_str("            \"remediation_hints\": [\n");
+        write_json_string_array_items(&mut out, &metadata.remediation_hints, 14);
         out.push_str("            ]\n");
         out.push_str("          },\n");
         out.push_str("          \"locations\": [\n");
@@ -705,7 +855,10 @@ fn format_rule_violation_log(
     entries: &[(usize, &AuditViolation)],
     config: Option<&AuditConfig>,
 ) -> String {
-    let (p0, p1, p2, p3, p4) = count_entry_priorities(entries);
+    let (p0, p1, p2, p3, p4) = match config {
+        Some(cfg) => count_entry_priorities(entries, &cfg.hierarchy),
+        None => count_entry_priorities_without_hierarchy(entries),
+    };
     let mut out = String::new();
     let _ = writeln!(out, "AESTHETIC CORE  ▸  Rule Violations");
     let _ = writeln!(out, "axiom_id={}", rule_key);
@@ -725,7 +878,13 @@ fn format_rule_violation_log(
     out.push('\n');
 
     for (group_idx, (index, violation)) in entries.iter().enumerate() {
-        let (priority, level) = classify_priority(&violation.rule_id);
+        let (priority, level) = match config {
+            Some(cfg) => classify_priority(&violation.rule_id, &cfg.hierarchy),
+            None => {
+                let (base, level) = classify_priority_fallback(&violation.rule_id);
+                (base.to_string(), level)
+            }
+        };
         let _ = writeln!(out, "[violation {}]", group_idx + 1);
         let _ = writeln!(out, "ordinal={}", index + 1);
         let _ = writeln!(out, "priority={}", priority);
@@ -884,10 +1043,13 @@ fn sanitize_file_name(input: &str) -> String {
         .collect()
 }
 
-fn count_priorities(violations: &[AuditViolation]) -> (usize, usize, usize, usize, usize) {
+fn count_priorities(
+    violations: &[AuditViolation],
+    hierarchy: &crate::structs::HierarchyConfig,
+) -> (usize, usize, usize, usize, usize) {
     let mut counts = (0, 0, 0, 0, 0);
     for violation in violations {
-        match classify_priority(&violation.rule_id).0 {
+        match priority_bucket(&classify_priority(&violation.rule_id, hierarchy).0) {
             "P0" => counts.0 += 1,
             "P1" => counts.1 += 1,
             "P2" => counts.2 += 1,
@@ -900,10 +1062,11 @@ fn count_priorities(violations: &[AuditViolation]) -> (usize, usize, usize, usiz
 
 fn count_entry_priorities(
     entries: &[(usize, &AuditViolation)],
+    hierarchy: &crate::structs::HierarchyConfig,
 ) -> (usize, usize, usize, usize, usize) {
     let mut counts = (0, 0, 0, 0, 0);
     for (_, violation) in entries {
-        match classify_priority(&violation.rule_id).0 {
+        match priority_bucket(&classify_priority(&violation.rule_id, hierarchy).0) {
             "P0" => counts.0 += 1,
             "P1" => counts.1 += 1,
             "P2" => counts.2 += 1,
@@ -914,7 +1077,45 @@ fn count_entry_priorities(
     counts
 }
 
-fn classify_priority(rule_id: &str) -> (&'static str, &'static str) {
+fn count_entry_priorities_without_hierarchy(
+    entries: &[(usize, &AuditViolation)],
+) -> (usize, usize, usize, usize, usize) {
+    let mut counts = (0, 0, 0, 0, 0);
+    for (_, violation) in entries {
+        let (base, _) = classify_priority_fallback(&violation.rule_id);
+        match priority_bucket(base) {
+            "P0" => counts.0 += 1,
+            "P1" => counts.1 += 1,
+            "P2" => counts.2 += 1,
+            "P3" => counts.3 += 1,
+            _ => counts.4 += 1,
+        }
+    }
+    counts
+}
+
+fn classify_priority(
+    rule_id: &str,
+    hierarchy: &crate::structs::HierarchyConfig,
+) -> (String, &'static str) {
+    let (base_priority, level) = classify_priority_fallback(rule_id);
+    let decimal =
+        resolve_rule_priority_decimal(rule_id, hierarchy).unwrap_or(default_decimal(base_priority));
+    (format!("P-{decimal:.4}"), level)
+}
+
+fn classify_priority_fallback(rule_id: &str) -> (&'static str, &'static str) {
+    if rule_id.contains(".structural.type_logic")
+        || rule_id.contains(".identity.pascal_case")
+        || rule_id.contains(".identity.dna_suffix")
+        || rule_id.contains(".identity.name_separator")
+        || rule_id.contains(".identity.tag_separator")
+        || rule_id.contains(".identity.repository_anchor")
+        || rule_id.contains(".identity.manifest_anchoring")
+        || rule_id.contains(".identity.recursion.jurisdiction")
+    {
+        return ("P0", "error");
+    }
     if rule_id.contains(".super_block.watch.") {
         return ("P1", "warning");
     }
@@ -923,9 +1124,6 @@ fn classify_priority(rule_id: &str) -> (&'static str, &'static str) {
     }
     if rule_id.contains(".sanitization.") || rule_id.contains(".dependency_governance.") {
         return ("P0", "error");
-    }
-    if rule_id.contains(".identity.recursion.jurisdiction") {
-        return ("P1", "warning");
     }
     if rule_id.contains(".structural.") {
         return ("P1", "warning");
@@ -937,6 +1135,125 @@ fn classify_priority(rule_id: &str) -> (&'static str, &'static str) {
         return ("P3", "note");
     }
     ("P4", "note")
+}
+
+fn derive_violation_metadata(violation: &AuditViolation) -> ViolationDiagnosticMetadata {
+    let mut metadata = ViolationDiagnosticMetadata::default();
+
+    if !violation.rule_id.contains(".logical_density.") {
+        return metadata;
+    }
+
+    metadata.measurement_scope = Some("function".to_string());
+    metadata.measured_target_kind = Some("fn".to_string());
+    metadata.metric_name = Some("logical_density".to_string());
+    metadata.metric_unit = Some("statements".to_string());
+    metadata.count_method = Some("effective_statement_count".to_string());
+    metadata.primary_offender_kind = Some("single_function".to_string());
+    metadata.measured_target_start_line = Some(violation.line);
+    metadata.measured_target_end_line = Some(violation.line);
+
+    let mut parts = violation.rule_id.split('.');
+    let _root = parts.next();
+    let _category = parts.next();
+    let _axiom = parts.next();
+    if let Some(target) = parts.next() {
+        if !target.is_empty() && target != "resolution" {
+            metadata.measured_target_name = Some(target.to_string());
+        }
+    }
+
+    if let Some((observed, threshold)) = parse_statements_ratio(&violation.message) {
+        metadata.measured_value = Some(observed);
+        metadata.threshold_value = Some(threshold);
+    }
+
+    metadata.remediation_hints = vec![
+        "Extract internal helper functions and keep the public boundary stable.".to_string(),
+        "Split large impl responsibilities into smaller cohesive phases.".to_string(),
+        "Move logic to another module/file only if function/impl decomposition is not sufficient."
+            .to_string(),
+    ];
+
+    metadata
+}
+
+fn parse_statements_ratio(message: &str) -> Option<(usize, usize)> {
+    let marker = " statements";
+    let end = message.find(marker)?;
+    let prefix = &message[..end];
+    let ratio = prefix.split_whitespace().last()?;
+    let mut parts = ratio.split('/');
+    let observed = parts.next()?.parse::<usize>().ok()?;
+    let threshold = parts.next()?.parse::<usize>().ok()?;
+    Some((observed, threshold))
+}
+
+fn priority_bucket(priority: &str) -> &str {
+    if let Some(raw) = priority.strip_prefix("P-") {
+        if let Ok(value) = raw.parse::<f64>() {
+            let bucket = value.floor() as i64;
+            return match bucket {
+                0 => "P0",
+                1 => "P1",
+                2 => "P2",
+                3 => "P3",
+                _ => "P4",
+            };
+        }
+    }
+    if priority.starts_with("P0") {
+        "P0"
+    } else if priority.starts_with("P1") {
+        "P1"
+    } else if priority.starts_with("P2") {
+        "P2"
+    } else if priority.starts_with("P3") {
+        "P3"
+    } else {
+        "P4"
+    }
+}
+
+fn default_decimal(priority: &str) -> f64 {
+    match priority_bucket(priority) {
+        "P0" => 0.0000,
+        "P1" => 1.0000,
+        "P2" => 2.0000,
+        "P3" => 3.0000,
+        _ => 4.0000,
+    }
+}
+
+fn resolve_rule_priority_decimal(
+    rule_id: &str,
+    hierarchy: &crate::structs::HierarchyConfig,
+) -> Option<f64> {
+    let mut parts = rule_id.split('.');
+    let _root = parts.next()?;
+    let category = parts.next()?;
+    let axiom = parts.next()?;
+    let suffix = format!(".{}.{}", category, axiom);
+
+    let mut selected: Option<(usize, f64)> = None;
+    for (path, node) in hierarchy.nodes.iter() {
+        if !path.ends_with(&suffix) {
+            continue;
+        }
+        let Some(priority_raw) = node.properties.get("priority") else {
+            continue;
+        };
+        let Ok(parsed) = priority_raw.parse::<f64>() else {
+            continue;
+        };
+        let depth = path.matches('.').count();
+        match selected {
+            Some((best_depth, _)) if best_depth <= depth => {}
+            _ => selected = Some((depth, parsed)),
+        }
+    }
+
+    selected.map(|(_, value)| value)
 }
 
 fn unique_file_count(paths: &[String]) -> usize {

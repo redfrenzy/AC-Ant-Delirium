@@ -2,112 +2,140 @@
 # Onde estamos (Identidade) | O que precisamos (Requisição Atômica)
 
 [regras.engine.search_file] # onde estamos
+priority = 4.0000
 target.core # o que precisamos encontrar
 
 # [STRUCTURAL]
 [regras.structural.max_nesting]
+priority = 1.1000
 max_nesting
 
 [regras.structural.max_params]
+priority = 1.2000
 max_params
 
 [regras.structural.logical_density]
+priority = 1.3000
 logical_density
 
 [regras.structural.type_logic]
+priority = 0.0000
 type_logic
 
 [regras.structural.else_free]
+priority = 1.4000
 else_free
 else_free_allow_else_if
 else_free_bypass_token
 
 [regras.structural.jurisdiction]
+priority = 0.0700
 unidade.jurisdiction
 
 # [PEDAGOGICAL]
 [regras.pedagogical.md_pairing]
+priority = 3.1000
 operation_zone
 md_pairing
 
 [regras.pedagogical.md_min_chars]
+priority = 3.2000
 operation_zone
 md_min_chars
 
 [regras.pedagogical.doc_tags]
+priority = 3.3000
 operation_zone
 doc_tags
 
 [regras.pedagogical.what_mission]
+priority = 3.4000
 operation_zone
 what_mission
 
 [regras.pedagogical.why_justification]
+priority = 3.5000
 operation_zone
 why_justification
 
 [regras.pedagogical.usage_example]
+priority = 3.6000
 operation_zone
 usage_example
 
 [regras.pedagogical.test_case_mapping]
+priority = 3.7000
 operation_zone
 test_case_mapping
 
 [regras.pedagogical.root_md_pairing]
+priority = 3.8000
 operation_zone
 root_md_pairing
 
 [regras.pedagogical.inheritance_visibility]
+priority = 3.9000
 operation_zone
 inheritance_visibility
 
 # [IDENTITY]
 [regras.identity.dna_suffix] ##onde estou?
+priority = 0.0200
 operation_zone ## oque preciso
 tag_separator ## oque preciso
 
 [regras.identity.tag_separator]
+priority = 0.0400
 operation_zone
 tag_separator
 
 [regras.identity.pascal_case]
+priority = 0.0100
 operation_zone
 casing
 
 [regras.identity.name_separator]
+priority = 0.0300
 operation_zone
 name_separator
 
 [regras.identity.repository_anchor]
+priority = 0.0500
 operation_zone
 repository
 
 [regras.identity.recursion]
+priority = 0.0600
 operation_zone
 recursion
 
 [regras.identity.manifest_anchoring]
+priority = 0.0550
 operation_zone
 manifest
 
 # [SANITIZATION]
 [regras.sanitization.restricted_tokens]
+priority = 0.1000
 operation_zone
 restricted_tokens
 
 [regras.dependency_governance.allowed_crates]
+priority = 0.1100
 operation_zone
 libres
 
 [regras.dependency_governance.strict_wrapper_boundary]
+priority = 0.1200
 operation_zone
 wrapper_boundary_contract
 
 [regras.sanitization.token_sanitization]
+priority = 0.1300
 operation_zone
 restricted_tokens
 
 [regras.dependency_governance.dependency_purification]
+priority = 0.1400
 operation_zone
 libres
