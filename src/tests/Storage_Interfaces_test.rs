@@ -6,13 +6,14 @@ mod tests {
 
     use crate::libres::Rusqlite_unit::AC_params;
     use crate::structs::{
-        AtomicProjectProjectionWriter, AuditStore, CanonicalStateStore, CanonicalStateTransition,
-        CurrentTaskProjection, EventWriteOutcome, GovernanceErrorsProjection, NewAuditEvent,
-        NewSubmission, ProjectDatabase, ProjectProjectionWriter, ProjectStateRoot,
-        ProjectionArtifactKind, ProjectionMetadata, StorageProject, StorageWorkspace,
-        SubmissionStore, TransactionalStorageError, AGENT_PROJECTION_CONTRACT_VERSION,
-        AUDIT_EVENT_CONTRACT_VERSION, CANONICAL_STATE_CONTRACT_VERSION, STORAGE_SCHEMA_VERSION,
-        SUBMISSION_CONTRACT_VERSION,
+        build_current_task_projection, AtomicProjectProjectionWriter, AuditStore,
+        CanonicalStateStore, CanonicalStateTransition, CurrentTaskProjection,
+        CurrentTaskProjectionDocument, EventWriteOutcome, GovernanceErrorsProjection,
+        NewAuditEvent, NewSubmission, ProjectDatabase, ProjectProjectionWriter, ProjectStateRoot,
+        ProjectedCurrentTask, ProjectedQueueStatus, ProjectedTaskAction, ProjectionArtifactKind,
+        ProjectionMetadata, StorageProject, StorageWorkspace, SubmissionStore,
+        TransactionalStorageError, AGENT_PROJECTION_CONTRACT_VERSION, AUDIT_EVENT_CONTRACT_VERSION,
+        CANONICAL_STATE_CONTRACT_VERSION, STORAGE_SCHEMA_VERSION, SUBMISSION_CONTRACT_VERSION,
     };
 
     const PROJECT_ID: &str = "prj_00000000000000000000000000";
@@ -253,6 +254,7 @@ mod tests {
         let current = CurrentTaskProjection {
             contract_version: AGENT_PROJECTION_CONTRACT_VERSION.to_string(),
             metadata: current_metadata.clone(),
+            task_ref: None,
             serialized_contract:
                 b"{\"contract_version\":\"agent-projection-v1\",\"artifact_kind\":\"current_task\"}"
                     .to_vec(),
@@ -376,6 +378,7 @@ mod tests {
                 fingerprint: format!("{:064x}", 42),
                 rendered_at: "2026-08-11T00:00:00Z".to_string(),
             },
+            task_ref: None,
             serialized_contract: b"{}".to_vec(),
         };
         let projection_event = audit_event(3, "projection_rendered", 42, Some("current_task"));
@@ -429,6 +432,7 @@ mod tests {
                 fingerprint: format!("{:064x}", 43),
                 rendered_at: "2026-08-11T00:00:00Z".to_string(),
             },
+            task_ref: None,
             serialized_contract:
                 br#"{"contract_version":"agent-projection-v1","objective":"\u002fhome\u002foperator\u002fprivate.rs"}"#.to_vec(),
         };
@@ -442,6 +446,52 @@ mod tests {
             .next()
             .is_none());
 
+        fs::remove_dir_all(root).expect("temporary directory should be removed");
+    }
+
+    #[test]
+    fn projection_writer_rejects_a_task_other_than_the_canonical_current_task() {
+        let root = unique_temp_dir("writer-current-task-binding");
+        let (state_root, database) = initialized(&root);
+        seed_plan_and_task(&database);
+        database
+            .with_immediate_transaction(|transaction| {
+                transaction.execute(
+                    "UPDATE projects SET active_plan_id = ?2, current_task_id = ?3 WHERE project_id = ?1",
+                    AC_params![PROJECT_ID, PLAN_ID, TASK_ID],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        let writer =
+            AtomicProjectProjectionWriter::new(database.clone(), state_root.clone()).unwrap();
+        let projection = build_current_task_projection(&CurrentTaskProjectionDocument {
+            metadata: ProjectionMetadata {
+                project_id: PROJECT_ID.to_string(),
+                workspace_id: WORKSPACE_ID.to_string(),
+                source_revision: 0,
+                generation: 1,
+                fingerprint: format!("{:064x}", 44),
+                rendered_at: "2026-08-11T00:00:00Z".to_string(),
+            },
+            task: Some(ProjectedCurrentTask {
+                task_id: "tsk_00000000000000000000000001".to_string(),
+                task_revision: 1,
+                objective: "Future task".to_string(),
+                allowed_action: ProjectedTaskAction::Implement,
+                acceptance_criteria: Vec::new(),
+                relevant_paths: Vec::new(),
+            }),
+            queue_status: ProjectedQueueStatus::TaskAvailable,
+            submission_instruction: "Submit evidence with hierarchy.task.current.submit."
+                .to_string(),
+        })
+        .unwrap();
+        let event = audit_event(5, "projection_rendered", 44, Some("current_task"));
+
+        assert!(writer.write_current_task(&projection, &event).is_err());
+        assert!(!state_root.todo_projection_path().exists());
+        assert_eq!(database.event_count(PROJECT_ID).unwrap(), 0);
         fs::remove_dir_all(root).expect("temporary directory should be removed");
     }
 }

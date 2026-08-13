@@ -1,6 +1,6 @@
 # AntDelirium: binário único e superfície limitada do agente
 
-Este documento descreve o estado implementado até a T5.1. O projeto declara um único executável autoritativo chamado `antdelirium`; a instalação global e a integração automática com Cargo ainda pertencem às ondas posteriores.
+Este documento descreve o estado implementado até a T5.2. O projeto declara um único executável autoritativo chamado `antdelirium`; a instalação global e a integração automática com Cargo ainda pertencem às ondas posteriores.
 
 ## Compilar
 
@@ -44,8 +44,36 @@ arquivo autocontido mínimo:
 
 Um `guard/.gitignore` preexistente pertence ao projeto e nunca é sobrescrito,
 mesmo quando não ignora as projeções. Em projeto sem Git, cria-se somente a
-pasta vazia. A T5.1 não gera `to-do_list.json` nem `governance_error.json`; a
-ativação desses writers pertence respectivamente às T5.2 e T5.3.
+pasta vazia. A T5.1 não gera os JSONs; a projeção de tarefa foi ativada na T5.2
+e a projeção de erros continua reservada à T5.3.
+
+## Projeção canônica da tarefa atual
+
+`AtomicProjectProjectionWriter::refresh_current_task_projection` gera
+`guard/to-do_list.json` sem receber plano, filename, step legado ou tarefa
+escolhida pelo agente. A operação consulta no banco somente o `current_task_id`
+do projeto e exige que a tarefa pertença ao plano ativo. A revisão da linha e o
+estado do ciclo de vida precisam corresponder à ação permitida.
+
+Objetivo, ação, critérios de aceitação e paths relevantes vêm do payload
+privado versionado `canonical-task-projection-v1` da própria tarefa. Esse
+payload usa framing binário limitado e rejeita versão desconhecida, truncamento,
+dados excedentes, UTF-8 inválido, path absoluto, traversal, duplicatas e limites
+do contrato antes de qualquer arquivo ou evento. O plano e as outras tarefas
+não são lidos para montar a projeção.
+
+O serviço deriva geração, fingerprint SHA-256 e IDs de auditoria; o writer
+confirma novamente, dentro da transação, o ID e a revisão da tarefa atual antes
+da escrita. Sem tarefa atual, o documento contém `task: null` e fila opaca, sem
+procurar uma tarefa futura. O artefato continua sendo uma projeção descartável:
+ele nunca é usado para atualizar o banco canônico.
+
+Esta etapa prova geração e materialização pela fronteira interna tipada. O
+daemon instalado não recebe mount do projeto e o wrapper ainda não possui o
+transporte `projection.refresh`; separar a resposta sanitizada do serviço da
+escrita local do cliente permanece na T6.4. Portanto a T5.2 não instala socket,
+wrapper ou configuração Cargo e não apresenta essa integração futura como já
+ativa.
 
 ## Usar durante o desenvolvimento
 

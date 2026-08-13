@@ -2,6 +2,7 @@ use super::test_bridge::*;
 use super::*;
 use ac_ant_delirium::engine::Swarm_Engine_unit::SwarmEngine;
 use ac_ant_delirium::engine_identity;
+use ac_ant_delirium::libres::Rusqlite_unit::AC_params;
 use ac_ant_delirium::structs::{
     AtomicProjectProjectionWriter, AuditConfig, AuditResult, AuditViolation, CanonicalStateStore,
     CanonicalTaskProjectionRef, GovernanceMode, NewAuditEvent, NumberedPlan, NumberedPlanStep,
@@ -5164,6 +5165,23 @@ fn transition_activation_delivers_projected_task_through_normal_api_and_manifest
         },
     )
     .expect("workspace should register");
+    database
+        .with_immediate_transaction(|transaction| {
+            transaction.execute(
+                "INSERT INTO plans(plan_id, project_id, payload, created_at) VALUES (?1, ?2, ?3, ?4)",
+                AC_params!["pln_00000000000000000000000000", "prj_00000000000000000000000000", b"private transition plan".as_slice(), "2026-08-11T00:00:00Z"],
+            )?;
+            transaction.execute(
+                "INSERT INTO tasks(task_id, project_id, plan_id, task_revision, status, review_status, payload, created_at) VALUES (?1, ?2, ?3, 1, 'available', 'not_required', ?4, ?5)",
+                AC_params!["tsk_00000000000000000000000000", "prj_00000000000000000000000000", "pln_00000000000000000000000000", b"private transition task".as_slice(), "2026-08-11T00:00:00Z"],
+            )?;
+            transaction.execute(
+                "UPDATE projects SET active_plan_id = ?2, current_task_id = ?3 WHERE project_id = ?1",
+                AC_params!["prj_00000000000000000000000000", "pln_00000000000000000000000000", "tsk_00000000000000000000000000"],
+            )?;
+            Ok(())
+        })
+        .expect("canonical transition task should be seeded");
     let writer = AtomicProjectProjectionWriter::new(database, state_root.clone())
         .expect("writer should bind to the state root");
     let context = TodoProjectionContext {

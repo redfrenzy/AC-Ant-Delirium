@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use super::{
-    EventWriteOutcome, NewAuditEvent, ProjectDatabase, ProjectStateRoot, StorageProject,
-    TransactionalStorageResult,
+    CanonicalTaskProjectionRef, EventWriteOutcome, NewAuditEvent, ProjectDatabase,
+    ProjectStateRoot, StorageProject, TransactionalStorageResult,
 };
 
 pub const CANONICAL_STATE_CONTRACT_VERSION: &str = "canonical-state-v1";
@@ -174,9 +174,10 @@ pub struct ProjectionMetadata {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CurrentTaskProjection {
-    pub contract_version: String,
-    pub metadata: ProjectionMetadata,
-    pub serialized_contract: Vec<u8>,
+    pub(crate) contract_version: String,
+    pub(crate) metadata: ProjectionMetadata,
+    pub(crate) task_ref: Option<CanonicalTaskProjectionRef>,
+    pub(crate) serialized_contract: Vec<u8>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

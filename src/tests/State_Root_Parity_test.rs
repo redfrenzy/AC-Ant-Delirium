@@ -4,6 +4,7 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    use crate::libres::Rusqlite_unit::AC_params;
     use crate::structs::{
         build_current_task_projection, build_governance_errors_projection,
         AtomicProjectProjectionWriter, AuditStore, CanonicalStateSnapshot, CanonicalStateStore,
@@ -123,6 +124,23 @@ mod tests {
             },
         )
         .expect("workspace should register");
+        database
+            .with_immediate_transaction(|transaction| {
+                transaction.execute(
+                    "INSERT INTO plans(plan_id, project_id, payload, created_at) VALUES (?1, ?2, ?3, ?4)",
+                    AC_params!["pln_00000000000000000000000000", PROJECT_ID, b"private parity plan".as_slice(), "2026-08-11T00:00:00Z"],
+                )?;
+                transaction.execute(
+                    "INSERT INTO tasks(task_id, project_id, plan_id, task_revision, status, review_status, payload, created_at) VALUES (?1, ?2, ?3, 1, 'available', 'not_required', ?4, ?5)",
+                    AC_params!["tsk_00000000000000000000000000", PROJECT_ID, "pln_00000000000000000000000000", b"private parity task".as_slice(), "2026-08-11T00:00:00Z"],
+                )?;
+                transaction.execute(
+                    "UPDATE projects SET active_plan_id = ?2, current_task_id = ?3 WHERE project_id = ?1",
+                    AC_params![PROJECT_ID, "pln_00000000000000000000000000", "tsk_00000000000000000000000000"],
+                )?;
+                Ok(())
+            })
+            .expect("canonical current task should be seeded");
         let writer = AtomicProjectProjectionWriter::new(database.clone(), state_root.clone())
             .expect("writer should bind to state root");
 

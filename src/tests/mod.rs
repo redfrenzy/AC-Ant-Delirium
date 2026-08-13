@@ -5,6 +5,8 @@ pub mod Aximon_Structural_test;
 pub mod Baseline_Snapshot_test;
 pub mod Capability_Auth_test;
 pub mod Current_Task_Projection_test;
+#[allow(non_snake_case)]
+pub mod Current_Task_Refresh_test;
 pub mod Debug_Violation_test;
 pub mod Else_Free_Axiom_test;
 pub mod Global_Params_test;

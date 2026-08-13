@@ -3,13 +3,13 @@ use crate::libres::Rusqlite_unit::{AC_OptionalExtension, AC_Transaction, AC_para
 use super::{
     atomic_replace, materialize_project_guard, AtomicProjectProjectionWriter, AuditStore,
     CanonicalMutationOutcome, CanonicalStateSnapshot, CanonicalStateStore,
-    CanonicalStateTransition, CanonicalTaskState, CurrentTaskProjection, EventWriteOutcome,
-    GovernanceErrorsProjection, NewAuditEvent, NewReview, NewSubmission, ProjectDatabase,
-    ProjectProjectionWriter, ProjectionArtifactKind, ProjectionMetadata, ProjectionWriteReceipt,
-    ReviewStore, ReviewWriteOutcome, StorageProject, StorageWorkspace, SubmissionStore,
-    SubmissionWriteOutcome, TransactionalStorageError, TransactionalStorageResult,
-    AGENT_PROJECTION_CONTRACT_VERSION, CANONICAL_STATE_CONTRACT_VERSION,
-    SUBMISSION_CONTRACT_VERSION,
+    CanonicalStateTransition, CanonicalTaskProjectionRef, CanonicalTaskState,
+    CurrentTaskProjection, EventWriteOutcome, GovernanceErrorsProjection, NewAuditEvent, NewReview,
+    NewSubmission, ProjectDatabase, ProjectProjectionWriter, ProjectionArtifactKind,
+    ProjectionMetadata, ProjectionWriteReceipt, ReviewStore, ReviewWriteOutcome, StorageProject,
+    StorageWorkspace, SubmissionStore, SubmissionWriteOutcome, TransactionalStorageError,
+    TransactionalStorageResult, AGENT_PROJECTION_CONTRACT_VERSION,
+    CANONICAL_STATE_CONTRACT_VERSION, SUBMISSION_CONTRACT_VERSION,
 };
 
 impl CanonicalStateStore for ProjectDatabase {
@@ -229,6 +229,7 @@ impl AtomicProjectProjectionWriter {
         &self,
         artifact_kind: ProjectionArtifactKind,
         metadata: &ProjectionMetadata,
+        current_task_ref: Option<&CanonicalTaskProjectionRef>,
         serialized_contract: &[u8],
         audit_event: &NewAuditEvent,
     ) -> TransactionalStorageResult<ProjectionWriteReceipt> {
@@ -245,6 +246,13 @@ impl AtomicProjectProjectionWriter {
                 &metadata.project_id,
                 &metadata.workspace_id,
             )?;
+            if artifact_kind == ProjectionArtifactKind::CurrentTask {
+                validate_current_task_projection_binding(
+                    transaction,
+                    &metadata.project_id,
+                    current_task_ref,
+                )?;
+            }
             let state_revision = transaction.query_row(
                 "SELECT state_revision FROM projects WHERE project_id = ?1",
                 AC_params![metadata.project_id],
@@ -304,6 +312,7 @@ impl ProjectProjectionWriter for AtomicProjectProjectionWriter {
         self.persist_projection(
             ProjectionArtifactKind::CurrentTask,
             &projection.metadata,
+            projection.task_ref.as_ref(),
             &projection.serialized_contract,
             audit_event,
         )
@@ -321,6 +330,7 @@ impl ProjectProjectionWriter for AtomicProjectProjectionWriter {
         self.persist_projection(
             ProjectionArtifactKind::GovernanceErrors,
             &projection.metadata,
+            None,
             &projection.serialized_contract,
             audit_event,
         )
@@ -636,6 +646,44 @@ fn validate_projection_generation(
         ));
     }
     Ok(())
+}
+
+fn validate_current_task_projection_binding(
+    transaction: &AC_Transaction<'_>,
+    project_id: &str,
+    projected: Option<&CanonicalTaskProjectionRef>,
+) -> TransactionalStorageResult<()> {
+    let current_task_id = transaction.query_row(
+        "SELECT current_task_id FROM projects WHERE project_id = ?1",
+        AC_params![project_id],
+        |row| row.get::<_, Option<String>>(0),
+    )?;
+    match (current_task_id.as_deref(), projected) {
+        (None, None) => Ok(()),
+        (Some(current_task_id), Some(projected)) if current_task_id == projected.task_id => {
+            let revision = transaction
+                .query_row(
+                    "SELECT t.task_revision FROM tasks t JOIN projects p ON p.project_id = t.project_id AND p.active_plan_id = t.plan_id WHERE t.project_id = ?1 AND t.task_id = ?2",
+                    AC_params![project_id, projected.task_id],
+                    |row| row.get::<_, i64>(0),
+                )
+                .optional()?
+                .ok_or_else(|| {
+                    TransactionalStorageError::Integrity(
+                        "canonical current task does not belong to the active plan".to_string(),
+                    )
+                })?;
+            if revision != projected.task_revision {
+                return Err(TransactionalStorageError::Integrity(
+                    "projected task revision does not match canonical current task".to_string(),
+                ));
+            }
+            Ok(())
+        }
+        _ => Err(TransactionalStorageError::Integrity(
+            "projection does not match the canonical current task".to_string(),
+        )),
+    }
 }
 
 fn validate_required(field: &str, value: &str) -> TransactionalStorageResult<()> {

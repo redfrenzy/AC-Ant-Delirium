@@ -1,4 +1,9 @@
-use super::{CurrentTaskProjection, ProjectionMetadata, TransactionalStorageResult};
+use super::{
+    AtomicProjectProjectionWriter, CurrentTaskProjection, ProjectionMetadata,
+    ProjectionWriteReceipt, TransactionalStorageResult,
+};
+
+pub const CANONICAL_TASK_PROJECTION_PAYLOAD_VERSION: &str = "canonical-task-projection-v1";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProjectedTaskAction {
@@ -68,8 +73,39 @@ pub struct TodoProjectionContext {
     pub task_ref: Option<CanonicalTaskProjectionRef>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CanonicalTaskProjectionPayload {
+    pub contract_version: String,
+    pub objective: String,
+    pub allowed_action: ProjectedTaskAction,
+    pub acceptance_criteria: Vec<String>,
+    pub relevant_paths: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CurrentTaskProjectionRefreshRequest {
+    pub project_id: String,
+    pub workspace_id: String,
+    pub rendered_at: String,
+}
+
 pub fn build_current_task_projection(
     document: &CurrentTaskProjectionDocument,
 ) -> TransactionalStorageResult<CurrentTaskProjection> {
     super::Current_Task_Projection_structcore::build_current_task_projection(document)
+}
+
+pub fn encode_canonical_task_projection_payload(
+    payload: &CanonicalTaskProjectionPayload,
+) -> TransactionalStorageResult<Vec<u8>> {
+    super::Current_Task_Projection_structcore::encode_canonical_task_projection_payload(payload)
+}
+
+impl AtomicProjectProjectionWriter {
+    pub fn refresh_current_task_projection(
+        &self,
+        request: &CurrentTaskProjectionRefreshRequest,
+    ) -> TransactionalStorageResult<ProjectionWriteReceipt> {
+        super::Current_Task_Projection_structcore::refresh_current_task_projection(self, request)
+    }
 }
