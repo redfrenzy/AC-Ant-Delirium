@@ -137,6 +137,22 @@ A fronteira usa camadas cumulativas:
 
 `ProtectProc=invisible` protege a visão de `/proc` dentro do serviço, mas não esconde sozinho o daemon do host. Por isso a implantação do agente precisa de PID namespace ou procfs restrito. Apenas `ptrace_scope=1`, sem UID separado, também não seria suficiente.
 
+### Estado implementado na T4.7
+
+O bootstrap do mesmo binário agora aplica a parte que precisa ser garantida pelo
+próprio daemon antes de abrir storage ou listeners: `PR_SET_NO_NEW_PRIVS=1`,
+`PR_SET_DUMPABLE=0`, limites de core em zero, `umask 0077`, recusa de um
+`TracerPid` já anexado e `CLOSE_RANGE_CLOEXEC` em todos os descritores herdados
+acima de stderr. Listeners e conexões aceitas continuam recebendo verificação
+individual de `FD_CLOEXEC`. Um token Rust não construível fora do módulo torna
+essa ordem obrigatória para iniciar os canais.
+
+O template da unidade reforça essa política com `LimitCORE=0`, `UMask=0077`,
+`RestrictNamespaces=yes`, `RestrictRealtime=yes`, `KeyringMode=private`,
+`ProtectProc=invisible` e `ProcSubset=pid`. Isso reduz exposição e falha fechado,
+mas não substitui a prova da T4.8: ocultar o daemon na visão do agente depende do
+UID separado e do namespace/procfs do sandbox realmente implantados.
+
 ## Sandbox do agente
 
 O sandbox do agente permite:

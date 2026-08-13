@@ -6,6 +6,7 @@ use std::os::fd::AsRawFd;
 use std::os::unix::net::UnixStream;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::service_hardening::set_descriptor_close_on_exec;
 use ac_ant_delirium::libres::System_Random_unit::fill_system_random;
 use ac_ant_delirium::structs::{
     CapabilityAuthorizationOutcome, CapabilityAuthorizationRequest, CapabilityChannel,
@@ -121,14 +122,9 @@ fn validated_kernel_credentials(
 }
 
 #[cfg(unix)]
-#[cfg(unix)]
 fn set_close_on_exec(connection: &UnixStream) -> Result<(), ConnectionAuthenticationError> {
-    let raw_fd = connection.as_raw_fd();
-    let flags = unsafe { libc::fcntl(raw_fd, libc::F_GETFD) };
-    if flags < 0 || unsafe { libc::fcntl(raw_fd, libc::F_SETFD, flags | libc::FD_CLOEXEC) } < 0 {
-        return Err(ConnectionAuthenticationError::Descriptor);
-    }
-    Ok(())
+    set_descriptor_close_on_exec(connection.as_raw_fd())
+        .map_err(|_| ConnectionAuthenticationError::Descriptor)
 }
 
 #[cfg(test)]

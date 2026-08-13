@@ -24,6 +24,9 @@ mod service_channel;
 #[path = "Service-Authentication_unit.rs"]
 mod service_authentication;
 
+#[path = "Service-Hardening_unit.rs"]
+mod service_hardening;
+
 #[path = "Binary-Mode_unit.rs"]
 mod binary_mode;
 

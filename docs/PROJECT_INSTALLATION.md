@@ -103,7 +103,13 @@ conta ausente, leitura ambígua, root ou qualquer outro usuário falham fechados
 com `AD-AUTH-0001`/exit `77` sem revelar UID, conta ou configuração.
 
 Somente essa verificação produz o token Rust privado que permite entrar no
-handler do serviço. Depois dela, o serviço aceita somente o `STATE_DIRECTORY`
+handler do serviço. Antes de abrir listeners ou storage, o bootstrap exige uma
+segunda prova interna de hardening: recusa `TracerPid` diferente de zero, aplica
+`PR_SET_NO_NEW_PRIVS`, torna o processo não-dumpable, zera os limites soft e
+hard de core dump, define `umask 0077` e usa `close_range(CLOEXEC)` sobre todo
+descriptor herdado não padrão. A fronteira de canais exige o token produzido
+por essa etapa, impedindo que uma mudança posterior inicie o serviço antes do
+hardening. Depois dela, o serviço aceita somente o `STATE_DIRECTORY`
 único e absoluto fornecido pela unidade. O diretório precisa existir, pertencer
 ao UID verificado, ser diretório regular e não ser symlink. O runtime aplica
 `0700` à raiz e aos diretórios privados, inicializa um registry SQLite separado
@@ -201,7 +207,10 @@ handler. Portanto o resolver existe somente dentro do serviço e ainda não há
 operação remota, materialização de projeto ou diagnóstico privado alcançável.
 A ligação aos handlers permanece para uma tarefa posterior; os journals da
 T4.6 já existem internamente, mas não ativam uma rota parcial. O isolamento
-completo de descriptors e processos filhos continua explicitamente na T4.7.
+de descriptors da T4.7 já impede sua herança por um futuro `exec`; o serviço
+atual não cria processos filhos. A prova externa de que o usuário do agente não
+consegue enumerar `/proc` ou a raiz protegida permanece na T4.8 e exige a
+implantação real do sandbox/UID separado, não apenas testes dentro do processo.
 
 Os templates não instalados
 [`packaging/systemd/antdelirium.service.in`](../packaging/systemd/antdelirium.service.in)

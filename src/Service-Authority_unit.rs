@@ -63,7 +63,9 @@ fn verify_service_authority(
 }
 
 fn run_verified_service(authority: VerifiedServiceAuthority) -> ! {
-    crate::service_channel::run_service_channels(authority)
+    let hardening = crate::service_hardening::harden_service_process(&authority)
+        .unwrap_or_else(|_| OutputRouter::exit(PublicError::Authorization));
+    crate::service_channel::run_service_channels(authority, hardening)
 }
 
 #[cfg(unix)]

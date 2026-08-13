@@ -13,6 +13,7 @@ use std::os::unix::net::UnixListener;
 use crate::public_output::{OutputRouter, PublicError};
 use crate::service_authentication::ConnectionAuthentication;
 use crate::service_authority::VerifiedServiceAuthority;
+use crate::service_hardening::{set_descriptor_close_on_exec, VerifiedServiceHardening};
 use crate::service_storage::ProtectedServiceStorage;
 
 const LISTEN_PID_ENV: &str = "LISTEN_PID";
@@ -110,7 +111,10 @@ impl AdministrativeChannelParser {
     }
 }
 
-pub(crate) fn run_service_channels(authority: VerifiedServiceAuthority) -> ! {
+pub(crate) fn run_service_channels(
+    authority: VerifiedServiceAuthority,
+    _hardening: VerifiedServiceHardening,
+) -> ! {
     let channels = ActivatedServiceChannels::from_systemd()
         .unwrap_or_else(|_| OutputRouter::exit(PublicError::Configuration));
     let storage = crate::service_storage::initialize_configured_service_storage(&authority)
@@ -456,12 +460,8 @@ fn validate_listener_facts(facts: ListenerFacts) -> Result<(), ServiceChannelErr
 
 #[cfg(unix)]
 fn set_close_on_exec(descriptor: &OwnedFd) -> Result<(), ServiceChannelError> {
-    let raw_fd = descriptor.as_raw_fd();
-    let flags = unsafe { libc::fcntl(raw_fd, libc::F_GETFD) };
-    if flags < 0 || unsafe { libc::fcntl(raw_fd, libc::F_SETFD, flags | libc::FD_CLOEXEC) } < 0 {
-        return Err(ServiceChannelError::DescriptorContract);
-    }
-    Ok(())
+    set_descriptor_close_on_exec(descriptor.as_raw_fd())
+        .map_err(|_| ServiceChannelError::DescriptorContract)
 }
 
 #[cfg(test)]
