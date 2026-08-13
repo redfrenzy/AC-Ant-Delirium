@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use std::env;
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -26,9 +25,9 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("system clock should be after the Unix epoch")
             .as_nanos();
-        let path = env::temp_dir().join(format!(
-            "antdelirium-store-interfaces-{label}-{}-{nanos}",
-            std::process::id()
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
+            "target/storage-interfaces-tests/{label}-{}-{nanos}",
+            std::process::id(),
         ));
         fs::create_dir_all(&path).expect("temporary directory should be created");
         path
@@ -84,6 +83,8 @@ mod tests {
 
     fn initialized(root: &Path) -> (ProjectStateRoot, ProjectDatabase) {
         let state_root = state_root(root);
+        fs::create_dir_all(state_root.project_root()).expect("source project fixture");
+        fs::create_dir_all(state_root.workspace_root()).expect("source worktree fixture");
         let database =
             ProjectDatabase::initialize(&state_root).expect("database should initialize");
         CanonicalStateStore::register_project(&database, &project()).unwrap();
@@ -233,8 +234,14 @@ mod tests {
     fn projection_writer_uses_only_the_two_fixed_project_paths() {
         let root = unique_temp_dir("projection");
         let (state_root, database) = initialized(&root);
+        assert!(!state_root.project_guard_dir().exists());
         let writer =
             AtomicProjectProjectionWriter::new(database.clone(), state_root.clone()).unwrap();
+        assert!(state_root.project_guard_dir().is_dir());
+        assert!(fs::read_dir(state_root.project_guard_dir())
+            .unwrap()
+            .next()
+            .is_none());
         let current_metadata = ProjectionMetadata {
             project_id: PROJECT_ID.to_string(),
             workspace_id: WORKSPACE_ID.to_string(),
@@ -384,7 +391,11 @@ mod tests {
             SubmissionStore::submission_count(&database, PROJECT_ID).unwrap(),
             0
         );
-        assert!(!state_root.project_guard_dir().exists());
+        assert!(state_root.project_guard_dir().is_dir());
+        assert!(fs::read_dir(state_root.project_guard_dir())
+            .unwrap()
+            .next()
+            .is_none());
 
         fs::remove_dir_all(root).expect("temporary directory should be removed");
     }
@@ -425,7 +436,11 @@ mod tests {
 
         assert!(writer.write_current_task(&projection, &event).is_err());
         assert_eq!(database.event_count(PROJECT_ID).unwrap(), 0);
-        assert!(!state_root.project_guard_dir().exists());
+        assert!(state_root.project_guard_dir().is_dir());
+        assert!(fs::read_dir(state_root.project_guard_dir())
+            .unwrap()
+            .next()
+            .is_none());
 
         fs::remove_dir_all(root).expect("temporary directory should be removed");
     }

@@ -40,7 +40,9 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .map(|duration| duration.as_nanos())
             .unwrap_or_default();
-        let dir = std::env::temp_dir().join(format!("{}_{}", label, nanos));
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("target/logs-tests")
+            .join(format!("{}_{}", label, nanos));
         fs::create_dir_all(&dir).expect("temporary directory should be created");
         dir
     }
@@ -271,6 +273,8 @@ mod tests {
             project_root.clone(),
             root.join("source-worktree"),
         );
+        fs::create_dir_all(&project_root).expect("project root should exist");
+        fs::create_dir_all(state_root.workspace_root()).expect("workspace root should exist");
         let database =
             ProjectDatabase::initialize(&state_root).expect("database should initialize");
         CanonicalStateStore::register_project(

@@ -15,6 +15,7 @@ pub mod Logs_test;
 pub mod Manifest_Engine_test;
 pub mod Pedagogical_Axiom_test;
 pub mod Project_Discovery_test;
+pub mod Project_Guard_Bootstrap_test;
 pub mod Project_State_Root_test;
 pub mod Public_Path_Policy_test;
 pub mod Review_Request_test;

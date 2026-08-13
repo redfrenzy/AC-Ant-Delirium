@@ -1,6 +1,6 @@
 # AntDelirium: binário único e superfície limitada do agente
 
-Este documento descreve o estado implementado até a T4.5. O projeto declara um único executável autoritativo chamado `antdelirium`; a instalação global e a integração automática com Cargo ainda pertencem às ondas posteriores.
+Este documento descreve o estado implementado até a T5.1. O projeto declara um único executável autoritativo chamado `antdelirium`; a instalação global e a integração automática com Cargo ainda pertencem às ondas posteriores.
 
 ## Compilar
 
@@ -23,6 +23,29 @@ tenha chegado ao ELF, execute:
 ```bash
 make release-nondisclosure
 ```
+
+## Materialização local de `guard/`
+
+Antes de um `ProjectProjectionWriter` poder ser construído, a fronteira
+`lifecycle-v1` materializa `<project-root>/guard/` de forma idempotente. Ela
+exige uma raiz de projeto regular, rejeita symlinks em `guard/` e
+`guard/.gitignore` e nunca altera `.gitignore` raiz, configuração Git ou index.
+
+Em projeto Git, uma projeção já rastreada bloqueia o bootstrap. Se regras
+existentes já ignoram os dois JSONs, elas são preservadas. Caso contrário, e
+somente se `guard/.gitignore` ainda não existir, o bootstrap cria atomicamente o
+arquivo autocontido mínimo:
+
+```gitignore
+/to-do_list.json
+/governance_error.json
+/.gitignore
+```
+
+Um `guard/.gitignore` preexistente pertence ao projeto e nunca é sobrescrito,
+mesmo quando não ignora as projeções. Em projeto sem Git, cria-se somente a
+pasta vazia. A T5.1 não gera `to-do_list.json` nem `governance_error.json`; a
+ativação desses writers pertence respectivamente às T5.2 e T5.3.
 
 ## Usar durante o desenvolvimento
 

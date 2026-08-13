@@ -1,14 +1,15 @@
 use crate::libres::Rusqlite_unit::{AC_OptionalExtension, AC_Transaction, AC_params};
 
 use super::{
-    atomic_replace, AtomicProjectProjectionWriter, AuditStore, CanonicalMutationOutcome,
-    CanonicalStateSnapshot, CanonicalStateStore, CanonicalStateTransition, CanonicalTaskState,
-    CurrentTaskProjection, EventWriteOutcome, GovernanceErrorsProjection, NewAuditEvent, NewReview,
-    NewSubmission, ProjectDatabase, ProjectProjectionWriter, ProjectionArtifactKind,
-    ProjectionMetadata, ProjectionWriteReceipt, ReviewStore, ReviewWriteOutcome, StorageProject,
-    StorageWorkspace, SubmissionStore, SubmissionWriteOutcome, TransactionalStorageError,
-    TransactionalStorageResult, AGENT_PROJECTION_CONTRACT_VERSION,
-    CANONICAL_STATE_CONTRACT_VERSION, SUBMISSION_CONTRACT_VERSION,
+    atomic_replace, materialize_project_guard, AtomicProjectProjectionWriter, AuditStore,
+    CanonicalMutationOutcome, CanonicalStateSnapshot, CanonicalStateStore,
+    CanonicalStateTransition, CanonicalTaskState, CurrentTaskProjection, EventWriteOutcome,
+    GovernanceErrorsProjection, NewAuditEvent, NewReview, NewSubmission, ProjectDatabase,
+    ProjectProjectionWriter, ProjectionArtifactKind, ProjectionMetadata, ProjectionWriteReceipt,
+    ReviewStore, ReviewWriteOutcome, StorageProject, StorageWorkspace, SubmissionStore,
+    SubmissionWriteOutcome, TransactionalStorageError, TransactionalStorageResult,
+    AGENT_PROJECTION_CONTRACT_VERSION, CANONICAL_STATE_CONTRACT_VERSION,
+    SUBMISSION_CONTRACT_VERSION,
 };
 
 impl CanonicalStateStore for ProjectDatabase {
@@ -213,6 +214,11 @@ impl AtomicProjectProjectionWriter {
                     .to_string(),
             ));
         }
+        materialize_project_guard(&state_root).map_err(|_| {
+            TransactionalStorageError::InvalidInput(
+                "project guard bootstrap does not satisfy lifecycle-v1".to_string(),
+            )
+        })?;
         Ok(Self {
             database,
             state_root,

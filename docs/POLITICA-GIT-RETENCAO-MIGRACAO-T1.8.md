@@ -225,10 +225,9 @@ O teste rejeitou a alternativa `*`, pois ela esconderia qualquer conteúdo inesp
 
 ## Consequências para implementação
 
-- T5.1 implementa detecção de regras existentes e criação atômica do ignore mínimo.
+- T5.1 está implementada em [`materialize_project_guard`](../src/structs/Project_Guard_Bootstrap_structcore.rs): valida a raiz e objetos sem seguir symlinks, bloqueia projeção rastreada, preserva regras existentes e cria atomicamente apenas o ignore mínimo quando necessário. O construtor do writer exige esse bootstrap antes de qualquer projeção.
 - T5.6 trata item inesperado como desvio sem apagá-lo.
 - T7 implementa quarantine/retire/archive como estados, não remoção direta.
 - T8 usa `migration-manifest-v1`, approvals e rollback point.
 - T8.9 preserva a origem por no mínimo 30 dias.
 - T10 só remove integração legada depois dos gates G8/G9 e sem purgar dados.
-

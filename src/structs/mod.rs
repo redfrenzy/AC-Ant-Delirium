@@ -27,6 +27,10 @@ pub mod Project_Discovery_struct;
 #[allow(non_snake_case)]
 pub mod Project_Discovery_structcore;
 #[allow(non_snake_case)]
+pub mod Project_Guard_Bootstrap_struct;
+#[allow(non_snake_case)]
+pub mod Project_Guard_Bootstrap_structcore;
+#[allow(non_snake_case)]
 pub mod Project_State_Root_struct;
 #[allow(non_snake_case)]
 pub mod Public_Path_Policy_struct;
@@ -65,6 +69,8 @@ pub use self::Global_Params_structcore::*;
 pub use self::Governance_Errors_Projection_struct::*;
 pub use self::Project_Context_struct::*;
 pub use self::Project_Discovery_struct::*;
+pub use self::Project_Guard_Bootstrap_struct::*;
+pub use self::Project_Guard_Bootstrap_structcore::materialize_project_guard;
 pub use self::Project_State_Root_struct::*;
 pub use self::Public_Path_Policy_struct::*;
 pub use self::Review_Request_struct::*;
