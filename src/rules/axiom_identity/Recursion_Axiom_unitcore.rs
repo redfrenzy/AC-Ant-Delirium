@@ -66,7 +66,6 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
     }
 }
 
-
 fn enforce_spatial_jurisdiction(ctx: &mut AuditContext<'_>, identity_path: &str) {
     let Ok((_, jurisdiction)) = ctx
         .config
@@ -76,8 +75,7 @@ fn enforce_spatial_jurisdiction(ctx: &mut AuditContext<'_>, identity_path: &str)
         return;
     };
 
-    let expected_root =
-        resolve_expected_jurisdiction_root(ctx, &jurisdiction, ctx.file_path);
+    let expected_root = resolve_expected_jurisdiction_root(ctx, &jurisdiction, ctx.file_path);
     if expected_root.is_empty() {
         return;
     }

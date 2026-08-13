@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:submission-v1",
+  "title": "AntDelirium submission v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "request_id",
+    "project_id",
+    "workspace_id",
+    "task_id",
+    "task_revision",
+    "evidence"
+  ],
+  "properties": {
+    "contract_version": { "const": "submission-v1" },
+    "request_id": { "$ref": "#/$defs/opaqueId" },
+    "project_id": { "$ref": "#/$defs/projectId" },
+    "workspace_id": { "$ref": "#/$defs/workspaceId" },
+    "task_id": { "$ref": "#/$defs/taskId" },
+    "task_revision": { "type": "integer", "minimum": 1 },
+    "base_revision": { "type": "string", "minLength": 1, "maxLength": 255 },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "items": { "$ref": "#/$defs/evidence" }
+    }
+  },
+  "$defs": {
+    "opaqueId": { "type": "string", "minLength": 1, "maxLength": 255 },
+    "projectId": { "type": "string", "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$" },
+    "workspaceId": { "type": "string", "pattern": "^wsp_[0-9a-hjkmnp-tv-z]{26}$" },
+    "taskId": { "type": "string", "pattern": "^tsk_[0-9a-hjkmnp-tv-z]{26}$" },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?![A-Za-z]:/)[^\\\\\\u0000]+$"
+    },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "evidence": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "path", "sha256"],
+          "properties": {
+            "kind": { "const": "file_change" },
+            "path": { "$ref": "#/$defs/relativePath" },
+            "sha256": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "command", "exit_code", "output_sha256"],
+          "properties": {
+            "kind": { "const": "command_result" },
+            "command": { "type": "string", "minLength": 1, "maxLength": 4096 },
+            "exit_code": { "type": "integer", "minimum": 0, "maximum": 255 },
+            "output_sha256": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "name", "sha256"],
+          "properties": {
+            "kind": { "const": "artifact_digest" },
+            "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+            "sha256": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "text"],
+          "properties": {
+            "kind": { "const": "note" },
+            "text": { "type": "string", "minLength": 1, "maxLength": 8192 }
+          }
+        }
+      ]
+    }
+  }
+}

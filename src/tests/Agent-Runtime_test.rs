@@ -1,10 +1,130 @@
 use super::test_bridge::*;
 use super::*;
-use ac_ant_delirium::engine_identity;
 use ac_ant_delirium::engine::Swarm_Engine_unit::SwarmEngine;
+use ac_ant_delirium::engine_identity;
 use ac_ant_delirium::structs::{
-    AuditConfig, AuditResult, AuditViolation, GovernanceMode, RuntimeConfig,
+    AtomicProjectProjectionWriter, AuditConfig, AuditResult, AuditViolation, CanonicalStateStore,
+    CanonicalTaskProjectionRef, GovernanceMode, NewAuditEvent, NumberedPlan, NumberedPlanStep,
+    ProjectDatabase, ProjectionMetadata, RuntimeConfig, StorageProject, StorageWorkspace,
+    TaskOrchestration, TaskOrchestratorPayload, TodoProjectionContext, TransitionTaskState,
+    AUDIT_EVENT_CONTRACT_VERSION,
 };
+
+const BOOTSTRAP_TEMPLATES_V1: &str = include_str!("snapshots/v1/bootstrap_templates.tsv");
+const JSON_SCHEMA_CONTRACT_V1: &str = include_str!("snapshots/v1/json_schema_contract.tsv");
+const AUTOBROWSER_BOOTSTRAP_LAYOUT_V1: &str =
+    include_str!("snapshots/v1/autobrowser_bootstrap_layout.tsv");
+
+fn fnv1a_64(content: &str) -> u64 {
+    content
+        .as_bytes()
+        .iter()
+        .fold(0xcbf29ce484222325, |hash, byte| {
+            (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3)
+        })
+}
+
+fn bootstrap_template_entries() -> Vec<(&'static str, &'static str)> {
+    vec![
+        ("default_hierarchy.toml", DEFAULT_NEW_PROJECT_HIERARCHY),
+        ("connected.json", DEFAULT_CONNECTED_JSON),
+        ("context.json", DEFAULT_CONTEXT_JSON),
+        ("feedback.json", DEFAULT_FEEDBACK_JSON),
+        ("governance_history.json", DEFAULT_GOVERNANCE_HISTORY_JSON),
+        ("governance.json", DEFAULT_GOVERNANCE_JSON),
+        ("manager_tasks.json", DEFAULT_MANAGER_TASKS_JSON),
+        ("messages.json", DEFAULT_MESSAGES_JSON),
+        ("submit_queue.json", DEFAULT_SUBMIT_QUEUE_JSON),
+        ("task_orchestrator.json", DEFAULT_TASK_ORCHESTRATOR_JSON),
+        ("sample_plan.json", DEFAULT_SAMPLE_PLAN_JSON),
+        ("transition_task.json", DEFAULT_TRANSITION_TASK_JSON),
+        ("project_state.gitignore", DEFAULT_PROJECT_STATE_GITIGNORE),
+        ("task_index.txt", DEFAULT_TASK_INDEX_TXT),
+        ("scripts_readme.md", DEFAULT_SCRIPTS_README),
+        (
+            "unlock_governance.template.sh",
+            DEFAULT_UNLOCK_GOVERNANCE_TEMPLATE_SH,
+        ),
+        (
+            "lock_governance.template.sh",
+            DEFAULT_LOCK_GOVERNANCE_TEMPLATE_SH,
+        ),
+        (
+            "update_plugin_binary.template.sh",
+            DEFAULT_UPDATE_PLUGIN_BINARY_TEMPLATE_SH,
+        ),
+        ("default_rules.toml", DEFAULT_NEW_PROJECT_RULES),
+        (
+            "ant_delirium_build_guard.rs",
+            DEFAULT_NEW_PROJECT_BUILD_GUARD_TEMPLATE,
+        ),
+        ("githooks_readme.md", DEFAULT_GITHOOKS_README),
+        ("merge_request.json", DEFAULT_MERGE_REQUEST_TEMPLATE),
+        ("push_request.json", DEFAULT_PUSH_REQUEST_TEMPLATE),
+    ]
+}
+
+fn render_template_snapshot() -> String {
+    let mut actual = String::from("snapshot_version=1\n");
+    for (name, content) in bootstrap_template_entries() {
+        actual.push_str(&format!(
+            "{}\t{}\t{:016x}\n",
+            name,
+            content.len(),
+            fnv1a_64(content)
+        ));
+    }
+    actual
+}
+
+fn assert_required_json_fields(name: &str, content: &str, fields: &str) {
+    for field in fields.split(',') {
+        assert!(
+            content.contains(&format!("\"{}\"", field)),
+            "{} lost required JSON field '{}'",
+            name,
+            field
+        );
+    }
+}
+
+fn collect_snapshot_layout(root: &Path, scope: &str, excluded: &[&str]) -> Vec<String> {
+    fn visit(root: &Path, current: &Path, scope: &str, excluded: &[&str], out: &mut Vec<String>) {
+        let mut entries = fs::read_dir(current)
+            .expect("bootstrap snapshot directory should be readable")
+            .map(|entry| entry.expect("bootstrap snapshot entry should be readable"))
+            .collect::<Vec<_>>();
+        entries.sort_by_key(|entry| entry.file_name());
+
+        for entry in entries {
+            let path = entry.path();
+            let relative = path
+                .strip_prefix(root)
+                .expect("snapshot entry should remain under its root")
+                .to_string_lossy()
+                .replace('\\', "/");
+            if excluded.contains(&relative.as_str()) {
+                continue;
+            }
+            let file_type = entry
+                .file_type()
+                .expect("bootstrap snapshot file type should be readable");
+            out.push(format!(
+                "{}\t{}\t{}",
+                scope,
+                if file_type.is_dir() { "D" } else { "F" },
+                relative
+            ));
+            if file_type.is_dir() {
+                visit(root, &path, scope, excluded, out);
+            }
+        }
+    }
+
+    let mut entries = Vec::new();
+    visit(root, root, scope, excluded, &mut entries);
+    entries
+}
 
 fn canonical_runtime_plugin_command() -> String {
     format!(
@@ -70,6 +190,100 @@ fn sample_violation(file_path: &str, rule_id: &str) -> AuditViolation {
         detected_dna: String::new(),
         taxonomy_path: String::new(),
     }
+}
+
+#[test]
+fn bootstrap_templates_match_versioned_snapshot() {
+    let actual = render_template_snapshot();
+    if actual != BOOTSTRAP_TEMPLATES_V1 {
+        println!("BOOTSTRAP_TEMPLATE_SNAPSHOT_BEGIN\n{actual}BOOTSTRAP_TEMPLATE_SNAPSHOT_END");
+    }
+    assert_eq!(actual, BOOTSTRAP_TEMPLATES_V1);
+}
+
+#[test]
+fn bootstrap_json_templates_match_versioned_schema_contract() {
+    let templates = bootstrap_template_entries();
+
+    for line in JSON_SCHEMA_CONTRACT_V1.lines().skip(1) {
+        let (name, fields) = line
+            .split_once('\t')
+            .expect("schema snapshot rows should contain a tab");
+        if name == "materialized_context.json" {
+            continue;
+        }
+        let content = templates
+            .iter()
+            .find_map(|(template_name, content)| (*template_name == name).then_some(*content))
+            .unwrap_or_else(|| panic!("schema contract references unknown template: {name}"));
+        assert_required_json_fields(name, content, fields);
+    }
+}
+
+#[test]
+fn autobrowser_bootstrap_layout_matches_versioned_snapshot() {
+    let root = unique_temp_dir("ac_ant_delirium_autobrowser_bootstrap_snapshot");
+    let project_root = root.join("AutoBrowser");
+    let plugin_dir = project_root.join("plugins").join("AutoBrowser");
+    fs::create_dir_all(&project_root).expect("AutoBrowser fixture root should be created");
+    let plugin = PluginContext {
+        plugin_dir: plugin_dir.clone(),
+        config_path: plugin_dir.join("ant_delirium_config"),
+        repository_path: project_root.clone(),
+        workspace_path: project_root.clone(),
+        is_worktree: false,
+    };
+
+    materialize_project_local_plugin_package(
+        &project_root,
+        None,
+        None,
+        Some(&plugin),
+        "antdelirium",
+    )
+    .expect("AutoBrowser bootstrap package should materialize");
+
+    let mut actual = String::from("snapshot_version=1\n");
+    for entry in collect_snapshot_layout(&project_root, "project", &["plugins"]) {
+        actual.push_str(&entry);
+        actual.push('\n');
+    }
+    for entry in collect_snapshot_layout(&plugin_dir, "plugin", &["bin/guard"]) {
+        actual.push_str(&entry);
+        actual.push('\n');
+    }
+    assert_eq!(actual, AUTOBROWSER_BOOTSTRAP_LAYOUT_V1);
+
+    let context = fs::read_to_string(plugin.context_path())
+        .expect("materialized context snapshot should be readable");
+    let context_contract = JSON_SCHEMA_CONTRACT_V1
+        .lines()
+        .find_map(|line| line.strip_prefix("materialized_context.json\t"))
+        .expect("materialized context schema should be versioned");
+    assert_required_json_fields("materialized_context.json", &context, context_contract);
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        for template in [
+            "unlock_governance_files.template.sh",
+            "lock_governance_files.template.sh",
+            "update_plugin_binary_and_lock.template.sh",
+        ] {
+            let mode = fs::metadata(plugin_dir.join("scripts").join(template))
+                .expect("script template metadata should be readable")
+                .permissions()
+                .mode();
+            assert_eq!(
+                mode & 0o111,
+                0,
+                "generated script templates must remain non-executable"
+            );
+        }
+    }
+
+    let _ = fs::remove_dir_all(root);
 }
 
 #[test]
@@ -550,6 +764,8 @@ fn claims_highest_priority_manager_task_before_common_work() {
             owner_id: -1,
             status: "open".to_string(),
             created_at: 1,
+            mode: None,
+            grade: None,
         },
         ManagerTask {
             id: "b".to_string(),
@@ -560,6 +776,8 @@ fn claims_highest_priority_manager_task_before_common_work() {
             owner_id: -1,
             status: "open".to_string(),
             created_at: 2,
+            mode: None,
+            grade: None,
         },
     ];
 
@@ -618,6 +836,8 @@ fn done_manager_tasks_are_not_active() {
         owner_id: -1,
         status: "open".to_string(),
         created_at: 0,
+        mode: None,
+        grade: None,
     }));
     assert!(!is_manager_task_active(&ManagerTask {
         id: "b".to_string(),
@@ -628,6 +848,8 @@ fn done_manager_tasks_are_not_active() {
         owner_id: -1,
         status: "done".to_string(),
         created_at: 0,
+        mode: None,
+        grade: None,
     }));
 }
 
@@ -897,8 +1119,14 @@ fn root_can_accept_and_close_submit_queue_record() {
 
     let queue = read_submit_records(&plugin_root.submit_queue_path()).expect("queue should load");
     let submit_id = queue[0].id.clone();
-    update_submit_status(&plugin_root, &submit_id, "accepted", Some("looks good"))
-        .expect("root should accept");
+    update_submit_status(
+        &plugin_root,
+        &submit_id,
+        "accepted",
+        Some("looks good"),
+        None,
+    )
+    .expect("root should accept");
 
     let accepted_status =
         render_agents_report(&plugin_root, true).expect("accepted status should render");
@@ -909,7 +1137,7 @@ fn root_can_accept_and_close_submit_queue_record() {
     assert!(accepted_status.contains("\"decision_by_agent_id\":"));
     assert!(accepted_status.contains("\"decision_note\": \"looks good\""));
 
-    update_submit_status(&plugin_root, &submit_id, "closed", Some("integrated"))
+    update_submit_status(&plugin_root, &submit_id, "closed", Some("integrated"), None)
         .expect("root should close");
 
     let queue = read_submit_records(&plugin_root.submit_queue_path()).expect("queue should reload");
@@ -980,8 +1208,14 @@ fn accepted_submit_releases_agent_claim_and_suppresses_same_task_until_governanc
 
     let queue = read_submit_records(&plugin_root.submit_queue_path()).expect("queue should load");
     let submit_id = queue[0].id.clone();
-    update_submit_status(&plugin_root, &submit_id, "accepted", Some("review passed"))
-        .expect("root should accept");
+    update_submit_status(
+        &plugin_root,
+        &submit_id,
+        "accepted",
+        Some("review passed"),
+        None,
+    )
+    .expect("root should accept");
 
     let tasks =
         read_governance_tasks(&plugin_root.governance_path()).expect("governance should reload");
@@ -1095,6 +1329,7 @@ fn rejected_submit_preserves_agent_claim() {
         &submit_id,
         "rejected",
         Some("needs more work"),
+        None,
     )
     .expect("root should reject");
 
@@ -1188,10 +1423,22 @@ fn submit_queue_report_summarizes_lifecycle_statuses() {
     let submit_a = queue[0].id.clone();
     let submit_b = queue[1].id.clone();
 
-    update_submit_status(&plugin_root, &submit_a, "accepted", Some("review passed"))
-        .expect("root should accept");
-    update_submit_status(&plugin_root, &submit_b, "closed", Some("already merged"))
-        .expect("root should close");
+    update_submit_status(
+        &plugin_root,
+        &submit_a,
+        "accepted",
+        Some("review passed"),
+        None,
+    )
+    .expect("root should accept");
+    update_submit_status(
+        &plugin_root,
+        &submit_b,
+        "closed",
+        Some("already merged"),
+        None,
+    )
+    .expect("root should close");
 
     let report =
         render_submit_queue(&plugin_root, false, None, None).expect("queue report should render");
@@ -1263,8 +1510,14 @@ fn submit_queue_views_support_active_history_and_single_submit() {
     let queue = read_submit_records(&plugin_root.submit_queue_path()).expect("queue should load");
     let submit_a = queue[0].id.clone();
     let submit_b = queue[1].id.clone();
-    update_submit_status(&plugin_root, &submit_a, "accepted", Some("review passed"))
-        .expect("root should accept");
+    update_submit_status(
+        &plugin_root,
+        &submit_a,
+        "accepted",
+        Some("review passed"),
+        None,
+    )
+    .expect("root should accept");
 
     let active = render_submit_queue(&plugin_root, false, Some("active"), None)
         .expect("active queue should render");
@@ -1423,6 +1676,8 @@ fn closed_manager_task_releases_agent_back_to_governance_work() {
             owner_id: -1,
             status: "open".to_string(),
             created_at: unix_timestamp(),
+            mode: None,
+            grade: None,
         }],
     )
     .expect("manager task should be written");
@@ -1490,6 +1745,8 @@ fn swarm_status_and_identity_highlight_manager_override() {
             owner_id: 1,
             status: "claimed".to_string(),
             created_at: unix_timestamp(),
+            mode: None,
+            grade: None,
         }],
     )
     .expect("manager tasks should be written");
@@ -2324,6 +2581,7 @@ fn root_checks_ignore_consumed_submit_history() {
         &submit_id,
         "accepted",
         Some("accepted despite old state"),
+        None,
     )
     .expect("root should accept");
 
@@ -2720,6 +2978,8 @@ fn release_stale_agent_claims_returns_owned_work_to_backlog() {
             owner_id: 1,
             status: "claimed".to_string(),
             created_at: unix_timestamp(),
+            mode: None,
+            grade: None,
         }],
     )
     .expect("manager fixture should be written");
@@ -3613,25 +3873,27 @@ fn plugin_help_keeps_installation_canonical() {
 #[test]
 fn config_init_materializes_default_tomls_and_build_guard_for_new_project() {
     let root = unique_temp_dir("ac_ant_delirium_config_init");
-    let project_root = root.join("AC_Rayon-Genetics");
+    let project_root = root.join("Mail_Project");
     fs::create_dir_all(&project_root).expect("project root should exist");
 
     let fake_bin = root.join("delirium_cli");
     fs::write(&fake_bin, "fake-binary").expect("fake binary should exist");
 
-    let plugin_dir = root.join("plugins").join("AC_Rayon-Genetics");
+    let plugin_dir = project_root.join("plugins").join("Stalwart");
     fs::create_dir_all(&plugin_dir).expect("plugin dir should exist");
 
     let copied_binary = copy_binary_if_needed(
         &fake_bin,
-        &plugin_dir.join(engine_identity::DEFAULT_PLUGIN_BINARY_NAME),
+        &plugin_dir
+            .join("bin")
+            .join(engine_identity::DEFAULT_PLUGIN_BINARY_NAME),
     )
-        .expect("binary copy should succeed");
+    .expect("binary copy should succeed");
     assert!(copied_binary);
 
     let hierarchy_written = write_default_template_if_missing(
         &plugin_dir.join("ant_delirium_config/default_hierarchy.toml"),
-        &render_new_project_hierarchy(&project_root),
+        &render_new_project_hierarchy(&project_root, "Stalwart"),
     )
     .expect("hierarchy should be written");
     let rules_written = write_default_template_if_missing(
@@ -3641,7 +3903,7 @@ fn config_init_materializes_default_tomls_and_build_guard_for_new_project() {
     .expect("rules should be written");
     let guard_written = write_default_template_if_missing(
         &project_root.join("AC_Ant-Delirium_props/ant_delirium_build_guard.rs"),
-        &render_new_project_build_guard(),
+        &render_new_project_build_guard("Stalwart"),
     )
     .expect("guard should be written");
 
@@ -3665,11 +3927,72 @@ fn config_init_materializes_default_tomls_and_build_guard_for_new_project() {
         fs::read_to_string(plugin_dir.join("ant_delirium_config/default_hierarchy.toml"))
             .expect("hierarchy should be readable");
     assert!(hierarchy.contains(&project_root.to_string_lossy().replace('\\', "/")));
+    assert!(hierarchy.contains("../plugins/Stalwart/bin/ac_ant_delirium"));
+    assert!(hierarchy.contains("../plugins/Stalwart/ant_delirium_config/default_hierarchy.toml"));
+    assert!(!hierarchy.contains("../plugins/Mail_Project/"));
+    let orchestrator = render_new_project_task_orchestrator("Stalwart");
+    assert!(orchestrator.contains("../plugins/Stalwart/plan/[0.0]_Sample_Plan.json"));
+    assert!(!orchestrator.contains("Aesthetic-Red"));
     let guard =
         fs::read_to_string(project_root.join("AC_Ant-Delirium_props/ant_delirium_build_guard.rs"))
             .expect("guard should be readable");
     assert!(guard.contains("pub(crate) fn run"));
-    assert!(guard.contains("ant_delirium"));
+    assert!(guard.contains("hierarchy.repository"));
+    assert!(guard.contains("candidate_plugin_roots"));
+    assert!(!guard.contains("Stalwart"));
+    assert!(!guard.contains("Mail_Project"));
+    assert!(!guard.contains("Aesthetic-Red"));
+    assert!(!guard.contains("__ANT_DELIRIUM_PLUGIN_PACKAGE__"));
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn config_init_detects_existing_plans_in_nested_directories() {
+    let root = unique_temp_dir("ac_ant_delirium_nested_plan_detection");
+    let plan_dir = root.join("plan/foundation");
+    fs::create_dir_all(&plan_dir).expect("nested plan directory should exist");
+    fs::write(plan_dir.join("[0.0]_Real_Plan.json"), "{}\n").expect("real plan should be written");
+
+    assert!(directory_contains_json(&root.join("plan")).expect("plan tree should be readable"));
+    assert!(!root.join("plan/[0.0]_Sample_Plan.json").exists());
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn plugin_context_prefers_lowercase_global_transition_task_path() {
+    let root = unique_temp_dir("ac_ant_delirium_lowercase_global_transition");
+    let plugin = temp_plugin_context(&root, "Stalwart", "Mail_Project", "Mail_Project");
+    let lower = plugin
+        .plugin_dir
+        .join("global")
+        .join("transition_task.json");
+    let legacy = plugin
+        .plugin_dir
+        .join("Global")
+        .join("transition_task.json");
+    fs::create_dir_all(lower.parent().unwrap()).expect("lower global dir should exist");
+    fs::create_dir_all(legacy.parent().unwrap()).expect("legacy Global dir should exist");
+    fs::write(&lower, r#"{ "transition_tasks": [] }"#).expect("lower transition should write");
+    fs::write(&legacy, r#"{ "transition_tasks": [] }"#).expect("legacy transition should write");
+
+    assert_eq!(plugin.global_transition_task_path(), lower);
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn plugin_context_falls_back_to_legacy_global_transition_task_path() {
+    let root = unique_temp_dir("ac_ant_delirium_legacy_global_transition");
+    let plugin = temp_plugin_context(&root, "Aesthetic-Red", "Aesthetic-Red", "Aesthetic-Red");
+    let legacy = plugin
+        .plugin_dir
+        .join("Global")
+        .join("transition_task.json");
+    fs::create_dir_all(legacy.parent().unwrap()).expect("legacy Global dir should exist");
+    fs::write(&legacy, r#"{ "transition_tasks": [] }"#).expect("legacy transition should write");
+
+    assert_eq!(plugin.global_transition_task_path(), legacy);
 
     let _ = fs::remove_dir_all(root);
 }
@@ -3698,8 +4021,12 @@ fn hooks_init_materializes_managed_git_hooks() {
     assert!(hooks_dir.join("commit-msg").is_file());
     assert!(hooks_dir.join("pre-merge-commit").is_file());
     assert!(hooks_dir.join("pre-push").is_file());
-    assert!(orchestration_dir.join("merge_request.template.json").is_file());
-    assert!(orchestration_dir.join("push_request.template.json").is_file());
+    assert!(orchestration_dir
+        .join("merge_request.template.json")
+        .is_file());
+    assert!(orchestration_dir
+        .join("push_request.template.json")
+        .is_file());
 
     let pre_commit =
         fs::read_to_string(hooks_dir.join("pre-commit")).expect("pre-commit should be readable");
@@ -3853,10 +4180,9 @@ fn hooks_init_commit_msg_requires_submit_id_contract() {
     )
     .expect("hooks init should succeed");
 
-    let commit_msg = fs::read_to_string(
-        project_root.join("AC_Ant-Delirium_props/githooks/commit-msg"),
-    )
-    .expect("commit-msg should be readable");
+    let commit_msg =
+        fs::read_to_string(project_root.join("AC_Ant-Delirium_props/githooks/commit-msg"))
+            .expect("commit-msg should be readable");
     assert!(commit_msg.contains("submit_id=$(sed -n"));
     assert!(commit_msg.contains("missing explicit submit_id"));
     assert!(commit_msg.contains("submit_id=<ID>"));
@@ -3873,19 +4199,27 @@ fn materialize_project_local_plugin_package_creates_guard_in_repository_root() {
         "AC_Rayon-Genetics",
         "AC_Rayon-Genetics",
     );
+    let guard_path = plugin
+        .repository_path
+        .join("AC_Ant-Delirium_props/ant_delirium_build_guard.rs");
+    fs::create_dir_all(guard_path.parent().expect("guard parent should exist"))
+        .expect("guard parent should be created");
+    fs::write(&guard_path, "stale manually edited guard\n").expect("stale guard should be seeded");
 
     let report = materialize_project_local_plugin_package(
         &plugin.repository_path,
+        None,
         None,
         Some(&plugin),
         &canonical_runtime_plugin_command(),
     )
     .expect("materialization should succeed");
 
-    let guard_path = plugin
-        .repository_path
-        .join("AC_Ant-Delirium_props/ant_delirium_build_guard.rs");
     assert!(guard_path.is_file());
+    let guard = fs::read_to_string(&guard_path).expect("guard should be readable");
+    assert!(!guard.contains("stale manually edited guard"));
+    assert!(guard.contains("hierarchy.repository"));
+    assert!(!guard.contains("AC_Rayon-Genetics"));
     assert!(report.contains("Guard path:"));
     assert!(report.contains("ant_delirium_build_guard.rs"));
 
@@ -3906,6 +4240,61 @@ fn bootstrap_context_prefers_plugin_dir_when_running_inside_plugins_folder() {
 
     assert_eq!(effective_root, project_root);
     assert_eq!(effective_plugin_dir, plugin_dir);
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn bootstrap_context_resolves_project_local_bin_layout_from_repository_root() {
+    let root = unique_temp_dir("ac_ant_delirium_project_local_bin_root");
+    let project_root = root.join("Mail_Project");
+    let plugin_dir = project_root.join("plugins").join("Stalwart");
+    fs::create_dir_all(plugin_dir.join("bin")).expect("plugin bin dir should exist");
+
+    let fake_exe = plugin_dir
+        .join("bin")
+        .join(engine_identity::DEFAULT_PLUGIN_BINARY_NAME);
+    let (effective_root, effective_plugin_dir) =
+        infer_bootstrap_context(&project_root, None, &fake_exe);
+
+    assert_eq!(effective_root, project_root);
+    assert_eq!(effective_plugin_dir, plugin_dir);
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn bootstrap_context_resolves_project_local_bin_layout_from_plugin_cwd() {
+    let root = unique_temp_dir("ac_ant_delirium_project_local_bin_plugin_cwd");
+    let project_root = root.join("Mail_Project");
+    let plugin_dir = project_root.join("plugins").join("Stalwart");
+    fs::create_dir_all(plugin_dir.join("bin")).expect("plugin bin dir should exist");
+
+    let fake_exe = plugin_dir
+        .join("bin")
+        .join(engine_identity::DEFAULT_PLUGIN_BINARY_NAME);
+    let (effective_root, effective_plugin_dir) =
+        infer_bootstrap_context(&plugin_dir, None, &fake_exe);
+
+    assert_eq!(effective_root, project_root);
+    assert_eq!(effective_plugin_dir, plugin_dir);
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn explicit_config_target_resolves_project_local_plugin_dir_before_file_exists() {
+    let root = unique_temp_dir("ac_ant_delirium_explicit_config_target");
+    let project_root = root.join("Mail_Project");
+    let config_dir = project_root
+        .join("plugins")
+        .join("Stalwart")
+        .join("ant_delirium_config");
+
+    assert_eq!(
+        plugin_dir_from_config_target(&config_dir),
+        Some(project_root.join("plugins").join("Stalwart"))
+    );
 
     let _ = fs::remove_dir_all(root);
 }
@@ -3973,6 +4362,8 @@ fn manager_task_suppresses_normal_audit_until_it_is_done() {
             owner_id: -1,
             status: "open".to_string(),
             created_at: 1,
+            mode: None,
+            grade: None,
         }],
     )
     .expect("manager task fixture should be written");
@@ -4264,4 +4655,751 @@ fn rayon_project_audit_state_is_coordinated_across_worktrees() {
     }
 
     let _ = fs::remove_dir_all(plugin_root);
+}
+
+#[test]
+fn update_submit_status_approves_current_task_when_grade_is_passing() {
+    let root = unique_temp_dir("ac_ant_delirium_orchestrator_grade");
+    let plugin = temp_plugin_context(
+        &root,
+        "AC_Rayon-Genetics",
+        "AC_Rayon-Genetics",
+        "AC_Rayon-Genetics",
+    );
+    let plan_path = plugin.workspace_path.join("[1.0]_test_plan.json");
+    let orchestrator_path = plugin.task_orchestrator_path();
+
+    fs::write(&plan_path, r#"{
+        "plan_id": "1.0",
+        "title": "Test Plan",
+        "complete_plan": "Test",
+        "tasks": [{"step_id": "1.0.1", "task_prompt": "Test step", "implemented": true, "reviewed": false}]
+    }"#).unwrap();
+
+    fs::write(
+        &orchestrator_path,
+        r#"{
+        "orchestration": {
+            "active_plan": "[1.0]_test_plan.json",
+            "current_step_id": "1.0.1",
+            "mode": "review",
+            "grade": 0.0
+        }
+    }"#,
+    )
+    .unwrap();
+
+    sync_agent_registration(&plugin).unwrap().unwrap();
+
+    let submit_id = "test-submit-1";
+    fs::write(&plugin.submit_queue_path(), format!(
+        "{{\n  \"entries\": [\n    {{\n      \"id\": \"{}\",\n      \"task_id\": \"\",\n      \"task_revision\": \"\",\n      \"task_content_hash\": \"\",\n      \"task_file_path\": \"\",\n      \"repository_path\": \"\",\n      \"workspace_path\": \"\",\n      \"title\": \"\",\n      \"topic\": \"\",\n      \"branch\": \"\",\n      \"base_revision\": \"\",\n      \"workspace_revision\": \"\",\n      \"repository_revision\": \"\",\n      \"evidence_content_hash\": \"\",\n      \"agent_id\": \"Test\",\n      \"status\": \"pending\",\n      \"created_at\": 0,\n      \"decision_by_internal_id\": -1,\n      \"decision_by_agent_id\": \"\",\n      \"decision_note\": \"\",\n      \"decided_at\": 0,\n      \"updated_at\": 0\n    }}\n  ]\n}}",
+        submit_id
+    )).unwrap();
+
+    update_submit_status(&plugin, submit_id, "accepted", None, Some(8.5)).unwrap();
+
+    let plan_content = fs::read_to_string(&plan_path).unwrap();
+    assert!(plan_content.contains("\"review_status\": \"approved\""));
+    assert!(!plan_content.contains("\"reviewed\":"));
+
+    let orchestrator_content = fs::read_to_string(&orchestrator_path).unwrap();
+    assert!(orchestrator_content.contains("\"grade\": 8.5"));
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn task_orchestrator_reads_legacy_state_without_transition() {
+    let root = unique_temp_dir("ac_ant_delirium_legacy_orchestrator_transition");
+    let path = root.join("task_orchestrator.json");
+    fs::write(
+        &path,
+        r#"{
+        "orchestration": {
+            "active_plan": "[1.0]_test_plan.json",
+            "current_step_id": "1.0.1",
+            "mode": "implementation",
+            "grade": 0.0,
+            "task_start_timestamp": 11
+        }
+    }"#,
+    )
+    .expect("legacy orchestrator should write");
+
+    let payload = read_task_orchestrator(&path)
+        .expect("legacy orchestrator should read")
+        .expect("legacy orchestrator should parse");
+
+    assert_eq!(payload.orchestration.active_plan, "[1.0]_test_plan.json");
+    assert_eq!(payload.orchestration.current_step_id, "1.0.1");
+    assert_eq!(payload.transition, None);
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn task_orchestrator_round_trips_transition_state() {
+    let root = unique_temp_dir("ac_ant_delirium_orchestrator_transition_round_trip");
+    let path = root.join("task_orchestrator.json");
+    let payload = TaskOrchestratorPayload {
+        orchestration: TaskOrchestration {
+            active_plan:
+                "../plugins/Aesthetic-Red/plan/widgets/[1.36]_Plan___TextBlock_Widget.json"
+                    .to_string(),
+            current_step_id: "1.36.10".to_string(),
+            mode: "implementation".to_string(),
+            grade: 0.0,
+            task_start_timestamp: 42,
+        },
+        transition: Some(TransitionTaskState {
+            active: true,
+            source_plan:
+                "../plugins/Aesthetic-Red/plan/widgets/[1.36]_Plan___TextBlock_Widget.json"
+                    .to_string(),
+            source_plan_id: "1.36".to_string(),
+            final_step_id: "1.36.9".to_string(),
+            transition_source: "../plugins/Aesthetic-Red/Global/transition_task.json".to_string(),
+            current_transition_id: "1.0".to_string(),
+            current_projected_step_id: "1.36.10".to_string(),
+            completed_transition_ids: vec!["1.0".to_string(), "1.1".to_string()],
+        }),
+    };
+
+    write_task_orchestrator(&path, &payload).expect("orchestrator should write");
+    let parsed = read_task_orchestrator(&path)
+        .expect("orchestrator should read")
+        .expect("orchestrator should parse");
+
+    assert_eq!(parsed, payload);
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn final_plan_step_id_uses_numeric_segment_order() {
+    let plan = NumberedPlan {
+        plan_id: "1.0".to_string(),
+        title: "Numeric Step Plan".to_string(),
+        complete_plan: String::new(),
+        tasks: vec![
+            NumberedPlanStep {
+                step_id: "1.9".to_string(),
+                task_prompt: String::new(),
+                task_reviewed: true,
+                review_explanation: String::new(),
+                implemented: true,
+                implementation_explanation: String::new(),
+                implementation_context: String::new(),
+                review_status: "none".to_string(),
+                grade_explanation: String::new(),
+            },
+            NumberedPlanStep {
+                step_id: "1.10".to_string(),
+                task_prompt: String::new(),
+                task_reviewed: true,
+                review_explanation: String::new(),
+                implemented: true,
+                implementation_explanation: String::new(),
+                implementation_context: String::new(),
+                review_status: "none".to_string(),
+                grade_explanation: String::new(),
+            },
+            NumberedPlanStep {
+                step_id: "1.2".to_string(),
+                task_prompt: String::new(),
+                task_reviewed: true,
+                review_explanation: String::new(),
+                implemented: true,
+                implementation_explanation: String::new(),
+                implementation_context: String::new(),
+                review_status: "none".to_string(),
+                grade_explanation: String::new(),
+            },
+        ],
+    };
+
+    assert_eq!(
+        final_plan_step_id(&plan)
+            .expect("final step should parse")
+            .as_deref(),
+        Some("1.10")
+    );
+}
+
+#[test]
+fn numbered_plan_reads_legacy_keys_but_writes_only_canonical_keys() {
+    let root = unique_temp_dir("ac_ant_delirium_numbered_plan_schema");
+    let path = root.join("[1.0]_legacy_plan.json");
+    fs::write(
+        &path,
+        r#"{
+        "plan_id": "1.0",
+        "title": "Legacy Plan",
+        "objective": "Complete legacy plan context",
+        "tasks": [
+            { "step_id": "1.0", "description": "Legacy task prompt", "implemented": false }
+        ]
+    }"#,
+    )
+    .expect("legacy plan fixture should write");
+
+    let plan = read_numbered_plan(&path).expect("legacy plan keys should remain readable");
+    assert_eq!(plan.complete_plan, "Complete legacy plan context");
+    assert_eq!(plan.tasks[0].task_prompt, "Legacy task prompt");
+
+    super::unitcore::write_numbered_plan(&path, &plan)
+        .expect("plan should write with canonical keys");
+    let written = fs::read_to_string(&path).expect("canonical plan should read");
+    assert!(written.contains("\"complete_plan\""));
+    assert!(written.contains("\"task_prompt\""));
+    assert!(!written.contains("\"objective\""));
+    assert!(!written.contains("\"description\""));
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn transition_step_projection_increments_last_numeric_segment() {
+    assert_eq!(
+        project_transition_step_id("1.10", 0).expect("projection should work"),
+        "1.11"
+    );
+    assert_eq!(
+        project_transition_step_id("1.15", 0).expect("projection should work"),
+        "1.16"
+    );
+    assert_eq!(
+        project_transition_step_id("1.2.9", 0).expect("projection should work"),
+        "1.2.10"
+    );
+    assert_eq!(
+        project_transition_step_id("1.10", 2).expect("projection should work"),
+        "1.13"
+    );
+}
+
+#[test]
+fn step_id_parser_rejects_malformed_transition_boundaries() {
+    assert!(parse_step_id_segments("").is_err());
+    assert!(parse_step_id_segments("1.x").is_err());
+    assert!(parse_step_id_segments("1..2").is_err());
+    assert!(parse_step_id_segments("1.2a").is_err());
+}
+
+#[test]
+fn transition_task_fixture_loads_stable_source_ids() {
+    let root = unique_temp_dir("ac_ant_delirium_transition_fixture_loads");
+    let path = root.join("transition_task.json");
+    fs::write(
+        &path,
+        r#"{
+        "transition_tasks": [
+            {
+                "transition_task_id": "1.0",
+                "task_prompt": "Inspect active task-owned background work.",
+                "task_reviewed": true,
+                "implemented": false,
+                "implementation_context": "Only inspect registered task-owned sessions."
+            },
+            {
+                "transition_task_id": "1.1",
+                "description": "Close task-owned sessions that are still active.",
+                "task_reviewed": true,
+                "implemented": false,
+                "implementation_context": "Do not close unrelated sessions."
+            }
+        ]
+    }"#,
+    )
+    .expect("transition fixture should write");
+
+    let tasks = read_transition_task_definitions(&path).expect("transition fixture should parse");
+
+    assert_eq!(tasks.len(), 2);
+    assert_eq!(tasks[0].step_id, "1.0");
+    assert_eq!(tasks[1].step_id, "1.1");
+    assert_eq!(
+        tasks[0].task_prompt,
+        "Inspect active task-owned background work."
+    );
+    assert_eq!(
+        tasks[1].task_prompt,
+        "Close task-owned sessions that are still active."
+    );
+    assert!(tasks[0].task_reviewed);
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn default_transition_tasks_are_self_contained_and_support_continuous_cleanup() {
+    let root = unique_temp_dir("ac_ant_delirium_default_transition_prompts");
+    let path = root.join("transition_task.json");
+    fs::write(&path, super::unitcore::DEFAULT_TRANSITION_TASK_JSON)
+        .expect("default transition task fixture should write");
+
+    let raw = fs::read_to_string(&path).expect("default transition task fixture should read");
+    let tasks = read_transition_task_definitions(&path)
+        .expect("default transition task fixture should parse");
+
+    assert_eq!(tasks.len(), 4);
+    assert_eq!(tasks[0].step_id, "1.0");
+    assert_eq!(tasks[3].step_id, "1.3");
+    assert!(!raw.contains("\"description\""));
+    assert!(tasks.iter().all(|task| task.task_prompt.contains(
+        "Stay in the project directory /home/dracker/AntigravityProjects/playground/AutoBrowser/"
+    )));
+    assert!(tasks[0]
+        .task_prompt
+        .contains("Do not scan the entire operating system"));
+    assert!(tasks[0]
+        .task_prompt
+        .contains("no-op result and continue immediately"));
+    assert!(tasks[1]
+        .task_prompt
+        .contains("Gracefully stop task-owned background commands"));
+    assert!(tasks[1].task_prompt.contains("Never use sudo"));
+    assert!(tasks[2].task_prompt.contains("Do not delete source code"));
+    assert!(tasks[3]
+        .task_prompt
+        .contains("must not pause continuous task execution"));
+    assert!(tasks
+        .iter()
+        .all(|task| !task.task_prompt.contains("plugins/")));
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn transition_task_fixture_rejects_duplicate_source_ids() {
+    let root = unique_temp_dir("ac_ant_delirium_transition_fixture_duplicates");
+    let path = root.join("transition_task.json");
+    fs::write(
+        &path,
+        r#"{
+        "transition_tasks": [
+            { "transition_task_id": "1.0", "task_prompt": "First" },
+            { "transition_task_id": "1.0", "task_prompt": "Second" }
+        ]
+    }"#,
+    )
+    .expect("transition fixture should write");
+
+    let err = read_transition_task_definitions(&path)
+        .expect_err("duplicate source ids should be rejected");
+
+    assert!(
+        err.to_string().contains("duplicate transition task id"),
+        "unexpected error: {}",
+        err
+    );
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn transition_task_fixture_rejects_empty_task_list() {
+    let root = unique_temp_dir("ac_ant_delirium_transition_fixture_empty");
+    let path = root.join("transition_task.json");
+    fs::write(&path, r#"{ "transition_tasks": [] }"#).expect("transition fixture should write");
+
+    let err = read_transition_task_definitions(&path)
+        .expect_err("empty transition fixture should be rejected");
+
+    assert!(
+        err.to_string().contains("contains no tasks"),
+        "unexpected error: {}",
+        err
+    );
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn projected_transition_task_uses_visible_continuation_id() {
+    let root = unique_temp_dir("ac_ant_delirium_projected_transition_task");
+    let plugin = temp_plugin_context(&root, "Aesthetic-Red", "Aesthetic-Red", "Aesthetic-Red");
+    let transition_dir = plugin.plugin_dir.join("Global");
+    fs::create_dir_all(&transition_dir).expect("transition dir should exist");
+    fs::write(
+        transition_dir.join("transition_task.json"),
+        r#"{
+        "transition_tasks": [
+            {
+                "transition_task_id": "1.0",
+                "task_prompt": "Inspect active background sessions.",
+                "implemented": true,
+                "review_status": "approved"
+            }
+        ]
+    }"#,
+    )
+    .expect("transition task file should write");
+
+    let state = TransitionTaskState {
+        active: true,
+        source_plan: "../plugins/Aesthetic-Red/plan/widgets/[1.29]_Plan___Content_Widget.json"
+            .to_string(),
+        source_plan_id: "1.29".to_string(),
+        final_step_id: "1.29.8".to_string(),
+        transition_source: "../plugins/Aesthetic-Red/Global/transition_task.json".to_string(),
+        current_transition_id: "1.0".to_string(),
+        current_projected_step_id: "1.29.9".to_string(),
+        completed_transition_ids: Vec::new(),
+    };
+
+    let task = projected_transition_task(&plugin, &state)
+        .expect("projected transition task should read")
+        .expect("projected transition task should exist");
+
+    assert_eq!(task.step_id, "1.29.9");
+    assert_eq!(task.task_prompt, "Inspect active background sessions.");
+    assert!(!task.implemented);
+    assert_eq!(task.review_status, "none");
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn transition_activation_delivers_projected_task_through_normal_api_and_manifest() {
+    let root = unique_temp_dir("ac_ant_delirium_transition_activation_api");
+    let plugin = temp_plugin_context(&root, "Aesthetic-Red", "Aesthetic-Red", "Aesthetic-Red");
+    let plan_path = plugin.workspace_path.join("[1.0]_test_plan.json");
+    let transition_dir = plugin.plugin_dir.join("Global");
+    let output_dir = root.join("manifest");
+    fs::create_dir_all(&transition_dir).expect("transition dir should exist");
+    fs::create_dir_all(&output_dir).expect("manifest dir should exist");
+
+    fs::write(&plan_path, r#"{
+        "plan_id": "1.0",
+        "title": "Test Plan",
+        "complete_plan": "Test",
+        "tasks": [
+            { "step_id": "1.1", "task_prompt": "First real task", "task_reviewed": true, "implemented": true, "review_status": "none" },
+            { "step_id": "1.2", "task_prompt": "Last real task", "task_reviewed": true, "implemented": true, "review_status": "none" }
+        ]
+    }"#).expect("plan should write");
+    fs::write(
+        transition_dir.join("transition_task.json"),
+        super::unitcore::DEFAULT_TRANSITION_TASK_JSON,
+    )
+    .expect("transition task file should write");
+
+    let payload = TaskOrchestratorPayload {
+        orchestration: TaskOrchestration {
+            active_plan: "[1.0]_test_plan.json".to_string(),
+            current_step_id: "1.2".to_string(),
+            mode: "implementation".to_string(),
+            grade: 0.0,
+            task_start_timestamp: 0,
+        },
+        transition: None,
+    };
+    write_task_orchestrator(&plugin.task_orchestrator_path(), &payload)
+        .expect("orchestrator should write");
+
+    let advance = handle_task_api(&plugin, "hierarchy.task.[1.0].needs_more_tasks=false")
+        .expect("task api should advance");
+    assert!(
+        advance.contains("Advanced to next task [1.3] within current plan."),
+        "unexpected advance output: {}",
+        advance
+    );
+
+    let orchestrator = read_task_orchestrator(&plugin.task_orchestrator_path())
+        .expect("orchestrator should read")
+        .expect("orchestrator should parse");
+    let transition = orchestrator
+        .transition
+        .as_ref()
+        .expect("transition should be active");
+    assert!(transition.active);
+    assert_eq!(transition.current_transition_id, "1.0");
+    assert_eq!(transition.current_projected_step_id, "1.3");
+    assert_eq!(orchestrator.orchestration.current_step_id, "1.3");
+
+    let task_list =
+        handle_task_api(&plugin, "hierarchy.task.[1.0]").expect("task list should render");
+    assert!(task_list.contains("[1.3] Stay in the project directory"));
+    assert!(task_list.contains("no-op result and continue immediately"));
+    assert!(task_list.contains("Do not scan the entire operating system"));
+    assert!(task_list.contains("Implemented: false, Review Status: none"));
+    assert!(!task_list.contains("[1.0] Stay in the project directory"));
+    assert!(!task_list.contains("File Path:"));
+    assert!(!task_list.contains("plugins/"));
+
+    write_todo_manifest(&plugin, &output_dir, None).expect("manifest should write");
+    let manifest = fs::read_to_string(output_dir.join("to-do_list_manifest.json"))
+        .expect("manifest should read");
+    assert!(manifest.contains("\"step_id\": \"1.3\""));
+    assert!(manifest.contains("\"complete_plan\": \"Test\""));
+    assert!(manifest.contains("\"task_prompt\": \"Stay in the project directory"));
+    assert!(manifest.contains("no-op result and continue immediately"));
+    assert!(manifest.contains("Do not scan the entire operating system"));
+    assert!(manifest.contains("\"implemented\": false"));
+    assert!(manifest.contains("\"review_status\": \"none\""));
+    assert!(!manifest.contains("transition_task_id"));
+    assert!(!manifest.contains("\"global_plan\""));
+    assert!(!manifest.contains("\"description\""));
+
+    let state_root = plugin.state_root();
+    let database = ProjectDatabase::initialize(&state_root).expect("database should initialize");
+    CanonicalStateStore::register_project(
+        &database,
+        &StorageProject {
+            project_id: "prj_00000000000000000000000000".to_string(),
+            project_key: "transition-projection-project".to_string(),
+            created_at: "2026-08-11T00:00:00Z".to_string(),
+        },
+    )
+    .expect("project should register");
+    CanonicalStateStore::register_workspace(
+        &database,
+        &StorageWorkspace {
+            workspace_id: "wsp_00000000000000000000000000".to_string(),
+            project_id: "prj_00000000000000000000000000".to_string(),
+            workspace_key: "transition-projection-workspace".to_string(),
+            created_at: "2026-08-11T00:00:00Z".to_string(),
+        },
+    )
+    .expect("workspace should register");
+    let writer = AtomicProjectProjectionWriter::new(database, state_root.clone())
+        .expect("writer should bind to the state root");
+    let context = TodoProjectionContext {
+        metadata: ProjectionMetadata {
+            project_id: "prj_00000000000000000000000000".to_string(),
+            workspace_id: "wsp_00000000000000000000000000".to_string(),
+            source_revision: 0,
+            generation: 1,
+            fingerprint: format!("{:064x}", 71),
+            rendered_at: "2026-08-11T00:00:00Z".to_string(),
+        },
+        task_ref: Some(CanonicalTaskProjectionRef {
+            task_id: "tsk_00000000000000000000000000".to_string(),
+            task_revision: 1,
+        }),
+    };
+    let audit_event = NewAuditEvent {
+        contract_version: AUDIT_EVENT_CONTRACT_VERSION.to_string(),
+        event_id: "evt_00000000000000000000000000".to_string(),
+        project_id: context.metadata.project_id.clone(),
+        workspace_id: Some(context.metadata.workspace_id.clone()),
+        actor_kind: "service".to_string(),
+        actor_subject_id: "antdelirium-service".to_string(),
+        event_kind: "projection_rendered".to_string(),
+        outcome: "succeeded".to_string(),
+        occurred_at: "2026-08-11T00:00:00Z".to_string(),
+        fingerprint: context.metadata.fingerprint.clone(),
+        correlation_id: "transition-projection".to_string(),
+        resource_id: Some("current_task".to_string()),
+        payload: b"current-task-projection".to_vec(),
+    };
+    let receipt = write_todo_manifest(
+        &plugin,
+        &output_dir,
+        Some(TodoManifestProjectionTarget {
+            writer: &writer,
+            context: &context,
+            audit_event: &audit_event,
+        }),
+    )
+    .expect("typed projection should write")
+    .expect("projection receipt should exist");
+    assert!(receipt.audit.inserted());
+    let projection = fs::read_to_string(state_root.todo_projection_path())
+        .expect("current task projection should read");
+    assert!(projection.contains("\"task_id\": \"tsk_00000000000000000000000000\""));
+    assert!(projection.contains("Stay in the project directory"));
+    assert!(projection.contains("no-op result and continue immediately"));
+    assert!(projection.contains("\"allowed_action\": \"implement\""));
+    assert!(projection.contains("hierarchy.task.current.submit"));
+    for forbidden in [
+        "\"plan_id\"",
+        "\"complete_plan\"",
+        "\"implemented\"",
+        "\"task_reviewed\"",
+        "\"review_status\"",
+        "plugins/",
+        "/home/",
+        "task_orchestrator.json",
+    ] {
+        assert!(
+            !projection.contains(forbidden),
+            "forbidden projection content leaked: {forbidden}"
+        );
+    }
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn transition_completion_marks_internal_source_id_without_exposing_it() {
+    let mut payload = TaskOrchestratorPayload {
+        orchestration: TaskOrchestration {
+            active_plan: "../plugins/Aesthetic-Red/plan/widgets/[1.29]_Plan___Content_Widget.json"
+                .to_string(),
+            current_step_id: "1.29.9".to_string(),
+            mode: "implementation".to_string(),
+            grade: 0.0,
+            task_start_timestamp: 0,
+        },
+        transition: Some(TransitionTaskState {
+            active: true,
+            source_plan: "../plugins/Aesthetic-Red/plan/widgets/[1.29]_Plan___Content_Widget.json"
+                .to_string(),
+            source_plan_id: "1.29".to_string(),
+            final_step_id: "1.29.8".to_string(),
+            transition_source: "../plugins/Aesthetic-Red/Global/transition_task.json".to_string(),
+            current_transition_id: "1.0".to_string(),
+            current_projected_step_id: "1.29.9".to_string(),
+            completed_transition_ids: Vec::new(),
+        }),
+    };
+
+    mark_current_transition_task_implemented(&mut payload, "1.29.9")
+        .expect("projected transition task should mark implemented");
+
+    let transition = payload.transition.expect("transition state should remain");
+    assert_eq!(transition.completed_transition_ids, vec!["1.0".to_string()]);
+    assert_eq!(transition.current_projected_step_id, "1.29.9");
+}
+
+#[test]
+fn projected_pending_count_adds_transition_template_only_for_live_flow() {
+    let root = unique_temp_dir("ac_ant_delirium_transition_pending_count");
+    let plugin = temp_plugin_context(&root, "Aesthetic-Red", "Aesthetic-Red", "Aesthetic-Red");
+    let transition_dir = plugin.plugin_dir.join("Global");
+    fs::create_dir_all(&transition_dir).expect("transition dir should exist");
+    fs::write(
+        transition_dir.join("transition_task.json"),
+        r#"{
+        "transition_tasks": [
+            { "transition_task_id": "1.0", "task_prompt": "Inspect active background sessions." },
+            { "transition_task_id": "1.1", "task_prompt": "Close task-owned background sessions." },
+            { "transition_task_id": "1.2", "task_prompt": "Release task-owned resources." },
+            { "transition_task_id": "1.3", "task_prompt": "Record cleanup evidence." }
+        ]
+    }"#,
+    )
+    .expect("transition task file should write");
+
+    let implementation_payload = TaskOrchestratorPayload {
+        orchestration: TaskOrchestration {
+            active_plan:
+                "../plugins/Aesthetic-Red/plan/widgets/[1.36]_Plan___TextBlock_Widget.json"
+                    .to_string(),
+            current_step_id: "1.36.1".to_string(),
+            mode: "implementation".to_string(),
+            grade: 0.0,
+            task_start_timestamp: 0,
+        },
+        transition: None,
+    };
+
+    assert_eq!(
+        transition_task_template_count(&plugin).expect("transition count should read"),
+        4
+    );
+    assert_eq!(
+        projected_implementation_pending_count(&plugin, &implementation_payload, "1.36", 4)
+            .expect("pending count should project"),
+        8
+    );
+    assert_eq!(
+        projected_implementation_pending_count(&plugin, &implementation_payload, "1.35", 0)
+            .expect("completed old plan should stay complete"),
+        0
+    );
+
+    let active_transition_payload = TaskOrchestratorPayload {
+        orchestration: TaskOrchestration {
+            active_plan:
+                "../plugins/Aesthetic-Red/plan/widgets/[1.36]_Plan___TextBlock_Widget.json"
+                    .to_string(),
+            current_step_id: "1.36.6".to_string(),
+            mode: "implementation".to_string(),
+            grade: 0.0,
+            task_start_timestamp: 0,
+        },
+        transition: Some(TransitionTaskState {
+            active: true,
+            source_plan:
+                "../plugins/Aesthetic-Red/plan/widgets/[1.36]_Plan___TextBlock_Widget.json"
+                    .to_string(),
+            source_plan_id: "1.36".to_string(),
+            final_step_id: "1.36.4".to_string(),
+            transition_source: "../plugins/Aesthetic-Red/Global/transition_task.json".to_string(),
+            current_transition_id: "1.1".to_string(),
+            current_projected_step_id: "1.36.6".to_string(),
+            completed_transition_ids: vec!["1.0".to_string()],
+        }),
+    };
+
+    assert_eq!(
+        projected_implementation_pending_count(&plugin, &active_transition_payload, "1.36", 0)
+            .expect("active transition should count remaining tasks"),
+        3
+    );
+
+    let review_payload = TaskOrchestratorPayload {
+        orchestration: TaskOrchestration {
+            active_plan:
+                "../plugins/Aesthetic-Red/plan/widgets/[1.36]_Plan___TextBlock_Widget.json"
+                    .to_string(),
+            current_step_id: "1.36.1".to_string(),
+            mode: "implementation review".to_string(),
+            grade: 0.0,
+            task_start_timestamp: 0,
+        },
+        transition: None,
+    };
+
+    assert_eq!(
+        projected_implementation_pending_count(&plugin, &review_payload, "1.36", 4)
+            .expect("review mode should not include transition tasks"),
+        4
+    );
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn render_next_action_prints_explicit_instructions_in_review_mode() {
+    let root = unique_temp_dir("ac_ant_delirium_review_mode_action");
+    let plugin = temp_plugin_context(
+        &root,
+        "AC_Rayon-Genetics",
+        "AC_Rayon-Genetics",
+        "Ant-Delirium-Agent-1_RAYON",
+    );
+
+    sync_agent_registration(&plugin).unwrap().unwrap();
+    let mut agents = read_connected_agents(&plugin.connected_path()).unwrap();
+    let mut registered = agents.pop().unwrap();
+    registered.assigned_mission = "manager:TestTask []".to_string();
+    write_connected_agents(&plugin.connected_path(), &[registered.clone()]).unwrap();
+
+    write_manager_tasks(
+        &plugin.manager_tasks_path(),
+        &[ManagerTask {
+            id: "TestTask".to_string(),
+            title: "Test Task".to_string(),
+            body: "Test Body".to_string(),
+            file_path: "".to_string(),
+            priority: 100,
+            owner_id: registered.internal_id,
+            status: "claimed".to_string(),
+            created_at: 1,
+            mode: Some("review".to_string()),
+            grade: None,
+        }],
+    )
+    .unwrap();
+
+    let report = render_next_action(&plugin, false).unwrap();
+    assert!(report.contains("[REVIEW MODE ACTIVE]"));
+    assert!(report.contains("The goal is to solve the task, not just check the box as done"));
+
+    let _ = fs::remove_dir_all(root);
 }

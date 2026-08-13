@@ -1,0 +1,28 @@
+snapshot_version=1
+max_nesting	MaxNestingAxiom Auditor
+max_params	MaxParamsAxiom Auditor
+logical_density	LogicalDensityAxiom Auditor
+type_logic	TypeLogicAxiom Auditor
+else_free	ElseFreeAxiom Auditor
+doc_tags	Doc Tags
+md_pairing	MdPairingAxiom Pedagogy Auditor
+md_min_chars	MdMinCharsAxiom Pedagogy Auditor
+what_mission	WhatMissionAxiom Pedagogy Auditor
+why_justification	WhyJustificationAxiom Pedagogy Auditor
+usage_example	UsageExampleAxiom Pedagogy Auditor
+test_case_mapping	TestCaseMappingAxiom Pedagogy Auditor
+root_md_pairing	RootMdPairingAxiom Pedagogy Auditor
+inheritance_visibility	InheritanceVisibilityAxiom Pedagogy Auditor
+dna_suffix	DnaSuffixAxiom Identity Auditor
+tag_separator	TagSeparatorAxiom Identity Auditor
+pascal_case	PascalCaseAxiom Identity Auditor
+recursion	RecursionAxiom Identity Auditor
+manifest_anchoring	ManifestAnchoringAxiom Identity Auditor
+name_separator	NameSeparatorAxiom Identity Auditor
+repository_anchor	RepositoryAnchorAxiom Identity Auditor
+restricted_tokens	RestrictedTokensAxiom Sanitization Auditor
+super_block	SuperBlockAxiom Governance Hardening Auditor
+allowed_crates	AllowedCratesAxiom Sanitization Auditor
+strict_wrapper_boundary	StrictWrapperBoundaryAxiom Sanitization Auditor
+token_sanitization	TokenSanitizationAxiom Sanitization Auditor
+dependency_purification	DependencyPurificationAxiom Sanitization Auditor

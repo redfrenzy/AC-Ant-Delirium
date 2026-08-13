@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:canonical-state-v1",
+  "title": "AntDelirium canonical state v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "project_id",
+    "workspace_id",
+    "state_revision",
+    "active_plan_id",
+    "current_task_id",
+    "tasks",
+    "last_event_sequence",
+    "projection_generation"
+  ],
+  "properties": {
+    "contract_version": { "const": "canonical-state-v1" },
+    "project_id": { "$ref": "#/$defs/projectId" },
+    "workspace_id": { "$ref": "#/$defs/workspaceId" },
+    "state_revision": { "type": "integer", "minimum": 0 },
+    "active_plan_id": {
+      "oneOf": [{ "$ref": "#/$defs/planId" }, { "type": "null" }]
+    },
+    "current_task_id": {
+      "oneOf": [{ "$ref": "#/$defs/taskId" }, { "type": "null" }]
+    },
+    "tasks": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/taskState" }
+    },
+    "last_event_sequence": { "type": "integer", "minimum": 0 },
+    "projection_generation": { "type": "integer", "minimum": 0 }
+  },
+  "$defs": {
+    "projectId": { "type": "string", "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$" },
+    "workspaceId": { "type": "string", "pattern": "^wsp_[0-9a-hjkmnp-tv-z]{26}$" },
+    "planId": { "type": "string", "pattern": "^pln_[0-9a-hjkmnp-tv-z]{26}$" },
+    "taskId": { "type": "string", "pattern": "^tsk_[0-9a-hjkmnp-tv-z]{26}$" },
+    "taskState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task_id", "task_revision", "status", "review_status"],
+      "properties": {
+        "task_id": { "$ref": "#/$defs/taskId" },
+        "task_revision": { "type": "integer", "minimum": 1 },
+        "status": {
+          "enum": ["blocked", "available", "submitted", "accepted", "completed", "cancelled"]
+        },
+        "review_status": {
+          "enum": ["not_required", "pending", "accepted", "rejected"]
+        }
+      }
+    }
+  }
+}

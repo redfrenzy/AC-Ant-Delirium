@@ -32,9 +32,15 @@ mod tests {
         (config, result)
     }
 
-    fn fixture_result_for_profile(profile: &str, rule_fragment: &str) -> (AuditConfig, AuditResult) {
+    fn fixture_result_for_profile(
+        profile: &str,
+        rule_fragment: &str,
+    ) -> (AuditConfig, AuditResult) {
         let config = AuditConfig {
-            hierarchy: HierarchyConfig::load_from_folder(&format!("ant_delirium_config/{}", profile)),
+            hierarchy: HierarchyConfig::load_from_folder(&format!(
+                "ant_delirium_config/{}",
+                profile
+            )),
             ..AuditConfig::default()
         };
 
@@ -111,7 +117,9 @@ mod tests {
         );
 
         assert!(result.violations.iter().any(|violation| {
-            violation.file_path.contains("sanitization_workspace/Cargo.toml")
+            violation
+                .file_path
+                .contains("sanitization_workspace/Cargo.toml")
                 && violation.rule_id.contains("serde_json")
         }));
     }
@@ -126,7 +134,9 @@ mod tests {
         );
 
         assert!(result.violations.iter().any(|violation| {
-            violation.file_path.contains("sanitization_workspace/Cargo.toml")
+            violation
+                .file_path
+                .contains("sanitization_workspace/Cargo.toml")
                 && violation.rule_id.contains("serde")
         }));
     }
@@ -136,7 +146,10 @@ mod tests {
         let matrix = vec![
             ("type_1", "sanitization_workspace/src/libres/Winit_unit.rs"),
             ("type_2", "sanitization_workspace/src/libres/Winit_unite.rs"),
-            ("type_3", "sanitization_workspace/src/libres/Winit_unidade.rs"),
+            (
+                "type_3",
+                "sanitization_workspace/src/libres/Winit_unidade.rs",
+            ),
         ];
 
         for (profile, file_hint) in matrix.into_iter() {

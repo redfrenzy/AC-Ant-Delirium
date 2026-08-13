@@ -1,0 +1,40 @@
+[Unit]
+Description=AntDelirium protected governance service
+Documentation=man:antdelirium(1)
+Requires=antdelirium-agent.socket antdelirium-admin.socket
+After=antdelirium-agent.socket antdelirium-admin.socket
+After=local-fs.target
+
+[Service]
+Type=simple
+ExecStart=@LIBEXECDIR@/antdelirium service
+User=antdelirium
+Group=antdelirium
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateNetwork=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictAddressFamilies=AF_UNIX
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+StateDirectory=antdelirium
+StateDirectoryMode=0700
+RuntimeDirectory=antdelirium
+RuntimeDirectoryMode=0755
+
+[Install]
+WantedBy=multi-user.target

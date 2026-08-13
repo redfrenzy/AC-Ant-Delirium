@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:public-error-v1",
+  "title": "AntDelirium public error v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "code",
+    "category",
+    "exit_code",
+    "retryable",
+    "message",
+    "action",
+    "correlation_id"
+  ],
+  "properties": {
+    "contract_version": { "const": "public-error-v1" },
+    "code": {
+      "enum": [
+        "AD-USAGE-0001",
+        "AD-CODE-0001",
+        "AD-SERVICE-0001",
+        "AD-INTERNAL-0001",
+        "AD-TEMP-0001",
+        "AD-PROTOCOL-0001",
+        "AD-AUTH-0001",
+        "AD-CONFIG-0001",
+        "AD-TOOLCHAIN-0001",
+        "AD-TOOLCHAIN-0002"
+      ]
+    },
+    "category": {
+      "enum": [
+        "usage_error",
+        "code_violation",
+        "service_unavailable",
+        "tool_internal_error",
+        "temporary_failure",
+        "protocol_error",
+        "authorization_error",
+        "governance_configuration_error",
+        "toolchain_execution_error"
+      ]
+    },
+    "exit_code": { "type": "integer", "minimum": 0, "maximum": 255 },
+    "retryable": { "type": "boolean" },
+    "message": { "type": "string", "minLength": 1, "maxLength": 1024 },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "projection_path"],
+      "properties": {
+        "kind": {
+          "enum": [
+            "read_task_projection",
+            "read_governance_projection",
+            "retry",
+            "fix_invocation",
+            "contact_operator",
+            "none"
+          ]
+        },
+        "projection_path": {
+          "enum": ["guard/to-do_list.json", "guard/governance_error.json", null]
+        }
+      }
+    },
+    "correlation_id": {
+      "oneOf": [
+        { "type": "string", "pattern": "^ref_[0-9a-hjkmnp-tv-z]{26}$" },
+        { "type": "null" }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "oneOf": [
+        { "properties": { "code": { "const": "AD-USAGE-0001" }, "category": { "const": "usage_error" }, "exit_code": { "const": 64 }, "retryable": { "const": false } } },
+        { "properties": { "code": { "const": "AD-CODE-0001" }, "category": { "const": "code_violation" }, "exit_code": { "const": 65 }, "retryable": { "const": false } } },
+        { "properties": { "code": { "const": "AD-SERVICE-0001" }, "category": { "const": "service_unavailable" }, "exit_code": { "const": 69 }, "retryable": { "const": true } } },
+        { "properties": { "code": { "const": "AD-INTERNAL-0001" }, "category": { "const": "tool_internal_error" }, "exit_code": { "const": 70 }, "retryable": { "const": false } } },
+        { "properties": { "code": { "const": "AD-TEMP-0001" }, "category": { "const": "temporary_failure" }, "exit_code": { "const": 75 }, "retryable": { "const": true } } },
+        { "properties": { "code": { "const": "AD-PROTOCOL-0001" }, "category": { "const": "protocol_error" }, "exit_code": { "const": 76 }, "retryable": { "const": false } } },
+        { "properties": { "code": { "const": "AD-AUTH-0001" }, "category": { "const": "authorization_error" }, "exit_code": { "const": 77 }, "retryable": { "const": false } } },
+        { "properties": { "code": { "const": "AD-CONFIG-0001" }, "category": { "const": "governance_configuration_error" }, "exit_code": { "const": 78 }, "retryable": { "const": false } } },
+        { "properties": { "code": { "const": "AD-TOOLCHAIN-0001" }, "category": { "const": "toolchain_execution_error" }, "exit_code": { "const": 126 }, "retryable": { "const": false } } },
+        { "properties": { "code": { "const": "AD-TOOLCHAIN-0002" }, "category": { "const": "toolchain_execution_error" }, "exit_code": { "const": 127 }, "retryable": { "const": false } } }
+      ]
+    }
+  ]
+}
+

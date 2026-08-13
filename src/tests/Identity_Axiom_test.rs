@@ -105,6 +105,33 @@ mod tests {
     }
 
     #[test]
+    fn pascal_case_strips_compound_dna_suffix_before_validation() {
+        let config = AuditConfig {
+            hierarchy: HierarchyConfig::load_from_folder("ant_delirium_config/type_3"),
+            ..AuditConfig::default()
+        };
+        let source = "fn helper() {}";
+        let functions = CodeScanner::scan_blocks(source);
+        let mut violations = Vec::new();
+        let mut ctx = AuditContext {
+            file_path: "src/exemples_error/type3/Logical-Dencity-Error_unidade_nucleo.rs",
+            source,
+            functions: &functions,
+            config: &config,
+            project: crate::structs::empty_project_context(),
+            detected_dna: "unidade_nucleo".to_string(),
+            taxonomy_path: "regras.arquivos.unidade.unidade_nucleo".to_string(),
+            violations: &mut violations,
+        };
+
+        PascalCaseAxiom::default().execute(&mut ctx);
+        assert!(!ctx
+            .violations
+            .iter()
+            .any(|violation| violation.rule_id.contains("pascal_case")));
+    }
+
+    #[test]
     fn dna_suffix_flags_logic_without_dna_tag() {
         let config = config();
         let source = "pub fn dna_suffix_error() -> usize { 4 }";
@@ -267,7 +294,8 @@ mod tests {
 
         RecursionAxiom::default().execute(&mut ctx);
         assert!(ctx.violations.iter().any(|v| {
-            v.rule_id.contains("hierarchy.identity.recursion.jurisdiction")
+            v.rule_id
+                .contains("hierarchy.identity.recursion.jurisdiction")
         }));
     }
 
@@ -293,10 +321,9 @@ mod tests {
         };
 
         RecursionAxiom::default().execute(&mut ctx);
-        assert!(ctx
-            .violations
-            .iter()
-            .all(|v| !v.rule_id.contains("hierarchy.identity.recursion.jurisdiction")));
+        assert!(ctx.violations.iter().all(|v| !v
+            .rule_id
+            .contains("hierarchy.identity.recursion.jurisdiction")));
     }
 
     #[test]
@@ -333,10 +360,9 @@ mod tests {
         };
 
         RecursionAxiom::default().execute(&mut ctx);
-        assert!(ctx
-            .violations
-            .iter()
-            .all(|v| !v.rule_id.contains("hierarchy.identity.recursion.jurisdiction")));
+        assert!(ctx.violations.iter().all(|v| !v
+            .rule_id
+            .contains("hierarchy.identity.recursion.jurisdiction")));
 
         let _ = fs::remove_dir_all(workspace);
     }

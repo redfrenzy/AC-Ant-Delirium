@@ -7,19 +7,16 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
         return;
     }
 
-    let resolution = match ctx
-        .require_named_global_axiom_parameter("strict_wrapper_boundary", "wrapper_boundary_contract")
-    {
-            Ok(value) => value,
-            Err(message) => {
-                push_resolution_violation(
-                    ctx,
-                    "strict_wrapper_boundary",
-                    &message,
-                );
-                return;
-            }
-        };
+    let resolution = match ctx.require_named_global_axiom_parameter(
+        "strict_wrapper_boundary",
+        "wrapper_boundary_contract",
+    ) {
+        Ok(value) => value,
+        Err(message) => {
+            push_resolution_violation(ctx, "strict_wrapper_boundary", &message);
+            return;
+        }
+    };
 
     let contract = resolution.value.trim().to_ascii_lowercase();
     if contract == "disabled" || contract == "off" || contract == "false" {
@@ -48,7 +45,9 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
             taxonomy_path: resolution.resolved_path.to_string(),
         });
     }
-    for (line, normalized, snippet) in collect_direct_reexports_without_ac_alias(ctx.source).into_iter() {
+    for (line, normalized, snippet) in
+        collect_direct_reexports_without_ac_alias(ctx.source).into_iter()
+    {
         ctx.violations.push(AuditViolation {
             file_path: ctx.file_path.to_string(),
             line,
@@ -73,7 +72,8 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
     }
 
     if !has_ac_alias_boundary(ctx.source) {
-        let wrapper = infer_wrapper_crate_name(ctx.file_path).unwrap_or_else(|| "wrapper".to_string());
+        let wrapper =
+            infer_wrapper_crate_name(ctx.file_path).unwrap_or_else(|| "wrapper".to_string());
         ctx.violations.push(AuditViolation {
             file_path: ctx.file_path.to_string(),
             line: 1,
@@ -177,11 +177,7 @@ fn has_ac_alias_boundary(source: &str) -> bool {
     })
 }
 
-fn push_resolution_violation(
-    ctx: &mut AuditContext<'_>,
-    identity_path: &str,
-    message: &str,
-) {
+fn push_resolution_violation(ctx: &mut AuditContext<'_>, identity_path: &str, message: &str) {
     ctx.violations.push(AuditViolation {
         file_path: ctx.file_path.to_string(),
         line: 1,

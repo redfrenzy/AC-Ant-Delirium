@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:limited-protocol-v1",
+  "title": "AntDelirium limited protocol v1",
+  "oneOf": [
+    { "$ref": "#/$defs/clientHello" },
+    { "$ref": "#/$defs/serverHello" },
+    { "$ref": "#/$defs/request" },
+    { "$ref": "#/$defs/response" }
+  ],
+  "$defs": {
+    "nonce": { "type": "string", "pattern": "^[A-Za-z0-9_-]{43}$" },
+    "requestId": { "type": "string", "pattern": "^req_[0-9a-hjkmnp-tv-z]{26}$" },
+    "capabilityId": { "type": "string", "pattern": "^cap_[0-9a-hjkmnp-tv-z]{26}$" },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["capability_id", "token"],
+      "properties": {
+        "capability_id": { "$ref": "#/$defs/capabilityId" },
+        "token": { "$ref": "#/$defs/nonce" }
+      }
+    },
+    "clientHello": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["message_type", "channel", "wire_versions", "client_nonce"],
+      "properties": {
+        "message_type": { "const": "client_hello" },
+        "channel": { "const": "limited" },
+        "wire_versions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": { "type": "string", "maxLength": 32 }
+        },
+        "client_nonce": { "$ref": "#/$defs/nonce" }
+      }
+    },
+    "serverHello": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["message_type", "wire_version", "connection_nonce", "max_frame_bytes"],
+      "properties": {
+        "message_type": { "const": "server_hello" },
+        "wire_version": { "const": "adp/1" },
+        "connection_nonce": { "$ref": "#/$defs/nonce" },
+        "max_frame_bytes": { "const": 4194304 }
+      }
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["message_type", "wire_version", "request_id", "connection_nonce", "operation", "capability", "body"],
+      "properties": {
+        "message_type": { "const": "request" },
+        "wire_version": { "const": "adp/1" },
+        "request_id": { "$ref": "#/$defs/requestId" },
+        "connection_nonce": { "$ref": "#/$defs/nonce" },
+        "operation": {
+          "enum": [
+            "project.bootstrap.observe",
+            "compile.observe",
+            "projection.refresh",
+            "task.current.read",
+            "submission.create",
+            "submission.read.assigned",
+            "review.decide.assigned",
+            "attestation.create"
+          ]
+        },
+        "capability": {
+          "oneOf": [{ "$ref": "#/$defs/capability" }, { "type": "null" }]
+        },
+        "body": { "type": "object" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "operation": { "const": "project.bootstrap.observe" } } },
+          "then": { "properties": { "capability": { "type": "null" } } },
+          "else": { "properties": { "capability": { "$ref": "#/$defs/capability" } } }
+        }
+      ]
+    },
+    "response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["message_type", "wire_version", "request_id", "status", "result", "error"],
+      "properties": {
+        "message_type": { "const": "response" },
+        "wire_version": { "const": "adp/1" },
+        "request_id": { "$ref": "#/$defs/requestId" },
+        "status": { "enum": ["ok", "error"] },
+        "result": { "type": ["object", "null"] },
+        "error": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["code", "category", "retryable", "message", "action", "correlation_id"],
+              "properties": {
+                "code": {
+                  "enum": [
+                    "AD-USAGE-0001",
+                    "AD-CODE-0001",
+                    "AD-SERVICE-0001",
+                    "AD-INTERNAL-0001",
+                    "AD-TEMP-0001",
+                    "AD-PROTOCOL-0001",
+                    "AD-AUTH-0001",
+                    "AD-CONFIG-0001",
+                    "AD-TOOLCHAIN-0001",
+                    "AD-TOOLCHAIN-0002"
+                  ]
+                },
+                "category": {
+                  "enum": [
+                    "usage_error",
+                    "code_violation",
+                    "service_unavailable",
+                    "tool_internal_error",
+                    "temporary_failure",
+                    "protocol_error",
+                    "authorization_error",
+                    "governance_configuration_error",
+                    "toolchain_execution_error"
+                  ]
+                },
+                "retryable": { "type": "boolean" },
+                "message": { "type": "string", "maxLength": 1024 },
+                "action": {
+                  "enum": ["read_task_projection", "read_governance_projection", "retry", "fix_invocation", "contact_operator", "none"]
+                },
+                "correlation_id": {
+                  "oneOf": [
+                    { "type": "string", "pattern": "^ref_[0-9a-hjkmnp-tv-z]{26}$" },
+                    { "type": "null" }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "ok" } } },
+          "then": {
+            "properties": {
+              "result": { "type": "object" },
+              "error": { "type": "null" }
+            }
+          },
+          "else": {
+            "properties": {
+              "result": { "type": "null" },
+              "error": { "type": "object" }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

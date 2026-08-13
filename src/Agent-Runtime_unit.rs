@@ -11,7 +11,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use ac_ant_delirium::structs::{
     AuditResult, ConnectedAgent, GovernanceHistoryEntry, GovernanceTask, HierarchyConfig,
-    JsonEntry, JsonValue, ManagerTask, PluginContext, RuntimeCommandContext, SubmitRecord,
+    JsonEntry, JsonValue, ManagerTask, NewAuditEvent, PluginContext, ProjectProjectionWriter,
+    ProjectionWriteReceipt, RuntimeCommandContext, SubmitRecord, TodoProjectionContext,
 };
 
 #[path = "struct/Agent-Runtime_struct.rs"]
@@ -19,11 +20,17 @@ mod agent_runtime_struct;
 
 use self::agent_runtime_struct::{
     AgentSubmitState, AgentSyncState, ProjectSummary, RootOrchestrationFinding, RuntimeLockGuard,
-    SyncMetadata, WorkspaceLoginSnapshot,
+    SyncMetadata, TodoManifestSelection, WorkspaceLoginSnapshot,
 };
 
 #[path = "Agent-Runtime_unitcore.rs"]
 mod unitcore;
+
+pub struct TodoManifestProjectionTarget<'a> {
+    pub writer: &'a dyn ProjectProjectionWriter,
+    pub context: &'a TodoProjectionContext,
+    pub audit_event: &'a NewAuditEvent,
+}
 
 pub fn discover_runtime_context(
     project_root: &Path,
@@ -43,6 +50,25 @@ pub fn render_agents_report(plugin: &PluginContext, json_requested: bool) -> io:
 
 pub fn render_projects_report(plugin: &PluginContext, json_requested: bool) -> io::Result<String> {
     unitcore::render_projects_report(plugin, json_requested)
+}
+
+pub fn read_task_orchestrator(
+    path: &std::path::Path,
+) -> io::Result<Option<ac_ant_delirium::structs::TaskOrchestratorPayload>> {
+    unitcore::read_task_orchestrator(path)
+}
+
+pub fn write_task_orchestrator(
+    path: &std::path::Path,
+    payload: &ac_ant_delirium::structs::TaskOrchestratorPayload,
+) -> io::Result<()> {
+    unitcore::write_task_orchestrator(path, payload)
+}
+
+pub fn read_numbered_plan(
+    path: &std::path::Path,
+) -> io::Result<ac_ant_delirium::structs::NumberedPlan> {
+    unitcore::read_numbered_plan(path)
 }
 
 pub fn render_next_action(plugin: &PluginContext, json_requested: bool) -> io::Result<String> {
@@ -74,8 +100,9 @@ pub fn update_submit_status(
     submit_id: &str,
     status: &str,
     note: Option<&str>,
+    grade: Option<f64>,
 ) -> io::Result<String> {
-    unitcore::update_submit_status(plugin, submit_id, status, note)
+    unitcore::update_submit_status(plugin, submit_id, status, note, grade)
 }
 
 pub fn append_manager_task(
@@ -262,12 +289,14 @@ pub fn render_plugin_installation(plugin: Option<&PluginContext>, binary_name: &
 pub fn materialize_project_local_plugin_package(
     project_root: &Path,
     explicit_project_root: Option<&str>,
+    explicit_config_path: Option<&str>,
     runtime_plugin: Option<&PluginContext>,
     binary_name: &str,
 ) -> io::Result<String> {
     unitcore::materialize_project_local_plugin_package(
         project_root,
         explicit_project_root,
+        explicit_config_path,
         runtime_plugin,
         binary_name,
     )
@@ -311,17 +340,60 @@ pub fn build_api_overrides(
     unitcore::build_api_overrides(plugin, hierarchy, binary_name)
 }
 
+pub fn handle_task_api(plugin: &PluginContext, query: &str) -> io::Result<String> {
+    unitcore::handle_task_api(plugin, query)
+}
+
+pub fn write_todo_manifest(
+    plugin: &PluginContext,
+    output_root: &Path,
+    projection_target: Option<TodoManifestProjectionTarget<'_>>,
+) -> io::Result<Option<ProjectionWriteReceipt>> {
+    unitcore::write_todo_manifest(plugin, output_root, projection_target)
+}
+
+pub fn projected_implementation_pending_count(
+    plugin: &PluginContext,
+    orchestrator: &ac_ant_delirium::structs::TaskOrchestratorPayload,
+    plan_id: &str,
+    real_pending_count: usize,
+) -> io::Result<usize> {
+    unitcore::projected_implementation_pending_count(
+        plugin,
+        orchestrator,
+        plan_id,
+        real_pending_count,
+    )
+}
+
+pub fn materialize_new_task(plugin: Option<&PluginContext>, title: &str) -> io::Result<String> {
+    unitcore::materialize_new_task(plugin, title)
+}
+
 #[cfg(test)]
 mod test_bridge {
     pub(super) use super::unitcore::{
         agent_id_for_workspace_path, assign_governance_task, claim_manager_task_for_agent,
-        copy_binary_if_needed, expected_login_path_from_workspace_path, infer_bootstrap_context,
-        is_manager_task_active, is_valid_registered_workspace_path, load_hierarchy_from_path,
-        match_plugin_context, normalize_path, normalize_path_str, read_connected_agents,
+        copy_binary_if_needed, directory_contains_json, expected_login_path_from_workspace_path,
+        final_plan_step_id, infer_bootstrap_context, is_manager_task_active,
+        is_valid_registered_workspace_path, load_hierarchy_from_path,
+        mark_current_transition_task_implemented, match_plugin_context, normalize_path,
+        normalize_path_str, parse_step_id_segments, plugin_dir_from_config_target,
+        project_transition_step_id, projected_transition_task, read_connected_agents,
         read_governance_history, read_governance_tasks, read_manager_tasks, read_submit_records,
-        render_new_project_build_guard, render_new_project_hierarchy, unix_timestamp, write_connected_agents,
+        read_transition_task_definitions, render_new_project_build_guard,
+        render_new_project_hierarchy, render_new_project_task_orchestrator,
+        transition_task_template_count, unix_timestamp, write_connected_agents,
         write_default_template_if_missing, write_entry_collection, write_governance_tasks,
-        write_manager_tasks, DEFAULT_NEW_PROJECT_RULES,
+        write_manager_tasks, DEFAULT_CONNECTED_JSON, DEFAULT_CONTEXT_JSON, DEFAULT_FEEDBACK_JSON,
+        DEFAULT_GITHOOKS_README, DEFAULT_GOVERNANCE_HISTORY_JSON, DEFAULT_GOVERNANCE_JSON,
+        DEFAULT_LOCK_GOVERNANCE_TEMPLATE_SH, DEFAULT_MANAGER_TASKS_JSON,
+        DEFAULT_MERGE_REQUEST_TEMPLATE, DEFAULT_MESSAGES_JSON,
+        DEFAULT_NEW_PROJECT_BUILD_GUARD_TEMPLATE, DEFAULT_NEW_PROJECT_HIERARCHY,
+        DEFAULT_NEW_PROJECT_RULES, DEFAULT_PROJECT_STATE_GITIGNORE, DEFAULT_PUSH_REQUEST_TEMPLATE,
+        DEFAULT_SAMPLE_PLAN_JSON, DEFAULT_SCRIPTS_README, DEFAULT_SUBMIT_QUEUE_JSON,
+        DEFAULT_TASK_INDEX_TXT, DEFAULT_TASK_ORCHESTRATOR_JSON, DEFAULT_TRANSITION_TASK_JSON,
+        DEFAULT_UNLOCK_GOVERNANCE_TEMPLATE_SH, DEFAULT_UPDATE_PLUGIN_BINARY_TEMPLATE_SH,
     };
 }
 

@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:agent-projection-v1",
+  "title": "AntDelirium agent projection v1",
+  "oneOf": [
+    { "$ref": "#/$defs/currentTaskProjection" },
+    { "$ref": "#/$defs/governanceErrorsProjection" }
+  ],
+  "$defs": {
+    "opaqueId": { "type": "string", "minLength": 1, "maxLength": 255 },
+    "projectId": { "type": "string", "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$" },
+    "workspaceId": { "type": "string", "pattern": "^wsp_[0-9a-hjkmnp-tv-z]{26}$" },
+    "taskId": { "type": "string", "pattern": "^tsk_[0-9a-hjkmnp-tv-z]{26}$" },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?![A-Za-z]:/)[^\\\\\\u0000]+$"
+    },
+    "base": {
+      "type": "object",
+      "properties": {
+        "contract_version": { "const": "agent-projection-v1" },
+        "artifact_kind": { "enum": ["current_task", "governance_errors"] },
+        "project_ref": { "$ref": "#/$defs/projectId" },
+        "workspace_ref": { "$ref": "#/$defs/workspaceId" },
+        "source_revision": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["contract_version", "artifact_kind", "project_ref", "workspace_ref", "source_revision"]
+    },
+    "currentTaskProjection": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "contract_version",
+            "artifact_kind",
+            "project_ref",
+            "workspace_ref",
+            "source_revision",
+            "task",
+            "queue_status",
+            "submission"
+          ],
+          "properties": {
+            "contract_version": { "const": "agent-projection-v1" },
+            "artifact_kind": { "const": "current_task" },
+            "project_ref": { "$ref": "#/$defs/projectId" },
+            "workspace_ref": { "$ref": "#/$defs/workspaceId" },
+            "source_revision": { "type": "integer", "minimum": 0 },
+            "task": {
+              "oneOf": [
+                { "type": "null" },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["task_id", "task_revision", "objective", "allowed_action", "acceptance_criteria", "relevant_paths"],
+                  "properties": {
+                    "task_id": { "$ref": "#/$defs/taskId" },
+                    "task_revision": { "type": "integer", "minimum": 1 },
+                    "objective": { "type": "string", "minLength": 1, "maxLength": 16384 },
+                    "allowed_action": { "enum": ["implement", "review", "plan_review", "wait"] },
+                    "acceptance_criteria": {
+                      "type": "array",
+                      "items": { "type": "string", "minLength": 1, "maxLength": 4096 },
+                      "maxItems": 128
+                    },
+                    "relevant_paths": {
+                      "type": "array",
+                      "items": { "$ref": "#/$defs/relativePath" },
+                      "maxItems": 256,
+                      "uniqueItems": true
+                    }
+                  }
+                }
+              ]
+            },
+            "queue_status": { "enum": ["task_available", "awaiting_review", "blocked", "no_task_available"] },
+            "submission": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["contract_version", "instruction"],
+              "properties": {
+                "contract_version": { "const": "submission-v1" },
+                "instruction": { "type": "string", "minLength": 1, "maxLength": 4096 }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "governanceErrorsProjection": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["contract_version", "artifact_kind", "project_ref", "workspace_ref", "source_revision", "violations"],
+          "properties": {
+            "contract_version": { "const": "agent-projection-v1" },
+            "artifact_kind": { "const": "governance_errors" },
+            "project_ref": { "$ref": "#/$defs/projectId" },
+            "workspace_ref": { "$ref": "#/$defs/workspaceId" },
+            "source_revision": { "type": "integer", "minimum": 0 },
+            "violations": {
+              "type": "array",
+              "maxItems": 4096,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["violation_id", "rule_id", "summary", "path", "line", "quick_fix"],
+                "properties": {
+                  "violation_id": { "$ref": "#/$defs/opaqueId" },
+                  "rule_id": { "type": "string", "minLength": 1, "maxLength": 255 },
+                  "summary": { "type": "string", "minLength": 1, "maxLength": 8192 },
+                  "path": { "$ref": "#/$defs/relativePath" },
+                  "line": { "type": "integer", "minimum": 1 },
+                  "quick_fix": { "type": ["string", "null"], "maxLength": 8192 },
+                  "public_rule_reference": { "type": "string", "minLength": 1, "maxLength": 4096 }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

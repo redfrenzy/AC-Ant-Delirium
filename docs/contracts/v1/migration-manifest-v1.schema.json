@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:migration-manifest-v1",
+  "title": "AntDelirium migration manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "migration_id",
+    "project_id",
+    "source_kind",
+    "source_snapshot_sha256",
+    "staging_snapshot_sha256",
+    "source_schema_version",
+    "target_schema_version",
+    "counts",
+    "state",
+    "created_at",
+    "approved_at",
+    "cutover_at",
+    "rollback_deadline",
+    "approvals",
+    "rollback"
+  ],
+  "properties": {
+    "contract_version": { "const": "migration-manifest-v1" },
+    "migration_id": { "type": "string", "pattern": "^mig_[0-9a-hjkmnp-tv-z]{26}$" },
+    "project_id": { "type": "string", "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$" },
+    "source_kind": { "enum": ["legacy_plugin", "protected_archive", "canonical_upgrade"] },
+    "source_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+    "staging_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+    "source_schema_version": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "target_schema_version": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plans", "tasks", "submissions", "reviews", "history_events", "problems", "transitions"],
+      "properties": {
+        "plans": { "$ref": "#/$defs/count" },
+        "tasks": { "$ref": "#/$defs/count" },
+        "submissions": { "$ref": "#/$defs/count" },
+        "reviews": { "$ref": "#/$defs/count" },
+        "history_events": { "$ref": "#/$defs/count" },
+        "problems": { "$ref": "#/$defs/count" },
+        "transitions": { "$ref": "#/$defs/count" }
+      }
+    },
+    "state": {
+      "enum": ["inventoried", "staged", "validated", "approved", "cutover", "verified", "archived", "aborted", "rolled_back"]
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "approved_at": { "$ref": "#/$defs/nullableDateTime" },
+    "cutover_at": { "$ref": "#/$defs/nullableDateTime" },
+    "rollback_deadline": { "$ref": "#/$defs/nullableDateTime" },
+    "approvals": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["role", "subject_id", "decision", "evidence_sha256", "decided_at"],
+        "properties": {
+          "role": { "enum": ["operator", "verifier"] },
+          "subject_id": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "decision": { "enum": ["approved", "rejected"] },
+          "evidence_sha256": { "$ref": "#/$defs/sha256" },
+          "decided_at": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "rollback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["legacy_snapshot_sha256", "post_cutover_first_sequence", "status"],
+      "properties": {
+        "legacy_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+        "post_cutover_first_sequence": {
+          "oneOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }]
+        },
+        "status": { "enum": ["prepared", "available", "executed", "expired", "not_applicable"] }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "state": { "enum": ["approved", "cutover", "verified", "archived"] }
+        }
+      },
+      "then": {
+        "properties": {
+          "approvals": {
+            "allOf": [
+              {
+                "contains": {
+                  "type": "object",
+                  "required": ["role", "decision"],
+                  "properties": { "role": { "const": "operator" }, "decision": { "const": "approved" } }
+                },
+                "minContains": 1
+              },
+              {
+                "contains": {
+                  "type": "object",
+                  "required": ["role", "decision"],
+                  "properties": { "role": { "const": "verifier" }, "decision": { "const": "approved" } }
+                },
+                "minContains": 1
+              }
+            ]
+          },
+          "approved_at": { "type": "string", "format": "date-time" },
+          "rollback_deadline": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "state": { "enum": ["cutover", "verified", "archived"] } } },
+      "then": { "properties": { "cutover_at": { "type": "string", "format": "date-time" } } }
+    }
+  ],
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "count": { "type": "integer", "minimum": 0 },
+    "nullableDateTime": {
+      "oneOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }]
+    }
+  }
+}
+

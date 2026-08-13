@@ -78,8 +78,8 @@ mod tests {
         let (scope, value) = config
             .resolve_taxonomy_parameter("hierarchy.files.macro.macrocore", "max_params")
             .expect("max_params deveria cair para o primeiro ancestral com valor concreto");
-        assert_eq!(scope, "hierarchy.files");
-        assert_eq!(value, "5");
+        assert_eq!(scope, "hierarchy.files.macro");
+        assert_eq!(value, "4");
 
         let error = config
             .resolve_taxonomy_parameter("hierarchy.files.unit.unitcore", "banana_param")

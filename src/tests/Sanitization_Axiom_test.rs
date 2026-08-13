@@ -128,8 +128,7 @@ pub fn sample() {}
             .iter()
             .any(|violation| violation.rule_id.contains("rayon")));
         assert!(ctx.violations.iter().any(|violation| {
-            violation.message.contains("src/libres")
-                && violation.message.contains("rayon")
+            violation.message.contains("src/libres") && violation.message.contains("rayon")
         }));
     }
 
@@ -226,9 +225,10 @@ serde = "1"
     fn strict_wrapper_boundary_flags_wildcard_reexport_inside_libres() {
         let mut hierarchy = HierarchyConfig::load_from_folder("ant_delirium_config/type_1");
         if let Some(permissions) = hierarchy.nodes.get_mut("hierarchy.permissions") {
-            permissions
-                .properties
-                .insert("wrapper_boundary_contract".to_string(), "explicit_ac_alias".to_string());
+            permissions.properties.insert(
+                "wrapper_boundary_contract".to_string(),
+                "explicit_ac_alias".to_string(),
+            );
         }
         let config = AuditConfig {
             hierarchy,
@@ -262,9 +262,10 @@ pub use wgpu::*;
     fn strict_wrapper_boundary_accepts_explicit_named_export_inside_libres() {
         let mut hierarchy = HierarchyConfig::load_from_folder("ant_delirium_config/type_1");
         if let Some(permissions) = hierarchy.nodes.get_mut("hierarchy.permissions") {
-            permissions
-                .properties
-                .insert("wrapper_boundary_contract".to_string(), "explicit_ac_alias".to_string());
+            permissions.properties.insert(
+                "wrapper_boundary_contract".to_string(),
+                "explicit_ac_alias".to_string(),
+            );
         }
         let config = AuditConfig {
             hierarchy,
@@ -296,9 +297,10 @@ pub use std::time::Duration as AC_Duration;
     fn strict_wrapper_boundary_requires_ac_alias_contract() {
         let mut hierarchy = HierarchyConfig::load_from_folder("ant_delirium_config/type_1");
         if let Some(permissions) = hierarchy.nodes.get_mut("hierarchy.permissions") {
-            permissions
-                .properties
-                .insert("wrapper_boundary_contract".to_string(), "explicit_ac_alias".to_string());
+            permissions.properties.insert(
+                "wrapper_boundary_contract".to_string(),
+                "explicit_ac_alias".to_string(),
+            );
         }
         let config = AuditConfig {
             hierarchy,
@@ -323,11 +325,10 @@ pub use alloc::string::String;
 
         StrictWrapperBoundaryAxiom::default().execute(&mut ctx);
 
-        assert!(ctx.violations.iter().any(|violation| {
-            violation
-                .rule_id
-                .contains("alloc_ac_alias_boundary")
-        }));
+        assert!(ctx
+            .violations
+            .iter()
+            .any(|violation| { violation.rule_id.contains("alloc_ac_alias_boundary") }));
     }
 
     #[test]

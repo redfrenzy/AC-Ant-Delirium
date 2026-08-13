@@ -80,7 +80,7 @@ mod tests {
         );
 
         let output_root = GovernanceLogs::DEFAULT_OUTPUT_ROOT;
-        let paths = GovernanceLogs::write_artifacts(&audit_result, &config, output_root)
+        let paths = GovernanceLogs::write_artifacts(&audit_result, &config, output_root, None)
             .expect("swarm should write log artifacts");
 
         GovernanceLogs::emit_terminal_report(&audit_result, &config, Some(&paths));
@@ -101,15 +101,11 @@ mod tests {
             "violations manifest should live outside the audited src tree"
         );
         assert!(
-            paths
-                .shadow_context_path
-                .ends_with("shadow_context.json"),
+            paths.shadow_context_path.ends_with("shadow_context.json"),
             "shadow context should honor the configured output path"
         );
         assert!(
-            !paths
-                .shadow_context_path
-                .contains("/src/"),
+            !paths.shadow_context_path.contains("/src/"),
             "shadow context should live outside the audited src tree"
         );
 

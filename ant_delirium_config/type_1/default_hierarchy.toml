@@ -24,13 +24,13 @@ else_free_bypass_token = "[REASON]"
 
 [hierarchy.permissions]
 info = "Global permission layer for dependency and token governance. This branch describes which external crates are allowed in the active project and which code tokens are restricted because they are noisy, unsafe, or hostile to review. Users typically edit this node when governance policy changes and the plugin must adapt its sanitization behavior."
-libres = ["ac_ant_delirium", "rayon", "std"]
+libres = ["ac_ant_delirium", "rayon", "rusqlite", "sha2", "std"]
 wrapper_boundary_contract = "explicit_ac_alias"
 restricted_tokens = { "panic!" = "Security: Use Result.", "unwrap" = "Security: Use expect()." }
 
 [hierarchy.files]
 info = "Main file-governance branch. It defines the default structural and pedagogical expectations applied to governed source files before specialization into unit, struct, macro, or test DNA. This is the right place to describe broad file-level conventions such as density limits, parameter limits, and whether markdown pairing is expected by default."
-max_nesting = 5
+max_nesting = 3
 max_params = 5
 logical_density = 40
 else_free = true
@@ -63,7 +63,7 @@ jurisdiction = "src"
 type_logic = ["pub fn", "pub async fn", "pub const fn", "pub unsafe fn", "pub(crate) fn", "pub(crate) async fn", "pub(crate) const fn"]
 md_pairing = true
 manifest = true
-max_nesting = 5
+max_nesting = 2
 max_params = 4
 logical_density = 25
 else_free = true
@@ -91,7 +91,7 @@ info = "Describe the validation path, test scenario, or verification contract fo
 info = "Internal unitcore DNA. This branch describes the implementation-focused companion of a public unit file. Unitcore should contain lower-level logic that supports the parent unit without becoming the external API surface itself. Because it is internal, manifest generation is disabled here, while structural limits are slightly more permissive than the parent unit."
 type_logic = ["fn", "async fn", "const fn", "unsafe fn"]
 manifest = false
-max_nesting = 5
+max_nesting = 3
 max_params = 6
 logical_density = 40
 else_free = true
@@ -125,7 +125,7 @@ jurisdiction = "src/struct"
 type_logic = ["struct", "pub struct", "enum", "pub enum"]
 md_pairing = true
 manifest = true
-max_nesting = 5
+max_nesting = 3
 max_params = 4
 logical_density = 25
 else_free = true
@@ -153,7 +153,7 @@ info = "Describe the validation path or invariants that prove this structural co
 info = "Internal structcore DNA. This branch covers helper functions and impl-level mechanics attached to structural type modules. Manifest generation is disabled because the parent struct DNA is expected to carry the public anchoring role, while structcore keeps implementation details close to the associated type."
 type_logic = ["fn", "async fn", "const fn", "unsafe fn", "impl"]
 manifest = false
-max_nesting = 5
+max_nesting = 3
 max_params = 4
 logical_density = 30
 else_free = true
@@ -179,7 +179,7 @@ jurisdiction = "src/macros"
 type_logic = ["macro_rules!", "pub macro"]
 md_pairing = true
 manifest = true
-max_nesting = 5
+max_nesting = 3
 max_params = 4
 logical_density = 25
 else_free = true
@@ -218,3 +218,15 @@ info = "Explain why this helper exists in macrocore and what expansion concern i
 [hierarchy.files.macro.macrocore.documentation.usage]
 min = 64
 info = "Explain how this macrocore helper is invoked or consumed by the parent macro layer."
+
+[hierarchy.orchestration]
+min_passing_grade = 7.0
+
+[hierarchy.orchestration.cargo_warning]
+enabled = true
+manifest = "AC_Ant-Delirium_props/Logs/artifacts/to-do_list_manifest.json"
+pending_template = "[Plan {plan_id}] {pending_tasks} tasks pending ({mode} mode). Manifest: {manifest}. ({instruction})"
+generation_template = "[Plan {plan_id}] Task Generation Mode Active. Manifest: {manifest}. Create specific implementation tasks with ./guard --api 'hierarchy.task.[{plan_id}].add_task=Write a complete task prompt here', then close task generation with ./guard --api 'hierarchy.task.[{plan_id}].needs_more_tasks=false'. Do not edit task_orchestrator.json or plan JSON files directly."
+implementation_instruction = "Complete a task using: ./guard --api 'hierarchy.task.[{plan_id}].[TASK_ID].implemented=true Your explanation here'"
+plan_review_instruction = "Audit a task using: ./guard --api 'hierarchy.task.[{plan_id}].[TASK_ID].task_reviewed=true Your explanation here'"
+implementation_review_instruction = "Review a task using: ./guard --api 'hierarchy.task.[{plan_id}].[TASK_ID].review_status=approved Your explanation here' or use rejected"

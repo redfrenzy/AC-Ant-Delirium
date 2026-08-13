@@ -4,8 +4,13 @@ mod tests {
     use std::path::Path;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use crate::structs::{AuditConfig, AuditResult, AuditViolation, HierarchyConfig};
-    use crate::Logs::GovernanceLogs;
+    use crate::structs::{
+        AtomicProjectProjectionWriter, AuditConfig, AuditResult, AuditViolation,
+        CanonicalStateStore, GovernanceErrorsProjectionContext, HierarchyConfig, NewAuditEvent,
+        ProjectDatabase, ProjectStateRoot, ProjectionMetadata, StorageProject, StorageWorkspace,
+        AUDIT_EVENT_CONTRACT_VERSION,
+    };
+    use crate::Logs::{GovernanceErrorsProjectionTarget, GovernanceLogs};
 
     fn sample_result() -> (AuditConfig, AuditResult) {
         let config = AuditConfig {
@@ -98,7 +103,7 @@ mod tests {
         let output_root_str = output_root.to_string_lossy().to_string();
         let _ = fs::remove_dir_all(&output_root);
 
-        let paths = GovernanceLogs::write_artifacts(&result, &config, &output_root_str)
+        let paths = GovernanceLogs::write_artifacts(&result, &config, &output_root_str, None)
             .expect("log artifacts should be written");
 
         assert!(Path::new(&paths.terminal_report_path).exists());
@@ -124,7 +129,7 @@ mod tests {
         fs::write(&stale_log, "stale").expect("should create stale log");
         assert!(stale_log.exists());
 
-        GovernanceLogs::write_artifacts(&result, &config, &output_root_str)
+        GovernanceLogs::write_artifacts(&result, &config, &output_root_str, None)
             .expect("rewriting log artifacts should clear stale files");
 
         assert!(
@@ -150,8 +155,7 @@ mod tests {
             violations: vec![AuditViolation {
                 file_path: "src/translator/Wgsl-Material-Translator_unit.rs".to_string(),
                 line: 77,
-                rule_id: "hierarchy.structural.logical_density.WGSLMaterialTranslator"
-                    .to_string(),
+                rule_id: "hierarchy.structural.logical_density.WGSLMaterialTranslator".to_string(),
                 message: "logical density overflow - 185/56 statements. Fragment this logic."
                     .to_string(),
                 snippet: None,
@@ -256,5 +260,170 @@ mod tests {
         assert!(manifest.contains("\"rule_id\": \"hierarchy.identity.recursion.jurisdiction\""));
         assert!(manifest.contains("\"priority\": \"P-0."));
         assert!(manifest.contains("\"level\": \"error\""));
+    }
+
+    #[test]
+    fn writes_the_same_audit_violation_set_as_a_sanitized_project_projection() {
+        let root = unique_temp_dir("ac_ant_delirium_governance_projection");
+        let project_root = root.join("source-project");
+        let state_root = ProjectStateRoot::with_default_config(
+            root.join("protected/project"),
+            project_root.clone(),
+            root.join("source-worktree"),
+        );
+        let database =
+            ProjectDatabase::initialize(&state_root).expect("database should initialize");
+        CanonicalStateStore::register_project(
+            &database,
+            &StorageProject {
+                project_id: "prj_00000000000000000000000000".to_string(),
+                project_key: "governance-projection-project".to_string(),
+                created_at: "2026-08-11T00:00:00Z".to_string(),
+            },
+        )
+        .expect("project should register");
+        CanonicalStateStore::register_workspace(
+            &database,
+            &StorageWorkspace {
+                workspace_id: "wsp_00000000000000000000000000".to_string(),
+                project_id: "prj_00000000000000000000000000".to_string(),
+                workspace_key: "governance-projection-workspace".to_string(),
+                created_at: "2026-08-11T00:00:00Z".to_string(),
+            },
+        )
+        .expect("workspace should register");
+        let writer = AtomicProjectProjectionWriter::new(database.clone(), state_root.clone())
+            .expect("writer should bind to the state root");
+        let context = GovernanceErrorsProjectionContext {
+            metadata: ProjectionMetadata {
+                project_id: "prj_00000000000000000000000000".to_string(),
+                workspace_id: "wsp_00000000000000000000000000".to_string(),
+                source_revision: 0,
+                generation: 1,
+                fingerprint: format!("{:064x}", 102),
+                rendered_at: "2026-08-11T00:00:00Z".to_string(),
+            },
+            violation_ids: vec!["vio_00000000000000000000000000".to_string()],
+        };
+        let audit_event = NewAuditEvent {
+            contract_version: AUDIT_EVENT_CONTRACT_VERSION.to_string(),
+            event_id: "evt_00000000000000000000000000".to_string(),
+            project_id: context.metadata.project_id.clone(),
+            workspace_id: Some(context.metadata.workspace_id.clone()),
+            actor_kind: "service".to_string(),
+            actor_subject_id: "antdelirium-service".to_string(),
+            event_kind: "projection_rendered".to_string(),
+            outcome: "succeeded".to_string(),
+            occurred_at: "2026-08-11T00:00:00Z".to_string(),
+            fingerprint: context.metadata.fingerprint.clone(),
+            correlation_id: "governance-errors-projection".to_string(),
+            resource_id: Some("governance_errors".to_string()),
+            payload: b"governance-errors-projection".to_vec(),
+        };
+        let config = AuditConfig {
+            hierarchy: HierarchyConfig::load_from_folder("ant_delirium_config/type_1"),
+            ..AuditConfig::default()
+        };
+        let result = AuditResult {
+            violations: vec![AuditViolation {
+                file_path: "src/private_adapter.rs".to_string(),
+                line: 23,
+                rule_id: "hierarchy.structural.type_logic".to_string(),
+                message: "Move the API from /home/operator/private/source.rs.".to_string(),
+                snippet: Some("pub fn leaked() {}".to_string()),
+                quick_fix: Some("Do not inspect C:\\private\\plans; move the API.".to_string()),
+                detected_dna: "unitcore".to_string(),
+                taxonomy_path: "hierarchy.files.unit.unitcore".to_string(),
+            }],
+            logs: vec!["private administrative log".to_string()],
+        };
+
+        let paths = GovernanceLogs::write_artifacts(
+            &result,
+            &config,
+            &root.join("legacy-artifacts").to_string_lossy(),
+            Some(GovernanceErrorsProjectionTarget {
+                writer: &writer,
+                context: &context,
+                audit_event: &audit_event,
+            }),
+        )
+        .expect("legacy artifacts and typed projection should write");
+
+        let legacy = fs::read_to_string(paths.violations_manifest_path)
+            .expect("legacy manifest should remain available");
+        let projection = fs::read_to_string(state_root.governance_error_projection_path())
+            .expect("governance projection should read");
+        assert!(legacy.contains("hierarchy.structural.type_logic"));
+        assert!(legacy.contains("src/private_adapter.rs"));
+        for required in [
+            "\"artifact_kind\": \"governance_errors\"",
+            "\"violation_id\": \"vio_00000000000000000000000000\"",
+            "\"rule_id\": \"hierarchy.structural.type_logic\"",
+            "\"path\": \"src/private_adapter.rs\"",
+            "\"line\": 23",
+            "\"public_rule_reference\": \"hierarchy.rule.type_logic\"",
+            "[project-root]",
+        ] {
+            assert!(
+                projection.contains(required),
+                "missing projected value: {required}"
+            );
+        }
+        for forbidden in [
+            "/home/",
+            "C:\\\\private",
+            "\"snippet\"",
+            "\"taxonomy_path\"",
+            "\"detected_dna\"",
+            "\"log_file\"",
+            "\"installation_command\"",
+            "\"api_rule_command\"",
+            "\"audited_files\"",
+            "\"priority\"",
+            "private administrative log",
+        ] {
+            assert!(
+                !projection.contains(forbidden),
+                "forbidden projection content leaked: {forbidden}"
+            );
+        }
+        assert_eq!(
+            database.event_count(&context.metadata.project_id).unwrap(),
+            1
+        );
+
+        let mismatched_context = GovernanceErrorsProjectionContext {
+            metadata: ProjectionMetadata {
+                generation: 2,
+                fingerprint: format!("{:064x}", 103),
+                ..context.metadata.clone()
+            },
+            violation_ids: Vec::new(),
+        };
+        let mismatched_event = NewAuditEvent {
+            event_id: "evt_00000000000000000000000001".to_string(),
+            fingerprint: mismatched_context.metadata.fingerprint.clone(),
+            ..audit_event
+        };
+        let mismatch = GovernanceLogs::write_artifacts(
+            &result,
+            &config,
+            &root.join("legacy-artifacts").to_string_lossy(),
+            Some(GovernanceErrorsProjectionTarget {
+                writer: &writer,
+                context: &mismatched_context,
+                audit_event: &mismatched_event,
+            }),
+        )
+        .expect_err("a partial trusted id set must be rejected");
+        assert_eq!(mismatch.kind(), std::io::ErrorKind::InvalidData);
+        assert_eq!(
+            database.event_count(&context.metadata.project_id).unwrap(),
+            1,
+            "a mismatched set must not reach the projection writer"
+        );
+
+        let _ = fs::remove_dir_all(root);
     }
 }

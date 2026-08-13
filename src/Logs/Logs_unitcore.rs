@@ -5,9 +5,12 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::engine::Search_Engine_unit::SearchFiles;
-use crate::structs::{AuditConfig, AuditResult, AuditViolation};
+use crate::structs::{
+    build_governance_errors_projection, sanitize_public_text, AuditConfig, AuditResult,
+    AuditViolation, GovernanceErrorsProjectionDocument, ProjectedGovernanceViolation,
+};
 
-use super::GovernanceArtifactPaths;
+use super::{GovernanceArtifactPaths, GovernanceErrorsProjectionTarget};
 
 const ORDERED_AXIOM_IDS: [&str; 24] = [
     "super_block",
@@ -232,11 +235,7 @@ pub fn to_violation_manifest(
             json_escape(&violation.file_path)
         );
         out.push_str("      \"offending_files\": [\n");
-        let _ = writeln!(
-            out,
-            "        \"{}\"",
-            json_escape(&violation.file_path)
-        );
+        let _ = writeln!(out, "        \"{}\"", json_escape(&violation.file_path));
         out.push_str("      ],\n");
         let _ = writeln!(
             out,
@@ -244,11 +243,7 @@ pub fn to_violation_manifest(
             json_escape(&violation.file_path)
         );
         out.push_str("      \"offense_targets\": [\n");
-        let _ = writeln!(
-            out,
-            "        \"{}\"",
-            json_escape(&violation.file_path)
-        );
+        let _ = writeln!(out, "        \"{}\"", json_escape(&violation.file_path));
         out.push_str("      ],\n");
         let _ = writeln!(
             out,
@@ -792,6 +787,7 @@ pub fn write_artifacts(
     result: &AuditResult,
     config: &AuditConfig,
     output_root: &str,
+    projection_target: Option<GovernanceErrorsProjectionTarget<'_>>,
 ) -> std::io::Result<GovernanceArtifactPaths> {
     let paths = resolve_artifact_paths(config, output_root);
     fs::create_dir_all(&paths.output_root)?;
@@ -819,7 +815,52 @@ pub fn write_artifacts(
     let shadow = to_shadow_context(result, config, Some(&paths));
     fs::write(&paths.shadow_context_path, shadow)?;
 
+    if let Some(target) = projection_target {
+        write_governance_errors_projection(result, config, target)?;
+    }
+
     Ok(paths)
+}
+
+fn write_governance_errors_projection(
+    result: &AuditResult,
+    config: &AuditConfig,
+    target: GovernanceErrorsProjectionTarget<'_>,
+) -> std::io::Result<()> {
+    if target.context.violation_ids.len() != result.violations.len() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "trusted violation identifiers do not match the audited violation set",
+        ));
+    }
+    let violations = result
+        .violations
+        .iter()
+        .zip(target.context.violation_ids.iter())
+        .map(|(violation, violation_id)| ProjectedGovernanceViolation {
+            violation_id: violation_id.clone(),
+            rule_id: violation.rule_id.clone(),
+            summary: sanitize_public_text(&violation.message),
+            path: violation.file_path.clone(),
+            line: violation.line,
+            quick_fix: violation.quick_fix.as_deref().map(sanitize_public_text),
+            public_rule_reference: runtime_rule_doc_path(
+                &config.hierarchy,
+                &grouped_rule_key(&violation.rule_id),
+            ),
+        })
+        .collect();
+    let document = GovernanceErrorsProjectionDocument {
+        metadata: target.context.metadata.clone(),
+        violations,
+    };
+    let projection = build_governance_errors_projection(&document)
+        .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error.to_string()))?;
+    target
+        .writer
+        .write_governance_errors(&projection, target.audit_event)
+        .map(|_| ())
+        .map_err(|error| std::io::Error::other(error.to_string()))
 }
 
 fn group_violations_by_rule<'a>(
@@ -1520,7 +1561,9 @@ fn remediation_kind(rule_doc_id: &str) -> &'static str {
         "dna_suffix" | "tag_separator" | "pascal_case" | "name_separator" | "repository_anchor"
         | "manifest_anchoring" | "recursion" => "align_file_identity",
         "restricted_tokens" | "token_sanitization" => "sanitize_tokens",
-        "allowed_crates" | "dependency_purification" | "strict_wrapper_boundary" => "align_dependencies",
+        "allowed_crates" | "dependency_purification" | "strict_wrapper_boundary" => {
+            "align_dependencies"
+        }
         _ => "inspect_rule_contract",
     }
 }

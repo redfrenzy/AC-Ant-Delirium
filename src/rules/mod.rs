@@ -94,7 +94,8 @@ pub fn get_full_axioms() -> Vec<Box<dyn GovernanceAxiom>> {
         axiom_sanitization::Allowed_Crates_Axiom_unit::AllowedCratesAxiom::default(),
     ));
     catalog.push(Box::new(
-        axiom_sanitization::Strict_Wrapper_Boundary_Axiom_unit::StrictWrapperBoundaryAxiom::default(),
+        axiom_sanitization::Strict_Wrapper_Boundary_Axiom_unit::StrictWrapperBoundaryAxiom::default(
+        ),
     ));
     catalog.push(Box::new(
         axiom_sanitization::Token_Sanitization_Axiom_unit::TokenSanitizationAxiom::default(),

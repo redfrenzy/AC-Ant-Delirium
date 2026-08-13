@@ -1,5 +1,8 @@
 use crate::restricted_tokens::out::elite_out;
-use crate::structs::{AuditConfig, AuditResult};
+use crate::structs::{
+    AuditConfig, AuditResult, GovernanceErrorsProjectionContext, NewAuditEvent,
+    ProjectProjectionWriter,
+};
 
 #[path = "Logs_unitcore.rs"]
 mod internal;
@@ -14,6 +17,12 @@ pub struct GovernanceArtifactPaths {
 }
 
 pub struct GovernanceLogs;
+
+pub struct GovernanceErrorsProjectionTarget<'a> {
+    pub writer: &'a dyn ProjectProjectionWriter,
+    pub context: &'a GovernanceErrorsProjectionContext,
+    pub audit_event: &'a NewAuditEvent,
+}
 
 impl GovernanceLogs {
     pub const DEFAULT_OUTPUT_ROOT: &str = "AC_Ant-Delirium_props/Logs/artifacts";
@@ -46,8 +55,9 @@ impl GovernanceLogs {
         result: &AuditResult,
         config: &AuditConfig,
         output_root: &str,
+        projection_target: Option<GovernanceErrorsProjectionTarget<'_>>,
     ) -> std::io::Result<GovernanceArtifactPaths> {
-        internal::write_artifacts(result, config, output_root)
+        internal::write_artifacts(result, config, output_root, projection_target)
     }
 
     pub fn emit_terminal_report(

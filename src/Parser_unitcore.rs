@@ -189,10 +189,7 @@ fn detect_block_type(line: &str) -> (&'static str, String) {
             let mut parts = line.split(kw);
             let _ = parts.next();
             if let Some(part) = parts.next() {
-                let name = elite_resolve_or(
-                    part.split(['(', '{', '<']).next(),
-                    "unknown",
-                );
+                let name = elite_resolve_or(part.split(['(', '{', '<']).next(), "unknown");
                 return (kind, name.trim().to_string());
             }
         }

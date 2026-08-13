@@ -1,0 +1,16 @@
+[Unit]
+Description=AntDelirium administrative local protocol socket
+Documentation=man:antdelirium(1)
+
+[Socket]
+ListenStream=@ADMIN_RUNDIR@/admin.sock
+FileDescriptorName=admin
+Service=antdelirium.service
+SocketUser=root
+SocketGroup=antdelirium-admin
+SocketMode=0660
+DirectoryMode=0750
+Accept=no
+
+[Install]
+WantedBy=sockets.target

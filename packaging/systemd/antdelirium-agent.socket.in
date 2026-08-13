@@ -1,0 +1,16 @@
+[Unit]
+Description=AntDelirium limited local protocol socket
+Documentation=man:antdelirium(1)
+
+[Socket]
+ListenStream=@RUNDIR@/agent.sock
+FileDescriptorName=agent
+Service=antdelirium.service
+SocketUser=antdelirium
+SocketGroup=antdelirium-client
+SocketMode=0660
+DirectoryMode=0755
+Accept=no
+
+[Install]
+WantedBy=sockets.target

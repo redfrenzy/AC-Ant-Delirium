@@ -36,17 +36,18 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
     if Identity_Axiom_Common_unitcore::is_generic_rust_file_stem(stem) {
         return;
     }
-    let has_explicit_dna_suffix = stem
-        .rsplit_once(&tag_separator)
-        .map(|(_, suffix)| !suffix.is_empty())
-        .unwrap_or(false);
+    let dna_suffix = format!("{}{}", tag_separator, ctx.detected_dna);
+    let has_explicit_dna_suffix = !ctx.detected_dna.is_empty() && stem.ends_with(&dna_suffix);
     if !has_explicit_dna_suffix && ctx.detected_dna.is_empty() {
         return;
     }
-    let core_name = stem
-        .rsplit_once(&tag_separator)
-        .map(|(base, _)| base)
-        .unwrap_or(stem);
+    let core_name = if has_explicit_dna_suffix {
+        stem.trim_end_matches(&dna_suffix)
+    } else {
+        stem.rsplit_once(&tag_separator)
+            .map(|(base, _)| base)
+            .unwrap_or(stem)
+    };
 
     if !is_pascal_case(core_name) {
         ctx.violations.push(crate::structs::AuditViolation {
@@ -64,7 +65,6 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
         });
     }
 }
-
 
 fn is_pascal_case(input: &str) -> bool {
     if input.is_empty() || input.contains('_') || input.contains('.') {

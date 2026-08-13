@@ -346,7 +346,7 @@ enabled = true
             hierarchy,
             PathBuf::from("/workspace/project"),
             "ant_delirium_config/type_1/default_hierarchy.toml".to_string(),
-            "delirium_cli".to_string(),
+            "antdelirium".to_string(),
         )
     }
 
@@ -354,7 +354,7 @@ enabled = true
     fn welcome_uses_dynamic_root_hint() {
         let output = sample_api().render(None);
         assert!(output.contains("Welcome to Aesthetic Core Ant-Delirium."));
-        assert!(output.contains("delirium_cli --api hierarchy"));
+        assert!(output.contains("antdelirium --api hierarchy"));
     }
 
     #[test]
@@ -367,7 +367,7 @@ enabled = true
 
     #[test]
     fn info_fallback_points_to_hierarchy_file() {
-        let output = sample_api().render(Some("hierarchy.structural"));
+        let output = sample_api().render(Some("hierarchy.missing"));
         assert!(output.contains("info not found"));
         assert!(output.contains("ant_delirium_config/type_1/default_hierarchy.toml"));
     }
@@ -397,7 +397,7 @@ info = "User defined installation note."
             hierarchy,
             PathBuf::from("/workspace/project"),
             "ant_delirium_config/type_1/default_hierarchy.toml".to_string(),
-            "delirium_cli".to_string(),
+            "antdelirium".to_string(),
         );
 
         let output = api.render(Some("hierarchy.installation"));
@@ -409,10 +409,10 @@ info = "User defined installation note."
     #[test]
     fn help_lists_child_paths_and_rule_commands() {
         let output = sample_api().render(Some("hierarchy.help"));
-        assert!(output.contains("delirium_cli --api hierarchy.files [info: configured]"));
-        assert!(output.contains("delirium_cli --api hierarchy.files.unit [info: configured]"));
-        assert!(output.contains("delirium_cli --api hierarchy.files.unit.unitcore [info: missing]"));
-        assert!(output.contains("delirium_cli --api hierarchy.rule.max_nesting"));
+        assert!(output.contains("antdelirium --api hierarchy.files [info: configured]"));
+        assert!(output.contains("antdelirium --api hierarchy.files.unit [info: configured]"));
+        assert!(output.contains("antdelirium --api hierarchy.files.unit.unitcore [info: missing]"));
+        assert!(output.contains("antdelirium --api hierarchy.rule.max_nesting"));
     }
 
     #[test]

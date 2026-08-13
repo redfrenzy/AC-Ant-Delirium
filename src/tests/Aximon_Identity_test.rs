@@ -20,7 +20,7 @@ mod tests {
         let violations = SwarmEngine::audit(&config)
             .violations
             .into_iter()
-            .filter(|violation| violation.rule_id.ends_with(rule_suffix))
+            .filter(|violation| violation.rule_id.contains(rule_suffix))
             .filter(|violation| violation.file_path.contains("/identity_workspace/"))
             .collect();
 

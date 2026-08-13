@@ -20,8 +20,13 @@ mod tests {
             let result = SwarmEngine::audit(&config);
 
             // Gera artefatos (incluindo shadow_context.json)
-            crate::Logs::GovernanceLogs::write_artifacts(&result, &config, "Logs/debug_artifacts")
-                .ok();
+            crate::Logs::GovernanceLogs::write_artifacts(
+                &result,
+                &config,
+                "Logs/debug_artifacts",
+                None,
+            )
+            .ok();
 
             let mut counts = BTreeMap::new();
 

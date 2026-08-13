@@ -38,11 +38,13 @@ impl SearchFiles {
                             project_root,
                             ignored_patterns,
                         ));
-                    } else {
-                        // O motor ativo audita apenas código Rust fonte.
-                        if entry_path.extension().and_then(|ext| ext.to_str()) == Some("rs") {
-                            files.push(relativize_for_display(&entry_path, project_root));
-                        }
+                    } else if matches!(
+                        entry_path.extension().and_then(|ext| ext.to_str()),
+                        Some("rs" | "md" | "json" | "toml")
+                    ) {
+                        // A jurisdição comum precisa incluir todos os formatos consumidos pelos
+                        // axiomas. Cada regra continua responsável por filtrar seu próprio tipo.
+                        files.push(relativize_for_display(&entry_path, project_root));
                     }
                 }
             }

@@ -72,6 +72,53 @@ fn parser_accepts_config_init_subcommand() {
 }
 
 #[test]
+fn cargo_warning_is_rendered_from_hierarchy_contract() {
+    let hierarchy = HierarchyConfig::parse_brute(
+        "[hierarchy.orchestration.cargo_warning]\n\
+         enabled = true\n\
+         manifest = \"AC_Ant-Delirium_props/Logs/artifacts/to-do_list_manifest.json\"\n\
+         pending_template = \"[Plan {plan_id}] {pending_tasks} pending in {mode}; {manifest}; {instruction}\"\n\
+         implementation_instruction = \"Complete {plan_id}\"\n",
+    );
+    let instruction = cargo_warning_parameter(&hierarchy, "implementation_instruction")
+        .expect("instruction should resolve");
+    let instruction = render_warning_template(&instruction, "2.0", 3, "implementation", "", "");
+    let warning = render_cargo_warning(
+        &hierarchy,
+        "pending_template",
+        "2.0",
+        3,
+        "implementation",
+        &instruction,
+    )
+    .expect("warning should render");
+
+    assert_eq!(
+        warning,
+        "[Plan 2.0] 3 pending in implementation; AC_Ant-Delirium_props/Logs/artifacts/to-do_list_manifest.json; Complete 2.0"
+    );
+}
+
+#[test]
+fn cargo_warning_supports_alternate_taxonomy_roots_and_disable_switch() {
+    let hierarchy = HierarchyConfig::parse_brute(
+        "[regras.orchestration.cargo_warning]\n\
+         enabled = false\n\
+         pending_template = \"must not render\"\n",
+    );
+
+    assert!(render_cargo_warning(
+        &hierarchy,
+        "pending_template",
+        "1.0",
+        1,
+        "implementation",
+        ""
+    )
+    .is_none());
+}
+
+#[test]
 fn parser_accepts_hooks_init_subcommand() {
     let args = vec!["config".to_string(), "hooks".to_string(), "init".to_string()];
     let parsed = parse_cli_args(&args);
@@ -346,6 +393,29 @@ fn detect_project_root_ignores_invalid_cli_root_values() {
     let current = env::current_dir().expect("cwd should exist");
     let detected = detect_project_root(Some("1"));
     assert_eq!(detected, current);
+}
+
+#[test]
+fn detect_project_root_uses_the_filesystem_workspace_discovery() {
+    let root = unique_temp_dir("ac_ant_delirium_main_workspace_discovery");
+    let member = root.join("crates/member");
+    let nested = member.join("src/nested");
+    fs::write(
+        root.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"crates/member\"]\nresolver = \"2\"\n",
+    )
+    .expect("workspace manifest should be written");
+    fs::create_dir_all(&nested).expect("workspace member source should exist");
+    fs::write(
+        member.join("Cargo.toml"),
+        "[package]\nname = \"member\"\nversion = \"0.1.0\"\n",
+    )
+    .expect("member manifest should be written");
+
+    let detected = detect_project_root(Some(&nested.to_string_lossy()));
+    assert_eq!(detected, fs::canonicalize(&root).unwrap());
+
+    fs::remove_dir_all(root).expect("temporary workspace fixture should be removed");
 }
 
 #[test]

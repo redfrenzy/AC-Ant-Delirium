@@ -15,7 +15,12 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
 
     let allowed = parse_string_array(&resolution.value);
     if ctx.file_path.ends_with("Cargo.toml") {
-        patrol_cargo_dependencies(ctx, &resolution.identity_path, &resolution.resolved_path, &allowed);
+        patrol_cargo_dependencies(
+            ctx,
+            &resolution.identity_path,
+            &resolution.resolved_path,
+            &allowed,
+        );
         return;
     }
     if ctx.file_path.ends_with(".rs") {
@@ -492,11 +497,7 @@ fn scoped_dependency_section_name(header: &str) -> Option<String> {
     if !header.starts_with('[') || !header.ends_with(']') {
         return None;
     }
-    Some(
-        header[1..header.len() - 1]
-            .trim()
-            .to_string(),
-    )
+    Some(header[1..header.len() - 1].trim().to_string())
 }
 
 fn is_dependencies_section_name(section: &str) -> bool {
@@ -643,10 +644,7 @@ fn expected_wrapper_path_for_crate(cargo_toml_path: &str, crate_name: &str) -> S
     if package_root.is_empty() {
         format!("src/libres/{}_unit.rs", normalized_name)
     } else {
-        format!(
-            "{}/src/libres/{}_unit.rs",
-            package_root, normalized_name
-        )
+        format!("{}/src/libres/{}_unit.rs", package_root, normalized_name)
     }
 }
 
@@ -677,10 +675,8 @@ fn has_libres_wrapper_for_crate(
         }
 
         if let Some(file) = ctx.project.file(path) {
-            let candidates = collect_external_crate_candidates(
-                &file.content,
-                &[crate_name.to_string()],
-            );
+            let candidates =
+                collect_external_crate_candidates(&file.content, &[crate_name.to_string()]);
             if candidates
                 .iter()
                 .any(|candidate| normalize_crate_name(&candidate.name) == normalized)

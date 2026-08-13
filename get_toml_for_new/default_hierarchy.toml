@@ -37,10 +37,10 @@ guard_call = "ant_delirium_build_guard::run("
 guard_symbol = "ant_delirium_build_guard"
 guard_owner = "root"
 guard_readonly = true
-enforced_files = ["build.rs", "AC_Ant-Delirium_props/ant_delirium_build_guard.rs", "../plugins/__ANT_DELIRIUM_PROJECT__/__ANT_DELIRIUM_PLUGIN_BINARY__", "../plugins/__ANT_DELIRIUM_PROJECT__/ant_delirium_config/default_hierarchy.toml", "../plugins/__ANT_DELIRIUM_PROJECT__/ant_delirium_config/default_rules.toml"]
+enforced_files = ["build.rs", "AC_Ant-Delirium_props/ant_delirium_build_guard.rs", "../plugins/__ANT_DELIRIUM_PROJECT__/bin/__ANT_DELIRIUM_PLUGIN_BINARY__", "../plugins/__ANT_DELIRIUM_PROJECT__/bin/__ANT_DELIRIUM_GUARD_BINARY__", "../plugins/__ANT_DELIRIUM_PROJECT__/ant_delirium_config/default_hierarchy.toml", "../plugins/__ANT_DELIRIUM_PROJECT__/ant_delirium_config/default_rules.toml"]
 enforced_owner = "root"
 enforced_readonly = true
-watch_files = ["../plugins/__ANT_DELIRIUM_PROJECT__/connected.json", "../plugins/__ANT_DELIRIUM_PROJECT__/governance.json", "../plugins/__ANT_DELIRIUM_PROJECT__/messages.json", "../plugins/__ANT_DELIRIUM_PROJECT__/feedback.json", "../plugins/__ANT_DELIRIUM_PROJECT__/manager_tasks.json"]
+watch_files = ["../plugins/__ANT_DELIRIUM_PROJECT__/connected.json", "../plugins/__ANT_DELIRIUM_PROJECT__/governance.json", "../plugins/__ANT_DELIRIUM_PROJECT__/messages.json", "../plugins/__ANT_DELIRIUM_PROJECT__/feedback.json", "../plugins/__ANT_DELIRIUM_PROJECT__/manager_tasks.json", "../plugins/__ANT_DELIRIUM_PROJECT__/task_orchestrator.json", "../plugins/__ANT_DELIRIUM_PROJECT__/plan"]
 
 [hierarchy.files]
 info = "Default file-governance branch applied to governed Rust files before specialization by DNA."
@@ -69,6 +69,8 @@ ignore = true
 match = "AC_Ant-Delirium_props"
 
 [hierarchy.installation]
+active = true
+agent_command = "./guard"
 
 [hierarchy.installation.config]
 
@@ -242,3 +244,15 @@ info = "Explain why this helper exists in macrocore and what expansion concern i
 [hierarchy.files.macro.macrocore.documentation.usage]
 min = 64
 info = "Explain how this macrocore helper is invoked or consumed by the parent macro layer."
+
+[hierarchy.orchestration]
+min_passing_grade = 7.0
+
+[hierarchy.orchestration.cargo_warning]
+enabled = true
+manifest = "AC_Ant-Delirium_props/Logs/artifacts/to-do_list_manifest.json"
+pending_template = "[Plan {plan_id}] {pending_tasks} tasks pending ({mode} mode). Manifest: {manifest}. ({instruction})"
+generation_template = "[Plan {plan_id}] Task Generation Mode Active. Manifest: {manifest}. Create specific implementation tasks with ./guard --api 'hierarchy.task.[{plan_id}].add_task=Write a complete task prompt here', then close task generation with ./guard --api 'hierarchy.task.[{plan_id}].needs_more_tasks=false'. Do not edit task_orchestrator.json or plan JSON files directly."
+implementation_instruction = "Complete a task using: ./guard --api 'hierarchy.task.[{plan_id}].[TASK_ID].implemented=true Your explanation here'"
+plan_review_instruction = "Audit a task using: ./guard --api 'hierarchy.task.[{plan_id}].[TASK_ID].task_reviewed=true Your explanation here'"
+implementation_review_instruction = "Review a task using: ./guard --api 'hierarchy.task.[{plan_id}].[TASK_ID].review_status=approved Your explanation here' or use rejected"

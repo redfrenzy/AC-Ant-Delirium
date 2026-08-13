@@ -105,7 +105,7 @@ operation_zone
 repository
 
 [hierarchy.identity.recursion]
-priority = 2.0600
+priority = 0.0600
 operation_zone
 recursion
 

@@ -45,9 +45,11 @@ fn main() {
     println!("cargo:rerun-if-env-changed=ANT_DELIRIUM_PROJECT_ROOT");
     println!("cargo:rerun-if-env-changed=ANT_DELIRIUM_ENFORCE_BUILD_HOOK");
     println!("cargo:rerun-if-env-changed=ANT_DELIRIUM_SKIP_BUILD_HOOK");
+    println!("cargo:rerun-if-env-changed=SOURCE_DATE_EPOCH");
 }
 
 fn emit_build_metadata(manifest_dir: &str) {
+    emit_git_rerun_directives(manifest_dir);
     println!(
         "cargo:rustc-env=ANT_DELIRIUM_BUILD_GIT_HASH={}",
         git_hash(manifest_dir)
@@ -56,6 +58,19 @@ fn emit_build_metadata(manifest_dir: &str) {
         "cargo:rustc-env=ANT_DELIRIUM_BUILD_UNIX={}",
         build_unix_timestamp()
     );
+}
+
+fn emit_git_rerun_directives(manifest_dir: &str) {
+    if let Some(head_path) = git_stdout(manifest_dir, &["rev-parse", "--git-path", "HEAD"]) {
+        println!("cargo:rerun-if-changed={head_path}");
+    }
+    if let Some(reference) = git_stdout(manifest_dir, &["symbolic-ref", "--quiet", "HEAD"]) {
+        if let Some(reference_path) =
+            git_stdout(manifest_dir, &["rev-parse", "--git-path", &reference])
+        {
+            println!("cargo:rerun-if-changed={reference_path}");
+        }
+    }
 }
 
 fn run_governance_build_hook(manifest_dir: &str) {
@@ -73,10 +88,12 @@ fn run_governance_build_hook(manifest_dir: &str) {
         .unwrap_or_else(|_| manifest_path.to_path_buf());
     let plugin_path = env::var("ANT_DELIRIUM_BIN")
         .map(std::path::PathBuf::from)
-        .unwrap_or_else(|_| manifest_path.join(format!(
-            "../plugins/{}",
-            engine_identity::DEFAULT_PLUGIN_BINARY_NAME
-        )));
+        .unwrap_or_else(|_| {
+            manifest_path.join(format!(
+                "../plugins/{}",
+                engine_identity::DEFAULT_PLUGIN_BINARY_NAME
+            ))
+        });
     let enforce_hook = env_flag("ANT_DELIRIUM_ENFORCE_BUILD_HOOK");
 
     if !plugin_path.is_file() {
@@ -133,26 +150,35 @@ fn env_flag(name: &str) -> bool {
 }
 
 fn git_hash(manifest_dir: &str) -> String {
-    Command::new("git")
-        .arg("-C")
-        .arg(manifest_dir)
-        .arg("rev-parse")
-        .arg("--short")
-        .arg("HEAD")
-        .output()
-        .ok()
-        .and_then(|output| {
-            if output.status.success() {
-                Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
-            } else {
-                None
-            }
-        })
-        .filter(|value| !value.is_empty())
+    git_stdout(manifest_dir, &["rev-parse", "--verify", "HEAD"])
+        .filter(|value| (7..=64).contains(&value.len()))
+        .filter(|value| value.bytes().all(|byte| byte.is_ascii_hexdigit()))
         .unwrap_or_else(|| "unknown".to_string())
 }
 
+fn git_stdout(manifest_dir: &str, args: &[&str]) -> Option<String> {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(manifest_dir)
+        .args(args)
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let value = String::from_utf8(output.stdout).ok()?;
+    let value = value.trim();
+    (!value.is_empty()).then(|| value.to_string())
+}
+
 fn build_unix_timestamp() -> String {
+    if let Ok(value) = env::var("SOURCE_DATE_EPOCH") {
+        let value = value.trim();
+        if !value.is_empty() && value.chars().all(|character| character.is_ascii_digit()) {
+            return value.to_string();
+        }
+    }
+
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_secs().to_string())

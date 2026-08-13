@@ -1,0 +1,39 @@
+    Checking ac_ant_delirium v0.1.0 (/home/dracker/Antigravity Projects/playground/aesthetic_core_project/AC-Ant-Delirium)
+error[E0432]: unresolved import `crate::structs`
+ --> src/Git_unitcore.rs:3:12
+  |
+3 | use crate::structs::PluginContext;
+  |            ^^^^^^^
+  |            |
+  |            unresolved import
+  |            help: a similar path exists: `ac_ant_delirium::structs`
+
+warning: unused import: `std::path::Path`
+ --> src/Git_unitcore.rs:2:5
+  |
+2 | use std::path::Path;
+  |     ^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+error[E0425]: cannot find function `extract_i64_field` in this scope
+    --> src/Agent-Runtime_unitcore.rs:6249:35
+     |
+6249 |             task_start_timestamp: extract_i64_field(&raw, "task_start_timestamp").unwrap_or(0),
+     |                                   ^^^^^^^^^^^^^^^^^ help: a function with a similar name exists: `extract_f64_field`
+...
+8112 | pub(super) fn extract_f64_field(raw: &str, field: &str) -> Option<f64> {
+     | ---------------------------------------------------------------------- similarly named function `extract_f64_field` defined here
+
+warning: unused variable: `current_step_id`
+    --> src/Agent-Runtime_unitcore.rs:8858:23
+     |
+8858 |     let (active_plan, current_step_id, mode) = match orchestrator_opt {
+     |                       ^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_current_step_id`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+Some errors have detailed explanations: E0425, E0432.
+For more information about an error, try `rustc --explain E0425`.
+warning: `ac_ant_delirium` (bin "delirium_cli") generated 2 warnings
+error: could not compile `ac_ant_delirium` (bin "delirium_cli") due to 2 previous errors; 2 warnings emitted

@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:audit-event-v1",
+  "title": "AntDelirium audit event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "event_id",
+    "sequence",
+    "project_id",
+    "actor",
+    "event_kind",
+    "outcome",
+    "occurred_at",
+    "fingerprint",
+    "correlation_id",
+    "payload"
+  ],
+  "properties": {
+    "contract_version": { "const": "audit-event-v1" },
+    "event_id": { "$ref": "#/$defs/opaqueId" },
+    "sequence": { "type": "integer", "minimum": 1 },
+    "project_id": { "$ref": "#/$defs/projectId" },
+    "workspace_id": {
+      "oneOf": [{ "$ref": "#/$defs/workspaceId" }, { "type": "null" }]
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "subject_id"],
+      "properties": {
+        "kind": { "enum": ["wrapper", "agent", "reviewer", "operator", "service", "ci"] },
+        "subject_id": { "$ref": "#/$defs/opaqueId" }
+      }
+    },
+    "event_kind": {
+      "enum": [
+        "compilation_observed",
+        "submission_recorded",
+        "review_recorded",
+        "state_transitioned",
+        "projection_rendered",
+        "capability_granted",
+        "capability_revoked",
+        "authorization_denied",
+        "migration_applied",
+        "recovery_performed"
+      ]
+    },
+    "outcome": { "enum": ["succeeded", "rejected", "failed"] },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "correlation_id": { "$ref": "#/$defs/opaqueId" },
+    "resource_id": {
+      "oneOf": [{ "$ref": "#/$defs/opaqueId" }, { "type": "null" }]
+    },
+    "payload": { "type": "object" }
+  },
+  "$defs": {
+    "opaqueId": { "type": "string", "minLength": 1, "maxLength": 255 },
+    "projectId": { "type": "string", "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$" },
+    "workspaceId": { "type": "string", "pattern": "^wsp_[0-9a-hjkmnp-tv-z]{26}$" }
+  }
+}

@@ -313,11 +313,11 @@ pub fn all_api_docs() -> &'static [ApiDoc] {
     &[
         ApiDoc {
             path: "hierarchy.installation",
-            body: "This is a project-scoped installation node under the active taxonomy root. Direct plugin information belongs to `<plugin-binary> --installation` and `<plugin-binary> --plugin.help`. The supported layout keeps the project-local binary at `plugins/<project>/<plugin-binary>` and the authoritative TOML package at `plugins/<project>/ant_delirium_config`, beside the binary, so multiple branches and worktrees reuse the same governance package.",
+            body: "This is a project-scoped installation node under the active taxonomy root. Direct plugin information belongs to `<plugin-binary> --installation` and `<plugin-binary> --plugin.help`. The supported layout keeps the project-local binary at `plugins/<project>/bin/<plugin-binary>` and the authoritative TOML package at `plugins/<project>/ant_delirium_config`, beside the bin directory, so multiple branches and worktrees reuse the same governance package.",
         },
         ApiDoc {
             path: "hierarchy.installation.build",
-            body: "The target crate `build.rs` should resolve `plugins/<project>/<plugin-binary>` plus `plugins/<project>/ant_delirium_config`, call the standardized guard as the first operational statement inside `fn main()`, and stop compilation when the guard returns a non-zero status. Keep the TOMLs outside the crate, beside the final binary, instead of copying them into every branch or worktree.",
+            body: "The target crate `build.rs` should resolve `plugins/<project>/bin/<plugin-binary>` plus `plugins/<project>/ant_delirium_config`, call the standardized guard as the first operational statement inside `fn main()`, and stop compilation when the guard returns a non-zero status. Keep the TOMLs outside the crate, beside the final binary package, instead of copying them into every branch or worktree.",
         },
         ApiDoc {
             path: "hierarchy.installation.api",
@@ -345,11 +345,11 @@ pub fn all_api_docs() -> &'static [ApiDoc] {
         },
         ApiDoc {
             path: "rules.installation",
-            body: "This is a project-scoped installation node under the active taxonomy root. Direct plugin information belongs to `<plugin-binary> --installation` and `<plugin-binary> --plugin.help`. The supported layout keeps the project-local binary at `plugins/<project>/<plugin-binary>` and the authoritative TOML package at `plugins/<project>/ant_delirium_config`, beside the binary, so multiple branches and worktrees reuse the same governance package.",
+            body: "This is a project-scoped installation node under the active taxonomy root. Direct plugin information belongs to `<plugin-binary> --installation` and `<plugin-binary> --plugin.help`. The supported layout keeps the project-local binary at `plugins/<project>/bin/<plugin-binary>` and the authoritative TOML package at `plugins/<project>/ant_delirium_config`, beside the bin directory, so multiple branches and worktrees reuse the same governance package.",
         },
         ApiDoc {
             path: "rules.installation.build",
-            body: "The target crate `build.rs` should resolve `plugins/<project>/<plugin-binary>` plus `plugins/<project>/ant_delirium_config`, call the standardized guard as the first operational statement inside `fn main()`, and stop compilation when the guard returns a non-zero status. Keep the TOMLs outside the crate, beside the final binary, instead of copying them into every branch or worktree.",
+            body: "The target crate `build.rs` should resolve `plugins/<project>/bin/<plugin-binary>` plus `plugins/<project>/ant_delirium_config`, call the standardized guard as the first operational statement inside `fn main()`, and stop compilation when the guard returns a non-zero status. Keep the TOMLs outside the crate, beside the final binary package, instead of copying them into every branch or worktree.",
         },
         ApiDoc {
             path: "rules.installation.api",
@@ -377,11 +377,11 @@ pub fn all_api_docs() -> &'static [ApiDoc] {
         },
         ApiDoc {
             path: "regras.installation",
-            body: "Este no de instalacao e da API do projeto, nao do comando direto do plugin. As informacoes diretas do plugin ficam em `<plugin-binary> --installation` e `<plugin-binary> --plugin.help`. O layout suportado mantem o binario final em `plugins/<projeto>/<plugin-binary>` e o pacote TOML autoritativo em `plugins/<projeto>/ant_delirium_config`, ao lado do binario, para reutilizacao entre branches e worktrees.",
+            body: "Este no de instalacao e da API do projeto, nao do comando direto do plugin. As informacoes diretas do plugin ficam em `<plugin-binary> --installation` e `<plugin-binary> --plugin.help`. O layout suportado mantem o binario final em `plugins/<projeto>/bin/<plugin-binary>` e o pacote TOML autoritativo em `plugins/<projeto>/ant_delirium_config`, ao lado do diretorio bin, para reutilizacao entre branches e worktrees.",
         },
         ApiDoc {
             path: "regras.installation.build",
-            body: "O `build.rs` do crate alvo deve resolver `plugins/<projeto>/<plugin-binary>` e `plugins/<projeto>/ant_delirium_config`, chamar o guard padronizado como a primeira instrucao operacional dentro de `fn main()`, e interromper a compilacao quando o guard retornar status diferente de zero. Os TOMLs devem ficar fora do crate, ao lado do binario final, e nao copiados para cada branch ou worktree.",
+            body: "O `build.rs` do crate alvo deve resolver `plugins/<projeto>/bin/<plugin-binary>` e `plugins/<projeto>/ant_delirium_config`, chamar o guard padronizado como a primeira instrucao operacional dentro de `fn main()`, e interromper a compilacao quando o guard retornar status diferente de zero. Os TOMLs devem ficar fora do crate, ao lado do pacote binario final, e nao copiados para cada branch ou worktree.",
         },
         ApiDoc {
             path: "regras.installation.api",
@@ -439,7 +439,7 @@ mod tests {
             doc,
             Some(ApiDoc {
                 path: "hierarchy.installation",
-                body: "This is a project-scoped installation node under the active taxonomy root. Direct plugin information belongs to `<plugin-binary> --installation` and `<plugin-binary> --plugin.help`. The supported layout keeps the project-local binary at `plugins/<project>/<plugin-binary>` and the authoritative TOML package at `plugins/<project>/ant_delirium_config`, beside the binary, so multiple branches and worktrees reuse the same governance package.",
+                body: "This is a project-scoped installation node under the active taxonomy root. Direct plugin information belongs to `<plugin-binary> --installation` and `<plugin-binary> --plugin.help`. The supported layout keeps the project-local binary at `plugins/<project>/bin/<plugin-binary>` and the authoritative TOML package at `plugins/<project>/ant_delirium_config`, beside the bin directory, so multiple branches and worktrees reuse the same governance package.",
             })
         );
     }

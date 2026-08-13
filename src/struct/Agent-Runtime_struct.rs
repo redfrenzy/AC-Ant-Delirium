@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use ac_ant_delirium::structs::{NumberedPlan, NumberedPlanStep};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ProjectSummary {
     pub(crate) repository_path: String,
@@ -67,4 +69,11 @@ pub(crate) struct RootOrchestrationFinding {
 
 pub(crate) struct RuntimeLockGuard {
     pub(crate) path: PathBuf,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TodoManifestSelection {
+    pub(crate) plan: NumberedPlan,
+    pub(crate) mode: String,
+    pub(crate) pending_task: Option<NumberedPlanStep>,
 }

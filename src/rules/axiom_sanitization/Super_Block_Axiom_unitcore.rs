@@ -2,9 +2,9 @@ use crate::governance;
 use crate::structs::{AuditConfig, AuditViolation};
 use std::collections::HashSet;
 use std::fs;
-use std::path::Path;
 #[cfg(unix)]
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
+use std::path::Path;
 #[cfg(unix)]
 use std::process::Command;
 
@@ -36,12 +36,11 @@ pub fn run_preflight(config: &AuditConfig) -> SuperBlockPreflight {
     let enforced_owner =
         resolve_string(config, "super_block.enforced_owner").unwrap_or_else(|| "root".to_string());
     let enforced_readonly = resolve_bool(config, "super_block.enforced_readonly", true);
-    let enforced_immutable =
-        resolve_bool(
-            config,
-            "super_block.enforced_immutable",
-            owner_policy_requires_immutable(&enforced_owner),
-        );
+    let enforced_immutable = resolve_bool(
+        config,
+        "super_block.enforced_immutable",
+        owner_policy_requires_immutable(&enforced_owner),
+    );
     let watch_files = resolve_string_array(config, "super_block.watch_files");
     let abort_on_violation = resolve_bool(config, "super_block.abort_on_violation", true);
 

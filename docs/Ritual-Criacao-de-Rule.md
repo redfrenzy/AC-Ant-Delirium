@@ -217,7 +217,7 @@ Comando sugerido:
 ## Fase 10 - Gate final antes de usar no projeto real
 
 1. Build do binario:
-   - `cargo build --release --target x86_64-unknown-linux-gnu --bin delirium_cli`
+   - `cargo build --release --target x86_64-unknown-linux-gnu --bin antdelirium`
 2. Troca no plugin (fluxo protegido do projeto).
 3. Rodar auditoria no projeto real (`cargo check` no workspace alvo).
 4. Confirmar:
@@ -263,11 +263,10 @@ Antes de considerar a rule concluida, validar a API diretamente no binario local
 Comandos:
 
 ```bash
-cd "/home/dracker/Antigravity Projects/playground/aesthetic_core_project/AC-Ant-Delirium"
-./target/x86_64-unknown-linux-gnu/release/delirium_cli --api hierarchy.rule.allowed_crates
-./target/x86_64-unknown-linux-gnu/release/delirium_cli --api hierarchy.rule.strict_wrapper_boundary
-./target/x86_64-unknown-linux-gnu/release/delirium_cli --api hierarchy.permissions.libres
-./target/x86_64-unknown-linux-gnu/release/delirium_cli --api hierarchy.permissions.wrapper_boundary_contract
+./target/x86_64-unknown-linux-gnu/release/antdelirium --api hierarchy.rule.allowed_crates
+./target/x86_64-unknown-linux-gnu/release/antdelirium --api hierarchy.rule.strict_wrapper_boundary
+./target/x86_64-unknown-linux-gnu/release/antdelirium --api hierarchy.permissions.libres
+./target/x86_64-unknown-linux-gnu/release/antdelirium --api hierarchy.permissions.wrapper_boundary_contract
 ```
 
 Checklist de coerencia:

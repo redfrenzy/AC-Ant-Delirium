@@ -8,10 +8,11 @@ use ac_ant_delirium::api::default_rules_path;
 use ac_ant_delirium::api::InteractiveApi;
 use ac_ant_delirium::engine::Manifest_Engine_unit::ManifestEngine;
 use ac_ant_delirium::engine::Swarm_Engine_unit::SwarmEngine;
+use ac_ant_delirium::engine_identity;
 use ac_ant_delirium::Logs::GovernanceLogs;
 use ac_ant_delirium::restricted_tokens::out::elite_out;
 use ac_ant_delirium::structs::{
-    AuditConfig, CliArgs, GovernanceMode, HierarchyConfig, PluginContext,
+    AuditConfig, CliArgs, GovernanceMode, HierarchyConfig, PluginContext, ProjectDiscovery,
 };
 
 use super::agent_runtime;
@@ -22,6 +23,7 @@ pub(super) fn run_main() {
     let cli = parse_cli_args(&args[1..]);
     let project_root = detect_project_root(cli.project_root.as_deref());
     let mode = resolve_mode(&cli);
+
 
     let runtime_context = agent_runtime::discover_runtime_context(
         &project_root,
@@ -43,7 +45,10 @@ pub(super) fn run_main() {
 
     if let Some(plugin) = &plugin_context {
         if let Err(err) = agent_runtime::sync_agent_registration(plugin) {
-            elite_out(&format!("[!] failed to sync agent registration: {}", err));
+            #[allow(clippy::cmp_owned)]
+            if err.raw_os_error() != Some(30) && err.kind().to_string() != "ReadOnlyFilesystem" {
+                elite_out(&format!("[!] failed to sync agent registration: {}", err));
+            }
         }
     }
 
@@ -178,6 +183,7 @@ pub(super) fn run_main() {
                 submit_id,
                 "accepted",
                 cli.submit_note.as_deref(),
+                cli.submit_grade,
             ) {
                 Ok(message) => elite_out(&wrap_text_output("submit_accept", &message, cli.json_requested)),
                 Err(err) => elite_out(&wrap_text_output(
@@ -202,6 +208,7 @@ pub(super) fn run_main() {
                 submit_id,
                 "rejected",
                 cli.submit_note.as_deref(),
+                cli.submit_grade,
             ) {
                 Ok(message) => elite_out(&wrap_text_output("submit_reject", &message, cli.json_requested)),
                 Err(err) => elite_out(&wrap_text_output(
@@ -226,6 +233,7 @@ pub(super) fn run_main() {
                 submit_id,
                 "closed",
                 cli.submit_note.as_deref(),
+                cli.submit_grade,
             ) {
                 Ok(message) => elite_out(&wrap_text_output("submit_close", &message, cli.json_requested)),
                 Err(err) => elite_out(&wrap_text_output(
@@ -571,6 +579,7 @@ pub(super) fn run_main() {
         let output = match agent_runtime::materialize_project_local_plugin_package(
             &project_root,
             cli.project_root.as_deref(),
+            cli.config_path.as_deref(),
             plugin_context.as_ref(),
             &binary_name,
         ) {
@@ -578,6 +587,22 @@ pub(super) fn run_main() {
             Err(err) => wrap_text_output(
                 "config_init",
                 &format!("[!] failed to initialize project-local package: {}", err),
+                cli.json_requested,
+            ),
+        };
+        elite_out(&output);
+        return;
+    }
+
+    if let Some(ref title) = cli.config_new_task {
+        let output = match agent_runtime::materialize_new_task(
+            plugin_context.as_ref(),
+            title,
+        ) {
+            Ok(report) => wrap_text_output("config_new_task", &report, cli.json_requested),
+            Err(err) => wrap_text_output(
+                "config_new_task",
+                &format!("[!] failed to generate new task: {}", err),
                 cli.json_requested,
             ),
         };
@@ -642,6 +667,22 @@ pub(super) fn run_main() {
     }
 
     if cli.api_requested {
+        if let Some(query) = cli.api_query.as_deref() {
+            if query.starts_with("hierarchy.task.") || query == "hierarchy.task" || query == "hierarchy" || query.starts_with("hierarchy.override") || query.starts_with("hierarchy.context.") {
+                if let Some(plugin) = plugin_context.as_ref() {
+                    match agent_runtime::handle_task_api(plugin, query) {
+                        Ok(response) => {
+                            elite_out(&wrap_text_output("api", &response, cli.json_requested));
+                            return;
+                        }
+                        Err(e) => {
+                            elite_out(&format!("[!] handle_task_api failed: {}", e));
+                        }
+                    }
+                }
+            }
+        }
+
         let info_overrides = plugin_context
             .as_ref()
             .and_then(|plugin| {
@@ -789,11 +830,27 @@ pub(super) fn run_main() {
         None => full_audit_result.clone(),
     };
     let _ = ManifestEngine::generate(&config);
-    let artifact_paths = GovernanceLogs::write_artifacts(
+    let artifact_paths = match GovernanceLogs::write_artifacts(
         &audit_result,
         &config,
         GovernanceLogs::DEFAULT_OUTPUT_ROOT,
-    ).ok();
+        None,
+    ) {
+        Ok(paths) => Some(paths),
+        Err(e) => {
+            elite_out(&format!("[!] write_artifacts failed: {}", e));
+            None
+        }
+    };
+
+    if let (Some(paths), Some(plugin)) = (artifact_paths.as_ref(), plugin_context.as_ref()) {
+        let _ = std::fs::write("/tmp/delirium_debug.log", format!("Writing to: {}", paths.output_root));
+        if let Err(e) =
+            agent_runtime::write_todo_manifest(plugin, Path::new(&paths.output_root), None)
+        {
+            let _ = std::fs::write("/tmp/delirium_error.log", format!("Error: {}", e));
+        }
+    }
 
     if cli.json_requested {
         elite_out(&GovernanceLogs::to_violation_manifest(
@@ -803,11 +860,252 @@ pub(super) fn run_main() {
         ));
     } else {
         GovernanceLogs::emit_terminal_report(&audit_result, &config, artifact_paths.as_ref());
-    }
+        if let Some(plugin) = plugin_context.as_ref() {
+            if std::env::var("OUT_DIR").is_ok() {
+                if let Ok(Some(mut orchestrator)) = agent_runtime::read_task_orchestrator(&plugin.task_orchestrator_path()) {
+                    let mut found_plan = None;
+                    let plan_root = plugin.state_root().plan_dir();
+                    let mut all_plans = Vec::new();
+                    fn visit_dirs_main(dir: &std::path::Path, cb: &mut dyn FnMut(&std::path::Path)) -> std::io::Result<()> {
+                        if dir.is_dir() {
+                            for entry in std::fs::read_dir(dir)? {
+                                let entry = entry?;
+                                let path = entry.path();
+                                if path.is_dir() {
+                                    visit_dirs_main(&path, cb)?;
+                                } else if path.extension().map(|e| e == "json").unwrap_or(false) {
+                                    cb(&path);
+                                }
+                            }
+                        }
+                        Ok(())
+                    }
+                    visit_dirs_main(&plan_root, &mut |p| {
+                        all_plans.push(p.to_path_buf());
+                    }).unwrap_or(());
 
+                    all_plans.sort_by(|a, b| {
+                        let extract_version = |path: &std::path::PathBuf| -> Vec<u32> {
+                            path.file_name()
+                                .and_then(|n| n.to_str())
+                                .and_then(|name| {
+                                    name.strip_prefix('[')
+                                        .and_then(|rest| rest.split(']').next())
+                                })
+                                .map(|num_str| {
+                                    num_str.split('.')
+                                           .filter_map(|s| s.parse::<u32>().ok())
+                                           .collect()
+                                })
+                                .unwrap_or_else(Vec::new)
+                        };
+                        extract_version(a).cmp(&extract_version(b))
+                    });
+
+                    let cache_path = plugin.state_root().task_index_path();
+                    let mut index = std::collections::HashMap::new();
+                    if let Ok(content) = std::fs::read_to_string(&cache_path) {
+                        for line in content.lines() {
+                            let parts: Vec<&str> = line.split('|').collect();
+                            if parts.len() == 6 {
+                                if let (Ok(mtime), Ok(imp), Ok(pr), Ok(ir), Ok(tot)) = (
+                                    parts[1].parse::<u64>(),
+                                    parts[2].parse::<usize>(),
+                                    parts[3].parse::<usize>(),
+                                    parts[4].parse::<usize>(),
+                                    parts[5].parse::<usize>()
+                                ) {
+                                    index.insert(parts[0].to_string(), (mtime, imp, pr, ir, tot));
+                                }
+                            }
+                        }
+                    }
+
+                    let mut needs_save = false;
+
+                    for p in all_plans {
+                        let file_name = p.file_name().unwrap().to_str().unwrap().to_string();
+                        let plan_id_from_name = file_name
+                            .strip_prefix('[')
+                            .and_then(|rest| rest.split(']').next())
+                            .unwrap_or("");
+                        let mtime = std::fs::metadata(&p).and_then(|m| m.modified()).unwrap_or(std::time::UNIX_EPOCH).duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+
+                        let (imp, pr, ir, tot) = if let Some(&(cached_mtime, c_imp, c_pr, c_ir, c_tot)) = index.get(&file_name) {
+                            if cached_mtime == mtime {
+                                (c_imp, c_pr, c_ir, c_tot)
+                            } else {
+                                if let Ok(plan) = agent_runtime::read_numbered_plan(&p) {
+                                    let imp = plan.tasks.iter().filter(|t| !t.implemented).count();
+                                    let pr = plan.tasks.iter().filter(|t| !t.task_reviewed).count();
+                                    let ir = plan.tasks.iter().filter(|t| t.implemented && t.review_status == "none").count();
+                                    let tot = plan.tasks.len();
+                                    index.insert(file_name.clone(), (mtime, imp, pr, ir, tot));
+                                    needs_save = true;
+                                    (imp, pr, ir, tot)
+                                } else {
+                                    (0, 0, 0, 0)
+                                }
+                            }
+                        } else {
+                            if let Ok(plan) = agent_runtime::read_numbered_plan(&p) {
+                                let imp = plan.tasks.iter().filter(|t| !t.implemented).count();
+                                let pr = plan.tasks.iter().filter(|t| !t.task_reviewed).count();
+                                let ir = plan.tasks.iter().filter(|t| t.implemented && t.review_status == "none").count();
+                                let tot = plan.tasks.len();
+                                index.insert(file_name.clone(), (mtime, imp, pr, ir, tot));
+                                needs_save = true;
+                                (imp, pr, ir, tot)
+                            } else {
+                                (0, 0, 0, 0)
+                            }
+                        };
+
+                        let pending_tasks = match orchestrator.orchestration.mode.as_str() {
+                            "plan review" => pr,
+                            "implementation review" => ir,
+                            _ => agent_runtime::projected_implementation_pending_count(
+                                plugin,
+                                &orchestrator,
+                                plan_id_from_name,
+                                imp,
+                            )
+                            .unwrap_or(imp),
+                        };
+
+                        if pending_tasks > 0 || (tot == 0 && orchestrator.orchestration.mode == "plan review") {
+                            let base_dir = plugin.workspace_path.parent().unwrap_or(&plugin.workspace_path);
+                            if let Ok(rel_path) = p.strip_prefix(base_dir) {
+                                orchestrator.orchestration.active_plan = format!("../{}", rel_path.display());
+                                let _ = agent_runtime::write_task_orchestrator(&plugin.task_orchestrator_path(), &orchestrator);
+                            }
+                            if let Ok(plan) = agent_runtime::read_numbered_plan(&p) {
+                                found_plan = Some((plan, pending_tasks));
+                            }
+                            break;
+                        }
+                    }
+
+                    if needs_save {
+                        let mut out = String::new();
+                        for (k, v) in &index {
+                            out.push_str(&format!("{}|{}|{}|{}|{}|{}\n", k, v.0, v.1, v.2, v.3, v.4));
+                        }
+                        let _ = std::fs::write(&cache_path, out);
+                    }
+
+                    if let Some((plan, pending_tasks)) = found_plan {
+                        if plan.tasks.is_empty() && orchestrator.orchestration.mode == "plan review" {
+                            if let Some(message) = render_cargo_warning(
+                                &config.hierarchy,
+                                "generation_template",
+                                &plan.plan_id,
+                                pending_tasks,
+                                &orchestrator.orchestration.mode,
+                                "",
+                            ) {
+                                elite_out(&format!("cargo:warning={}", message));
+                            }
+                        } else if pending_tasks > 0 {
+                            let instruction_key = match orchestrator.orchestration.mode.as_str() {
+                                "plan review" => "plan_review_instruction",
+                                "implementation review" => "implementation_review_instruction",
+                                _ => "implementation_instruction",
+                            };
+                            let instruction = cargo_warning_parameter(&config.hierarchy, instruction_key)
+                                .map(|template| {
+                                    render_warning_template(
+                                        &template,
+                                        &plan.plan_id,
+                                        pending_tasks,
+                                        &orchestrator.orchestration.mode,
+                                        "",
+                                        "",
+                                    )
+                                })
+                                .unwrap_or_default();
+                            if let Some(message) = render_cargo_warning(
+                                &config.hierarchy,
+                                "pending_template",
+                                &plan.plan_id,
+                                pending_tasks,
+                                &orchestrator.orchestration.mode,
+                                &instruction,
+                            ) {
+                                elite_out(&format!("cargo:warning={}", message));
+                            }
+                        }
+                    } else {
+                        if let Ok(action) = agent_runtime::render_next_action(plugin, false) {
+                            for line in action.lines() {
+                                elite_out(&format!("cargo:warning={}", line));
+                            }
+                        }
+                    }
+                }
+            } else {
+                if let Ok(action) = agent_runtime::render_next_action(plugin, false) {
+                    elite_out(&format!("\n{}", action));
+                }
+            }
+        }
+    }
     if !audit_result.violations.is_empty() {
         std::process::exit(1);
     }
+}
+
+pub(super) fn cargo_warning_parameter(
+    hierarchy: &HierarchyConfig,
+    parameter: &str,
+) -> Option<String> {
+    for root in ["hierarchy", "rules", "regras"] {
+        let path = format!("{}.orchestration.cargo_warning.{}", root, parameter);
+        if let Some(value) = hierarchy.search_params(&path) {
+            return Some(value);
+        }
+    }
+    None
+}
+
+pub(super) fn render_cargo_warning(
+    hierarchy: &HierarchyConfig,
+    template_key: &str,
+    plan_id: &str,
+    pending_tasks: usize,
+    mode: &str,
+    instruction: &str,
+) -> Option<String> {
+    let enabled = cargo_warning_parameter(hierarchy, "enabled")?;
+    if !enabled.eq_ignore_ascii_case("true") {
+        return None;
+    }
+    let template = cargo_warning_parameter(hierarchy, template_key)?;
+    let manifest = cargo_warning_parameter(hierarchy, "manifest").unwrap_or_default();
+    Some(render_warning_template(
+        &template,
+        plan_id,
+        pending_tasks,
+        mode,
+        instruction,
+        &manifest,
+    ))
+}
+
+pub(super) fn render_warning_template(
+    template: &str,
+    plan_id: &str,
+    pending_tasks: usize,
+    mode: &str,
+    instruction: &str,
+    manifest: &str,
+) -> String {
+    template
+        .replace("{plan_id}", plan_id)
+        .replace("{pending_tasks}", &pending_tasks.to_string())
+        .replace("{mode}", mode)
+        .replace("{instruction}", instruction)
+        .replace("{manifest}", manifest)
 }
 
 pub(super) fn parse_cli_args(args: &[String]) -> CliArgs {
@@ -862,6 +1160,16 @@ pub(super) fn parse_cli_args(args: &[String]) -> CliArgs {
                         idx += 2;
                         continue;
                     }
+                    Some("new_task") => {
+                        if let Some(title) = args.get(idx + 2) {
+                            parsed.config_new_task = Some(title.clone());
+                            idx += 3;
+                        } else {
+                            elite_out("error: config new_task requires a <title>");
+                            std::process::exit(1);
+                        }
+                        continue;
+                    }
                     Some("hooks")
                         if matches!(args.get(idx + 2).map(String::as_str), Some("init")) =>
                     {
@@ -909,12 +1217,16 @@ pub(super) fn parse_cli_args(args: &[String]) -> CliArgs {
             }
             "--api" => {
                 parsed.api_requested = true;
-                if let Some(value) = args.get(idx + 1) {
-                    if !value.starts_with("--") {
-                        parsed.api_query = Some(value.clone());
-                        idx += 2;
-                        continue;
-                    }
+                let mut api_args = Vec::new();
+                let mut scan_idx = idx + 1;
+                while scan_idx < args.len() && !args[scan_idx].starts_with("--") {
+                    api_args.push(args[scan_idx].clone());
+                    scan_idx += 1;
+                }
+                if !api_args.is_empty() {
+                    parsed.api_query = Some(api_args.join(" "));
+                    idx = scan_idx;
+                    continue;
                 }
                 idx += 1;
                 continue;
@@ -1035,6 +1347,15 @@ pub(super) fn parse_cli_args(args: &[String]) -> CliArgs {
             "--submit-note" => {
                 if let Some(value) = args.get(idx + 1) {
                     parsed.submit_note = Some(value.clone());
+                    idx += 2;
+                    continue;
+                }
+            }
+            "--submit-grade" => {
+                if let Some(value) = args.get(idx + 1) {
+                    if let Ok(g) = value.parse::<f64>() {
+                        parsed.submit_grade = Some(g);
+                    }
                     idx += 2;
                     continue;
                 }
@@ -1248,9 +1569,10 @@ pub(super) fn detect_project_root(cli_root: Option<&str>) -> PathBuf {
     let start = cli_root
         .and_then(resolve_cli_root_candidate)
         .unwrap_or_else(|| env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
-    let start = fs::canonicalize(&start).unwrap_or(start);
 
-    discover_root_with_marker(&start).unwrap_or(start)
+    ProjectDiscovery::discover(&start, None)
+        .map(|discovery| discovery.project_root)
+        .unwrap_or(start)
 }
 
 pub(super) fn resolve_cli_root_candidate(raw_root: &str) -> Option<PathBuf> {
@@ -1267,24 +1589,6 @@ pub(super) fn resolve_cli_root_candidate(raw_root: &str) -> Option<PathBuf> {
         Ok(meta) if meta.is_dir() => Some(resolved),
         _ => None,
     }
-}
-
-pub(super) fn discover_root_with_marker(start: &Path) -> Option<PathBuf> {
-    let mut current = Some(start);
-
-    while let Some(path) = current {
-        if path.join("ant_delirium_config/type_1").is_dir()
-            || path
-                .join("ant_delirium_config/default_hierarchy.toml")
-                .is_file()
-            || path.join("delirium.toml").is_file()
-        {
-            return Some(path.to_path_buf());
-        }
-        current = path.parent();
-    }
-
-    None
 }
 
 pub(super) fn load_runtime_hierarchy(
@@ -1403,7 +1707,7 @@ pub(super) fn runtime_binary_display(args: &[String]) -> String {
         .ok()
         .filter(|value| !value.trim().is_empty())
         .or_else(|| args.first().cloned())
-        .unwrap_or_else(|| "ac_ant_delirium".to_string());
+        .unwrap_or_else(|| engine_identity::AUTHORITATIVE_BINARY_NAME.to_string());
     shell_quote_command(raw)
 }
 
