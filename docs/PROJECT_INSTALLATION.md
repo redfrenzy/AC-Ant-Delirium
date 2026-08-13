@@ -208,9 +208,11 @@ operação remota, materialização de projeto ou diagnóstico privado alcançá
 A ligação aos handlers permanece para uma tarefa posterior; os journals da
 T4.6 já existem internamente, mas não ativam uma rota parcial. O isolamento
 de descriptors da T4.7 já impede sua herança por um futuro `exec`; o serviço
-atual não cria processos filhos. A prova externa de que o usuário do agente não
-consegue enumerar `/proc` ou a raiz protegida permanece na T4.8 e exige a
-implantação real do sandbox/UID separado, não apenas testes dentro do processo.
+atual não cria processos filhos. A T4.8 acrescenta um probe adversarial externo
+que executa o cliente sem capabilities em namespaces descartáveis, mantém apenas
+o projeto visível e comprova falha de resolução, `stat`, `access`, `readlink`,
+enumeração e abertura dos roots protegidos conhecidos. A repetição contra a
+unidade e o serviço realmente instalados permanece na T9.4.
 
 Os templates não instalados
 [`packaging/systemd/antdelirium.service.in`](../packaging/systemd/antdelirium.service.in)

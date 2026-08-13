@@ -213,5 +213,6 @@ A especificação se apoia no comportamento documentado de [AF_UNIX e `SO_PEERCR
 - T4.4 captura peer credentials e implementa o motor de capability/nonce/replay; a leitura dos frames permanece fechada até a ligação dos handlers tipados.
 - T4.5 resolve IDs opacos somente a partir do token autorizado dentro do serviço; nenhum frame é lido até a ligação posterior dos handlers, e a matriz de capability impede que o canal limitado produza autorização administrativa.
 - T4.6 registra submissões e revisões junto de seus eventos na mesma transação e mantém, no registry, o journal tipado de negações e rejeições sem payload ou localização física; os listeners continuam sem ler frames até a ligação posterior dos handlers.
-- T4.7 exige hardening não-dumpable e sem tracer antes dos listeners, marca globalmente descritores herdados como `CLOEXEC` e reforça `/proc`, core dumps e namespaces na unidade; a prova externa sob o sandbox instalado permanece na T4.8.
+- T4.7 exige hardening não-dumpable e sem tracer antes dos listeners, marca globalmente descritores herdados como `CLOEXEC` e reforça `/proc`, core dumps e namespaces na unidade.
+- T4.8 prova em namespaces reais e sem capabilities que o cliente, mesmo conhecendo os paths, não resolve, testa, abre ou enumera o root protegido; a repetição contra o serviço instalado permanece na T9.4.
 - T6 fecha descriptors antes de delegar ao compilador.

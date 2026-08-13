@@ -77,9 +77,21 @@ check:
 .PHONY: ci
 ci:
 	cargo fmt --all -- --check
+	bash -n packaging/sandbox/validate-client-isolation.sh
 	RUSTFLAGS="-D warnings" cargo check --locked --all-targets --target $(HOST_TARGET)
 	RUSTFLAGS="-D warnings" cargo test --locked --all-targets --target $(HOST_TARGET) --no-fail-fast
 	$(MAKE) release-nondisclosure
+
+# -----------------------------------------------
+# make adversarial-client-isolation
+# -----------------------------------------------
+# Exercises the T4.8 client boundary in disposable kernel namespaces. This is
+# intentionally separate from the portable CI gate because it requires Linux,
+# Bubblewrap and permission to create user/mount/PID namespaces.
+# -----------------------------------------------
+.PHONY: adversarial-client-isolation
+adversarial-client-isolation:
+	bash packaging/sandbox/validate-client-isolation.sh
 
 # -----------------------------------------------
 # make clean

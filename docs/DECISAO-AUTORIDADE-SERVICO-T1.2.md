@@ -150,8 +150,9 @@ essa ordem obrigatória para iniciar os canais.
 O template da unidade reforça essa política com `LimitCORE=0`, `UMask=0077`,
 `RestrictNamespaces=yes`, `RestrictRealtime=yes`, `KeyringMode=private`,
 `ProtectProc=invisible` e `ProcSubset=pid`. Isso reduz exposição e falha fechado,
-mas não substitui a prova da T4.8: ocultar o daemon na visão do agente depende do
-UID separado e do namespace/procfs do sandbox realmente implantados.
+mas não substitui o sandbox do cliente. A T4.8 exercita essa fronteira em
+namespaces reais e descartáveis; a T9.4 repetirá a matriz contra a conta, unidade
+e sockets instalados.
 
 ## Sandbox do agente
 
