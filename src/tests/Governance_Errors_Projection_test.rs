@@ -105,4 +105,24 @@ mod tests {
         line.violations[0].line = 0;
         assert!(build_governance_errors_projection(&line).is_err());
     }
+
+    #[test]
+    fn rejects_administrative_names_and_artifacts_from_governance_errors() {
+        let mut protected_path = document();
+        protected_path.violations[0].path = "src/task_orchestrator.json".to_string();
+        assert!(build_governance_errors_projection(&protected_path).is_err());
+
+        for text in [
+            "Inspect governance_history.json.",
+            "Set active_plan to continue.",
+            "Mark task_reviewed=true.",
+        ] {
+            let mut protected = document();
+            protected.violations[0].quick_fix = Some(text.to_string());
+            assert!(
+                build_governance_errors_projection(&protected).is_err(),
+                "administrative quick fix was accepted: {text}"
+            );
+        }
+    }
 }

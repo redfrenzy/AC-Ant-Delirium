@@ -111,6 +111,36 @@ mod tests {
     }
 
     #[test]
+    fn rejects_administrative_state_references_from_current_task_fields() {
+        for path in [
+            "plan/private.json",
+            "plugins/AutoBrowser/task_orchestrator.json",
+            "src/login.json",
+            "config/default_rules.toml",
+        ] {
+            let mut protected = document();
+            protected.task.as_mut().unwrap().relevant_paths = vec![path.to_string()];
+            assert!(
+                build_current_task_projection(&protected).is_err(),
+                "protected path was accepted: {path}"
+            );
+        }
+        for objective in [
+            "Read the complete_plan before coding.",
+            "Set active_plan after implementation.",
+            "Mark implemented=true.",
+            "Inspect task_orchestrator.json.",
+        ] {
+            let mut protected = document();
+            protected.task.as_mut().unwrap().objective = objective.to_string();
+            assert!(
+                build_current_task_projection(&protected).is_err(),
+                "administrative objective was accepted: {objective}"
+            );
+        }
+    }
+
+    #[test]
     fn rejects_noncanonical_ids_and_task_presence_mismatches() {
         let mut invalid_id = document();
         invalid_id.task.as_mut().unwrap().task_id = "1.2.3".to_string();

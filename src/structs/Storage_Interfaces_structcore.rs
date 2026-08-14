@@ -627,7 +627,7 @@ fn validate_projection(
             "serialized projection contract must not be empty".to_string(),
         ));
     }
-    super::validate_serialized_public_document(
+    super::validate_serialized_agent_projection_document(
         serialized_contract,
         "serialized projection contract",
     )?;

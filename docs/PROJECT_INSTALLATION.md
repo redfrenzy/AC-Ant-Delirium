@@ -1,6 +1,6 @@
 # AntDelirium: binário único e superfície limitada do agente
 
-Este documento descreve o estado implementado até a T5.5. O projeto declara um único executável autoritativo chamado `antdelirium`; a instalação global e a integração automática com Cargo ainda pertencem às ondas posteriores.
+Este documento descreve o estado implementado até a T5.6. O projeto declara um único executável autoritativo chamado `antdelirium`; a instalação global e a integração automática com Cargo ainda pertencem às ondas posteriores.
 
 ## Compilar
 
@@ -140,6 +140,31 @@ diretório, sem ser seguido e sem alterar seu alvo. Um diretório inesperado no
 lugar do JSON falha fechado e é preservado: o AntDelirium não executa remoção
 recursiva de conteúdo desconhecido. Depois que o conflito é removido, o refresh
 normal recria a projeção canônica.
+
+## Fronteira de conteúdo de `guard/`
+
+Os dois builders e o writer final aplicam a mesma política de não divulgação.
+O código release compara fingerprints SHA-256 dos identificadores protegidos;
+o dicionário legível fica somente no contrato e nos testes, sem acrescentar os
+nomes administrativos à tabela de strings do executável.
+Paths públicos precisam ser canônicos e relativos ao projeto, mas também não
+podem começar por raízes administrativas como `plan/`, `plugins/`, `guard/` ou
+diretórios de configuração do AntDelirium. Nomes conhecidos de orquestrador,
+login administrativo, histórico, manifests, TOMLs internos e filas também são
+recusados mesmo quando aparecem em outro subdiretório.
+
+Texto livre não pode transportar identificadores de estado como os usados para
+plano ativo, plano completo, implementação, revisão ou localização física do
+workspace. A checagem do JSON serializado decodifica escapes, recusa chaves de
+plano, listas de tarefas futuras, configuração, login e histórico, e falha antes
+de iniciar auditoria ou escrita. O contrato versionado mantém
+`additionalProperties: false`; a tarefa projetada continua singular e ligada à
+tarefa canônica corrente.
+
+A regra não bloqueia vocabulário comum do produto. Uma tarefa pode falar sobre
+uma tela de login, histórico ou configuração e indicar, por exemplo,
+`src/login/controller.rs`; o que permanece proibido são os nomes e caminhos da
+infraestrutura administrativa do AntDelirium.
 
 ## Usar durante o desenvolvimento
 

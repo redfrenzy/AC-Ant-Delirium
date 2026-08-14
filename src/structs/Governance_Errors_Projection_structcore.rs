@@ -3,7 +3,8 @@ use crate::libres::Sha2_unit::sha256;
 use crate::libres::System_Random_unit::random_crockford_id;
 
 use super::{
-    reject_public_path_references, validate_project_relative_path, GovernanceErrorsProjection,
+    reject_protected_administrative_references, reject_public_path_references,
+    validate_agent_visible_project_path, GovernanceErrorsProjection,
     GovernanceErrorsProjectionDocument, ProjectedGovernanceViolation, TransactionalStorageError,
     TransactionalStorageResult, AGENT_PROJECTION_CONTRACT_VERSION,
 };
@@ -19,16 +20,6 @@ use super::Current_Task_Projection_structcore::{
 
 const SNAPSHOT_MAGIC: &[u8] = b"canonical-governance-snapshot-v1\0";
 const MAX_SNAPSHOT_BYTES: usize = 32 * 1024 * 1024;
-const RESERVED_ROOTS: [&str; 7] = [
-    ".git",
-    "guard",
-    "plugins",
-    "plan",
-    "plans",
-    "ant_delirium_config",
-    "ac_ant-delirium_props",
-];
-
 pub(super) fn build_governance_errors_projection(
     document: &GovernanceErrorsProjectionDocument,
 ) -> TransactionalStorageResult<GovernanceErrorsProjection> {
@@ -42,9 +33,7 @@ pub(super) fn build_governance_errors_projection(
 }
 
 pub(super) fn is_agent_correctable_violation_path(path: &str) -> bool {
-    let normalized = path.replace('\\', "/").to_ascii_lowercase();
-    let first = normalized.split('/').next().unwrap_or_default();
-    !RESERVED_ROOTS.iter().any(|reserved| first == *reserved)
+    validate_agent_visible_project_path(path, "violation path").is_ok()
 }
 
 pub(super) fn replace_canonical_governance_snapshot(
@@ -202,17 +191,21 @@ fn validate_document(
 fn validate_violation(violation: &ProjectedGovernanceViolation) -> TransactionalStorageResult<()> {
     validate_text(&violation.violation_id, 1, 255, "violation_id")?;
     reject_public_path_references(&violation.violation_id, "violation_id")?;
+    reject_protected_administrative_references(&violation.violation_id, "violation_id")?;
     validate_text(&violation.rule_id, 1, 255, "rule_id")?;
     reject_public_path_references(&violation.rule_id, "rule_id")?;
+    reject_protected_administrative_references(&violation.rule_id, "rule_id")?;
     validate_text(&violation.summary, 1, 8_192, "violation summary")?;
     reject_public_path_references(&violation.summary, "violation summary")?;
-    validate_project_relative_path(&violation.path, "violation path")?;
+    reject_protected_administrative_references(&violation.summary, "violation summary")?;
+    validate_agent_visible_project_path(&violation.path, "violation path")?;
     if violation.line < 1 {
         return Err(invalid("violation line must be at least one"));
     }
     if let Some(quick_fix) = violation.quick_fix.as_deref() {
         validate_text(quick_fix, 0, 8_192, "quick_fix")?;
         reject_public_path_references(quick_fix, "quick_fix")?;
+        reject_protected_administrative_references(quick_fix, "quick_fix")?;
     }
     validate_text(
         &violation.public_rule_reference,
@@ -221,6 +214,10 @@ fn validate_violation(violation: &ProjectedGovernanceViolation) -> Transactional
         "public_rule_reference",
     )?;
     reject_public_path_references(&violation.public_rule_reference, "public_rule_reference")?;
+    reject_protected_administrative_references(
+        &violation.public_rule_reference,
+        "public_rule_reference",
+    )?;
     Ok(())
 }
 

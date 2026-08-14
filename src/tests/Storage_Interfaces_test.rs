@@ -475,6 +475,59 @@ mod tests {
     }
 
     #[test]
+    fn projection_writer_rejects_administrative_fields_and_future_task_collections() {
+        let root = unique_temp_dir("writer-administrative-projection-gate");
+        let (state_root, database) = initialized(&root);
+        let writer =
+            AtomicProjectProjectionWriter::new(database.clone(), state_root.clone()).unwrap();
+
+        for (offset, serialized_contract) in [
+            br#"{"contract_version":"agent-projection-v1","tasks":[{"objective":"future"}]}"#
+                .as_slice(),
+            br#"{"contract_version":"agent-projection-v1","configuration":{"enabled":false}}"#
+                .as_slice(),
+            br#"{"contract_version":"agent-projection-v1","objective":"read task_orchestrator.json"}"#
+                .as_slice(),
+            br#"{"contract_version":"agent-projection-v1","path":"plan/private.json"}"#
+                .as_slice(),
+            br#"{tasks:[{"objective":"future"}]}"#.as_slice(),
+        ]
+        .iter()
+        .enumerate()
+        {
+            let fingerprint = format!("{:064x}", 50 + offset);
+            let projection = CurrentTaskProjection {
+                contract_version: AGENT_PROJECTION_CONTRACT_VERSION.to_string(),
+                metadata: ProjectionMetadata {
+                    project_id: PROJECT_ID.to_string(),
+                    workspace_id: WORKSPACE_ID.to_string(),
+                    source_revision: 0,
+                    generation: 1,
+                    fingerprint: fingerprint.clone(),
+                    rendered_at: "2026-08-11T00:00:00Z".to_string(),
+                },
+                task_ref: None,
+                serialized_contract: serialized_contract.to_vec(),
+            };
+            let event = audit_event(
+                10 + offset,
+                "projection_rendered",
+                50 + offset,
+                Some("current_task"),
+            );
+            assert!(writer.write_current_task(&projection, &event).is_err());
+        }
+
+        assert_eq!(database.event_count(PROJECT_ID).unwrap(), 0);
+        assert!(!state_root.todo_projection_path().exists());
+        assert!(fs::read_dir(state_root.project_guard_dir())
+            .unwrap()
+            .next()
+            .is_none());
+        fs::remove_dir_all(root).expect("temporary directory should be removed");
+    }
+
+    #[test]
     fn projection_writer_rejects_a_task_other_than_the_canonical_current_task() {
         let root = unique_temp_dir("writer-current-task-binding");
         let (state_root, database) = initialized(&root);

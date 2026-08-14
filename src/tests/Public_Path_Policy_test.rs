@@ -1,8 +1,10 @@
 #[cfg(test)]
 mod tests {
     use crate::structs::{
-        reject_public_path_references, sanitize_public_text, validate_project_relative_path,
-        validate_serialized_public_document, PUBLIC_PATH_REDACTION,
+        reject_protected_administrative_references, reject_public_path_references,
+        sanitize_public_text, validate_agent_visible_project_path, validate_project_relative_path,
+        validate_serialized_agent_projection_document, validate_serialized_public_document,
+        PUBLIC_PATH_REDACTION,
     };
 
     #[test]
@@ -133,5 +135,64 @@ mod tests {
             "fixture document",
         )
         .expect("relative paths and HTTPS documentation should remain valid");
+    }
+
+    #[test]
+    fn agent_projection_policy_rejects_protected_roots_artifacts_and_state_identifiers() {
+        for path in [
+            "plan/private.json",
+            "plugins/AutoBrowser/task_orchestrator.json",
+            "src/login.json",
+            "config/default_hierarchy.toml",
+            "guard/to-do_list.json",
+        ] {
+            assert!(
+                validate_agent_visible_project_path(path, "fixture path").is_err(),
+                "protected path was accepted: {path:?}"
+            );
+        }
+        for text in [
+            "Read task_orchestrator.json.",
+            "Set active_plan to the numbered file.",
+            "Mark implemented=true.",
+            "Inspect plugins/AutoBrowser.",
+            "Use governance_history.json.",
+        ] {
+            assert!(
+                reject_protected_administrative_references(text, "fixture text").is_err(),
+                "protected reference was accepted: {text:?}"
+            );
+        }
+        validate_agent_visible_project_path("src/login/controller.rs", "fixture path")
+            .expect("ordinary project login source remains visible");
+        reject_protected_administrative_references(
+            "Implement the product login screen and configuration history.",
+            "fixture text",
+        )
+        .expect("ordinary product vocabulary is not administrative state");
+    }
+
+    #[test]
+    fn serialized_agent_projection_rejects_admin_keys_names_and_unicode_escapes() {
+        for document in [
+            br#"{"tasks":[{"objective":"future"}]}"#.as_slice(),
+            br#"{"configuration":{"enabled":false}}"#.as_slice(),
+            br#"{"objective":"open task_orchestrator.json"}"#.as_slice(),
+            br#"{"objective":"set active\u005fplan"}"#.as_slice(),
+            br#"{"path":"plan/private.json"}"#.as_slice(),
+            br#"{tasks:[{"objective":"future"}]}"#.as_slice(),
+        ] {
+            assert!(
+                validate_serialized_agent_projection_document(document, "fixture projection")
+                    .is_err(),
+                "administrative projection content was accepted: {}",
+                String::from_utf8_lossy(document)
+            );
+        }
+        validate_serialized_agent_projection_document(
+            br#"{"task":{"objective":"Implement login history","relevant_paths":["src/login.rs"]}}"#,
+            "fixture projection",
+        )
+        .expect("limited project task remains valid");
     }
 }

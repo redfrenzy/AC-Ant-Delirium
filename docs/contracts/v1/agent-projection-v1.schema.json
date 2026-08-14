@@ -15,7 +15,7 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 4096,
-      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?![A-Za-z]:/)[^\\\\\\u0000]+$"
+      "pattern": "^(?!/)(?!(?:\\.git|guard|plugins|plan|plans|ant_delirium_config|AC_Ant-Delirium_props)(?:/|$))(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*(?:^|/)(?:connected\\.json|default_hierarchy\\.toml|default_rules\\.toml|feedback\\.json|governance\\.json|governance_history\\.json|login\\.json|manager_tasks\\.json|messages\\.json|shadow_context\\.sarif\\.json|submit_queue\\.json|task_index\\.txt|task_orchestrator\\.json|to-do_list_manifest\\.json|transition_task\\.json|violations_manifest\\.json)(?:/|$))(?![A-Za-z]:/)[^\\\\\\u0000]+$"
     },
     "base": {
       "type": "object",
@@ -110,7 +110,7 @@
               "items": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": ["violation_id", "rule_id", "summary", "path", "line", "quick_fix"],
+                "required": ["violation_id", "rule_id", "summary", "path", "line", "quick_fix", "public_rule_reference"],
                 "properties": {
                   "violation_id": { "$ref": "#/$defs/opaqueId" },
                   "rule_id": { "type": "string", "minLength": 1, "maxLength": 255 },

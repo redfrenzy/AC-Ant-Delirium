@@ -5,7 +5,8 @@ use crate::libres::Sha2_unit::sha256;
 use crate::libres::System_Random_unit::random_crockford_id;
 
 use super::{
-    reject_public_path_references, validate_project_relative_path, AtomicProjectProjectionWriter,
+    reject_protected_administrative_references, reject_public_path_references,
+    validate_agent_visible_project_path, AtomicProjectProjectionWriter,
     CanonicalTaskProjectionPayload, CurrentTaskProjection, CurrentTaskProjectionDocument,
     CurrentTaskProjectionRefreshRequest, NewAuditEvent, ProjectProjectionWriter,
     ProjectedCurrentTask, ProjectedQueueStatus, ProjectedTaskAction, ProjectionMetadata,
@@ -158,6 +159,10 @@ fn validate_document(document: &CurrentTaskProjectionDocument) -> TransactionalS
         "submission instruction",
     )?;
     reject_public_path_references(&document.submission_instruction, "submission instruction")?;
+    reject_protected_administrative_references(
+        &document.submission_instruction,
+        "submission instruction",
+    )?;
     match document.task.as_ref() {
         Some(task) => validate_task(task)?,
         None if document.queue_status.contract_value() == "task_available" => {
@@ -188,6 +193,7 @@ fn validate_task(task: &ProjectedCurrentTask) -> TransactionalStorageResult<()> 
     }
     validate_text(&task.objective, 1, 16_384, "task objective")?;
     reject_public_path_references(&task.objective, "task objective")?;
+    reject_protected_administrative_references(&task.objective, "task objective")?;
     if task.acceptance_criteria.len() > 128 || task.relevant_paths.len() > 256 {
         return Err(invalid(
             "projection collection exceeds the v1 contract limit",
@@ -196,10 +202,11 @@ fn validate_task(task: &ProjectedCurrentTask) -> TransactionalStorageResult<()> 
     for criterion in &task.acceptance_criteria {
         validate_text(criterion, 1, 4_096, "acceptance criterion")?;
         reject_public_path_references(criterion, "acceptance criterion")?;
+        reject_protected_administrative_references(criterion, "acceptance criterion")?;
     }
     let mut unique_paths = BTreeSet::new();
     for path in &task.relevant_paths {
-        validate_project_relative_path(path, "relevant path")?;
+        validate_agent_visible_project_path(path, "relevant path")?;
         if !unique_paths.insert(path) {
             return Err(invalid("relevant_paths must be unique"));
         }

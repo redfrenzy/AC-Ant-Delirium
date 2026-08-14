@@ -1,4 +1,65 @@
+use crate::libres::Sha2_unit::sha256;
+
 use super::{TransactionalStorageError, TransactionalStorageResult, PUBLIC_PATH_REDACTION};
+
+// Fingerprints keep the administrative vocabulary out of release strings. The
+// human-readable denylist belongs to the versioned contract and adversarial tests.
+const PROTECTED_PROJECT_ROOT_FINGERPRINTS: [&str; 7] = [
+    "4d0a4dff1f762e594ecf10f259c33a6b71a7c02f49e2ce89a95e0719a3bd0529",
+    "a9d4034da07d8ef31db1cd4119b6a4552fdfbd19787e2848e71c8ee3b47703a7",
+    "92cd10e6b8b068a931196d1d73a032543d5ca1a5bf445e27a1af74258254517c",
+    "64879f7d6b960a01909762d911a32d4582c20010c5641ee90278b644a9e3b525",
+    "c404dc69b55c0692366e3f28e6d8bc2e506bedbd4f519644adb5802500d83331",
+    "0fc8d75ec1445b0fcd89f89f6ae94511e6ef154808dce49aaa16a193850c0028",
+    "013877ff312aac698445f97fa9147a8245c7c4c401c84d7dabed433a994e697a",
+];
+const PROTECTED_ARTIFACT_FINGERPRINTS: [&str; 16] = [
+    "ae37437dc0425cba7436777376390ac151c537cbfecfc059bf1e6c9b16a97e25",
+    "25eaad17ce499a5450af9e3e7986c89908f1b39fd7dc03baa80cf2232bc67ee1",
+    "8c230bda4f6a0c35d9041252162b90d0342a14219803acc9bdf53f3abb5291ae",
+    "ba915a0a68b7a2391ade4c3160abe69a8f77c1c324f43e4c5beebc721cb987b7",
+    "03f3e7a3859b2a5621edde56bb35bb0607c533f6e2bc3bec6524f5a67cd39891",
+    "1ec8f67089d5ee5d78199da27d4589610c44bb1c1d96ee5a8fb6fcc40ac8b84a",
+    "e65acba639acc8c0b9a4434e936a854974717b63cd344f1a94345206386c171c",
+    "fd1ce6eb49820dca77184b532abd804e773f67aba4e323c96a3db39e4aadf12d",
+    "a12aa54daf6b7d53ddaf120b8fd1c8c39b24fa6ab02377832e8b6aaf5f96091f",
+    "fc7e389ede69bff1c429c0c55890c0cec90a194accee6a722a095ac312c155ca",
+    "8446e018f9ea38ebbd1735ccce3278bd6ff770672c538d26f181f0456d159c49",
+    "b864f1ffc0d3cd6ebd0bb82c1b7a8379d43b8af1d03e96502a9f3c333571cf20",
+    "b0e2e744d6a09f6d9098493f146bdbba554881941b18f265bc3ad7e8b181beef",
+    "b545549dfa97f251258788754ad54094ab780da821011ca026a1329a9ff3a150",
+    "974b3a6512620247c7121d97d1a73ff3da4e1e2ebc5f6c1d9645fb3abc78ce29",
+    "e6319dfa4e88fe54d082675e350080edaac79d729d4270e296b519056ff8cfd9",
+];
+const PROTECTED_ADMINISTRATIVE_KEY_FINGERPRINTS: [&str; 18] = [
+    "a4cb5cb247c8419e7f18f4e5b3e4ab7d596e6312ec99cdeb0ff97c46db7bf9f1",
+    "22e72796f7d49e85ba22dd4b46427faf4a813d514f469e29cafe37c3c6811648",
+    "6b7a980094cfe4007447f5dd2989201bce668e9d649f46e92159b9e00e1a65bf",
+    "b79606fb3afea5bd1609ed40b622142f1c98125abcfe89a76a661b0e8e343910",
+    "b7d64a9221007dfd5390f7df6cd5b8f3ea4f82faa1237141e35ebf161f5511a1",
+    "613f4018084633df7a41e7b53734c868d930b2fb33f71ebd98214f7eb648b2e9",
+    "ffe97bba510b9f5cf1bb187bebb59cefa42a3f1654d2c993654382cd10468c2e",
+    "259aa8ef98a8b91de574cd904138ef643240c23080cf24da4793a6f10a43fa9d",
+    "6842ca7df10554ecae09529503fafc52abfb2b8dca1747a0811da4adc6290f52",
+    "428821350e9691491f616b754cd8315fb86d797ab35d843479e732ef90665324",
+    "0966b7aaf3a9c601dcb73536d1e39fe828636bb29f5867feb9a32398ef43c44a",
+    "915cfe2842da29241318718ccea83501cb0de2a8679b46540146995312ec02a1",
+    "64879f7d6b960a01909762d911a32d4582c20010c5641ee90278b644a9e3b525",
+    "c404dc69b55c0692366e3f28e6d8bc2e506bedbd4f519644adb5802500d83331",
+    "4d87be9c2a979580973c126702514ce9f862d78051199e1d226c6645d6d686c3",
+    "e673e1e0389af81571609d3a512bdc106bed47ab5156906571665f82628ffd46",
+    "085154084c7427596104bc42f51f59f6d3ffd3d5f49f098210c20449fb7b2c71",
+    "9cb149d7aa698ee6b5fa9f85283b7bb8c609e42ce9817d82571b594f0a8c4b03",
+];
+const PROTECTED_TEXT_IDENTIFIER_FINGERPRINTS: [&str; 7] = [
+    "a4cb5cb247c8419e7f18f4e5b3e4ab7d596e6312ec99cdeb0ff97c46db7bf9f1",
+    "22e72796f7d49e85ba22dd4b46427faf4a813d514f469e29cafe37c3c6811648",
+    "6b7a980094cfe4007447f5dd2989201bce668e9d649f46e92159b9e00e1a65bf",
+    "6842ca7df10554ecae09529503fafc52abfb2b8dca1747a0811da4adc6290f52",
+    "4d87be9c2a979580973c126702514ce9f862d78051199e1d226c6645d6d686c3",
+    "e673e1e0389af81571609d3a512bdc106bed47ab5156906571665f82628ffd46",
+    "fe0acc0d615e5972066ad716f6d55c716969a6b33ec51383f5e01851e367aa75",
+];
 
 pub(super) fn sanitize_public_text(value: &str) -> String {
     let characters = value.chars().collect::<Vec<_>>();
@@ -59,10 +120,105 @@ pub(super) fn validate_project_relative_path(
     Ok(())
 }
 
+pub(super) fn validate_agent_visible_project_path(
+    value: &str,
+    field: &str,
+) -> TransactionalStorageResult<()> {
+    validate_project_relative_path(value, field)?;
+    let normalized = value.to_ascii_lowercase();
+    let mut components = normalized.split('/');
+    if components.next().is_some_and(|root| {
+        matches_protected_fingerprint(root, &PROTECTED_PROJECT_ROOT_FINGERPRINTS)
+    }) || normalized
+        .split('/')
+        .any(|component| matches_protected_fingerprint(component, &PROTECTED_ARTIFACT_FINGERPRINTS))
+    {
+        return Err(invalid(&format!(
+            "{field} identifies protected administrative state"
+        )));
+    }
+    Ok(())
+}
+
+pub(super) fn reject_protected_administrative_references(
+    value: &str,
+    field: &str,
+) -> TransactionalStorageResult<()> {
+    let normalized = value.to_ascii_lowercase();
+    let has_artifact = contains_protected_token(&normalized, &PROTECTED_ARTIFACT_FINGERPRINTS);
+    let has_identifier =
+        contains_protected_token(&normalized, &PROTECTED_TEXT_IDENTIFIER_FINGERPRINTS);
+    let has_root = contains_protected_root_reference(&normalized);
+    if has_artifact || has_identifier || has_root {
+        return Err(invalid(&format!(
+            "{field} contains a protected administrative reference"
+        )));
+    }
+    Ok(())
+}
+
 pub(super) fn validate_serialized_public_document(
     value: &[u8],
     field: &str,
 ) -> TransactionalStorageResult<()> {
+    let document =
+        std::str::from_utf8(value).map_err(|_| invalid(&format!("{field} must be valid UTF-8")))?;
+    let trimmed = document.trim();
+    if !trimmed.starts_with('{') || !trimmed.ends_with('}') {
+        return Err(invalid(&format!(
+            "{field} must be a serialized JSON object"
+        )));
+    }
+    let characters = document.chars().collect::<Vec<_>>();
+    let mut index = 0usize;
+    while index < characters.len() {
+        if characters[index] != '"' {
+            index = consume_json_public_token(&characters, index, field)?;
+            continue;
+        }
+        let (decoded, end) = decode_json_string(&characters, index + 1, field)?;
+        reject_public_path_references(&decoded, field)?;
+        index = end;
+    }
+    Ok(())
+}
+
+fn consume_json_public_token(
+    characters: &[char],
+    index: usize,
+    field: &str,
+) -> TransactionalStorageResult<usize> {
+    let value = characters[index];
+    if value.is_whitespace()
+        || matches!(
+            value,
+            '{' | '}' | '[' | ']' | ':' | ',' | '-' | '+' | '.' | '0'..='9' | 'e' | 'E'
+        )
+    {
+        return Ok(index + 1);
+    }
+    for literal in ["true", "false", "null"] {
+        if starts_with_exact(characters, index, literal) {
+            return Ok(index + literal.len());
+        }
+    }
+    Err(invalid(&format!(
+        "{field} contains a non-JSON token outside a string"
+    )))
+}
+
+fn starts_with_exact(characters: &[char], index: usize, expected: &str) -> bool {
+    let expected = expected.chars().collect::<Vec<_>>();
+    characters
+        .get(index..index + expected.len())
+        .is_some_and(|actual| actual == expected)
+}
+
+pub(super) fn validate_serialized_agent_projection_document(
+    value: &[u8],
+    field: &str,
+) -> TransactionalStorageResult<()> {
+    validate_serialized_public_document(value, field)?;
     let document =
         std::str::from_utf8(value).map_err(|_| invalid(&format!("{field} must be valid UTF-8")))?;
     let characters = document.chars().collect::<Vec<_>>();
@@ -73,10 +229,65 @@ pub(super) fn validate_serialized_public_document(
             continue;
         }
         let (decoded, end) = decode_json_string(&characters, index + 1, field)?;
-        reject_public_path_references(&decoded, field)?;
+        if json_key_follows(&characters, end) {
+            let key = decoded.to_ascii_lowercase();
+            if matches_protected_fingerprint(&key, &PROTECTED_ADMINISTRATIVE_KEY_FINGERPRINTS) {
+                return Err(invalid(&format!(
+                    "{field} contains a protected administrative field"
+                )));
+            }
+        }
+        reject_protected_administrative_references(&decoded, field)?;
         index = end;
     }
     Ok(())
+}
+
+fn json_key_follows(characters: &[char], mut index: usize) -> bool {
+    while characters
+        .get(index)
+        .is_some_and(|value| value.is_whitespace())
+    {
+        index += 1;
+    }
+    characters.get(index) == Some(&':')
+}
+
+fn contains_protected_token(value: &str, fingerprints: &[&str]) -> bool {
+    value
+        .split(|character: char| !is_identifier_character(character))
+        .map(|token| token.trim_matches('.'))
+        .filter(|token| !token.is_empty())
+        .any(|token| matches_protected_fingerprint(token, fingerprints))
+}
+
+fn contains_protected_root_reference(value: &str) -> bool {
+    value.match_indices(['/', '\\']).any(|(separator, _)| {
+        let prefix = &value[..separator];
+        let candidate = prefix
+            .rsplit(|character: char| !is_identifier_character(character))
+            .next()
+            .unwrap_or_default();
+        !candidate.is_empty()
+            && matches_protected_fingerprint(candidate, &PROTECTED_PROJECT_ROOT_FINGERPRINTS)
+    })
+}
+
+fn is_identifier_character(value: char) -> bool {
+    value.is_ascii_alphanumeric() || matches!(value, '_' | '-' | '.')
+}
+
+fn matches_protected_fingerprint(value: &str, fingerprints: &[&str]) -> bool {
+    let digest = sha256(value.as_bytes());
+    let mut encoded = [0u8; 64];
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    for (index, byte) in digest.iter().copied().enumerate() {
+        encoded[index * 2] = HEX[(byte >> 4) as usize];
+        encoded[index * 2 + 1] = HEX[(byte & 0x0f) as usize];
+    }
+    fingerprints
+        .iter()
+        .any(|expected| expected.as_bytes() == encoded)
 }
 
 fn decode_json_string(

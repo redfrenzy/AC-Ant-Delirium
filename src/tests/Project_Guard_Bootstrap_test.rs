@@ -4,6 +4,7 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::process::Command;
     use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[cfg(unix)]
     use std::os::unix::fs::symlink;
@@ -18,8 +19,12 @@ mod tests {
 
     fn fixture(label: &str, git: bool) -> (PathBuf, ProjectStateRoot) {
         let sequence = FIXTURE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let invocation = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("fixture clock")
+            .as_nanos();
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
-            "target/project-guard-bootstrap-tests/{label}-{}-{sequence}",
+            "target/project-guard-bootstrap-tests/{label}-{}-{invocation}-{sequence}",
             std::process::id(),
         ));
         let project = root.join("project");
