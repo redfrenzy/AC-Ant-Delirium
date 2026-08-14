@@ -4,6 +4,9 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    #[cfg(unix)]
+    use std::os::unix::fs::{symlink, PermissionsExt};
+
     use crate::libres::Rusqlite_unit::AC_params;
     use crate::structs::{
         build_governance_errors_projection, AtomicProjectProjectionWriter, AuditStore,
@@ -247,6 +250,84 @@ mod tests {
                 Ok(())
             })
             .unwrap();
+        fs::remove_dir_all(root).expect("fixture cleanup");
+    }
+
+    #[test]
+    fn deleted_or_adulterated_governance_projection_is_rebuilt_from_protected_snapshot() {
+        let (root, database, writer) = initialized("recover-local-governance");
+        writer
+            .replace_canonical_governance_snapshot(&snapshot(vec![violation("src/lib.rs")]))
+            .expect("canonical governance snapshot");
+        writer
+            .refresh_governance_errors_projection(&refresh())
+            .expect("initial governance projection");
+        let path = writer.governance_errors_path();
+        let canonical = fs::read(&path).expect("canonical governance bytes");
+
+        fs::remove_file(&path).expect("delete governance projection");
+        let deleted = writer
+            .refresh_governance_errors_projection(&refresh())
+            .expect("deleted governance projection recovery");
+        assert_eq!(deleted.generation, 1);
+        assert_eq!(deleted.audit.sequence(), 2);
+        assert!(!deleted.audit.inserted());
+        assert_eq!(fs::read(&path).unwrap(), canonical);
+
+        fs::write(
+            &path,
+            br#"{"violations":[{"rule_id":"fake","path":"plan/private.json","quick_fix":"set implemented true"}],"active_plan":"stolen"}"#,
+        )
+        .expect("write malicious governance projection");
+        writer
+            .refresh_governance_errors_projection(&refresh())
+            .expect("malicious governance projection recovery");
+        let recovered = fs::read_to_string(&path).unwrap();
+        assert_eq!(recovered.as_bytes(), canonical);
+        for forbidden in [
+            "\"rule_id\":\"fake\"",
+            "plan/private.json",
+            "implemented",
+            "active_plan",
+        ] {
+            assert!(!recovered.contains(forbidden));
+        }
+
+        #[cfg(unix)]
+        {
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o666)).unwrap();
+            writer
+                .refresh_governance_errors_projection(&refresh())
+                .expect("wrong-mode governance recovery");
+            assert_eq!(
+                fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+                0o600
+            );
+
+            let external = root.join("external-governance-target");
+            fs::write(&external, b"external governance target remains intact").unwrap();
+            fs::remove_file(&path).unwrap();
+            symlink(&external, &path).unwrap();
+            writer
+                .refresh_governance_errors_projection(&refresh())
+                .expect("symlink governance projection recovery");
+            assert!(!fs::symlink_metadata(&path)
+                .unwrap()
+                .file_type()
+                .is_symlink());
+            assert_eq!(fs::read(&path).unwrap(), canonical);
+            assert_eq!(
+                fs::read(&external).unwrap(),
+                b"external governance target remains intact"
+            );
+        }
+
+        assert_eq!(database.audit_event_count(PROJECT_ID).unwrap(), 2);
+        let state = database
+            .load_canonical_state(PROJECT_ID, WORKSPACE_ID)
+            .unwrap();
+        assert_eq!(state.projection_generation, 1);
+        assert_eq!(state.last_event_sequence, 2);
         fs::remove_dir_all(root).expect("fixture cleanup");
     }
 }

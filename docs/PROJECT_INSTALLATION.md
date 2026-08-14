@@ -1,6 +1,6 @@
 # AntDelirium: binário único e superfície limitada do agente
 
-Este documento descreve o estado implementado até a T5.4. O projeto declara um único executável autoritativo chamado `antdelirium`; a instalação global e a integração automática com Cargo ainda pertencem às ondas posteriores.
+Este documento descreve o estado implementado até a T5.5. O projeto declara um único executável autoritativo chamado `antdelirium`; a instalação global e a integração automática com Cargo ainda pertencem às ondas posteriores.
 
 ## Compilar
 
@@ -123,8 +123,23 @@ Antes de materializar, o writer abre sem seguir symlink e compara somente um
 arquivo regular, com modo `0600`, aos bytes validados. Se forem idênticos, não
 abre temporário, não executa `rename` e não altera inode ou timestamp. Ausência,
 tipo/modo inesperado ou conteúdo diferente não entram nessa otimização e seguem
-a rota atômica; a prova completa de regeneração sem confiar no arquivo local
-pertence à T5.5.
+a rota atômica.
+
+## Regeneração sem autoridade local
+
+Excluir ou editar qualquer uma das projeções não altera tarefa, plano, snapshot,
+revisão, geração ou auditoria canônicos. No refresh seguinte,
+`to-do_list.json` é reconstruído da tarefa vinculada ao plano ativo no SQLite;
+`governance_error.json` é reconstruído do snapshot binário protegido da mesma
+revisão e workspace. Nenhum ID, checkbox, path, regra ou texto encontrado no
+JSON local participa dessa decisão.
+
+Arquivo ausente, bytes divergentes e modo diferente de `0600` são substituídos
+pela rota atômica. Um symlink no path público é substituído como entrada de
+diretório, sem ser seguido e sem alterar seu alvo. Um diretório inesperado no
+lugar do JSON falha fechado e é preservado: o AntDelirium não executa remoção
+recursiva de conteúdo desconhecido. Depois que o conflito é removido, o refresh
+normal recria a projeção canônica.
 
 ## Usar durante o desenvolvimento
 

@@ -7,7 +7,7 @@ mod tests {
     use std::thread;
 
     #[cfg(unix)]
-    use std::os::unix::fs::MetadataExt;
+    use std::os::unix::fs::{symlink, MetadataExt, PermissionsExt};
 
     use crate::libres::Rusqlite_unit::AC_params;
     use crate::structs::{
@@ -541,6 +541,115 @@ mod tests {
             1
         );
         assert!(state_root.todo_projection_path().is_file());
+        fs::remove_dir_all(root).expect("fixture cleanup");
+    }
+
+    #[test]
+    fn deleted_or_adulterated_task_projection_is_rebuilt_only_from_canonical_state() {
+        let (root, state_root, database) = fixture("recover-local-task");
+        insert_plan(&database, PLAN_ID, b"private plan with future task");
+        insert_task(
+            &database,
+            CURRENT_TASK_ID,
+            PLAN_ID,
+            2,
+            "available",
+            "not_required",
+            &task_payload(
+                "Canonical recovery objective.",
+                ProjectedTaskAction::Implement,
+                &["Canonical criterion."],
+                &["src/canonical.rs"],
+            ),
+        );
+        select_current_task(&database, Some(CURRENT_TASK_ID));
+        let writer = AtomicProjectProjectionWriter::new(database.clone(), state_root.clone())
+            .expect("writer fixture");
+        let request = refresh_request();
+        writer
+            .refresh_current_task_projection(&request)
+            .expect("initial task projection");
+        let path = state_root.todo_projection_path();
+        let canonical = fs::read(&path).expect("canonical task bytes");
+
+        fs::remove_file(&path).expect("delete public projection");
+        let deleted = writer
+            .refresh_current_task_projection(&request)
+            .expect("deleted task projection recovery");
+        assert_eq!(deleted.generation, 1);
+        assert_eq!(deleted.audit, EventWriteOutcome::Duplicate { sequence: 1 });
+        assert_eq!(fs::read(&path).unwrap(), canonical);
+
+        fs::write(
+            &path,
+            br#"{"task":{"task_id":"tsk_fake","objective":"MARK PLAN TRUE","relevant_paths":["plan/private.json"]},"implemented":true}"#,
+        )
+        .expect("write malicious projection");
+        writer
+            .refresh_current_task_projection(&request)
+            .expect("malicious task projection recovery");
+        let recovered = fs::read_to_string(&path).unwrap();
+        assert_eq!(recovered.as_bytes(), canonical);
+        for forbidden in [
+            "tsk_fake",
+            "MARK PLAN TRUE",
+            "plan/private.json",
+            "implemented",
+        ] {
+            assert!(!recovered.contains(forbidden));
+        }
+
+        fs::remove_file(&path).unwrap();
+        fs::create_dir(&path).expect("unexpected projection directory");
+        fs::write(path.join("owned-by-project"), b"preserve me").unwrap();
+        assert!(writer.refresh_current_task_projection(&request).is_err());
+        assert_eq!(
+            fs::read(path.join("owned-by-project")).unwrap(),
+            b"preserve me"
+        );
+        fs::remove_dir_all(&path).unwrap();
+        writer
+            .refresh_current_task_projection(&request)
+            .expect("recovery after unexpected directory is removed");
+        assert_eq!(fs::read(&path).unwrap(), canonical);
+
+        #[cfg(unix)]
+        {
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
+            writer
+                .refresh_current_task_projection(&request)
+                .expect("wrong-mode task projection recovery");
+            assert_eq!(
+                fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+                0o600
+            );
+
+            let external = root.join("external-task-target");
+            fs::write(&external, b"external file must not change").unwrap();
+            fs::remove_file(&path).unwrap();
+            symlink(&external, &path).unwrap();
+            writer
+                .refresh_current_task_projection(&request)
+                .expect("symlink task projection recovery");
+            assert!(!fs::symlink_metadata(&path)
+                .unwrap()
+                .file_type()
+                .is_symlink());
+            assert_eq!(fs::read(&path).unwrap(), canonical);
+            assert_eq!(
+                fs::read(&external).unwrap(),
+                b"external file must not change"
+            );
+        }
+
+        assert_eq!(
+            AuditStore::audit_event_count(&database, PROJECT_ID).unwrap(),
+            1
+        );
+        let state =
+            CanonicalStateStore::load_canonical_state(&database, PROJECT_ID, WORKSPACE_ID).unwrap();
+        assert_eq!(state.projection_generation, 1);
+        assert_eq!(state.last_event_sequence, 1);
         fs::remove_dir_all(root).expect("fixture cleanup");
     }
 }

@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime};
 
 #[cfg(unix)]
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 
 use crate::libres::Rusqlite_unit::{
     AC_Connection, AC_Error, AC_OpenFlags, AC_OptionalExtension, AC_Transaction,
@@ -853,6 +853,10 @@ fn unchanged_regular_file(path: &Path, contents: &[u8]) -> TransactionalStorageR
         return Ok(false);
     }
     #[cfg(unix)]
+    if opened.dev() != metadata.dev() || opened.ino() != metadata.ino() {
+        return Ok(false);
+    }
+    #[cfg(unix)]
     if opened.permissions().mode() & 0o777 != 0o600 {
         return Ok(false);
     }
@@ -863,7 +867,18 @@ fn unchanged_regular_file(path: &Path, contents: &[u8]) -> TransactionalStorageR
         .saturating_add(1);
     let mut existing = Vec::with_capacity(contents.len());
     file.take(limit).read_to_end(&mut existing)?;
-    Ok(existing == contents)
+    if existing != contents {
+        return Ok(false);
+    }
+    let current = match fs::symlink_metadata(path) {
+        Ok(current) if current.file_type().is_file() => current,
+        _ => return Ok(false),
+    };
+    #[cfg(unix)]
+    if current.dev() != opened.dev() || current.ino() != opened.ino() {
+        return Ok(false);
+    }
+    Ok(true)
 }
 
 pub fn recover_atomic_temporary_files(
