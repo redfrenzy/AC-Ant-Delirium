@@ -6,9 +6,9 @@ mod tests {
 
     use crate::libres::Rusqlite_unit::AC_params;
     use crate::structs::{
-        build_current_task_projection, build_governance_errors_projection,
-        AtomicProjectProjectionWriter, AuditStore, CanonicalStateSnapshot, CanonicalStateStore,
-        CurrentTaskProjectionDocument, GovernanceErrorsProjectionDocument,
+        build_current_task_projection, AtomicProjectProjectionWriter, AuditStore,
+        CanonicalGovernanceSnapshotRequest, CanonicalStateSnapshot, CanonicalStateStore,
+        CurrentTaskProjectionDocument, GovernanceErrorsRefreshRequest,
         LegacyProjectStateRootAdapter, NewAuditEvent, ProjectDatabase, ProjectProjectionWriter,
         ProjectStateRoot, ProjectedCurrentTask, ProjectedGovernanceViolation, ProjectedQueueStatus,
         ProjectedTaskAction, ProjectionMetadata, StorageHealth, StorageProject, StorageWorkspace,
@@ -163,22 +163,29 @@ mod tests {
             .write_current_task(&current, &audit_event(1, 201, "current_task"))
             .expect("current-task projection should write");
 
-        let errors = build_governance_errors_projection(&GovernanceErrorsProjectionDocument {
-            metadata: metadata(2, 202),
-            violations: vec![ProjectedGovernanceViolation {
-                violation_id: "vio_00000000000000000000000000".to_string(),
-                rule_id: "hierarchy.structural.max_nesting".to_string(),
-                summary: "Maximum nesting exceeded.".to_string(),
-                path: "src/lib.rs".to_string(),
-                line: 1,
-                quick_fix: Some("Extract the nested branch into a helper.".to_string()),
-                public_rule_reference: "hierarchy.rule.max_nesting".to_string(),
-            }],
-        })
-        .expect("governance-errors projection should build");
         writer
-            .write_governance_errors(&errors, &audit_event(2, 202, "governance_errors"))
-            .expect("governance-errors projection should write");
+            .replace_canonical_governance_snapshot(&CanonicalGovernanceSnapshotRequest {
+                project_id: PROJECT_ID.to_string(),
+                workspace_id: WORKSPACE_ID.to_string(),
+                observed_at: "2026-08-11T00:00:01Z".to_string(),
+                violations: vec![ProjectedGovernanceViolation {
+                    violation_id: "vio_00000000000000000000000000".to_string(),
+                    rule_id: "hierarchy.structural.max_nesting".to_string(),
+                    summary: "Maximum nesting exceeded.".to_string(),
+                    path: "src/lib.rs".to_string(),
+                    line: 1,
+                    quick_fix: Some("Extract the nested branch into a helper.".to_string()),
+                    public_rule_reference: "hierarchy.rule.max_nesting".to_string(),
+                }],
+            })
+            .expect("canonical governance snapshot should write");
+        writer
+            .refresh_governance_errors_projection(&GovernanceErrorsRefreshRequest {
+                project_id: PROJECT_ID.to_string(),
+                workspace_id: WORKSPACE_ID.to_string(),
+                rendered_at: "2026-08-11T00:00:02Z".to_string(),
+            })
+            .expect("governance-errors projection should refresh");
 
         let mut guard_entries = fs::read_dir(state_root.project_guard_dir())
             .expect("guard directory should exist")

@@ -5,9 +5,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::engine::Search_Engine_unit::SearchFiles;
+use crate::libres::System_Random_unit::random_crockford_id;
 use crate::structs::{
-    build_governance_errors_projection, sanitize_public_text, AuditConfig, AuditResult,
-    AuditViolation, GovernanceErrorsProjectionDocument, ProjectedGovernanceViolation,
+    is_agent_correctable_violation_path, sanitize_public_text, AuditConfig, AuditResult,
+    AuditViolation, CanonicalGovernanceSnapshotRequest, ProjectedGovernanceViolation,
 };
 
 use super::{GovernanceArtifactPaths, GovernanceErrorsProjectionTarget};
@@ -827,38 +828,41 @@ fn write_governance_errors_projection(
     config: &AuditConfig,
     target: GovernanceErrorsProjectionTarget<'_>,
 ) -> std::io::Result<()> {
-    if target.context.violation_ids.len() != result.violations.len() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "trusted violation identifiers do not match the audited violation set",
-        ));
-    }
     let violations = result
         .violations
         .iter()
-        .zip(target.context.violation_ids.iter())
-        .map(|(violation, violation_id)| ProjectedGovernanceViolation {
-            violation_id: violation_id.clone(),
-            rule_id: violation.rule_id.clone(),
-            summary: sanitize_public_text(&violation.message),
-            path: violation.file_path.clone(),
-            line: violation.line,
-            quick_fix: violation.quick_fix.as_deref().map(sanitize_public_text),
-            public_rule_reference: runtime_rule_doc_path(
-                &config.hierarchy,
-                &grouped_rule_key(&violation.rule_id),
-            ),
+        .filter(|violation| is_agent_correctable_violation_path(&violation.file_path))
+        .map(|violation| {
+            let violation_id = random_crockford_id("vio_")
+                .map_err(|error| std::io::Error::other(error.to_string()))?;
+            Ok(ProjectedGovernanceViolation {
+                violation_id,
+                rule_id: violation.rule_id.clone(),
+                summary: sanitize_public_text(&violation.message),
+                path: violation.file_path.clone(),
+                line: violation.line,
+                quick_fix: violation.quick_fix.as_deref().map(sanitize_public_text),
+                public_rule_reference: runtime_rule_doc_path(
+                    &config.hierarchy,
+                    &grouped_rule_key(&violation.rule_id),
+                ),
+            })
         })
-        .collect();
-    let document = GovernanceErrorsProjectionDocument {
-        metadata: target.context.metadata.clone(),
+        .collect::<std::io::Result<Vec<_>>>()?;
+    let snapshot = CanonicalGovernanceSnapshotRequest {
+        project_id: target.request.project_id.clone(),
+        workspace_id: target.request.workspace_id.clone(),
+        observed_at: target.request.rendered_at.clone(),
         violations,
     };
-    let projection = build_governance_errors_projection(&document)
-        .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error.to_string()))?;
     target
         .writer
-        .write_governance_errors(&projection, target.audit_event)
+        .replace_canonical_governance_snapshot(&snapshot)
+        .and_then(|_| {
+            target
+                .writer
+                .refresh_governance_errors_projection(target.request)
+        })
         .map(|_| ())
         .map_err(|error| std::io::Error::other(error.to_string()))
 }

@@ -7,13 +7,15 @@ mod tests {
     use crate::libres::Rusqlite_unit::AC_params;
     use crate::structs::{
         build_current_task_projection, AtomicProjectProjectionWriter, AuditStore,
-        CanonicalStateStore, CanonicalStateTransition, CurrentTaskProjection,
-        CurrentTaskProjectionDocument, EventWriteOutcome, GovernanceErrorsProjection,
-        NewAuditEvent, NewSubmission, ProjectDatabase, ProjectProjectionWriter, ProjectStateRoot,
-        ProjectedCurrentTask, ProjectedQueueStatus, ProjectedTaskAction, ProjectionArtifactKind,
-        ProjectionMetadata, StorageProject, StorageWorkspace, SubmissionStore,
-        TransactionalStorageError, AGENT_PROJECTION_CONTRACT_VERSION, AUDIT_EVENT_CONTRACT_VERSION,
-        CANONICAL_STATE_CONTRACT_VERSION, STORAGE_SCHEMA_VERSION, SUBMISSION_CONTRACT_VERSION,
+        CanonicalGovernanceSnapshotRequest, CanonicalStateStore, CanonicalStateTransition,
+        CurrentTaskProjection, CurrentTaskProjectionDocument, EventWriteOutcome,
+        GovernanceErrorsProjection, GovernanceErrorsRefreshRequest, NewAuditEvent, NewSubmission,
+        ProjectDatabase, ProjectProjectionWriter, ProjectStateRoot, ProjectedCurrentTask,
+        ProjectedGovernanceViolation, ProjectedQueueStatus, ProjectedTaskAction,
+        ProjectionArtifactKind, ProjectionMetadata, StorageProject, StorageWorkspace,
+        SubmissionStore, TransactionalStorageError, AGENT_PROJECTION_CONTRACT_VERSION,
+        AUDIT_EVENT_CONTRACT_VERSION, CANONICAL_STATE_CONTRACT_VERSION, STORAGE_SCHEMA_VERSION,
+        SUBMISSION_CONTRACT_VERSION,
     };
 
     const PROJECT_ID: &str = "prj_00000000000000000000000000";
@@ -274,11 +276,35 @@ mod tests {
         let errors = GovernanceErrorsProjection {
             contract_version: AGENT_PROJECTION_CONTRACT_VERSION.to_string(),
             metadata: errors_metadata,
+            snapshot_fingerprint: None,
             serialized_contract: b"{\"contract_version\":\"agent-projection-v1\",\"artifact_kind\":\"governance_errors\"}".to_vec(),
         };
         let errors_event = audit_event(2, "projection_rendered", 31, Some("governance_errors"));
-        writer
+        assert!(writer
             .write_governance_errors(&errors, &errors_event)
+            .is_err());
+        writer
+            .replace_canonical_governance_snapshot(&CanonicalGovernanceSnapshotRequest {
+                project_id: PROJECT_ID.to_string(),
+                workspace_id: WORKSPACE_ID.to_string(),
+                observed_at: "2026-08-11T00:00:00Z".to_string(),
+                violations: vec![ProjectedGovernanceViolation {
+                    violation_id: "vio_00000000000000000000000000".to_string(),
+                    rule_id: "hierarchy.rule.max_nesting".to_string(),
+                    summary: "Maximum nesting exceeded.".to_string(),
+                    path: "src/lib.rs".to_string(),
+                    line: 1,
+                    quick_fix: None,
+                    public_rule_reference: "hierarchy.rule.max_nesting".to_string(),
+                }],
+            })
+            .unwrap();
+        writer
+            .refresh_governance_errors_projection(&GovernanceErrorsRefreshRequest {
+                project_id: PROJECT_ID.to_string(),
+                workspace_id: WORKSPACE_ID.to_string(),
+                rendered_at: "2026-08-11T00:00:01Z".to_string(),
+            })
             .unwrap();
 
         assert_eq!(
@@ -293,10 +319,9 @@ mod tests {
             fs::read(writer.current_task_path()).unwrap(),
             current.serialized_contract
         );
-        assert_eq!(
-            fs::read(writer.governance_errors_path()).unwrap(),
-            errors.serialized_contract
-        );
+        let governance = fs::read_to_string(writer.governance_errors_path()).unwrap();
+        assert!(governance.contains("\"artifact_kind\": \"governance_errors\""));
+        assert!(governance.contains("\"path\": \"src/lib.rs\""));
         let mut names = fs::read_dir(state_root.project_guard_dir())
             .unwrap()
             .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
@@ -308,7 +333,7 @@ mod tests {
             .unwrap();
         assert_eq!(state.state_revision, 0);
         assert_eq!(state.projection_generation, 2);
-        assert_eq!(state.last_event_sequence, 2);
+        assert_eq!(state.last_event_sequence, 3);
 
         fs::remove_dir_all(root).expect("temporary directory should be removed");
     }
@@ -325,7 +350,7 @@ mod tests {
                     [],
                     |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
                 )?;
-                assert_eq!(result, (4, i64::from(STORAGE_SCHEMA_VERSION)));
+                assert_eq!(result, (5, i64::from(STORAGE_SCHEMA_VERSION)));
                 Ok(())
             })
             .unwrap();

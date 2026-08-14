@@ -6,9 +6,8 @@ mod tests {
 
     use crate::structs::{
         AtomicProjectProjectionWriter, AuditConfig, AuditResult, AuditViolation,
-        CanonicalStateStore, GovernanceErrorsProjectionContext, HierarchyConfig, NewAuditEvent,
-        ProjectDatabase, ProjectStateRoot, ProjectionMetadata, StorageProject, StorageWorkspace,
-        AUDIT_EVENT_CONTRACT_VERSION,
+        CanonicalStateStore, GovernanceErrorsRefreshRequest, HierarchyConfig, ProjectDatabase,
+        ProjectStateRoot, StorageProject, StorageWorkspace,
     };
     use crate::Logs::{GovernanceErrorsProjectionTarget, GovernanceLogs};
 
@@ -298,47 +297,48 @@ mod tests {
         .expect("workspace should register");
         let writer = AtomicProjectProjectionWriter::new(database.clone(), state_root.clone())
             .expect("writer should bind to the state root");
-        let context = GovernanceErrorsProjectionContext {
-            metadata: ProjectionMetadata {
-                project_id: "prj_00000000000000000000000000".to_string(),
-                workspace_id: "wsp_00000000000000000000000000".to_string(),
-                source_revision: 0,
-                generation: 1,
-                fingerprint: format!("{:064x}", 102),
-                rendered_at: "2026-08-11T00:00:00Z".to_string(),
-            },
-            violation_ids: vec!["vio_00000000000000000000000000".to_string()],
-        };
-        let audit_event = NewAuditEvent {
-            contract_version: AUDIT_EVENT_CONTRACT_VERSION.to_string(),
-            event_id: "evt_00000000000000000000000000".to_string(),
-            project_id: context.metadata.project_id.clone(),
-            workspace_id: Some(context.metadata.workspace_id.clone()),
-            actor_kind: "service".to_string(),
-            actor_subject_id: "antdelirium-service".to_string(),
-            event_kind: "projection_rendered".to_string(),
-            outcome: "succeeded".to_string(),
-            occurred_at: "2026-08-11T00:00:00Z".to_string(),
-            fingerprint: context.metadata.fingerprint.clone(),
-            correlation_id: "governance-errors-projection".to_string(),
-            resource_id: Some("governance_errors".to_string()),
-            payload: b"governance-errors-projection".to_vec(),
+        let request = GovernanceErrorsRefreshRequest {
+            project_id: "prj_00000000000000000000000000".to_string(),
+            workspace_id: "wsp_00000000000000000000000000".to_string(),
+            rendered_at: "2026-08-11T00:00:00Z".to_string(),
         };
         let config = AuditConfig {
             hierarchy: HierarchyConfig::load_from_folder("ant_delirium_config/type_1"),
             ..AuditConfig::default()
         };
         let result = AuditResult {
-            violations: vec![AuditViolation {
-                file_path: "src/private_adapter.rs".to_string(),
-                line: 23,
-                rule_id: "hierarchy.structural.type_logic".to_string(),
-                message: "Move the API from /home/operator/private/source.rs.".to_string(),
-                snippet: Some("pub fn leaked() {}".to_string()),
-                quick_fix: Some("Do not inspect C:\\private\\plans; move the API.".to_string()),
-                detected_dna: "unitcore".to_string(),
-                taxonomy_path: "hierarchy.files.unit.unitcore".to_string(),
-            }],
+            violations: vec![
+                AuditViolation {
+                    file_path: "src/private_adapter.rs".to_string(),
+                    line: 23,
+                    rule_id: "hierarchy.structural.type_logic".to_string(),
+                    message: "Move the API from /home/operator/private/source.rs.".to_string(),
+                    snippet: Some("pub fn leaked() {}".to_string()),
+                    quick_fix: Some("Do not inspect C:\\private\\plans; move the API.".to_string()),
+                    detected_dna: "unitcore".to_string(),
+                    taxonomy_path: "hierarchy.files.unit.unitcore".to_string(),
+                },
+                AuditViolation {
+                    file_path: "src/manual_fix.rs".to_string(),
+                    line: 9,
+                    rule_id: "hierarchy.structural.max_nesting".to_string(),
+                    message: "Refactor the nested branch manually.".to_string(),
+                    snippet: Some("if nested {".to_string()),
+                    quick_fix: None,
+                    detected_dna: "unitcore".to_string(),
+                    taxonomy_path: "hierarchy.files.unit.unitcore".to_string(),
+                },
+                AuditViolation {
+                    file_path: "plan/private_task.json".to_string(),
+                    line: 1,
+                    rule_id: "hierarchy.structural.type_logic".to_string(),
+                    message: "Administrative plan violation must stay private.".to_string(),
+                    snippet: Some("\"completed\": true".to_string()),
+                    quick_fix: None,
+                    detected_dna: "administrative".to_string(),
+                    taxonomy_path: "private.plan".to_string(),
+                },
+            ],
             logs: vec!["private administrative log".to_string()],
         };
 
@@ -348,8 +348,7 @@ mod tests {
             &root.join("legacy-artifacts").to_string_lossy(),
             Some(GovernanceErrorsProjectionTarget {
                 writer: &writer,
-                context: &context,
-                audit_event: &audit_event,
+                request: &request,
             }),
         )
         .expect("legacy artifacts and typed projection should write");
@@ -360,11 +359,13 @@ mod tests {
             .expect("governance projection should read");
         assert!(legacy.contains("hierarchy.structural.type_logic"));
         assert!(legacy.contains("src/private_adapter.rs"));
+        assert!(legacy.contains("plan/private_task.json"));
         for required in [
             "\"artifact_kind\": \"governance_errors\"",
-            "\"violation_id\": \"vio_00000000000000000000000000\"",
+            "\"violation_id\": \"vio_",
             "\"rule_id\": \"hierarchy.structural.type_logic\"",
             "\"path\": \"src/private_adapter.rs\"",
+            "\"path\": \"src/manual_fix.rs\"",
             "\"line\": 23",
             "\"public_rule_reference\": \"hierarchy.rule.type_logic\"",
             "[project-root]",
@@ -386,47 +387,15 @@ mod tests {
             "\"audited_files\"",
             "\"priority\"",
             "private administrative log",
+            "plan/private_task.json",
+            "Administrative plan violation",
         ] {
             assert!(
                 !projection.contains(forbidden),
                 "forbidden projection content leaked: {forbidden}"
             );
         }
-        assert_eq!(
-            database.event_count(&context.metadata.project_id).unwrap(),
-            1
-        );
-
-        let mismatched_context = GovernanceErrorsProjectionContext {
-            metadata: ProjectionMetadata {
-                generation: 2,
-                fingerprint: format!("{:064x}", 103),
-                ..context.metadata.clone()
-            },
-            violation_ids: Vec::new(),
-        };
-        let mismatched_event = NewAuditEvent {
-            event_id: "evt_00000000000000000000000001".to_string(),
-            fingerprint: mismatched_context.metadata.fingerprint.clone(),
-            ..audit_event
-        };
-        let mismatch = GovernanceLogs::write_artifacts(
-            &result,
-            &config,
-            &root.join("legacy-artifacts").to_string_lossy(),
-            Some(GovernanceErrorsProjectionTarget {
-                writer: &writer,
-                context: &mismatched_context,
-                audit_event: &mismatched_event,
-            }),
-        )
-        .expect_err("a partial trusted id set must be rejected");
-        assert_eq!(mismatch.kind(), std::io::ErrorKind::InvalidData);
-        assert_eq!(
-            database.event_count(&context.metadata.project_id).unwrap(),
-            1,
-            "a mismatched set must not reach the projection writer"
-        );
+        assert_eq!(database.event_count(&request.project_id).unwrap(), 2);
 
         let _ = fs::remove_dir_all(root);
     }

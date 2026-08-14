@@ -1,7 +1,6 @@
 use crate::restricted_tokens::out::elite_out;
 use crate::structs::{
-    AuditConfig, AuditResult, GovernanceErrorsProjectionContext, NewAuditEvent,
-    ProjectProjectionWriter,
+    AtomicProjectProjectionWriter, AuditConfig, AuditResult, GovernanceErrorsRefreshRequest,
 };
 
 #[path = "Logs_unitcore.rs"]
@@ -19,9 +18,8 @@ pub struct GovernanceArtifactPaths {
 pub struct GovernanceLogs;
 
 pub struct GovernanceErrorsProjectionTarget<'a> {
-    pub writer: &'a dyn ProjectProjectionWriter,
-    pub context: &'a GovernanceErrorsProjectionContext,
-    pub audit_event: &'a NewAuditEvent,
+    pub writer: &'a AtomicProjectProjectionWriter,
+    pub request: &'a GovernanceErrorsRefreshRequest,
 }
 
 impl GovernanceLogs {

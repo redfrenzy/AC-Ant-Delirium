@@ -182,9 +182,10 @@ pub struct CurrentTaskProjection {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GovernanceErrorsProjection {
-    pub contract_version: String,
-    pub metadata: ProjectionMetadata,
-    pub serialized_contract: Vec<u8>,
+    pub(crate) contract_version: String,
+    pub(crate) metadata: ProjectionMetadata,
+    pub(crate) snapshot_fingerprint: Option<String>,
+    pub(crate) serialized_contract: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

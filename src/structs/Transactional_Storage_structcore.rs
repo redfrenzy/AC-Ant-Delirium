@@ -253,6 +253,22 @@ CREATE INDEX service_security_time_idx ON service_security_events(occurred_at_un
 CREATE INDEX service_security_scope_idx ON service_security_events(project_id, workspace_id, task_id);
 "#;
 
+const STORAGE_SCHEMA_V5: &str = r#"
+CREATE TABLE governance_snapshots (
+    project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE RESTRICT,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(workspace_id) ON DELETE RESTRICT,
+    contract_version TEXT NOT NULL CHECK (contract_version = 'canonical-governance-snapshot-v1'),
+    source_revision INTEGER NOT NULL CHECK (source_revision >= 0),
+    fingerprint TEXT NOT NULL CHECK (length(fingerprint) = 64 AND fingerprint NOT GLOB '*[^0-9a-f]*'),
+    payload BLOB NOT NULL,
+    observed_at TEXT NOT NULL,
+    PRIMARY KEY (project_id, workspace_id)
+) STRICT;
+
+CREATE INDEX governance_snapshots_fingerprint_idx
+ON governance_snapshots(project_id, fingerprint);
+"#;
+
 impl From<AC_Error> for TransactionalStorageError {
     fn from(error: AC_Error) -> Self {
         Self::Database(error.to_string())
@@ -649,6 +665,15 @@ impl ProjectDatabase {
                 AC_params!["storage-v4-service-security-journal"],
             )?;
             transaction.pragma_update(None, "user_version", 4)?;
+            version = 4;
+        }
+        if version == 4 {
+            transaction.execute_batch(STORAGE_SCHEMA_V5)?;
+            transaction.execute(
+                "INSERT INTO schema_migrations(version, applied_at) VALUES (5, ?1)",
+                AC_params!["storage-v5-canonical-governance-snapshots"],
+            )?;
+            transaction.pragma_update(None, "user_version", 5)?;
         }
         transaction.commit()?;
         Ok(())

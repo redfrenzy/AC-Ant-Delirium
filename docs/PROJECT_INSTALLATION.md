@@ -1,6 +1,6 @@
 # AntDelirium: binário único e superfície limitada do agente
 
-Este documento descreve o estado implementado até a T5.2. O projeto declara um único executável autoritativo chamado `antdelirium`; a instalação global e a integração automática com Cargo ainda pertencem às ondas posteriores.
+Este documento descreve o estado implementado até a T5.3. O projeto declara um único executável autoritativo chamado `antdelirium`; a instalação global e a integração automática com Cargo ainda pertencem às ondas posteriores.
 
 ## Compilar
 
@@ -44,8 +44,8 @@ arquivo autocontido mínimo:
 
 Um `guard/.gitignore` preexistente pertence ao projeto e nunca é sobrescrito,
 mesmo quando não ignora as projeções. Em projeto sem Git, cria-se somente a
-pasta vazia. A T5.1 não gera os JSONs; a projeção de tarefa foi ativada na T5.2
-e a projeção de erros continua reservada à T5.3.
+pasta vazia. A T5.1 não gera os JSONs; as fronteiras internas de projeção de
+tarefa e de erros foram implementadas, respectivamente, nas T5.2 e T5.3.
 
 ## Projeção canônica da tarefa atual
 
@@ -74,6 +74,35 @@ transporte `projection.refresh`; separar a resposta sanitizada do serviço da
 escrita local do cliente permanece na T6.4. Portanto a T5.2 não instala socket,
 wrapper ou configuração Cargo e não apresenta essa integração futura como já
 ativa.
+
+## Projeção canônica das violações corrigíveis
+
+`GovernanceLogs::write_artifacts` continua sendo o único adaptador do conjunto
+de violações produzido pela auditoria. Para a projeção pública, ele seleciona
+somente violações em paths corrigíveis dentro do projeto e exclui as raízes
+administrativas `.git/`, `guard/`, `plugins/`, `plan/`, `plans/`,
+`ant_delirium_config/` e `AC_Ant-Delirium_props/`. A ausência de `quick_fix`
+não descarta uma violação de código: a correção pode exigir julgamento, e a
+referência pública da regra continua disponível.
+
+Antes de gerar `guard/governance_error.json`, o serviço persiste no SQLite
+protegido um snapshot binário limitado `canonical-governance-snapshot-v1`,
+vinculado a projeto, workspace, revisão e fingerprint SHA-256. O refresh aceita
+inclusive um snapshot vazio explícito, mas falha sem escrever arquivo ou evento
+de projeção se o snapshot estiver ausente, adulterado, pertencer a outra revisão
+ou não corresponder ao workspace ativo. O writer revalida essa vinculação na
+mesma transação da materialização; uma projeção tipada construída diretamente,
+sem snapshot canônico, é recusada.
+
+O JSON contém somente ID opaco da violação, regra, resumo sanitizado, path
+relativo, linha, correção pública opcional e referência pública da regra. Logs,
+snippet, taxonomia detectada, DNA, comandos de instalação, plano e configuração
+administrativa não atravessam essa fronteira. Editar ou apagar o JSON não muda o
+snapshot nem o estado canônico.
+
+Assim como na T5.2, esta etapa implementa e testa a fronteira interna. A entrega
+serviço→wrapper por socket e a chamada automática durante o fluxo Cargo ainda
+pertencem à T6.4; a T5.3 não instala binário, wrapper ou configuração global.
 
 ## Usar durante o desenvolvimento
 

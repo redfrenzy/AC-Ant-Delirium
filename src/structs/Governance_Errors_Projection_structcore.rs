@@ -1,12 +1,33 @@
+use crate::libres::Rusqlite_unit::{AC_OptionalExtension, AC_params};
+use crate::libres::Sha2_unit::sha256;
+use crate::libres::System_Random_unit::random_crockford_id;
+
 use super::{
     reject_public_path_references, validate_project_relative_path, GovernanceErrorsProjection,
     GovernanceErrorsProjectionDocument, ProjectedGovernanceViolation, TransactionalStorageError,
     TransactionalStorageResult, AGENT_PROJECTION_CONTRACT_VERSION,
 };
+use super::{
+    AtomicProjectProjectionWriter, CanonicalGovernanceSnapshotRequest, EventWriteOutcome,
+    GovernanceErrorsRefreshRequest, NewAuditEvent, ProjectProjectionWriter, ProjectionMetadata,
+    ProjectionWriteReceipt, AUDIT_EVENT_CONTRACT_VERSION, CANONICAL_GOVERNANCE_SNAPSHOT_VERSION,
+};
 
 use super::Current_Task_Projection_structcore::{
     json_escape, validate_projection_metadata, validate_text,
 };
+
+const SNAPSHOT_MAGIC: &[u8] = b"canonical-governance-snapshot-v1\0";
+const MAX_SNAPSHOT_BYTES: usize = 32 * 1024 * 1024;
+const RESERVED_ROOTS: [&str; 7] = [
+    ".git",
+    "guard",
+    "plugins",
+    "plan",
+    "plans",
+    "ant_delirium_config",
+    "ac_ant-delirium_props",
+];
 
 pub(super) fn build_governance_errors_projection(
     document: &GovernanceErrorsProjectionDocument,
@@ -15,8 +36,152 @@ pub(super) fn build_governance_errors_projection(
     Ok(GovernanceErrorsProjection {
         contract_version: AGENT_PROJECTION_CONTRACT_VERSION.to_string(),
         metadata: document.metadata.clone(),
+        snapshot_fingerprint: None,
         serialized_contract: serialize_document(document).into_bytes(),
     })
+}
+
+pub(super) fn is_agent_correctable_violation_path(path: &str) -> bool {
+    let normalized = path.replace('\\', "/").to_ascii_lowercase();
+    let first = normalized.split('/').next().unwrap_or_default();
+    !RESERVED_ROOTS.iter().any(|reserved| first == *reserved)
+}
+
+pub(super) fn replace_canonical_governance_snapshot(
+    writer: &AtomicProjectProjectionWriter,
+    request: &CanonicalGovernanceSnapshotRequest,
+) -> TransactionalStorageResult<EventWriteOutcome> {
+    validate_text(&request.project_id, 1, 255, "project_id")?;
+    validate_text(&request.workspace_id, 1, 255, "workspace_id")?;
+    validate_text(&request.observed_at, 1, 255, "observed_at")?;
+    if request.violations.len() > 4_096 {
+        return Err(invalid(
+            "canonical governance snapshot exceeds the violation limit",
+        ));
+    }
+    for violation in &request.violations {
+        validate_violation(violation)?;
+        if !is_agent_correctable_violation_path(&violation.path) {
+            return Err(invalid(
+                "canonical governance snapshot contains an administrative path",
+            ));
+        }
+    }
+    let payload = encode_snapshot(&request.violations)?;
+    let event_id = random_crockford_id("evt_")?;
+    let correlation_id = random_crockford_id("ref_")?;
+    writer.database.with_immediate_transaction(|transaction| {
+        let source_revision = transaction.query_row(
+            "SELECT p.state_revision FROM projects p JOIN workspaces w ON w.project_id = p.project_id WHERE p.project_id = ?1 AND w.workspace_id = ?2 AND w.status = 'active'",
+            AC_params![request.project_id, request.workspace_id],
+            |row| row.get::<_, i64>(0),
+        )?;
+        let fingerprint = snapshot_fingerprint(
+            &request.project_id,
+            &request.workspace_id,
+            source_revision,
+            &payload,
+        )?;
+        transaction.execute(
+            "INSERT INTO governance_snapshots(project_id, workspace_id, contract_version, source_revision, fingerprint, payload, observed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7) ON CONFLICT(project_id, workspace_id) DO UPDATE SET contract_version = excluded.contract_version, source_revision = excluded.source_revision, fingerprint = excluded.fingerprint, payload = excluded.payload, observed_at = excluded.observed_at",
+            AC_params![request.project_id, request.workspace_id, CANONICAL_GOVERNANCE_SNAPSHOT_VERSION, source_revision, fingerprint, payload, request.observed_at],
+        )?;
+        let event = NewAuditEvent {
+            contract_version: AUDIT_EVENT_CONTRACT_VERSION.to_string(),
+            event_id,
+            project_id: request.project_id.clone(),
+            workspace_id: Some(request.workspace_id.clone()),
+            actor_kind: "service".to_string(),
+            actor_subject_id: "antdelirium-service".to_string(),
+            event_kind: "compilation_observed".to_string(),
+            outcome: "succeeded".to_string(),
+            occurred_at: request.observed_at.clone(),
+            fingerprint,
+            correlation_id,
+            resource_id: Some("governance_errors_snapshot".to_string()),
+            payload: b"canonical governance snapshot observed".to_vec(),
+        };
+        writer.database.record_event_in_transaction(transaction, &event)
+    })
+}
+
+pub(super) fn refresh_governance_errors_projection(
+    writer: &AtomicProjectProjectionWriter,
+    request: &GovernanceErrorsRefreshRequest,
+) -> TransactionalStorageResult<ProjectionWriteReceipt> {
+    validate_text(&request.project_id, 1, 255, "project_id")?;
+    validate_text(&request.workspace_id, 1, 255, "workspace_id")?;
+    validate_text(&request.rendered_at, 1, 255, "rendered_at")?;
+    let connection = writer.database.open_connection(false)?;
+    let (source_revision, previous_generation) = connection.query_row(
+        "SELECT p.state_revision, p.projection_generation FROM projects p JOIN workspaces w ON w.project_id = p.project_id WHERE p.project_id = ?1 AND w.workspace_id = ?2 AND w.status = 'active'",
+        AC_params![request.project_id, request.workspace_id],
+        |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+    )?;
+    let snapshot = connection
+        .query_row(
+            "SELECT contract_version, source_revision, fingerprint, payload FROM governance_snapshots WHERE project_id = ?1 AND workspace_id = ?2",
+            AC_params![request.project_id, request.workspace_id],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?, row.get::<_, Vec<u8>>(3)?)),
+        )
+        .optional()?
+        .ok_or_else(|| TransactionalStorageError::Integrity("canonical governance snapshot is unavailable".to_string()))?;
+    if snapshot.0 != CANONICAL_GOVERNANCE_SNAPSHOT_VERSION || snapshot.1 != source_revision {
+        return Err(TransactionalStorageError::Integrity(
+            "canonical governance snapshot does not match the current revision".to_string(),
+        ));
+    }
+    if snapshot_fingerprint(
+        &request.project_id,
+        &request.workspace_id,
+        source_revision,
+        &snapshot.3,
+    )? != snapshot.2
+    {
+        return Err(TransactionalStorageError::Integrity(
+            "canonical governance snapshot fingerprint is invalid".to_string(),
+        ));
+    }
+    let violations = decode_snapshot(&snapshot.3)?;
+    let generation = previous_generation.checked_add(1).ok_or_else(|| {
+        TransactionalStorageError::Integrity("projection generation overflow".to_string())
+    })?;
+    drop(connection);
+
+    let mut metadata = ProjectionMetadata {
+        project_id: request.project_id.clone(),
+        workspace_id: request.workspace_id.clone(),
+        source_revision,
+        generation,
+        fingerprint: "0".repeat(64),
+        rendered_at: request.rendered_at.clone(),
+    };
+    let mut projection = build_governance_errors_projection(&GovernanceErrorsProjectionDocument {
+        metadata: metadata.clone(),
+        violations: violations.clone(),
+    })?;
+    metadata.fingerprint = lowercase_hex(&sha256(&projection.serialized_contract));
+    projection = build_governance_errors_projection(&GovernanceErrorsProjectionDocument {
+        metadata: metadata.clone(),
+        violations,
+    })?;
+    projection.snapshot_fingerprint = Some(snapshot.2);
+    let event = NewAuditEvent {
+        contract_version: AUDIT_EVENT_CONTRACT_VERSION.to_string(),
+        event_id: random_crockford_id("evt_")?,
+        project_id: request.project_id.clone(),
+        workspace_id: Some(request.workspace_id.clone()),
+        actor_kind: "service".to_string(),
+        actor_subject_id: "antdelirium-service".to_string(),
+        event_kind: "projection_rendered".to_string(),
+        outcome: "succeeded".to_string(),
+        occurred_at: request.rendered_at.clone(),
+        fingerprint: metadata.fingerprint,
+        correlation_id: random_crockford_id("ref_")?,
+        resource_id: Some("governance_errors".to_string()),
+        payload: b"governance errors projection rendered".to_vec(),
+    };
+    writer.write_governance_errors(&projection, &event)
 }
 
 fn validate_document(
@@ -91,6 +256,187 @@ fn serialize_violation(violation: &ProjectedGovernanceViolation) -> String {
         quick_fix,
         json_escape(&violation.public_rule_reference),
     )
+}
+
+fn encode_snapshot(
+    violations: &[ProjectedGovernanceViolation],
+) -> TransactionalStorageResult<Vec<u8>> {
+    let mut encoded = Vec::new();
+    encoded.extend_from_slice(SNAPSHOT_MAGIC);
+    encode_usize(&mut encoded, violations.len())?;
+    for violation in violations {
+        encode_text(&mut encoded, &violation.violation_id)?;
+        encode_text(&mut encoded, &violation.rule_id)?;
+        encode_text(&mut encoded, &violation.summary)?;
+        encode_text(&mut encoded, &violation.path)?;
+        encode_usize(&mut encoded, violation.line)?;
+        match violation.quick_fix.as_deref() {
+            Some(value) => {
+                encoded.push(1);
+                encode_text(&mut encoded, value)?;
+            }
+            None => encoded.push(0),
+        }
+        encode_text(&mut encoded, &violation.public_rule_reference)?;
+    }
+    if encoded.len() > MAX_SNAPSHOT_BYTES {
+        return Err(invalid("canonical governance snapshot is too large"));
+    }
+    Ok(encoded)
+}
+
+fn decode_snapshot(
+    payload: &[u8],
+) -> TransactionalStorageResult<Vec<ProjectedGovernanceViolation>> {
+    if payload.len() > MAX_SNAPSHOT_BYTES || !payload.starts_with(SNAPSHOT_MAGIC) {
+        return Err(invalid(
+            "canonical governance snapshot uses an incompatible contract",
+        ));
+    }
+    let mut cursor = SnapshotCursor {
+        payload,
+        offset: SNAPSHOT_MAGIC.len(),
+    };
+    let count = cursor.read_usize()?;
+    if count > 4_096 {
+        return Err(invalid(
+            "canonical governance snapshot exceeds the violation limit",
+        ));
+    }
+    let mut violations = Vec::with_capacity(count);
+    for _ in 0..count {
+        let violation_id = cursor.read_text()?;
+        let rule_id = cursor.read_text()?;
+        let summary = cursor.read_text()?;
+        let path = cursor.read_text()?;
+        let line = cursor.read_usize()?;
+        let quick_fix = match cursor.read_byte()? {
+            0 => None,
+            1 => Some(cursor.read_text()?),
+            _ => {
+                return Err(invalid(
+                    "canonical governance snapshot has an invalid option tag",
+                ))
+            }
+        };
+        let public_rule_reference = cursor.read_text()?;
+        let violation = ProjectedGovernanceViolation {
+            violation_id,
+            rule_id,
+            summary,
+            path,
+            line,
+            quick_fix,
+            public_rule_reference,
+        };
+        validate_violation(&violation)?;
+        if !is_agent_correctable_violation_path(&violation.path) {
+            return Err(invalid(
+                "canonical governance snapshot contains an administrative path",
+            ));
+        }
+        violations.push(violation);
+    }
+    if cursor.offset != payload.len() {
+        return Err(invalid(
+            "canonical governance snapshot contains trailing data",
+        ));
+    }
+    Ok(violations)
+}
+
+fn encode_usize(output: &mut Vec<u8>, value: usize) -> TransactionalStorageResult<()> {
+    let value = u32::try_from(value)
+        .map_err(|_| invalid("canonical governance snapshot length is unsupported"))?;
+    output.extend_from_slice(&value.to_le_bytes());
+    Ok(())
+}
+
+fn encode_text(output: &mut Vec<u8>, value: &str) -> TransactionalStorageResult<()> {
+    encode_usize(output, value.len())?;
+    output.extend_from_slice(value.as_bytes());
+    Ok(())
+}
+
+struct SnapshotCursor<'a> {
+    payload: &'a [u8],
+    offset: usize,
+}
+
+impl SnapshotCursor<'_> {
+    fn read_byte(&mut self) -> TransactionalStorageResult<u8> {
+        let byte = self
+            .payload
+            .get(self.offset)
+            .copied()
+            .ok_or_else(|| invalid("canonical governance snapshot is truncated"))?;
+        self.offset += 1;
+        Ok(byte)
+    }
+
+    fn read_usize(&mut self) -> TransactionalStorageResult<usize> {
+        let end = self
+            .offset
+            .checked_add(4)
+            .ok_or_else(|| invalid("canonical governance snapshot is truncated"))?;
+        let bytes: [u8; 4] = self
+            .payload
+            .get(self.offset..end)
+            .ok_or_else(|| invalid("canonical governance snapshot is truncated"))?
+            .try_into()
+            .map_err(|_| invalid("canonical governance snapshot is truncated"))?;
+        self.offset = end;
+        usize::try_from(u32::from_le_bytes(bytes))
+            .map_err(|_| invalid("canonical governance snapshot length is unsupported"))
+    }
+
+    fn read_text(&mut self) -> TransactionalStorageResult<String> {
+        let length = self.read_usize()?;
+        let end = self
+            .offset
+            .checked_add(length)
+            .ok_or_else(|| invalid("canonical governance snapshot is truncated"))?;
+        let bytes = self
+            .payload
+            .get(self.offset..end)
+            .ok_or_else(|| invalid("canonical governance snapshot is truncated"))?;
+        self.offset = end;
+        String::from_utf8(bytes.to_vec())
+            .map_err(|_| invalid("canonical governance snapshot text must be valid UTF-8"))
+    }
+}
+
+fn lowercase_hex(bytes: &[u8]) -> String {
+    let mut output = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        use std::fmt::Write as _;
+        let _ = write!(&mut output, "{byte:02x}");
+    }
+    output
+}
+
+fn snapshot_fingerprint(
+    project_id: &str,
+    workspace_id: &str,
+    source_revision: i64,
+    payload: &[u8],
+) -> TransactionalStorageResult<String> {
+    let mut scoped = Vec::with_capacity(
+        CANONICAL_GOVERNANCE_SNAPSHOT_VERSION.len()
+            + project_id.len()
+            + workspace_id.len()
+            + payload.len()
+            + 32,
+    );
+    encode_text(&mut scoped, CANONICAL_GOVERNANCE_SNAPSHOT_VERSION)?;
+    encode_text(&mut scoped, project_id)?;
+    encode_text(&mut scoped, workspace_id)?;
+    scoped.extend_from_slice(&source_revision.to_le_bytes());
+    let payload_len = u32::try_from(payload.len())
+        .map_err(|_| invalid("canonical governance snapshot is too large"))?;
+    scoped.extend_from_slice(&payload_len.to_le_bytes());
+    scoped.extend_from_slice(payload);
+    Ok(lowercase_hex(&sha256(&scoped)))
 }
 
 fn invalid(message: &str) -> TransactionalStorageError {

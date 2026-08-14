@@ -11,6 +11,8 @@ pub mod Debug_Violation_test;
 pub mod Else_Free_Axiom_test;
 pub mod Global_Params_test;
 pub mod Governance_Errors_Projection_test;
+#[allow(non_snake_case)]
+pub mod Governance_Errors_Refresh_test;
 pub mod Identity_Axiom_test;
 pub mod Logical_Density_Axiom_test;
 pub mod Logs_test;

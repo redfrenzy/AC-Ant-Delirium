@@ -230,6 +230,7 @@ impl AtomicProjectProjectionWriter {
         artifact_kind: ProjectionArtifactKind,
         metadata: &ProjectionMetadata,
         current_task_ref: Option<&CanonicalTaskProjectionRef>,
+        governance_snapshot_fingerprint: Option<&str>,
         serialized_contract: &[u8],
         audit_event: &NewAuditEvent,
     ) -> TransactionalStorageResult<ProjectionWriteReceipt> {
@@ -251,6 +252,14 @@ impl AtomicProjectProjectionWriter {
                     transaction,
                     &metadata.project_id,
                     current_task_ref,
+                )?;
+            } else {
+                validate_governance_projection_binding(
+                    transaction,
+                    &metadata.project_id,
+                    &metadata.workspace_id,
+                    metadata.source_revision,
+                    governance_snapshot_fingerprint,
                 )?;
             }
             let state_revision = transaction.query_row(
@@ -313,6 +322,7 @@ impl ProjectProjectionWriter for AtomicProjectProjectionWriter {
             ProjectionArtifactKind::CurrentTask,
             &projection.metadata,
             projection.task_ref.as_ref(),
+            None,
             &projection.serialized_contract,
             audit_event,
         )
@@ -331,6 +341,7 @@ impl ProjectProjectionWriter for AtomicProjectProjectionWriter {
             ProjectionArtifactKind::GovernanceErrors,
             &projection.metadata,
             None,
+            projection.snapshot_fingerprint.as_deref(),
             &projection.serialized_contract,
             audit_event,
         )
@@ -343,6 +354,33 @@ impl ProjectProjectionWriter for AtomicProjectProjectionWriter {
     fn governance_errors_path(&self) -> std::path::PathBuf {
         self.state_root.governance_error_projection_path()
     }
+}
+
+fn validate_governance_projection_binding(
+    transaction: &AC_Transaction<'_>,
+    project_id: &str,
+    workspace_id: &str,
+    source_revision: i64,
+    snapshot_fingerprint: Option<&str>,
+) -> TransactionalStorageResult<()> {
+    let fingerprint = snapshot_fingerprint.ok_or_else(|| {
+        TransactionalStorageError::Integrity(
+            "governance projection is not bound to a canonical snapshot".to_string(),
+        )
+    })?;
+    let matched = transaction
+        .query_row(
+            "SELECT 1 FROM governance_snapshots WHERE project_id = ?1 AND workspace_id = ?2 AND source_revision = ?3 AND fingerprint = ?4",
+            AC_params![project_id, workspace_id, source_revision, fingerprint],
+            |row| row.get::<_, i64>(0),
+        )
+        .optional()?;
+    if matched != Some(1) {
+        return Err(TransactionalStorageError::Integrity(
+            "governance projection does not match the canonical snapshot".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 fn load_canonical_state_from_connection(
