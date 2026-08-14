@@ -1,7 +1,9 @@
 use std::ffi::{OsStr, OsString};
-use std::path::Path;
 
 use crate::public_output::{OutputRouter, PublicError};
+use crate::rustc_wrapper::{
+    detect_wrapper_invocation, WrapperProtocolError, WrapperRoute, WRAPPER_DEPTH_ENV,
+};
 
 /// Actor requested by the invocation shape. This is routing information, never authorization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -18,8 +20,9 @@ pub(crate) enum InvocationProfile {
 pub(crate) enum InternalBinaryMode {
     AgentCli,
     WrapperPending {
-        recursive: bool,
+        route: WrapperRoute,
     },
+    WrapperRejected,
     ReviewerPending,
     OperatorPending,
     ServicePending,
@@ -37,7 +40,7 @@ pub(crate) struct DispatchPlan {
 
 pub(crate) fn run_authoritative_binary() {
     let args: Vec<OsString> = std::env::args_os().skip(1).collect();
-    let wrapper_depth = std::env::var_os("ANTDELIRIUM_WRAPPER_DEPTH");
+    let wrapper_depth = std::env::var_os(WRAPPER_DEPTH_ENV);
     let plan = classify_invocation(&args, wrapper_depth.as_deref());
 
     match plan.mode {
@@ -45,6 +48,7 @@ pub(crate) fn run_authoritative_binary() {
         InternalBinaryMode::WrapperPending { .. } => {
             OutputRouter::exit(PublicError::ServiceUnavailable)
         }
+        InternalBinaryMode::WrapperRejected => OutputRouter::exit(PublicError::Configuration),
         InternalBinaryMode::ReviewerPending | InternalBinaryMode::OperatorPending => {
             OutputRouter::exit(PublicError::Authorization)
         }
@@ -61,13 +65,20 @@ pub(crate) fn classify_invocation(
     args: &[OsString],
     wrapper_depth: Option<&OsStr>,
 ) -> DispatchPlan {
-    if is_unambiguous_wrapper_invocation(args) {
-        return DispatchPlan {
-            profile: InvocationProfile::Wrapper,
-            mode: InternalBinaryMode::WrapperPending {
-                recursive: wrapper_depth_is_active(wrapper_depth),
-            },
-        };
+    match detect_wrapper_invocation(args, wrapper_depth) {
+        Ok(Some(route)) => {
+            return DispatchPlan {
+                profile: InvocationProfile::Wrapper,
+                mode: InternalBinaryMode::WrapperPending { route },
+            };
+        }
+        Err(WrapperProtocolError::InvalidDepth) => {
+            return DispatchPlan {
+                profile: InvocationProfile::Wrapper,
+                mode: InternalBinaryMode::WrapperRejected,
+            };
+        }
+        Ok(None) => {}
     }
 
     let first = args.first().and_then(|arg| arg.to_str());
@@ -89,58 +100,6 @@ pub(crate) fn classify_invocation(
             mode: InternalBinaryMode::AgentCli,
         },
     }
-}
-
-fn is_unambiguous_wrapper_invocation(args: &[OsString]) -> bool {
-    let Some(compiler) = args.first() else {
-        return false;
-    };
-    if !is_rustc_path(compiler) {
-        return false;
-    }
-
-    args.iter().skip(1).any(|arg| is_rustc_marker(arg))
-}
-
-fn is_rustc_path(value: &OsStr) -> bool {
-    let path = Path::new(value);
-    let Some(file_name) = path.file_name().and_then(OsStr::to_str) else {
-        return false;
-    };
-    if !matches!(file_name, "rustc" | "rustc.exe") {
-        return false;
-    }
-
-    path.is_absolute() || path.components().count() > 1
-}
-
-fn is_rustc_marker(value: &OsStr) -> bool {
-    let Some(value) = value.to_str() else {
-        return false;
-    };
-    matches!(
-        value,
-        "--crate-name"
-            | "--crate-type"
-            | "--emit"
-            | "--print"
-            | "--target"
-            | "--sysroot"
-            | "--version"
-            | "-vV"
-    ) || value.starts_with("--crate-name=")
-        || value.starts_with("--crate-type=")
-        || value.starts_with("--emit=")
-        || value.starts_with("--print=")
-        || value.starts_with("--target=")
-        || value.starts_with("--sysroot=")
-}
-
-fn wrapper_depth_is_active(value: Option<&OsStr>) -> bool {
-    value
-        .and_then(OsStr::to_str)
-        .and_then(|value| value.parse::<u32>().ok())
-        .is_some_and(|depth| depth > 0)
 }
 
 #[cfg(test)]
@@ -171,7 +130,9 @@ mod tests {
             (
                 args(&["/toolchain/bin/rustc", "--crate-name", "demo"]),
                 InvocationProfile::Wrapper,
-                InternalBinaryMode::WrapperPending { recursive: false },
+                InternalBinaryMode::WrapperPending {
+                    route: WrapperRoute::Governed,
+                },
             ),
             (
                 args(&["--api", "hierarchy.task.current"]),
@@ -203,35 +164,13 @@ mod tests {
     }
 
     #[test]
-    fn wrapper_requires_a_rustc_path_and_a_compiler_marker() {
-        for arguments in [
-            args(&["rustc", "--crate-name", "demo"]),
-            args(&["/toolchain/bin/rustc", "input.rs"]),
-            args(&["/toolchain/bin/compiler", "--crate-name", "demo"]),
-            args(&["--api", "/toolchain/bin/rustc", "--crate-name"]),
-        ] {
-            assert_eq!(
-                classify_invocation(&arguments, None).profile,
-                InvocationProfile::Agent
-            );
-        }
-
-        assert_eq!(
-            classify_invocation(
-                &args(&["C:/toolchain/bin/rustc.exe", "--print", "sysroot"]),
-                None
-            )
-            .profile,
-            InvocationProfile::Wrapper
-        );
-    }
-
-    #[test]
-    fn wrapper_depth_changes_only_an_already_valid_wrapper_invocation() {
+    fn wrapper_depth_selects_a_non_recursive_route_only_for_valid_wrapper_invocations() {
         let wrapper = args(&["/toolchain/bin/rustc", "--emit=metadata"]);
         assert_eq!(
             classify_invocation(&wrapper, Some(OsStr::new("1"))).mode,
-            InternalBinaryMode::WrapperPending { recursive: true }
+            InternalBinaryMode::WrapperPending {
+                route: WrapperRoute::DelegationOnly,
+            }
         );
         assert_eq!(
             classify_invocation(&args(&["install"]), Some(OsStr::new("1"))).profile,
@@ -241,6 +180,20 @@ mod tests {
             classify_invocation(&args(&["--api", "hierarchy"]), Some(OsStr::new("999"))).profile,
             InvocationProfile::Agent
         );
+    }
+
+    #[test]
+    fn invalid_wrapper_depth_is_rejected_before_any_handler() {
+        let wrapper = args(&["/toolchain/bin/rustc", "--emit=metadata"]);
+        for depth in ["", "2", "nested"] {
+            assert_eq!(
+                classify_invocation(&wrapper, Some(OsStr::new(depth))),
+                DispatchPlan {
+                    profile: InvocationProfile::Wrapper,
+                    mode: InternalBinaryMode::WrapperRejected,
+                }
+            );
+        }
     }
 
     #[test]

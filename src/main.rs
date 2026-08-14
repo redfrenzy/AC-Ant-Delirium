@@ -30,6 +30,9 @@ mod service_hardening;
 #[path = "Binary-Mode_unit.rs"]
 mod binary_mode;
 
+#[path = "Rustc-Wrapper_unit.rs"]
+mod rustc_wrapper;
+
 mod legacy_guard_mode {
     include!("../get_toml_for_new/ant_delirium_build_guard.rs");
 

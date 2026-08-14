@@ -389,6 +389,13 @@ ANTDELIRIUM_WRAPPER_DEPTH=1
 
 Se a profundidade já estiver ativa, o binário deve apenas delegar ao compilador real.
 
+A T6.1 fechou a interpretação dessa variável: ausência ou `0` seleciona a rota
+inicial governada, `1` seleciona exclusivamente a futura delegação direta e
+qualquer outro valor falha fechado. A profundidade só é interpretada depois de
+uma forma wrapper inequivocamente reconhecida e nunca transforma outro perfil
+em wrapper. A detecção é lexical e não consulta o filesystem apontado pelo
+argumento; a execução da rota e a propagação transparente pertencem à T6.2.
+
 ## 8. Estrutura externa por projeto
 
 A estrutura deve manter a utilidade do plugin AutoBrowser sem copiar os binários para cada projeto.

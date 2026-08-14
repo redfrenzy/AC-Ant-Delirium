@@ -83,7 +83,9 @@ fn only_the_direct_agent_version_form_is_public() {
         (
             args(&["/toolchain/bin/rustc", "--version"]),
             InvocationProfile::Wrapper,
-            InternalBinaryMode::WrapperPending { recursive: false },
+            InternalBinaryMode::WrapperPending {
+                route: crate::rustc_wrapper::WrapperRoute::Governed,
+            },
             PublicError::ServiceUnavailable,
         ),
     ] {
@@ -92,6 +94,7 @@ fn only_the_direct_agent_version_form_is_public() {
         assert_eq!(plan.mode, expected_mode);
         let actual_error = match plan.mode {
             InternalBinaryMode::WrapperPending { .. } => PublicError::ServiceUnavailable,
+            InternalBinaryMode::WrapperRejected => PublicError::Configuration,
             InternalBinaryMode::ReviewerPending
             | InternalBinaryMode::OperatorPending
             | InternalBinaryMode::ServicePending => PublicError::Authorization,

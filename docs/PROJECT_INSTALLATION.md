@@ -1,6 +1,6 @@
 # AntDelirium: binário único e superfície limitada do agente
 
-Este documento descreve o estado implementado até a T5.7. O projeto declara um único executável autoritativo chamado `antdelirium`; a instalação global e a integração automática com Cargo ainda pertencem às ondas posteriores.
+Este documento descreve o estado implementado até a T6.1. O projeto declara um único executável autoritativo chamado `antdelirium`; a instalação global e a integração automática com Cargo ainda pertencem às ondas posteriores.
 
 ## Compilar
 
@@ -255,6 +255,38 @@ agente e permanece em stderr com `AD-AUTH-0001`/exit `77`. Da mesma forma,
 `antdelirium <rustc-qualificado> --version` continua sendo uma invocação de
 wrapper e não intercepta a consulta do compilador como versão do AntDelirium.
 
+## Protocolo do wrapper e proteção de recursão
+
+A classificação do wrapper agora pertence a um módulo próprio e ocorre antes
+de qualquer parser de agente ou legado. A forma só é reconhecida quando o
+primeiro argumento é um path qualificado terminado em `rustc` ou `rustc.exe`,
+há pelo menos um marcador típico de compilação ou consulta do compilador e não
+existe subcomando AntDelirium na posição de comando. Um nome `rustc` solto, um
+path sem marcador ou um comando ambíguo não ativa o perfil wrapper.
+
+Essa detecção é deliberadamente lexical: ela não abre, resolve, faz `stat` ou
+canonicaliza o path recebido. Assim, uma tentativa de classificação não vira
+um oráculo de filesystem para um path fornecido pelo agente.
+
+`ANTDELIRIUM_WRAPPER_DEPTH` possui somente três estados válidos para uma forma
+wrapper já reconhecida:
+
+- variável ausente ou valor exato `0`: rota inicial `Governed`;
+- valor exato `1`: rota recursiva `DelegationOnly`, que não poderá reentrar na
+  governança;
+- qualquer outro valor, inclusive vazio ou maior que `1`: rejeição fechada com
+  `AD-CONFIG-0001`/exit `78` antes de qualquer handler.
+
+A variável isolada nunca transforma um comando de agente ou operador em
+wrapper. Ela também não é autorização: no modelo de mesmo usuário, uma pessoa
+pode tentar defini-la para evitar a governança, e a garantia contra esse bypass
+continua dependendo do gate externo previsto nas ondas posteriores.
+
+A T6.1 fecha somente classificação e rota de recursão. O encaminhamento do
+`argv`, streams, sinais e status pertence à T6.2; até lá, ambas as rotas válidas
+continuam paradas no placeholder público `AD-SERVICE-0001`, sem executar outro
+processo. Nenhuma configuração Cargo foi instalada nesta etapa.
+
 ## Modo de serviço protegido
 
 O mesmo executável reconhece `antdelirium service`, mas o argumento seleciona
@@ -398,7 +430,7 @@ compilado no cliente nem aparece na ajuda, versão ou erro público.
 - não alterar `$CARGO_HOME/config.toml` manualmente;
 - não tratar o build hook legado como a futura integração `rustc-workspace-wrapper`.
 
-O código-fonte do encaminhador `guard` antigo e a CLI madura permanecem preservados e compilados apenas como modos internos de rollback, sem rota pública. O dispatcher classifica wrapper, agente, revisor, operador e serviço antes de qualquer parser. Pedido de perfil não é autorização: wrapper permanece em `AD-SERVICE-0001`; revisor e operador permanecem em `AD-AUTH-0001`; e serviço só atravessa sua fronteira interna quando já está sob a conta dedicada, sem cair no parser legado.
+O código-fonte do encaminhador `guard` antigo e a CLI madura permanecem preservados e compilados apenas como modos internos de rollback, sem rota pública. O dispatcher classifica wrapper, agente, revisor, operador e serviço antes de qualquer parser. Pedido de perfil não é autorização: as rotas wrapper `Governed` e `DelegationOnly` permanecem em `AD-SERVICE-0001` até a T6.2; revisor e operador permanecem em `AD-AUTH-0001`; e serviço só atravessa sua fronteira interna quando já está sob a conta dedicada, sem cair no parser legado.
 
 ## Estado do build hook deste repositório
 
