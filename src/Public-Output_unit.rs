@@ -118,6 +118,8 @@ mod tests {
             PublicError::Protocol,
             PublicError::Authorization,
             PublicError::Configuration,
+            PublicError::ToolchainNotExecutable,
+            PublicError::ToolchainNotFound,
         ] {
             let message = error.public_message();
             for forbidden in [

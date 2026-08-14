@@ -45,8 +45,8 @@ pub(crate) fn run_authoritative_binary() {
 
     match plan.mode {
         InternalBinaryMode::AgentCli => crate::agent_cli::run_agent_cli(),
-        InternalBinaryMode::WrapperPending { .. } => {
-            OutputRouter::exit(PublicError::ServiceUnavailable)
+        InternalBinaryMode::WrapperPending { route } => {
+            crate::rustc_wrapper::run_wrapper(&args, route)
         }
         InternalBinaryMode::WrapperRejected => OutputRouter::exit(PublicError::Configuration),
         InternalBinaryMode::ReviewerPending | InternalBinaryMode::OperatorPending => {

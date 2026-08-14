@@ -1,6 +1,6 @@
 # AntDelirium: binário único e superfície limitada do agente
 
-Este documento descreve o estado implementado até a T6.1. O projeto declara um único executável autoritativo chamado `antdelirium`; a instalação global e a integração automática com Cargo ainda pertencem às ondas posteriores.
+Este documento descreve o estado implementado até a T6.2. O projeto declara um único executável autoritativo chamado `antdelirium`; a instalação global e a integração automática com Cargo ainda pertencem às ondas posteriores.
 
 ## Compilar
 
@@ -282,10 +282,21 @@ wrapper. Ela também não é autorização: no modelo de mesmo usuário, uma pes
 pode tentar defini-la para evitar a governança, e a garantia contra esse bypass
 continua dependendo do gate externo previsto nas ondas posteriores.
 
-A T6.1 fecha somente classificação e rota de recursão. O encaminhamento do
-`argv`, streams, sinais e status pertence à T6.2; até lá, ambas as rotas válidas
-continuam paradas no placeholder público `AD-SERVICE-0001`, sem executar outro
-processo. Nenhuma configuração Cargo foi instalada nesta etapa.
+A T6.2 liga ambas as rotas ao compilador real. No target Unix autoritativo, o
+wrapper constrói `Command` diretamente com `OsString`, mantém a ordem integral
+dos argumentos, força a próxima profundidade para `1`, herda explicitamente
+stdin/stdout/stderr e usa `exec` para substituir o próprio processo. Assim o
+PID passa a ser o `rustc`, e exit status ou sinal pertencem diretamente ao
+compilador, sem tradução por um supervisor intermediário. O fallback compilado
+para plataformas não Unix herda os mesmos streams e status normal, mas a
+equivalência de sinais fora do Linux só será afirmada depois da matriz da T6.6.
+
+Falha `NotFound` anterior ao `exec` produz somente `AD-TOOLCHAIN-0002`/exit
+`127`; as demais falhas de execução produzem somente
+`AD-TOOLCHAIN-0001`/exit `126`. Nenhuma delas inclui o path ou o erro bruto do
+sistema. A rota `Governed` ainda apenas delega nesta etapa: serviço, projeções e
+auditoria serão ligados nas T6.4 e T6.5, preservando a precedência do resultado
+do compilador. Nenhuma configuração Cargo foi instalada nesta etapa.
 
 ## Modo de serviço protegido
 
@@ -430,7 +441,7 @@ compilado no cliente nem aparece na ajuda, versão ou erro público.
 - não alterar `$CARGO_HOME/config.toml` manualmente;
 - não tratar o build hook legado como a futura integração `rustc-workspace-wrapper`.
 
-O código-fonte do encaminhador `guard` antigo e a CLI madura permanecem preservados e compilados apenas como modos internos de rollback, sem rota pública. O dispatcher classifica wrapper, agente, revisor, operador e serviço antes de qualquer parser. Pedido de perfil não é autorização: as rotas wrapper `Governed` e `DelegationOnly` permanecem em `AD-SERVICE-0001` até a T6.2; revisor e operador permanecem em `AD-AUTH-0001`; e serviço só atravessa sua fronteira interna quando já está sob a conta dedicada, sem cair no parser legado.
+O código-fonte do encaminhador `guard` antigo e a CLI madura permanecem preservados e compilados apenas como modos internos de rollback, sem rota pública. O dispatcher classifica wrapper, agente, revisor, operador e serviço antes de qualquer parser. Pedido de perfil não é autorização: as rotas wrapper `Governed` e `DelegationOnly` encaminham somente ao compilador real, sem abrir superfície administrativa; revisor e operador permanecem em `AD-AUTH-0001`; e serviço só atravessa sua fronteira interna quando já está sob a conta dedicada, sem cair no parser legado.
 
 ## Estado do build hook deste repositório
 

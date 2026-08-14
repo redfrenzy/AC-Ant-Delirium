@@ -394,7 +394,10 @@ inicial governada, `1` seleciona exclusivamente a futura delegação direta e
 qualquer outro valor falha fechado. A profundidade só é interpretada depois de
 uma forma wrapper inequivocamente reconhecida e nunca transforma outro perfil
 em wrapper. A detecção é lexical e não consulta o filesystem apontado pelo
-argumento; a execução da rota e a propagação transparente pertencem à T6.2.
+argumento. A T6.2 implementou a execução no target Unix por substituição de
+processo: `argv` permanece em `OsString`, os três streams são herdados e o
+próprio `rustc` passa a controlar exit e sinal. Nesta etapa a rota inicial ainda
+delega sem governança; protocolo limitado e auditoria pertencem às T6.4/T6.5.
 
 ## 8. Estrutura externa por projeto
 

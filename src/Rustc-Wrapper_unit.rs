@@ -1,5 +1,9 @@
 use std::ffi::{OsStr, OsString};
+use std::io;
 use std::path::Path;
+use std::process::{Command, Stdio};
+
+use crate::public_output::{OutputRouter, PublicError};
 
 pub(crate) const WRAPPER_DEPTH_ENV: &str = "ANTDELIRIUM_WRAPPER_DEPTH";
 
@@ -15,6 +19,58 @@ pub(crate) enum WrapperRoute {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum WrapperProtocolError {
     InvalidDepth,
+}
+
+/// Replaces the wrapper process with the compiler on Unix. Process replacement
+/// keeps stdin/stdout/stderr, PID, exit status and signal semantics under the
+/// compiler's control instead of emulating them in a supervising process.
+pub(crate) fn run_wrapper(args: &[OsString], route: WrapperRoute) -> ! {
+    let mut command = match compiler_command(args, route) {
+        Some(command) => command,
+        None => OutputRouter::exit(PublicError::Internal),
+    };
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+
+        let error = command.exec();
+        OutputRouter::exit(toolchain_error(&error));
+    }
+
+    #[cfg(not(unix))]
+    {
+        match command.status() {
+            Ok(status) => match status.code() {
+                Some(code) => std::process::exit(code),
+                None => OutputRouter::exit(PublicError::Internal),
+            },
+            Err(error) => OutputRouter::exit(toolchain_error(&error)),
+        }
+    }
+}
+
+fn compiler_command(args: &[OsString], route: WrapperRoute) -> Option<Command> {
+    let (compiler, rustc_args) = args.split_first()?;
+    let next_depth = match route {
+        WrapperRoute::Governed | WrapperRoute::DelegationOnly => "1",
+    };
+
+    let mut command = Command::new(compiler);
+    command
+        .args(rustc_args)
+        .env(WRAPPER_DEPTH_ENV, next_depth)
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+    Some(command)
+}
+
+fn toolchain_error(error: &io::Error) -> PublicError {
+    match error.kind() {
+        io::ErrorKind::NotFound => PublicError::ToolchainNotFound,
+        _ => PublicError::ToolchainNotExecutable,
+    }
 }
 
 /// Recognizes only Cargo's wrapper shape without resolving, opening or probing
@@ -218,6 +274,61 @@ mod tests {
             assert_eq!(
                 detect_wrapper_invocation(&invocation, Some(OsStr::new("1"))),
                 Ok(None)
+            );
+        }
+    }
+
+    #[test]
+    fn compiler_command_preserves_program_and_argument_order() {
+        let invocation = args(&[
+            "/toolchain/bin/rustc",
+            "--crate-name",
+            "demo",
+            "source with spaces.rs",
+            "--emit=metadata,link",
+        ]);
+        let command = compiler_command(&invocation, WrapperRoute::Governed).expect("command");
+
+        assert_eq!(command.get_program(), OsStr::new("/toolchain/bin/rustc"));
+        assert_eq!(
+            command.get_args().collect::<Vec<_>>(),
+            invocation
+                .iter()
+                .skip(1)
+                .map(OsString::as_os_str)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn both_routes_set_exactly_one_internal_depth_for_the_compiler() {
+        let invocation = args(&["/toolchain/bin/rustc", "--version"]);
+        for route in [WrapperRoute::Governed, WrapperRoute::DelegationOnly] {
+            let command = compiler_command(&invocation, route).expect("command");
+            let depth = command
+                .get_envs()
+                .find(|(name, _)| *name == OsStr::new(WRAPPER_DEPTH_ENV));
+            assert_eq!(
+                depth,
+                Some((OsStr::new(WRAPPER_DEPTH_ENV), Some(OsStr::new("1"))))
+            );
+        }
+    }
+
+    #[test]
+    fn missing_and_other_exec_failures_use_only_public_toolchain_errors() {
+        assert_eq!(
+            toolchain_error(&io::Error::from(io::ErrorKind::NotFound)),
+            PublicError::ToolchainNotFound
+        );
+        for kind in [
+            io::ErrorKind::PermissionDenied,
+            io::ErrorKind::InvalidInput,
+            io::ErrorKind::OutOfMemory,
+        ] {
+            assert_eq!(
+                toolchain_error(&io::Error::from(kind)),
+                PublicError::ToolchainNotExecutable
             );
         }
     }

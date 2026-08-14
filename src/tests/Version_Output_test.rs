@@ -86,14 +86,14 @@ fn only_the_direct_agent_version_form_is_public() {
             InternalBinaryMode::WrapperPending {
                 route: crate::rustc_wrapper::WrapperRoute::Governed,
             },
-            PublicError::ServiceUnavailable,
+            PublicError::ToolchainNotFound,
         ),
     ] {
         let plan = classify_invocation(&arguments, None);
         assert_eq!(plan.profile, expected_profile);
         assert_eq!(plan.mode, expected_mode);
         let actual_error = match plan.mode {
-            InternalBinaryMode::WrapperPending { .. } => PublicError::ServiceUnavailable,
+            InternalBinaryMode::WrapperPending { .. } => PublicError::ToolchainNotFound,
             InternalBinaryMode::WrapperRejected => PublicError::Configuration,
             InternalBinaryMode::ReviewerPending
             | InternalBinaryMode::OperatorPending

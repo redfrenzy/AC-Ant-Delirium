@@ -17,7 +17,7 @@ fn public_failure(arguments: &[&str]) -> PublicError {
         InternalBinaryMode::ReviewerPending
         | InternalBinaryMode::OperatorPending
         | InternalBinaryMode::ServicePending => PublicError::Authorization,
-        InternalBinaryMode::WrapperPending { .. } => PublicError::ServiceUnavailable,
+        InternalBinaryMode::WrapperPending { .. } => PublicError::ToolchainNotFound,
         InternalBinaryMode::WrapperRejected => PublicError::Configuration,
         InternalBinaryMode::LegacyAgentCliRollback | InternalBinaryMode::LegacyGuardRollback => {
             panic!("public invocation reached a rollback mode")

@@ -37,6 +37,11 @@ O resultado final é escolhido nesta ordem:
 
 O wrapper não converte erro Rust em `AD-CODE-0001`. Violação do compilador e violação de governança são resultados diferentes.
 
+A T6.2 implementa essa precedência no target Unix por `exec`: depois da
+substituição não existe processo AntDelirium para reescrever status, sinal ou
+streams. Somente uma falha anterior ao `exec` retorna o erro público de
+toolchain `126`/`127`.
+
 ## Audit-only e enforcement
 
 No rollout audit-only:
@@ -135,7 +140,7 @@ O inventário do binário atual encontrou:
 - os logs globais previsíveis do runtime foram removidos na T5.7 e o gate de release impede sua reintrodução;
 - o build guard antigo usa panic e localização de plugin.
 
-Esses comportamentos são baseline de migração, não exceções aceitas. T3.6 centraliza `OutputRouter`/`PublicError`; T5.7 elimina logs globais e T6 aplica o contrato no wrapper.
+Esses comportamentos são baseline de migração, não exceções aceitas. T3.6 centraliza `OutputRouter`/`PublicError`; T5.7 elimina logs globais e T6.2 aplica transparência de processo ao wrapper. A remoção final do parser legado continua em tarefa posterior.
 
 ## Testes obrigatórios derivados
 
