@@ -1,6 +1,6 @@
 # AntDelirium: binário único e superfície limitada do agente
 
-Este documento descreve o estado implementado até a T6.2. O projeto declara um único executável autoritativo chamado `antdelirium`; a instalação global e a integração automática com Cargo ainda pertencem às ondas posteriores.
+Este documento descreve o estado implementado até a T6.3. O projeto declara um único executável autoritativo chamado `antdelirium`; a instalação global e a integração automática com Cargo ainda pertencem às ondas posteriores.
 
 ## Compilar
 
@@ -297,6 +297,35 @@ Falha `NotFound` anterior ao `exec` produz somente `AD-TOOLCHAIN-0002`/exit
 sistema. A rota `Governed` ainda apenas delega nesta etapa: serviço, projeções e
 auditoria serão ligados nas T6.4 e T6.5, preservando a precedência do resultado
 do compilador. Nenhuma configuração Cargo foi instalada nesta etapa.
+
+### Classificação do trabalho Cargo
+
+A T6.3 classifica cada primeira entrada `Governed` antes de qualquer futura
+operação de governança. A prioridade é conservadora:
+
+1. `-vV`, versão, ajuda ou qualquer forma de `--print` é `Probe`, inclusive o
+   probe complexo do Cargo que também contém `--crate-name ___`;
+2. uma compilação exige `--crate-name <valor>` ou `--crate-name=<valor>` válido;
+3. sem `CARGO_PRIMARY_PACKAGE`, uma compilação é `Dependency`;
+4. com esse marcador, ela só é `PrimaryWorkspaceMember` quando
+   `CARGO_MANIFEST_DIR` e `CARGO_MANIFEST_PATH` são absolutos, apontam para o
+   mesmo `Cargo.toml` e `CARGO_CRATE_NAME` coincide com o argumento do `rustc`;
+5. contexto ausente, relativo, divergente ou malformado é `Unclassified`.
+
+Probe, dependência e forma não classificada delegam diretamente. Somente o
+membro primário entra no hook reservado às T6.4/T6.5, que nesta etapa também
+delega sem I/O adicional. A rota recursiva `DelegationOnly` nem consulta o
+contexto Cargo. Nenhuma variável de ambiente concede autorização: esses sinais
+servem apenas para reduzir escopo, e uma futura operação protegida ainda exige
+o canal e a capability do serviço.
+
+O contrato acompanha a documentação oficial de [variáveis fornecidas pelo
+Cargo](https://doc.rust-lang.org/cargo/reference/environment-variables.html#environment-variables-cargo-sets-for-crates)
+e de [`rustc-workspace-wrapper`](https://doc.rust-lang.org/cargo/reference/config.html#buildrustc-workspace-wrapper).
+Além dos testes sintéticos, a própria compilação de teste confirma os quatro
+campos realmente injetados pelo Cargo. Um `cargo check` nativo com o wrapper
+fornecido somente por `--config` também passou; nenhuma configuração global foi
+gravada.
 
 ## Modo de serviço protegido
 

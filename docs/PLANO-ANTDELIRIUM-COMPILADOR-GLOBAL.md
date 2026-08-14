@@ -542,6 +542,11 @@ A escolha deve ser feita por teste de concorrência, recuperação e custo de im
 
 Consultas do toolchain, detecção de target, impressão de versão e compilações de dependências não primárias devem ser encaminhadas sem auditoria completa.
 
+A T6.3 concretizou essa distinção: flags de consulta têm prioridade mesmo no
+probe Cargo com `--crate-name ___`; compilação sem marcador de pacote primário é
+dependência, e formas incompletas ficam `Unclassified`. Todas essas classes
+somente delegam.
+
 ### 11.2. Invocações que podem materializar o projeto
 
 Uma invocação de membro do workspace, especialmente quando `CARGO_PRIMARY_PACKAGE` estiver presente, pode:
@@ -552,6 +557,11 @@ Uma invocação de membro do workspace, especialmente quando `CARGO_PRIMARY_PACK
 - produzir artefatos mínimos.
 
 `CARGO_PRIMARY_PACKAGE` é um sinal útil, mas não deve ser assumido como identificador completo de workspace. A fase de protótipo precisa capturar o ambiente real fornecido pelo Cargo em vários tipos de projeto.
+
+A T6.3 exige também `CARGO_MANIFEST_DIR`, `CARGO_MANIFEST_PATH` e
+`CARGO_CRATE_NAME` coerentes com o `--crate-name` antes de selecionar
+`PrimaryWorkspaceMember`. A classificação não é autorização; ela apenas decide
+qual entrada poderá usar futuramente o canal limitado nas T6.4/T6.5.
 
 ### 11.3. Ordem de compilação e auditoria
 
