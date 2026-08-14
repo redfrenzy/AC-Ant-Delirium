@@ -33,11 +33,15 @@ pub fn fill_system_random(output: &mut [u8]) -> io::Result<()> {
 pub fn random_crockford_id(prefix: &str) -> io::Result<String> {
     let mut entropy = [0_u8; 16];
     fill_system_random(&mut entropy)?;
-    Ok(format!("{prefix}{}", crockford_token(&entropy)))
+    Ok(crockford_id(prefix, &entropy))
 }
 
-fn crockford_token(entropy: &[u8; 16]) -> String {
-    let value = u128::from_be_bytes(*entropy);
+pub fn crockford_id(prefix: &str, value: &[u8; 16]) -> String {
+    format!("{prefix}{}", crockford_token(value))
+}
+
+fn crockford_token(value: &[u8; 16]) -> String {
+    let value = u128::from_be_bytes(*value);
     let mut token = [b'0'; 26];
     for (index, slot) in token.iter_mut().enumerate() {
         let shift = 125usize.saturating_sub(index * 5);

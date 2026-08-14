@@ -64,10 +64,11 @@ pub fn materialize_project_guard(
             &local_ignore,
             ProjectGuardBootstrapError::InvalidLocalIgnore,
         )?;
+        let projections_ignored = projections_are_ignored(project_root)?;
         return Ok(ProjectGuardBootstrapReceipt {
             guard_directory_created,
             git_repository: true,
-            projections_ignored: ignored_before,
+            projections_ignored,
             local_ignore_created: false,
         });
     }

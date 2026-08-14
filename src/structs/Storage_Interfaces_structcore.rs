@@ -1,15 +1,15 @@
 use crate::libres::Rusqlite_unit::{AC_OptionalExtension, AC_Transaction, AC_params};
 
 use super::{
-    atomic_replace, materialize_project_guard, AtomicProjectProjectionWriter, AuditStore,
-    CanonicalMutationOutcome, CanonicalStateSnapshot, CanonicalStateStore,
-    CanonicalStateTransition, CanonicalTaskProjectionRef, CanonicalTaskState,
-    CurrentTaskProjection, EventWriteOutcome, GovernanceErrorsProjection, NewAuditEvent, NewReview,
-    NewSubmission, ProjectDatabase, ProjectProjectionWriter, ProjectionArtifactKind,
-    ProjectionMetadata, ProjectionWriteReceipt, ReviewStore, ReviewWriteOutcome, StorageProject,
-    StorageWorkspace, SubmissionStore, SubmissionWriteOutcome, TransactionalStorageError,
-    TransactionalStorageResult, AGENT_PROJECTION_CONTRACT_VERSION,
-    CANONICAL_STATE_CONTRACT_VERSION, SUBMISSION_CONTRACT_VERSION,
+    materialize_project_guard, AtomicProjectProjectionWriter, AuditStore, CanonicalMutationOutcome,
+    CanonicalStateSnapshot, CanonicalStateStore, CanonicalStateTransition,
+    CanonicalTaskProjectionRef, CanonicalTaskState, CurrentTaskProjection, EventWriteOutcome,
+    GovernanceErrorsProjection, NewAuditEvent, NewReview, NewSubmission, ProjectDatabase,
+    ProjectProjectionWriter, ProjectionArtifactKind, ProjectionMetadata, ProjectionWriteReceipt,
+    ReviewStore, ReviewWriteOutcome, StorageProject, StorageWorkspace, SubmissionStore,
+    SubmissionWriteOutcome, TransactionalStorageError, TransactionalStorageResult,
+    AGENT_PROJECTION_CONTRACT_VERSION, CANONICAL_STATE_CONTRACT_VERSION,
+    SUBMISSION_CONTRACT_VERSION,
 };
 
 impl CanonicalStateStore for ProjectDatabase {
@@ -241,7 +241,7 @@ impl AtomicProjectProjectionWriter {
                 self.state_root.governance_error_projection_path()
             }
         };
-        let audit = self.database.with_immediate_transaction(|transaction| {
+        let (audit, generation) = self.database.with_immediate_transaction(|transaction| {
             rusqlite_query::QueryConnection::ensure_workspace_scope(
                 transaction,
                 &metadata.project_id,
@@ -275,9 +275,8 @@ impl AtomicProjectProjectionWriter {
             let audit = self
                 .database
                 .record_event_in_transaction(transaction, audit_event)?;
-            if audit.inserted() {
+            let generation = if audit.inserted() {
                 validate_projection_generation(transaction, artifact_kind, metadata)?;
-                atomic_replace(&destination, serialized_contract)?;
                 transaction.execute(
                     "INSERT INTO projection_versions(project_id, artifact_kind, contract_version, generation, source_revision, fingerprint, rendered_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7) ON CONFLICT(project_id, artifact_kind) DO UPDATE SET contract_version = excluded.contract_version, generation = excluded.generation, source_revision = excluded.source_revision, fingerprint = excluded.fingerprint, rendered_at = excluded.rendered_at",
                     AC_params![
@@ -294,15 +293,19 @@ impl AtomicProjectProjectionWriter {
                     "UPDATE projects SET projection_generation = MAX(projection_generation, ?2) WHERE project_id = ?1",
                     AC_params![metadata.project_id, metadata.generation],
                 )?;
+                metadata.generation
             } else {
-                validate_persisted_projection(transaction, artifact_kind, metadata)?;
-                atomic_replace(&destination, serialized_contract)?;
-            }
-            Ok(audit)
+                validate_persisted_projection(transaction, artifact_kind, metadata)?
+            };
+            super::Transactional_Storage_structcore::atomic_replace_if_changed(
+                &destination,
+                serialized_contract,
+            )?;
+            Ok((audit, generation))
         })?;
         Ok(ProjectionWriteReceipt {
             artifact_kind,
-            generation: metadata.generation,
+            generation,
             audit,
         })
     }
@@ -908,7 +911,7 @@ fn validate_persisted_projection(
     transaction: &AC_Transaction<'_>,
     artifact_kind: ProjectionArtifactKind,
     metadata: &ProjectionMetadata,
-) -> TransactionalStorageResult<()> {
+) -> TransactionalStorageResult<i64> {
     let persisted = transaction
         .query_row(
             "SELECT contract_version, generation, source_revision, fingerprint FROM projection_versions WHERE project_id = ?1 AND artifact_kind = ?2",
@@ -923,17 +926,16 @@ fn validate_persisted_projection(
             },
         )
         .optional()?;
-    if persisted
-        != Some((
-            AGENT_PROJECTION_CONTRACT_VERSION.to_string(),
-            metadata.generation,
-            metadata.source_revision,
-            metadata.fingerprint.clone(),
-        ))
-    {
-        return Err(TransactionalStorageError::Integrity(
+    match persisted {
+        Some((contract_version, generation, source_revision, fingerprint))
+            if contract_version == AGENT_PROJECTION_CONTRACT_VERSION
+                && source_revision == metadata.source_revision
+                && fingerprint == metadata.fingerprint =>
+        {
+            Ok(generation)
+        }
+        _ => Err(TransactionalStorageError::Integrity(
             "duplicate projection event does not match persisted projection metadata".to_string(),
-        ));
+        )),
     }
-    Ok(())
 }

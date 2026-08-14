@@ -1,11 +1,11 @@
 use std::fs::{self, File, OpenOptions};
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime};
 
 #[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 
 use crate::libres::Rusqlite_unit::{
     AC_Connection, AC_Error, AC_OpenFlags, AC_OptionalExtension, AC_Transaction,
@@ -813,6 +813,57 @@ pub fn atomic_replace(path: &Path, contents: &[u8]) -> TransactionalStorageResul
         let _ = fs::remove_file(&temporary_path);
     }
     result
+}
+
+pub(crate) fn atomic_replace_if_changed(
+    path: &Path,
+    contents: &[u8],
+) -> TransactionalStorageResult<bool> {
+    if unchanged_regular_file(path, contents)? {
+        return Ok(false);
+    }
+    atomic_replace(path, contents)?;
+    Ok(true)
+}
+
+fn unchanged_regular_file(path: &Path, contents: &[u8]) -> TransactionalStorageResult<bool> {
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_file() => metadata,
+        Ok(_) => return Ok(false),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error.into()),
+    };
+    if metadata.len() != contents.len() as u64 {
+        return Ok(false);
+    }
+    #[cfg(unix)]
+    if metadata.permissions().mode() & 0o777 != 0o600 {
+        return Ok(false);
+    }
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    options.custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC);
+    let file = match options.open(path) {
+        Ok(file) => file,
+        Err(_) => return Ok(false),
+    };
+    let opened = file.metadata()?;
+    if !opened.file_type().is_file() || opened.len() != contents.len() as u64 {
+        return Ok(false);
+    }
+    #[cfg(unix)]
+    if opened.permissions().mode() & 0o777 != 0o600 {
+        return Ok(false);
+    }
+    let limit = u64::try_from(contents.len())
+        .map_err(|_| {
+            TransactionalStorageError::InvalidInput("projection is too large".to_string())
+        })?
+        .saturating_add(1);
+    let mut existing = Vec::with_capacity(contents.len());
+    file.take(limit).read_to_end(&mut existing)?;
+    Ok(existing == contents)
 }
 
 pub fn recover_atomic_temporary_files(

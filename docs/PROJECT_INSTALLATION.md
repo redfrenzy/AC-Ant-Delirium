@@ -1,6 +1,6 @@
 # AntDelirium: binário único e superfície limitada do agente
 
-Este documento descreve o estado implementado até a T5.3. O projeto declara um único executável autoritativo chamado `antdelirium`; a instalação global e a integração automática com Cargo ainda pertencem às ondas posteriores.
+Este documento descreve o estado implementado até a T5.4. O projeto declara um único executável autoritativo chamado `antdelirium`; a instalação global e a integração automática com Cargo ainda pertencem às ondas posteriores.
 
 ## Compilar
 
@@ -103,6 +103,28 @@ snapshot nem o estado canônico.
 Assim como na T5.2, esta etapa implementa e testa a fronteira interna. A entrega
 serviço→wrapper por socket e a chamada automática durante o fluxo Cargo ainda
 pertencem à T6.4; a T5.3 não instala binário, wrapper ou configuração global.
+
+## Escrita atômica e projeções inalteradas
+
+Os dois refreshes calculam o fingerprint sobre os bytes públicos versionados,
+sem incluir horário de renderização ou uma geração candidata. Em governança, o
+ID `vio_` também é derivado de forma determinística por SHA-256 do escopo e dos
+campos públicos da violação; ele continua opaco, mas deixa de transformar duas
+auditorias iguais em documentos artificialmente diferentes.
+
+O primeiro conteúdo novo avança uma única geração, registra um único evento e
+passa pelo writer sincronizado: temporário exclusivo no próprio `guard/`, modo
+restrito, `write_all`, `flush`, `sync_all`, `rename` e sincronização do
+diretório. Refreshes concorrentes com bytes iguais resolvem para o mesmo
+fingerprint, reutilizam geração e sequência persistidas e não criam lacunas de
+auditoria.
+
+Antes de materializar, o writer abre sem seguir symlink e compara somente um
+arquivo regular, com modo `0600`, aos bytes validados. Se forem idênticos, não
+abre temporário, não executa `rename` e não altera inode ou timestamp. Ausência,
+tipo/modo inesperado ou conteúdo diferente não entram nessa otimização e seguem
+a rota atômica; a prova completa de regeneração sem confiar no arquivo local
+pertence à T5.5.
 
 ## Usar durante o desenvolvimento
 

@@ -5,7 +5,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::engine::Search_Engine_unit::SearchFiles;
-use crate::libres::System_Random_unit::random_crockford_id;
+use crate::libres::Sha2_unit::sha256;
+use crate::libres::System_Random_unit::crockford_id;
 use crate::structs::{
     is_agent_correctable_violation_path, sanitize_public_text, AuditConfig, AuditResult,
     AuditViolation, CanonicalGovernanceSnapshotRequest, ProjectedGovernanceViolation,
@@ -832,11 +833,10 @@ fn write_governance_errors_projection(
         .violations
         .iter()
         .filter(|violation| is_agent_correctable_violation_path(&violation.file_path))
-        .map(|violation| {
-            let violation_id = random_crockford_id("vio_")
-                .map_err(|error| std::io::Error::other(error.to_string()))?;
-            Ok(ProjectedGovernanceViolation {
-                violation_id,
+        .enumerate()
+        .map(|(index, violation)| {
+            let mut projected = ProjectedGovernanceViolation {
+                violation_id: String::new(),
                 rule_id: violation.rule_id.clone(),
                 summary: sanitize_public_text(&violation.message),
                 path: violation.file_path.clone(),
@@ -846,7 +846,14 @@ fn write_governance_errors_projection(
                     &config.hierarchy,
                     &grouped_rule_key(&violation.rule_id),
                 ),
-            })
+            };
+            projected.violation_id = stable_violation_id(
+                &target.request.project_id,
+                &target.request.workspace_id,
+                index,
+                &projected,
+            )?;
+            Ok(projected)
         })
         .collect::<std::io::Result<Vec<_>>>()?;
     let snapshot = CanonicalGovernanceSnapshotRequest {
@@ -865,6 +872,47 @@ fn write_governance_errors_projection(
         })
         .map(|_| ())
         .map_err(|error| std::io::Error::other(error.to_string()))
+}
+
+fn stable_violation_id(
+    project_id: &str,
+    workspace_id: &str,
+    index: usize,
+    violation: &ProjectedGovernanceViolation,
+) -> std::io::Result<String> {
+    let mut identity = Vec::new();
+    append_identity_field(&mut identity, project_id)?;
+    append_identity_field(&mut identity, workspace_id)?;
+    identity.extend_from_slice(
+        &u64::try_from(index)
+            .map_err(|_| std::io::Error::other("violation index exceeds its contract"))?
+            .to_le_bytes(),
+    );
+    append_identity_field(&mut identity, &violation.rule_id)?;
+    append_identity_field(&mut identity, &violation.summary)?;
+    append_identity_field(&mut identity, &violation.path)?;
+    identity.extend_from_slice(
+        &u64::try_from(violation.line)
+            .map_err(|_| std::io::Error::other("violation line exceeds its contract"))?
+            .to_le_bytes(),
+    );
+    append_identity_field(
+        &mut identity,
+        violation.quick_fix.as_deref().unwrap_or_default(),
+    )?;
+    append_identity_field(&mut identity, &violation.public_rule_reference)?;
+    let digest = sha256(&identity);
+    let mut opaque = [0_u8; 16];
+    opaque.copy_from_slice(&digest[..16]);
+    Ok(crockford_id("vio_", &opaque))
+}
+
+fn append_identity_field(output: &mut Vec<u8>, value: &str) -> std::io::Result<()> {
+    let length = u64::try_from(value.len())
+        .map_err(|_| std::io::Error::other("violation identity field exceeds its contract"))?;
+    output.extend_from_slice(&length.to_le_bytes());
+    output.extend_from_slice(value.as_bytes());
+    Ok(())
 }
 
 fn group_violations_by_rule<'a>(

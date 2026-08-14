@@ -3,6 +3,11 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::{Arc, Barrier};
+    use std::thread;
+
+    #[cfg(unix)]
+    use std::os::unix::fs::MetadataExt;
 
     use crate::libres::Rusqlite_unit::AC_params;
     use crate::structs::{
@@ -416,5 +421,126 @@ mod tests {
         wrong_version.objective = "Safe objective".to_string();
         wrong_version.relevant_paths = vec!["src/lib.rs".to_string()];
         assert!(encode_canonical_task_projection_payload(&wrong_version).is_err());
+    }
+
+    #[test]
+    fn identical_refresh_reuses_generation_and_does_not_touch_a_valid_projection() {
+        let (root, state_root, database) = fixture("unchanged");
+        insert_plan(&database, PLAN_ID, b"private plan");
+        insert_task(
+            &database,
+            CURRENT_TASK_ID,
+            PLAN_ID,
+            1,
+            "available",
+            "not_required",
+            &task_payload(
+                "Stable current task.",
+                ProjectedTaskAction::Implement,
+                &["The projection stays stable."],
+                &["src/lib.rs"],
+            ),
+        );
+        select_current_task(&database, Some(CURRENT_TASK_ID));
+        let writer = AtomicProjectProjectionWriter::new(database.clone(), state_root.clone())
+            .expect("writer fixture");
+
+        let first = writer
+            .refresh_current_task_projection(&refresh_request())
+            .expect("first refresh");
+        let path = state_root.todo_projection_path();
+        let original = fs::read(&path).expect("first projection");
+        let original_modified = fs::metadata(&path).unwrap().modified().unwrap();
+        #[cfg(unix)]
+        let original_inode = fs::metadata(&path).unwrap().ino();
+
+        let mut later = refresh_request();
+        later.rendered_at = "2026-08-13T12:05:00Z".to_string();
+        let duplicate = writer
+            .refresh_current_task_projection(&later)
+            .expect("unchanged refresh");
+        assert_eq!(first.generation, 1);
+        assert_eq!(first.audit, EventWriteOutcome::Inserted { sequence: 1 });
+        assert_eq!(duplicate.generation, 1);
+        assert_eq!(
+            duplicate.audit,
+            EventWriteOutcome::Duplicate { sequence: 1 }
+        );
+        assert_eq!(fs::read(&path).unwrap(), original);
+        assert_eq!(
+            fs::metadata(&path).unwrap().modified().unwrap(),
+            original_modified
+        );
+        #[cfg(unix)]
+        assert_eq!(fs::metadata(&path).unwrap().ino(), original_inode);
+
+        assert_eq!(
+            AuditStore::audit_event_count(&database, PROJECT_ID).unwrap(),
+            1
+        );
+        let canonical =
+            CanonicalStateStore::load_canonical_state(&database, PROJECT_ID, WORKSPACE_ID).unwrap();
+        assert_eq!(canonical.projection_generation, 1);
+        assert_eq!(canonical.last_event_sequence, 1);
+        assert!(fs::read_dir(path.parent().unwrap())
+            .unwrap()
+            .filter_map(Result::ok)
+            .all(|entry| !entry
+                .file_name()
+                .to_string_lossy()
+                .contains("antdelirium-tmp")));
+        fs::remove_dir_all(root).expect("fixture cleanup");
+    }
+
+    #[test]
+    fn concurrent_identical_refreshes_commit_one_projection_generation() {
+        let (root, state_root, database) = fixture("concurrent-unchanged");
+        insert_plan(&database, PLAN_ID, b"private plan");
+        insert_task(
+            &database,
+            CURRENT_TASK_ID,
+            PLAN_ID,
+            1,
+            "available",
+            "not_required",
+            &task_payload(
+                "Concurrent stable task.",
+                ProjectedTaskAction::Implement,
+                &[],
+                &["src/lib.rs"],
+            ),
+        );
+        select_current_task(&database, Some(CURRENT_TASK_ID));
+        let writer = AtomicProjectProjectionWriter::new(database.clone(), state_root.clone())
+            .expect("writer fixture");
+        let barrier = Arc::new(Barrier::new(8));
+        let mut handles = Vec::new();
+        for _ in 0..8 {
+            let writer = writer.clone();
+            let barrier = barrier.clone();
+            handles.push(thread::spawn(move || {
+                barrier.wait();
+                writer.refresh_current_task_projection(&refresh_request())
+            }));
+        }
+        let receipts = handles
+            .into_iter()
+            .map(|handle| handle.join().expect("refresh thread").expect("refresh"))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            receipts
+                .iter()
+                .filter(|receipt| receipt.audit.inserted())
+                .count(),
+            1
+        );
+        assert!(receipts.iter().all(|receipt| receipt.generation == 1));
+        assert!(receipts.iter().all(|receipt| receipt.audit.sequence() == 1));
+        assert_eq!(
+            AuditStore::audit_event_count(&database, PROJECT_ID).unwrap(),
+            1
+        );
+        assert!(state_root.todo_projection_path().is_file());
+        fs::remove_dir_all(root).expect("fixture cleanup");
     }
 }

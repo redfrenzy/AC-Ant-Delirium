@@ -4,6 +4,9 @@ mod tests {
     use std::path::Path;
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    #[cfg(unix)]
+    use std::os::unix::fs::MetadataExt;
+
     use crate::structs::{
         AtomicProjectProjectionWriter, AuditConfig, AuditResult, AuditViolation,
         CanonicalStateStore, GovernanceErrorsRefreshRequest, HierarchyConfig, ProjectDatabase,
@@ -396,6 +399,41 @@ mod tests {
             );
         }
         assert_eq!(database.event_count(&request.project_id).unwrap(), 2);
+
+        #[cfg(unix)]
+        let projection_inode = fs::metadata(state_root.governance_error_projection_path())
+            .unwrap()
+            .ino();
+        let later_request = GovernanceErrorsRefreshRequest {
+            rendered_at: "2026-08-11T00:05:00Z".to_string(),
+            ..request.clone()
+        };
+        GovernanceLogs::write_artifacts(
+            &result,
+            &config,
+            &root.join("legacy-artifacts").to_string_lossy(),
+            Some(GovernanceErrorsProjectionTarget {
+                writer: &writer,
+                request: &later_request,
+            }),
+        )
+        .expect("identical governance refresh should be deduplicated");
+        assert_eq!(
+            fs::read_to_string(state_root.governance_error_projection_path()).unwrap(),
+            projection
+        );
+        #[cfg(unix)]
+        assert_eq!(
+            fs::metadata(state_root.governance_error_projection_path())
+                .unwrap()
+                .ino(),
+            projection_inode
+        );
+        assert_eq!(
+            database.event_count(&request.project_id).unwrap(),
+            2,
+            "identical audit and projection content must not create new events"
+        );
 
         let _ = fs::remove_dir_all(root);
     }
