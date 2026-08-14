@@ -6,6 +6,7 @@ use std::process::{Command, Stdio};
 use crate::public_output::{OutputRouter, PublicError};
 
 pub(crate) const WRAPPER_DEPTH_ENV: &str = "ANTDELIRIUM_WRAPPER_DEPTH";
+const LIMITED_SOCKET_ENV: &str = "ANTDELIRIUM_LIMITED_SOCKET";
 
 /// Determines whether governance may run before delegation. A recursive entry
 /// is never allowed to enter governance again; T6.2 will use `DelegationOnly`
@@ -82,9 +83,13 @@ pub(crate) fn run_wrapper(args: &[OsString], route: WrapperRoute) -> ! {
     execute_compiler(args, route)
 }
 
-/// This is the only branch where T6.4/T6.5 may later contact the limited
-/// service or schedule governance. Until then it remains transparent.
+/// This is the only branch allowed to contact the limited service. T6.4
+/// negotiates the wire best-effort; T6.5 will add typed governance requests.
 fn run_primary_workspace_member(args: &[OsString], route: WrapperRoute) -> ! {
+    #[cfg(unix)]
+    if let Some(endpoint) = std::env::var_os(LIMITED_SOCKET_ENV) {
+        let _ = crate::limited_protocol::connect_limited_service(&endpoint);
+    }
     execute_compiler(args, route)
 }
 

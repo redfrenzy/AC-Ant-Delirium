@@ -119,7 +119,7 @@ pub(crate) fn run_service_channels(
         .unwrap_or_else(|_| OutputRouter::exit(PublicError::Configuration));
     let storage = crate::service_storage::initialize_configured_service_storage(&authority)
         .unwrap_or_else(|_| OutputRouter::exit(PublicError::Configuration));
-    channels.reject_unauthenticated_connections(storage)
+    channels.serve_connections(storage)
 }
 
 impl ActivatedServiceChannels {
@@ -217,7 +217,7 @@ impl ActivatedServiceChannels {
     }
 
     #[cfg(unix)]
-    fn reject_unauthenticated_connections(self, storage: ProtectedServiceStorage) -> ! {
+    fn serve_connections(self, storage: ProtectedServiceStorage) -> ! {
         let mut listeners = [
             libc::pollfd {
                 fd: self._limited.listener.as_raw_fd(),
@@ -247,7 +247,7 @@ impl ActivatedServiceChannels {
                 listener.revents = 0;
             }
             if limited_events & libc::POLLIN != 0 {
-                self._limited.reject_one(&storage);
+                self._limited.serve_one(&storage);
             }
             if administrative_events & libc::POLLIN != 0 {
                 self._administrative.reject_one(&storage);
@@ -256,21 +256,25 @@ impl ActivatedServiceChannels {
     }
 
     #[cfg(not(unix))]
-    fn reject_unauthenticated_connections(self, _storage: ProtectedServiceStorage) -> ! {
+    fn serve_connections(self, _storage: ProtectedServiceStorage) -> ! {
         OutputRouter::exit(PublicError::Configuration)
     }
 }
 
 #[cfg(unix)]
 impl LimitedServiceListener {
-    fn reject_one(&self, storage: &ProtectedServiceStorage) {
+    fn serve_one(&self, storage: &ProtectedServiceStorage) {
         match self.listener.accept() {
-            Ok((connection, _address)) => {
+            Ok((mut connection, _address)) => {
                 let authentication = ConnectionAuthentication::capture(&connection)
                     .unwrap_or_else(|_| OutputRouter::exit(PublicError::Configuration));
                 let _expected_magic = self.parser.magic;
                 let _authorization_boundary = (authentication, storage.registry());
-                drop(connection);
+                let authentication = &_authorization_boundary.0;
+                let _ = crate::limited_protocol::answer_limited_hello(
+                    &mut connection,
+                    authentication.connection_nonce(),
+                );
             }
             Err(_) => OutputRouter::exit(PublicError::Configuration),
         }

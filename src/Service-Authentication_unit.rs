@@ -73,6 +73,10 @@ impl ConnectionAuthentication {
             request,
         )
     }
+
+    pub(crate) fn connection_nonce(&self) -> &[u8; CONNECTION_NONCE_BYTES] {
+        &self.connection_nonce
+    }
 }
 
 fn trusted_unix_time() -> TransactionalStorageResult<i64> {

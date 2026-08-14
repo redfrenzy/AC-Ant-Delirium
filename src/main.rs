@@ -33,6 +33,9 @@ mod binary_mode;
 #[path = "Rustc-Wrapper_unit.rs"]
 mod rustc_wrapper;
 
+#[path = "Limited-Protocol_unit.rs"]
+mod limited_protocol;
+
 mod legacy_guard_mode {
     include!("../get_toml_for_new/ant_delirium_build_guard.rs");
 

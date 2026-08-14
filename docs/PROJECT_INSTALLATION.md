@@ -294,9 +294,10 @@ equivalência de sinais fora do Linux só será afirmada depois da matriz da T6.
 Falha `NotFound` anterior ao `exec` produz somente `AD-TOOLCHAIN-0002`/exit
 `127`; as demais falhas de execução produzem somente
 `AD-TOOLCHAIN-0001`/exit `126`. Nenhuma delas inclui o path ou o erro bruto do
-sistema. A rota `Governed` ainda apenas delega nesta etapa: serviço, projeções e
-auditoria serão ligados nas T6.4 e T6.5, preservando a precedência do resultado
-do compilador. Nenhuma configuração Cargo foi instalada nesta etapa.
+sistema. Na T6.2 a rota `Governed` ainda apenas delegava; a T6.4 acrescenta a
+negociação limitada descrita abaixo e a T6.5 continua responsável pelas
+requisições de governança, preservando a precedência do resultado do
+compilador. Nenhuma configuração Cargo foi instalada nesta etapa.
 
 ### Classificação do trabalho Cargo
 
@@ -313,8 +314,8 @@ operação de governança. A prioridade é conservadora:
 5. contexto ausente, relativo, divergente ou malformado é `Unclassified`.
 
 Probe, dependência e forma não classificada delegam diretamente. Somente o
-membro primário entra no hook reservado às T6.4/T6.5, que nesta etapa também
-delega sem I/O adicional. A rota recursiva `DelegationOnly` nem consulta o
+membro primário entra no hook reservado às T6.4/T6.5; desde a T6.4 ele pode
+negociar o canal limitado antes de delegar. A rota recursiva `DelegationOnly` nem consulta o
 contexto Cargo. Nenhuma variável de ambiente concede autorização: esses sinais
 servem apenas para reduzir escopo, e uma futura operação protegida ainda exige
 o canal e a capability do serviço.
@@ -326,6 +327,34 @@ Além dos testes sintéticos, a própria compilação de teste confirma os quatr
 campos realmente injetados pelo Cargo. Um `cargo check` nativo com o wrapper
 fornecido somente por `--config` também passou; nenhuma configuração global foi
 gravada.
+
+### Negociação do protocolo limitado
+
+A T6.4 liga exclusivamente o hook de `PrimaryWorkspaceMember` ao endpoint
+limitado informado pela instalação em `ANTDELIRIUM_LIMITED_SOCKET`. O valor
+precisa ser um pathname absoluto, mas não concede autoridade: o endpoint do
+cliente pode ser conhecido e não é a localização do storage. Não há endpoint
+padrão compilado, lookup de plugin, descoberta de plano ou fallback por cwd.
+Se a variável estiver ausente, for inválida ou o handshake falhar no rollout
+audit-only, o wrapper permanece silencioso e executa o `rustc` normalmente.
+
+O cliente implementa somente frames `ADL1`, comprimento `u32` big-endian,
+JSON tipado com campos desconhecidos recusados, limite de 4 MiB e wire
+`adp/1`. Nonces têm 32 bytes de entropia do kernel e representação base64url
+sem padding. Leitura e escrita usam `poll` com deadline total de 500 ms; o
+socket cliente recebe `FD_CLOEXEC` antes de qualquer troca. O serviço captura
+`SO_PEERCRED` e gera o nonce antes de ler o `client_hello`, seleciona somente
+uma versão suportada e devolve `server_hello` no mesmo magic. Magic cruzado,
+frame vazio ou grande demais, JSON inválido, campo extra, versão incompatível
+e nonce malformado encerram a conexão.
+
+Esta etapa conclui apenas a negociação. Ela não envia capability, request,
+fingerprint, resultado de compilação nem pedido de projeção; portanto não chama
+resolver, handler ou operação de arquivo no storage protegido. A T6.5 deverá
+ler a capability limitada do descriptor herdado, enviar requests tipados,
+fechar o descriptor antes do `exec` e aplicar bootstrap, deduplicação, auditoria
+e refresh das duas projeções. O protocolo administrativo não é representável
+no módulo cliente.
 
 ## Modo de serviço protegido
 
@@ -435,11 +464,12 @@ validados antes do insert; caminhos físicos diretos ou codificados em JSON
 fazem toda a operação falhar e sofrer rollback. Nenhuma resposta pública recebe
 path do banco ou da raiz protegida.
 
-O parser de requests ainda não foi ativado nos listeners: depois de capturar o
-peer e o nonce, a conexão continua sendo fechada antes de ler payload ou chamar
-handler. Portanto o resolver existe somente dentro do serviço e ainda não há
-operação remota, materialização de projeto ou diagnóstico privado alcançável.
-A ligação aos handlers permanece para uma tarefa posterior; os journals da
+Desde a T6.4, o listener limitado lê somente um `client_hello` `ADL1` tipado e
+devolve o `server_hello`; o listener administrativo continua fechado. Nenhum
+request de operação foi ativado e a conexão é encerrada depois da negociação,
+sem chamar handler. Portanto o resolver existe somente dentro do serviço e
+ainda não há operação remota, materialização de projeto ou diagnóstico privado
+alcançável. A ligação aos handlers permanece para a T6.5; os journals da
 T4.6 já existem internamente, mas não ativam uma rota parcial. O isolamento
 de descriptors da T4.7 já impede sua herança por um futuro `exec`; o serviço
 atual não cria processos filhos. A T4.8 acrescenta um probe adversarial externo
@@ -470,7 +500,7 @@ compilado no cliente nem aparece na ajuda, versão ou erro público.
 - não alterar `$CARGO_HOME/config.toml` manualmente;
 - não tratar o build hook legado como a futura integração `rustc-workspace-wrapper`.
 
-O código-fonte do encaminhador `guard` antigo e a CLI madura permanecem preservados e compilados apenas como modos internos de rollback, sem rota pública. O dispatcher classifica wrapper, agente, revisor, operador e serviço antes de qualquer parser. Pedido de perfil não é autorização: as rotas wrapper `Governed` e `DelegationOnly` encaminham somente ao compilador real, sem abrir superfície administrativa; revisor e operador permanecem em `AD-AUTH-0001`; e serviço só atravessa sua fronteira interna quando já está sob a conta dedicada, sem cair no parser legado.
+O código-fonte do encaminhador `guard` antigo e a CLI madura permanecem preservados e compilados apenas como modos internos de rollback, sem rota pública. O dispatcher classifica wrapper, agente, revisor, operador e serviço antes de qualquer parser. Pedido de perfil não é autorização: somente a rota wrapper `Governed` de membro primário pode negociar `ADL1`, enquanto `DelegationOnly` encaminha diretamente ao compilador; nenhuma delas abre superfície administrativa. Revisor e operador permanecem em `AD-AUTH-0001`; e serviço só atravessa sua fronteira interna quando já está sob a conta dedicada, sem cair no parser legado.
 
 ## Estado do build hook deste repositório
 
