@@ -276,4 +276,15 @@ mod tests {
             InternalBinaryMode::LegacyGuardRollback
         );
     }
+
+    #[test]
+    fn legacy_runtime_source_has_no_predictable_global_log_files() {
+        let legacy_runtime = include_str!("Main-Logic_unitcore.rs");
+        for forbidden in ["/tmp/delirium_", "delirium_debug.log", "delirium_error.log"] {
+            assert!(
+                !legacy_runtime.contains(forbidden),
+                "legacy runtime still exposes predictable log: {forbidden}"
+            );
+        }
+    }
 }

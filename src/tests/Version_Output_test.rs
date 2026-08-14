@@ -13,6 +13,7 @@ fn public_version_contains_only_package_commit_and_agent_schema() {
         &UnavailableSubmissionTransport,
     )
     .expect("version must not inspect cwd or protected state");
+    let output = output.output();
     let lines = output.lines().collect::<Vec<_>>();
 
     assert_eq!(lines.len(), 3);

@@ -35,17 +35,18 @@ binary:
 # make release-nondisclosure
 # -----------------------------------------------
 # Builds with reproducible logical source prefixes, then rejects physical
-# maintainer, service-state, or service-socket paths embedded in the ELF.
+# maintainer, service-state, service-socket, or predictable global log paths
+# embedded in the ELF.
 # Administrative names may remain while rollback code is compiled; names do
 # not grant authority and are removed only with the legacy implementation.
 # -----------------------------------------------
 .PHONY: release-nondisclosure
 release-nondisclosure: binary
-	@if strings -a target/$(HOST_TARGET)/release/$(BIN_NAME) | rg -q '/home/|/Users/|[A-Za-z]:\\\\Users\\\\|/var/lib/antdelirium|/run/antdelirium'; then \
-		strings -a target/$(HOST_TARGET)/release/$(BIN_NAME) | rg -m 20 '/home/|/Users/|[A-Za-z]:\\\\Users\\\\|/var/lib/antdelirium|/run/antdelirium'; \
+	@if strings -a target/$(HOST_TARGET)/release/$(BIN_NAME) | rg -q '/home/|/Users/|[A-Za-z]:\\\\Users\\\\|/var/lib/antdelirium|/run/antdelirium|/tmp/delirium_|delirium_(debug|error)\\.log'; then \
+		strings -a target/$(HOST_TARGET)/release/$(BIN_NAME) | rg -m 20 '/home/|/Users/|[A-Za-z]:\\\\Users\\\\|/var/lib/antdelirium|/run/antdelirium|/tmp/delirium_|delirium_(debug|error)\\.log'; \
 		exit 1; \
 	fi
-	@echo "[GOVERNANCE] Release contains no protected or maintainer physical path."
+	@echo "[GOVERNANCE] Release contains no protected physical path or predictable global log."
 
 # -----------------------------------------------
 # make wasm

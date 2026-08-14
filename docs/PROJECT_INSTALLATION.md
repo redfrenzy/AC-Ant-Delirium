@@ -1,6 +1,6 @@
 # AntDelirium: binário único e superfície limitada do agente
 
-Este documento descreve o estado implementado até a T5.6. O projeto declara um único executável autoritativo chamado `antdelirium`; a instalação global e a integração automática com Cargo ainda pertencem às ondas posteriores.
+Este documento descreve o estado implementado até a T5.7. O projeto declara um único executável autoritativo chamado `antdelirium`; a instalação global e a integração automática com Cargo ainda pertencem às ondas posteriores.
 
 ## Compilar
 
@@ -165,6 +165,26 @@ A regra não bloqueia vocabulário comum do produto. Uma tarefa pode falar sobre
 uma tela de login, histórico ou configuração e indicar, por exemplo,
 `src/login/controller.rs`; o que permanece proibido são os nomes e caminhos da
 infraestrutura administrativa do AntDelirium.
+
+## Logs e mensagens normais
+
+O runtime não escreve logs globais de debug ou erro em diretório temporário.
+Falhas internas do agente usam somente os códigos públicos estáveis; diagnóstico
+detalhado pertence ao journal do serviço protegido quando essa integração
+estiver concluída. Não existe fallback para arquivo global quando o serviço ou
+um writer falha.
+
+As respostas bem-sucedidas do CLI são tipadas. Ajuda e versão são respostas
+informativas separadas; toda operação normal de tarefa, regra, próxima ação ou
+submissão só pode produzir uma das duas notificações fechadas:
+
+```text
+antdelirium[AD-TASK]: leia guard/to-do_list.json
+antdelirium[AD-GOV]: leia guard/governance_error.json
+```
+
+O gate de release rejeita caminhos físicos protegidos e os antigos nomes
+previsíveis de log caso sejam reintroduzidos no executável.
 
 ## Usar durante o desenvolvimento
 

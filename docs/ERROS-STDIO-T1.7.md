@@ -132,7 +132,7 @@ O inventário do binário atual encontrou:
 - violações usam exit 1 genérico;
 - erros brutos são interpolados em mensagens;
 - `--version` expõe o path usado para iniciar o binário;
-- o runtime ainda escreve logs previsíveis em `/tmp`;
+- os logs globais previsíveis do runtime foram removidos na T5.7 e o gate de release impede sua reintrodução;
 - o build guard antigo usa panic e localização de plugin.
 
 Esses comportamentos são baseline de migração, não exceções aceitas. T3.6 centraliza `OutputRouter`/`PublicError`; T5.7 elimina logs globais e T6 aplica o contrato no wrapper.

@@ -38,10 +38,42 @@ enum AgentCommand {
     ForbiddenMutation,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AgentNotification {
+    CurrentTask,
+    GovernanceErrors,
+}
+
+impl AgentNotification {
+    fn output(self) -> &'static str {
+        match self {
+            Self::CurrentTask => TASK_NOTIFICATION,
+            Self::GovernanceErrors => GOVERNANCE_NOTIFICATION,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum AgentCliSuccess {
+    Help,
+    Version(String),
+    Notification(AgentNotification),
+}
+
+impl AgentCliSuccess {
+    fn output(&self) -> &str {
+        match self {
+            Self::Help => AGENT_HELP,
+            Self::Version(version) => version,
+            Self::Notification(notification) => notification.output(),
+        }
+    }
+}
+
 pub(crate) fn run_agent_cli() {
     let args = std::env::args_os().skip(1).collect::<Vec<_>>();
     match execute(&args, &current_directory(), &UnavailableSubmissionTransport) {
-        Ok(output) => OutputRouter::write_success(&output),
+        Ok(output) => OutputRouter::write_success(output.output()),
         Err(error) => OutputRouter::exit(error),
     }
 }
@@ -54,11 +86,11 @@ fn execute(
     args: &[OsString],
     current_directory: &Result<PathBuf, AgentCliError>,
     submission_transport: &impl AgentSubmissionTransport,
-) -> Result<String, AgentCliError> {
+) -> Result<AgentCliSuccess, AgentCliError> {
     let command = parse_command(args)?;
     match command {
-        AgentCommand::Help => Ok(AGENT_HELP.to_string()),
-        AgentCommand::Version => Ok(render_public_version()),
+        AgentCommand::Help => Ok(AgentCliSuccess::Help),
+        AgentCommand::Version => Ok(AgentCliSuccess::Version(render_public_version())),
         AgentCommand::SubmitEvidence(evidence) => {
             validate_evidence(&evidence)?;
             let project_root = discover_project_root(current_directory)?;
@@ -69,27 +101,37 @@ fn execute(
             let request = build_note_submission_request(&binding, &request_id, &evidence)
                 .map_err(|_| AgentCliError::Protocol)?;
             submission_transport.create_submission(&request)?;
-            Ok(TASK_NOTIFICATION.to_string())
+            Ok(AgentCliSuccess::Notification(
+                AgentNotification::CurrentTask,
+            ))
         }
         AgentCommand::ForbiddenMutation => Err(AgentCliError::Authorization),
         AgentCommand::ReadCurrentTask => {
             let project_root = discover_project_root(current_directory)?;
             read_projection(&project_root, ProjectionKind::CurrentTask)?;
-            Ok(TASK_NOTIFICATION.to_string())
+            Ok(AgentCliSuccess::Notification(
+                AgentNotification::CurrentTask,
+            ))
         }
         AgentCommand::ReadRelatedRule => {
             let project_root = discover_project_root(current_directory)?;
             read_projection(&project_root, ProjectionKind::GovernanceErrors)?;
-            Ok(GOVERNANCE_NOTIFICATION.to_string())
+            Ok(AgentCliSuccess::Notification(
+                AgentNotification::GovernanceErrors,
+            ))
         }
         AgentCommand::NextAction => {
             let project_root = discover_project_root(current_directory)?;
             let governance = read_projection(&project_root, ProjectionKind::GovernanceErrors)?;
             if governance_has_violations(&governance) {
-                return Ok(GOVERNANCE_NOTIFICATION.to_string());
+                return Ok(AgentCliSuccess::Notification(
+                    AgentNotification::GovernanceErrors,
+                ));
             }
             read_projection(&project_root, ProjectionKind::CurrentTask)?;
-            Ok(TASK_NOTIFICATION.to_string())
+            Ok(AgentCliSuccess::Notification(
+                AgentNotification::CurrentTask,
+            ))
         }
     }
 }
@@ -330,7 +372,7 @@ mod tests {
         .expect("governance projection");
     }
 
-    fn execute_in(root: &Path, values: &[&str]) -> Result<String, AgentCliError> {
+    fn execute_in(root: &Path, values: &[&str]) -> Result<AgentCliSuccess, AgentCliError> {
         execute(
             &args(values),
             &Ok(root.to_path_buf()),
@@ -346,6 +388,7 @@ mod tests {
             &UnavailableSubmissionTransport,
         )
         .expect("help");
+        let help = help.output();
 
         for public_action in [
             "hierarchy.task.current",
@@ -451,11 +494,15 @@ mod tests {
         let root = fixture();
         assert_eq!(
             execute_in(&root, &["--api", "hierarchy.task.current"]),
-            Ok(TASK_NOTIFICATION.to_string())
+            Ok(AgentCliSuccess::Notification(
+                AgentNotification::CurrentTask
+            ))
         );
         assert_eq!(
             execute_in(&root, &["--api", "hierarchy.rule.related"]),
-            Ok(GOVERNANCE_NOTIFICATION.to_string())
+            Ok(AgentCliSuccess::Notification(
+                AgentNotification::GovernanceErrors
+            ))
         );
         fs::remove_dir_all(root).expect("fixture cleanup");
     }
@@ -465,13 +512,17 @@ mod tests {
         let root = fixture();
         assert_eq!(
             execute_in(&root, &["next-action"]),
-            Ok(TASK_NOTIFICATION.to_string())
+            Ok(AgentCliSuccess::Notification(
+                AgentNotification::CurrentTask
+            ))
         );
 
         write_governance_projection(&root, true);
         assert_eq!(
             execute_in(&root, &["next-action"]),
-            Ok(GOVERNANCE_NOTIFICATION.to_string())
+            Ok(AgentCliSuccess::Notification(
+                AgentNotification::GovernanceErrors
+            ))
         );
         fs::remove_dir_all(root).expect("fixture cleanup");
     }
@@ -552,7 +603,9 @@ mod tests {
                 &Ok(root.clone()),
                 &transport,
             ),
-            Ok(TASK_NOTIFICATION.to_string())
+            Ok(AgentCliSuccess::Notification(
+                AgentNotification::CurrentTask
+            ))
         );
         let request = transport
             .request

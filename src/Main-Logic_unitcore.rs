@@ -844,12 +844,7 @@ pub(super) fn run_main() {
     };
 
     if let (Some(paths), Some(plugin)) = (artifact_paths.as_ref(), plugin_context.as_ref()) {
-        let _ = std::fs::write("/tmp/delirium_debug.log", format!("Writing to: {}", paths.output_root));
-        if let Err(e) =
-            agent_runtime::write_todo_manifest(plugin, Path::new(&paths.output_root), None)
-        {
-            let _ = std::fs::write("/tmp/delirium_error.log", format!("Error: {}", e));
-        }
+        let _ = agent_runtime::write_todo_manifest(plugin, Path::new(&paths.output_root), None);
     }
 
     if cli.json_requested {
