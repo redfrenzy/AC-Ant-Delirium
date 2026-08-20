@@ -698,7 +698,7 @@ fn valid_wire_capability(capability: &WireCapability) -> bool {
     valid_opaque_id(&capability.capability_id, "cap_") && is_encoded_nonce(&capability.token)
 }
 
-fn valid_opaque_id(value: &str, prefix: &str) -> bool {
+pub(crate) fn valid_opaque_id(value: &str, prefix: &str) -> bool {
     value.strip_prefix(prefix).is_some_and(|token| {
         token.len() == 26
             && token.bytes().all(|byte| {
@@ -707,7 +707,7 @@ fn valid_opaque_id(value: &str, prefix: &str) -> bool {
     })
 }
 
-fn random_request_id() -> Result<String, LimitedProtocolError> {
+pub(crate) fn random_request_id() -> Result<String, LimitedProtocolError> {
     random_crockford_id("req_").map_err(|_| LimitedProtocolError::Entropy)
 }
 
@@ -823,7 +823,7 @@ fn random_nonce() -> Result<String, LimitedProtocolError> {
     Ok(encode_base64url(&bytes))
 }
 
-fn encode_base64url(input: &[u8; 32]) -> String {
+pub(crate) fn encode_base64url(input: &[u8; 32]) -> String {
     const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
     let mut output = String::with_capacity(43);
     let mut index = 0;
@@ -844,7 +844,7 @@ fn encode_base64url(input: &[u8; 32]) -> String {
     output
 }
 
-fn decode_base64url(value: &str) -> Result<[u8; 32], LimitedProtocolError> {
+pub(crate) fn decode_base64url(value: &str) -> Result<[u8; 32], LimitedProtocolError> {
     if !is_encoded_nonce(value) {
         return Err(LimitedProtocolError::Envelope);
     }
@@ -885,7 +885,7 @@ fn base64url_digit(byte: u8) -> Result<u8, LimitedProtocolError> {
     }
 }
 
-fn is_encoded_nonce(value: &str) -> bool {
+pub(crate) fn is_encoded_nonce(value: &str) -> bool {
     value.len() == 43
         && value
             .bytes()

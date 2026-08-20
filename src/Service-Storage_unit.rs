@@ -21,6 +21,7 @@ use crate::service_authority::VerifiedServiceAuthority;
 const STATE_DIRECTORY_ENV: &str = "STATE_DIRECTORY";
 const REGISTRY_DIR_NAME: &str = "registry";
 const PROJECTS_DIR_NAME: &str = "projects";
+const MIGRATION_STAGING_DIR_NAME: &str = "migration-staging";
 const MAX_PROVISIONAL_PROJECTS_PER_UID: i64 = 64;
 const BOOTSTRAP_CAPABILITY_LIFETIME_SECONDS: i64 = 300;
 
@@ -41,6 +42,7 @@ impl From<TransactionalStorageError> for ProtectedStorageError {
 
 pub(crate) struct ProtectedServiceStorage {
     projects_dir: PathBuf,
+    migration_staging_dir: PathBuf,
     registry: ProjectDatabase,
     bootstrap_lock: Mutex<()>,
 }
@@ -125,6 +127,8 @@ impl ProtectedServiceStorage {
         require_owned_directory(root, authority.effective_uid())?;
         let registry_dir = private_child_directory(root, REGISTRY_DIR_NAME, authority)?;
         let projects_dir = private_child_directory(root, PROJECTS_DIR_NAME, authority)?;
+        let migration_staging_dir =
+            private_child_directory(root, MIGRATION_STAGING_DIR_NAME, authority)?;
 
         let registry = ProjectDatabase::initialize_at(&registry_dir)?;
         let recovery = registry.recover()?;
@@ -135,11 +139,46 @@ impl ProtectedServiceStorage {
 
         let storage = Self {
             projects_dir,
+            migration_staging_dir,
             registry,
             bootstrap_lock: Mutex::new(()),
         };
         storage.recover_registered_projects(authority)?;
         Ok(storage)
+    }
+
+    pub(crate) fn stage_legacy_stream<R: std::io::Read>(
+        &self,
+        authority: &VerifiedServiceAuthority,
+        capability: &AuthorizedCapability,
+        inventory_document: &[u8],
+        expected_inventory_sha256: &str,
+        stream: &mut R,
+    ) -> Result<crate::legacy_staging::LegacyStageReceipt, ()> {
+        let trusted_now_unix = trusted_service_unix_time().map_err(|_| ())?;
+        let authorized = capability.actor() == CapabilityActor::Operator
+            && capability.channel() == CapabilityChannel::Administrative
+            && capability.operation() == CapabilityOperation::StateAdmin
+            && capability.project_id().is_none()
+            && capability.workspace_id().is_none()
+            && capability.task_id().is_none()
+            && self
+                .registry
+                .authorized_capability_is_current(capability, trusted_now_unix)
+                .map_err(|_| ())?;
+        if !authorized {
+            self.audit_rejected_authorized_request_at(capability, trusted_now_unix)?;
+            return Err(());
+        }
+        require_owned_directory(&self.migration_staging_dir, authority.effective_uid())
+            .map_err(|_| ())?;
+        crate::legacy_staging::stage_legacy_stream(
+            &self.migration_staging_dir,
+            inventory_document,
+            expected_inventory_sha256,
+            stream,
+        )
+        .map_err(|_| ())
     }
 
     pub(crate) fn bootstrap_provisional(

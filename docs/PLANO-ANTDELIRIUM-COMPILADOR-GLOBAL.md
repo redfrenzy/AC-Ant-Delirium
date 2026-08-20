@@ -1021,6 +1021,19 @@ foram preservados como divergência, sem normalização. Este snapshot não cong
 a origem: T8.3 precisa revalidar o digest antes da cópia e importar somente para
 staging protegido, ainda sem cutover.
 
+Estado da T8.3: a [validação do staging protegido](./VALIDACAO-STAGING-AUTOBROWSER-T8.3.md)
+implementou `migration.stage` no listener administrativo `ADA1`. O cliente
+operador revalida integralmente a origem contra o ledger T8.2 e transmite bytes
+em ordem sem enviar o locator físico ao serviço; somente uma capability global
+`Operator/Administrative/StateAdmin` autoriza a escrita. O serviço grava em
+diretório parcial privado, recalcula hashes, sincroniza arquivos e publica por
+rename atômico junto com inventário, manifesto e recibo sem paths. A execução
+real copiou 3.102 entries/15.155.427 bytes e preservou HEAD e hash do status da
+origem. O manifesto permanece `staged`, sem approval ou cutover. A evidência
+local usa o storage de serviço sob `target/`; instalação da unidade e state root
+dedicado continuam posteriores. A T8.4 deve normalizar somente a cópia
+controlada.
+
 ### Fase 8 — endurecimento contra agentes hostis
 
 Objetivo: transformar detecção local em enforcement confiável.

@@ -538,7 +538,9 @@ três operações de wrapper implementadas. Bootstrap sem capability cria soment
 estado provisório vazio; compilação e projeção precisam passar por peer,
 capability, nonce, request fingerprint, receipt e resolver opaco antes de abrir
 o banco derivado pelo registry. As outras operações limitadas continuam
-fechadas e o listener administrativo continua sem leitura. Os journals da T4.6
+fechadas. Desde a T8.3, o listener administrativo aceita somente a operação
+fechada `migration.stage`; as demais operações planejadas não são representáveis
+no parser atual. Os journals da T4.6
 registram negações e rejeições sem payload ou localização física. O isolamento
 de descriptors da T4.7 já impede sua herança por um futuro `exec`; o serviço
 atual não cria processos filhos. A T4.8 acrescenta um probe adversarial externo
@@ -546,6 +548,39 @@ que executa o cliente sem capabilities em namespaces descartáveis, mantém apen
 o projeto visível e comprova falha de resolução, `stat`, `access`, `readlink`,
 enumeração e abertura dos roots protegidos conhecidos. A repetição contra a
 unidade e o serviço realmente instalados permanece na T9.4.
+
+## Staging administrativo de legado — T8.3
+
+O release possui uma rota interna `migrate-plugin`, separada da gramática do
+agente e recusada em builds debug. Ela não é descoberta por `--help`/`--api` e
+não concede autoridade por nome de comando. Um supervisor operador precisa
+entregar o socket, origem, inventário e digest por ambiente e uma capability
+administrativa por descriptor herdado:
+
+```text
+ANTDELIRIUM_ADMIN_SOCKET
+ANTDELIRIUM_MIGRATION_SOURCE
+ANTDELIRIUM_MIGRATION_INVENTORY
+ANTDELIRIUM_EXPECTED_SOURCE_SHA256
+ANTDELIRIUM_ADMIN_CAPABILITY_FD
+```
+
+O descriptor contém somente `admin-capability-v1` com ID e token. O processo
+marca-o `FD_CLOEXEC`, limita a leitura a 4 KiB e o fecha ao terminar o parse. Os
+quatro valores de path/digest são removidos do ambiente antes de abrir a origem.
+Esse mecanismo é para um supervisor fora do sandbox do agente; não se deve
+entregar essas variáveis ou a capability ao wrapper comum.
+
+O cliente revalida todos os entries do inventário e transmite ao daemon apenas
+o documento sem locator físico e os bytes dos arquivos. O serviço, que pode
+rodar com `ProtectHome=yes`, nunca abre nem recebe a localização sob `/home`.
+Somente uma capability global de operador para `StateAdmin` permite criar
+`migration-staging/<migration-id>`. A publicação é privada, durável e atômica;
+o retorno público contém apenas IDs opacos, contagens e hashes.
+
+O [relatório T8.3](./VALIDACAO-STAGING-AUTOBROWSER-T8.3.md) prova o fluxo com o
+storage protegido e a origem real. Ele não substitui o futuro provisionamento
+da unidade systemd/capability, nem autoriza cutover.
 
 Os templates não instalados
 [`packaging/systemd/antdelirium.service.in`](../packaging/systemd/antdelirium.service.in)

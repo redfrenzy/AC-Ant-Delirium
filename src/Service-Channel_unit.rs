@@ -254,7 +254,7 @@ impl ActivatedServiceChannels {
                 self._limited.serve_one(&storage, &authority);
             }
             if administrative_events & libc::POLLIN != 0 {
-                self._administrative.reject_one(&storage);
+                self._administrative.serve_one(&storage, &authority);
             }
         }
     }
@@ -299,14 +299,25 @@ impl LimitedServiceListener {
 
 #[cfg(unix)]
 impl AdministrativeServiceListener {
-    fn reject_one(&self, storage: &ProtectedServiceStorage) {
+    fn serve_one(&self, storage: &ProtectedServiceStorage, authority: &VerifiedServiceAuthority) {
         match self.listener.accept() {
-            Ok((connection, _address)) => {
+            Ok((mut connection, _address)) => {
                 let authentication = ConnectionAuthentication::capture(&connection)
                     .unwrap_or_else(|_| OutputRouter::exit(PublicError::Configuration));
                 let _expected_magic = self.parser.magic;
-                let _authorization_boundary = (authentication, storage.registry());
-                drop(connection);
+                if crate::administrative_protocol::answer_administrative_hello(
+                    &mut connection,
+                    authentication.connection_nonce(),
+                )
+                .is_ok()
+                {
+                    let _ = crate::administrative_protocol::serve_administrative_request(
+                        &mut connection,
+                        &authentication,
+                        authority,
+                        storage,
+                    );
+                }
             }
             Err(_) => OutputRouter::exit(PublicError::Configuration),
         }

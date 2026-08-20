@@ -46,6 +46,12 @@ mod rustc_wrapper;
 #[path = "Limited-Protocol_unit.rs"]
 mod limited_protocol;
 
+#[path = "Legacy-Staging_unit.rs"]
+mod legacy_staging;
+
+#[path = "Administrative-Protocol_unit.rs"]
+mod administrative_protocol;
+
 mod legacy_guard_mode {
     include!("../get_toml_for_new/ant_delirium_build_guard.rs");
 

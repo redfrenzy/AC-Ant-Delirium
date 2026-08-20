@@ -12,6 +12,8 @@ Os arquivos deste diretório congelam a primeira versão das fronteiras de dados
 - `migration-manifest-v1.schema.json`: hashes, contagens, approvals e rollback de uma migração.
 - `legacy-source-inventory-v1.schema.json`: ledger read-only de paths relativos,
   hashes, modos, ownership, links, validação JSON e contagens anteriores ao staging.
+- `legacy-stage-receipt-v1.schema.json`: recibo sem paths da cópia publicada no
+  staging protegido.
 
 Todos usam JSON Schema Draft 2020-12 e `additionalProperties: false`. Eles são contratos de domínio e API, não autorização, schema SQL nem descrição do transporte.
 

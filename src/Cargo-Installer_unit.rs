@@ -70,6 +70,13 @@ pub(crate) enum CargoUninstallError {
 }
 
 pub(crate) fn run_operator_mode(args: &[OsString]) {
+    if args
+        .first()
+        .is_some_and(|arg| arg == OsStr::new("migrate-plugin"))
+    {
+        crate::administrative_protocol::run_migration_stage_operator(args);
+        return;
+    }
     if args.len() == 1 && args[0] == OsStr::new("doctor") {
         crate::cargo_doctor::run_doctor();
         return;

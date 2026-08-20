@@ -58,26 +58,18 @@
         "wire_version": { "const": "ada/1" },
         "request_id": { "$ref": "#/$defs/requestId" },
         "connection_nonce": { "$ref": "#/$defs/nonce" },
-        "operation": {
-          "enum": [
-            "project.enroll",
-            "project.rebind",
-            "project.retire",
-            "migration.stage",
-            "migration.commit",
-            "migration.rollback",
-            "capability.grant",
-            "capability.revoke",
-            "state.transition",
-            "state.override",
-            "diagnostic.private",
-            "storage.maintain",
-            "installation.prepare",
-            "installation.validate"
-          ]
-        },
+        "operation": { "const": "migration.stage" },
         "capability": { "$ref": "#/$defs/capability" },
-        "body": { "type": "object" }
+        "body": { "$ref": "#/$defs/migrationStageBody" }
+      }
+    },
+    "migrationStageBody": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expected_source_snapshot_sha256", "inventory"],
+      "properties": {
+        "expected_source_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+        "inventory": { "$ref": "urn:antdelirium:contract:legacy-source-inventory-v1" }
       }
     },
     "response": {
@@ -89,7 +81,12 @@
         "wire_version": { "const": "ada/1" },
         "request_id": { "$ref": "#/$defs/requestId" },
         "status": { "enum": ["ok", "error"] },
-        "result": { "type": ["object", "null"] },
+        "result": {
+          "oneOf": [
+            { "$ref": "urn:antdelirium:contract:legacy-stage-receipt-v1" },
+            { "type": "null" }
+          ]
+        },
         "error": {
           "oneOf": [
             { "type": "null" },
@@ -146,7 +143,7 @@
           "if": { "properties": { "status": { "const": "ok" } } },
           "then": {
             "properties": {
-              "result": { "type": "object" },
+              "result": { "$ref": "urn:antdelirium:contract:legacy-stage-receipt-v1" },
               "error": { "type": "null" }
             }
           },
@@ -158,6 +155,7 @@
           }
         }
       ]
-    }
+    },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
   }
 }
