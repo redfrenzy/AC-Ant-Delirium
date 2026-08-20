@@ -1,0 +1,4 @@
+# Deliberately divergent: the protected gate must override this local value.
+[build]
+target = "x86_64-unknown-linux-gnu"
+rustc-workspace-wrapper = "/bin/false"

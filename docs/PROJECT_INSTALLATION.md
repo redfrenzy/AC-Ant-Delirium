@@ -795,6 +795,35 @@ termina inconclusiva com exit `77`; falha de comando ou contrato termina com
 erro. Os artefatos são mantidos sob `target/` para inspeção e nenhum Cargo home
 real é alterado.
 
+## Gate CI/supervisor com target limpo — T7.7
+
+O alvo administrativo `make authoritative-ci-gate` valida a mecânica usada por
+um CI ou supervisor externo. A descrição completa, inclusive a fronteira entre
+prova local e autoridade protegida, está em
+[VALIDACAO-GATE-CI-T7.7.md](./VALIDACAO-GATE-CI-T7.7.md).
+
+O gate não usa a instalação Cargo do agente como raiz de confiança. Sua fixture
+e seu Cargo home contêm wrappers deliberadamente divergentes, e o controle sem
+política precisa falhar. A execução protegida remove overrides ambientais,
+define compilador e wrapper por `cargo --config` e usa um target exclusivo
+inicialmente vazio. O log `-vv` precisa provar `CARGO_PRIMARY_PACKAGE=1` através
+do release confiável; o check repetido em cache passa sem nova compilação
+primária.
+
+Para implantação real, o runner fornece fora do workspace:
+
+```text
+ANTDELIRIUM_TRUSTED_WRAPPER
+ANTDELIRIUM_EXPECTED_WRAPPER_SHA256
+```
+
+O digest é verificado antes e depois do Cargo. Sem digest externo, a evidência
+declara `authority_mode=local-mechanics`; com digest correspondente, declara
+`protected-digest`. Digest divergente falha antes da compilação. O JSON
+`ci-gate-evidence-v1` contém hashes e estados, nunca paths, mas permanece
+explicitamente não assinado nesta fase. Proteger workflow/runner, emitir
+attestation e exigir o resultado na branch continuam pertencendo à T9.7.
+
 As fixtures Cargo T7.1, T7.2, T7.4 e T7.5 combinam relógio, PID e sequência no
 nome sob `target/`. A mesma seleção de testes passou duas vezes consecutivas sem
 limpeza, portanto os testes não dependem mais de apagar artefatos anteriores.

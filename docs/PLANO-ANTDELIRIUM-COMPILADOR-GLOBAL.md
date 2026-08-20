@@ -942,6 +942,16 @@ wrapper nela. Um probe separado com profundidade inválida exige `AD-CONFIG-0001
 e prova que a configuração instalada foi carregada. Não foi criado comando
 alternativo AntDelirium nem estado obsoleto no projeto.
 
+Estado da T7.7: `make authoritative-ci-gate` implementa a mecânica protegível do
+CI/supervisor. Um controle prova que configurações e binário locais divergentes
+falham; o gate então remove overrides ambientais, fixa `rustc` e o wrapper
+confiável por `cargo --config`, usa target exclusivo vazio e exige uma compilação
+primária observável. O segundo check em cache é apenas advisory; cada nova
+execução ganha outro target limpo. O modo protegido exige path e SHA-256 vindos
+de fora do workspace, revalida o binário ao final e gera evidência versionada
+sem paths. Execução local, digest derivado no próprio PR e evidência não assinada
+não são autoridade; runner protegido, assinatura e branch gate ficam na T9.7.
+
 ### Fase 6 — comandos Cargo existentes e gate externo
 
 Objetivo: manter a integração invisível para o agente e reduzir bypass sem substituir o Cargo.

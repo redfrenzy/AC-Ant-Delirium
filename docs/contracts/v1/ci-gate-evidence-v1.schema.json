@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://antdelirium.invalid/contracts/v1/ci-gate-evidence-v1.schema.json",
+  "title": "AntDelirium CI gate mechanical evidence v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "result",
+    "authority_mode",
+    "wrapper_sha256",
+    "source_sha256",
+    "clean_target",
+    "primary_wrapper_participation",
+    "local_wrapper_override",
+    "cached_followup",
+    "signature"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "ci-gate-evidence-v1"
+    },
+    "result": {
+      "const": "passed"
+    },
+    "authority_mode": {
+      "enum": [
+        "local-mechanics",
+        "protected-digest"
+      ]
+    },
+    "wrapper_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "source_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "clean_target": {
+      "const": true
+    },
+    "primary_wrapper_participation": {
+      "const": "verified"
+    },
+    "local_wrapper_override": {
+      "const": "superseded"
+    },
+    "cached_followup": {
+      "const": "passed-without-primary-recompile"
+    },
+    "signature": {
+      "const": "none-local-mechanics-only"
+    }
+  }
+}

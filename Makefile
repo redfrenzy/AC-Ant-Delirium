@@ -79,6 +79,7 @@ check:
 ci:
 	cargo fmt --all -- --check
 	bash -n packaging/cargo/validate-standard-commands.sh
+	bash -n packaging/ci/validate-authoritative-gate.sh
 	bash -n packaging/sandbox/validate-client-isolation.sh
 	bash -n packaging/sandbox/validate-wrapper-syscalls.sh
 	RUSTFLAGS="-D warnings" cargo check --locked --all-targets --target $(HOST_TARGET)
@@ -96,6 +97,17 @@ ci:
 .PHONY: cargo-command-matrix
 cargo-command-matrix: binary
 	bash packaging/cargo/validate-standard-commands.sh
+
+# -----------------------------------------------
+# make authoritative-ci-gate
+# -----------------------------------------------
+# Uses command-line Cargo policy and a fresh target to ignore user-local and
+# workspace-local wrapper choices, then records path-free mechanical evidence.
+# Remote protection/signing belongs to the CI platform, not this local script.
+# -----------------------------------------------
+.PHONY: authoritative-ci-gate
+authoritative-ci-gate: binary
+	bash packaging/ci/validate-authoritative-gate.sh
 
 # -----------------------------------------------
 # make adversarial-client-isolation
