@@ -1,14 +1,19 @@
 use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[cfg(unix)]
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 
+use ac_ant_delirium::libres::Sha2_unit::sha256;
+use ac_ant_delirium::libres::System_Random_unit::{fill_system_random, random_crockford_id};
 use ac_ant_delirium::structs::{
-    AuthorizedCapability, ProjectDatabase, ServiceSecurityAuditReceipt, StorageProject,
-    TransactionalStorageError, STORAGE_SCHEMA_VERSION,
+    AuthorizedCapability, CanonicalStateStore, CapabilityActor, CapabilityChannel,
+    CapabilityOperation, NewCapabilityGrant, ProjectDatabase, ProvisionalProjectRegistration,
+    ServiceSecurityAuditReceipt, StorageProject, StorageWorkspace, TransactionalStorageError,
+    STORAGE_SCHEMA_VERSION,
 };
 
 use crate::service_authority::VerifiedServiceAuthority;
@@ -16,9 +21,11 @@ use crate::service_authority::VerifiedServiceAuthority;
 const STATE_DIRECTORY_ENV: &str = "STATE_DIRECTORY";
 const REGISTRY_DIR_NAME: &str = "registry";
 const PROJECTS_DIR_NAME: &str = "projects";
+const MAX_PROVISIONAL_PROJECTS_PER_UID: i64 = 64;
+const BOOTSTRAP_CAPABILITY_LIFETIME_SECONDS: i64 = 300;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ProtectedStorageError {
+pub(crate) enum ProtectedStorageError {
     InvalidRoot,
     WrongOwner,
     InvalidProjectIdentity,
@@ -35,6 +42,19 @@ impl From<TransactionalStorageError> for ProtectedStorageError {
 pub(crate) struct ProtectedServiceStorage {
     projects_dir: PathBuf,
     registry: ProjectDatabase,
+    bootstrap_lock: Mutex<()>,
+}
+
+pub(crate) struct IssuedLimitedCapability {
+    pub(crate) capability_id: String,
+    pub(crate) token: [u8; 32],
+}
+
+pub(crate) struct ProvisionalBootstrapResult {
+    pub(crate) project_id: String,
+    pub(crate) workspace_id: String,
+    pub(crate) compile: IssuedLimitedCapability,
+    pub(crate) projection: IssuedLimitedCapability,
 }
 
 // This service-only handle deliberately exposes neither project-key nor path.
@@ -98,7 +118,7 @@ fn parse_state_directory(raw: &OsStr) -> Result<PathBuf, ProtectedStorageError> 
 }
 
 impl ProtectedServiceStorage {
-    fn initialize(
+    pub(crate) fn initialize(
         authority: &VerifiedServiceAuthority,
         root: &Path,
     ) -> Result<Self, ProtectedStorageError> {
@@ -116,9 +136,151 @@ impl ProtectedServiceStorage {
         let storage = Self {
             projects_dir,
             registry,
+            bootstrap_lock: Mutex::new(()),
         };
         storage.recover_registered_projects(authority)?;
         Ok(storage)
+    }
+
+    pub(crate) fn bootstrap_provisional(
+        &self,
+        authority: &VerifiedServiceAuthority,
+        peer_uid: u32,
+        identity_fingerprint: &[u8; 32],
+        requested_slug: &str,
+    ) -> Result<ProvisionalBootstrapResult, ()> {
+        if identity_fingerprint.iter().all(|byte| *byte == 0) {
+            return Err(());
+        }
+        let _guard = self.bootstrap_lock.lock().map_err(|_| ())?;
+        let registration = match self
+            .registry
+            .provisional_registration(peer_uid, identity_fingerprint)
+            .map_err(|_| ())?
+        {
+            Some(registration) => registration,
+            None => {
+                if self
+                    .registry
+                    .provisional_registration_count(peer_uid)
+                    .map_err(|_| ())?
+                    >= MAX_PROVISIONAL_PROJECTS_PER_UID
+                {
+                    return Err(());
+                }
+                self.create_provisional_registration(
+                    authority,
+                    peer_uid,
+                    identity_fingerprint,
+                    requested_slug,
+                )?
+            }
+        };
+        let now = trusted_service_unix_time().map_err(|_| ())?;
+        Ok(ProvisionalBootstrapResult {
+            compile: self.issue_bootstrap_capability(
+                peer_uid,
+                &registration,
+                CapabilityOperation::CompileObserve,
+                now,
+            )?,
+            projection: self.issue_bootstrap_capability(
+                peer_uid,
+                &registration,
+                CapabilityOperation::ProjectionRefresh,
+                now,
+            )?,
+            project_id: registration.project_id,
+            workspace_id: registration.workspace_id,
+        })
+    }
+
+    fn create_provisional_registration(
+        &self,
+        authority: &VerifiedServiceAuthority,
+        peer_uid: u32,
+        identity_fingerprint: &[u8; 32],
+        requested_slug: &str,
+    ) -> Result<ProvisionalProjectRegistration, ()> {
+        let project_id = random_crockford_id("prj_").map_err(|_| ())?;
+        let workspace_id = random_crockford_id("wsp_").map_err(|_| ())?;
+        let project_token = project_id.strip_prefix("prj_").ok_or(())?;
+        let workspace_token = workspace_id.strip_prefix("wsp_").ok_or(())?;
+        let slug = sanitize_project_slug(requested_slug);
+        let now = trusted_service_unix_time().map_err(|_| ())?;
+        let created_at = format!("unix:{now}");
+        let project = StorageProject {
+            project_id: project_id.clone(),
+            project_key: format!("{slug}--{project_token}"),
+            created_at: created_at.clone(),
+        };
+        let workspace = StorageWorkspace {
+            workspace_id: workspace_id.clone(),
+            project_id: project_id.clone(),
+            workspace_key: format!("workspace--{workspace_token}"),
+            created_at,
+        };
+        let database = self
+            .materialize_project(authority, &project)
+            .map_err(|_| ())?;
+        CanonicalStateStore::register_workspace(&database, &workspace).map_err(|_| ())?;
+        CanonicalStateStore::register_workspace(&self.registry, &workspace).map_err(|_| ())?;
+        database
+            .initialize_empty_governance_snapshot(
+                &project_id,
+                &workspace_id,
+                &format!("unix:{now}"),
+            )
+            .map_err(|_| ())?;
+        let registration = ProvisionalProjectRegistration {
+            peer_uid,
+            identity_fingerprint: *identity_fingerprint,
+            project_id,
+            workspace_id,
+            project_key: project.project_key,
+            workspace_key: workspace.workspace_key,
+            created_at_unix: now,
+        };
+        self.registry
+            .store_provisional_registration(&registration)
+            .map_err(|_| ())?;
+        Ok(registration)
+    }
+
+    fn issue_bootstrap_capability(
+        &self,
+        peer_uid: u32,
+        registration: &ProvisionalProjectRegistration,
+        operation: CapabilityOperation,
+        now: i64,
+    ) -> Result<IssuedLimitedCapability, ()> {
+        let capability_id = random_crockford_id("cap_").map_err(|_| ())?;
+        let mut token = [0_u8; 32];
+        fill_system_random(&mut token).map_err(|_| ())?;
+        if token.iter().all(|byte| *byte == 0) {
+            return Err(());
+        }
+        self.registry
+            .store_capability_grant(&NewCapabilityGrant {
+                grant_id: capability_id.clone(),
+                secret_hash: sha256(&token),
+                subject_uid: peer_uid,
+                actor: CapabilityActor::Wrapper,
+                channel: CapabilityChannel::Limited,
+                operation,
+                project_id: Some(registration.project_id.clone()),
+                workspace_id: Some(registration.workspace_id.clone()),
+                task_id: None,
+                not_before_unix: now,
+                expires_at_unix: now + BOOTSTRAP_CAPABILITY_LIFETIME_SECONDS,
+                revocation_epoch: 0,
+                granted_at: format!("unix:{now}"),
+            })
+            .map_err(|_| ())?;
+        Ok(IssuedLimitedCapability {
+            capability_id,
+            token,
+        })
     }
 
     // T4.5 is the first production caller. Channel acquisition in T4.3 deliberately
@@ -279,6 +441,38 @@ impl ProtectedServiceStorage {
             require_database_ownership(&database, authority.effective_uid())?;
         }
         Ok(())
+    }
+}
+
+fn sanitize_project_slug(value: &str) -> String {
+    let mut slug = String::with_capacity(value.len().min(48));
+    let mut previous_dash = false;
+    for byte in value.bytes() {
+        let normalized = if byte.is_ascii_alphanumeric() {
+            byte.to_ascii_lowercase()
+        } else {
+            b'-'
+        };
+        if normalized == b'-' {
+            if slug.is_empty() || previous_dash {
+                continue;
+            }
+            previous_dash = true;
+        } else {
+            previous_dash = false;
+        }
+        slug.push(normalized as char);
+        if slug.len() == 48 {
+            break;
+        }
+    }
+    while slug.ends_with('-') {
+        slug.pop();
+    }
+    if slug.is_empty() {
+        "rust-project".to_string()
+    } else {
+        slug
     }
 }
 

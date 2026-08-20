@@ -4,13 +4,17 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    #[cfg(unix)]
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
     use crate::libres::Rusqlite_unit::AC_params;
     use crate::structs::{
-        build_current_task_projection, AtomicProjectProjectionWriter, AuditStore,
-        CanonicalGovernanceSnapshotRequest, CanonicalStateStore, CanonicalStateTransition,
-        CurrentTaskProjection, CurrentTaskProjectionDocument, EventWriteOutcome,
-        GovernanceErrorsProjection, GovernanceErrorsRefreshRequest, NewAuditEvent, NewSubmission,
-        ProjectDatabase, ProjectProjectionWriter, ProjectStateRoot, ProjectedCurrentTask,
+        build_current_task_projection, materialize_limited_project_projections,
+        AtomicProjectProjectionWriter, AuditStore, CanonicalGovernanceSnapshotRequest,
+        CanonicalStateStore, CanonicalStateTransition, CurrentTaskProjection,
+        CurrentTaskProjectionDocument, EventWriteOutcome, GovernanceErrorsProjection,
+        GovernanceErrorsRefreshRequest, NewAuditEvent, NewSubmission, ProjectDatabase,
+        ProjectProjectionWriter, ProjectStateRoot, ProjectedCurrentTask,
         ProjectedGovernanceViolation, ProjectedQueueStatus, ProjectedTaskAction,
         ProjectionArtifactKind, ProjectionMetadata, StorageProject, StorageWorkspace,
         SubmissionStore, TransactionalStorageError, AGENT_PROJECTION_CONTRACT_VERSION,
@@ -350,10 +354,55 @@ mod tests {
                     [],
                     |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
                 )?;
-                assert_eq!(result, (5, i64::from(STORAGE_SCHEMA_VERSION)));
+                assert_eq!(result, (6, i64::from(STORAGE_SCHEMA_VERSION)));
                 Ok(())
             })
             .unwrap();
+
+        fs::remove_dir_all(root).expect("temporary directory should be removed");
+    }
+
+    #[test]
+    fn limited_projection_delivery_writes_only_valid_fixed_artifacts_and_deduplicates_bytes() {
+        let root = unique_temp_dir("limited-projection-delivery");
+        let current = br#"{
+  "contract_version": "agent-projection-v1",
+  "artifact_kind": "current_task",
+  "project_ref": "prj_00000000000000000000000000",
+  "workspace_ref": "wsp_00000000000000000000000000",
+  "source_revision": 0,
+  "task": null,
+  "queue_status": "no_task_available",
+  "submission": {"contract_version":"submission-v1","instruction":"Submit evidence with hierarchy.task.current.submit."}
+}
+"#;
+        let governance = br#"{
+  "contract_version": "agent-projection-v1",
+  "artifact_kind": "governance_errors",
+  "project_ref": "prj_00000000000000000000000000",
+  "workspace_ref": "wsp_00000000000000000000000000",
+  "source_revision": 0,
+  "violations": []
+}
+"#;
+
+        materialize_limited_project_projections(&root, current, governance).unwrap();
+        let todo = root.join("guard/to-do_list.json");
+        let errors = root.join("guard/governance_error.json");
+        let first = fs::metadata(&todo).unwrap();
+        materialize_limited_project_projections(&root, current, governance).unwrap();
+        let second = fs::metadata(&todo).unwrap();
+
+        assert_eq!(fs::read(&todo).unwrap(), current);
+        assert_eq!(fs::read(&errors).unwrap(), governance);
+        #[cfg(unix)]
+        {
+            assert_eq!(first.ino(), second.ino());
+            assert_eq!(second.permissions().mode() & 0o777, 0o600);
+        }
+        let swapped = materialize_limited_project_projections(&root, governance, current);
+        assert!(swapped.is_err());
+        assert_eq!(fs::read(&todo).unwrap(), current);
 
         fs::remove_dir_all(root).expect("temporary directory should be removed");
     }

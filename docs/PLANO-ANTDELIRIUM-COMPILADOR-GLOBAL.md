@@ -396,8 +396,9 @@ uma forma wrapper inequivocamente reconhecida e nunca transforma outro perfil
 em wrapper. A detecção é lexical e não consulta o filesystem apontado pelo
 argumento. A T6.2 implementou a execução no target Unix por substituição de
 processo: `argv` permanece em `OsString`, os três streams são herdados e o
-próprio `rustc` passa a controlar exit e sinal. Nesta etapa a rota inicial ainda
-delega sem governança; protocolo limitado e auditoria pertencem às T6.4/T6.5.
+próprio `rustc` passa a controlar exit e sinal. A T6.4 acrescentou a negociação
+limitada e a T6.5 colocou bootstrap, fingerprint, auditoria e projeções em um
+filho audit-only, enquanto o pai continua delegando imediatamente.
 
 ## 8. Estrutura externa por projeto
 
@@ -561,7 +562,7 @@ Uma invocação de membro do workspace, especialmente quando `CARGO_PRIMARY_PACK
 A T6.3 exige também `CARGO_MANIFEST_DIR`, `CARGO_MANIFEST_PATH` e
 `CARGO_CRATE_NAME` coerentes com o `--crate-name` antes de selecionar
 `PrimaryWorkspaceMember`. A classificação não é autorização; ela apenas decide
-qual entrada poderá usar futuramente o canal limitado nas T6.4/T6.5.
+qual entrada pode iniciar o filho audit-only que usa o canal limitado.
 
 ### 11.3. Ordem de compilação e auditoria
 
@@ -581,6 +582,13 @@ Depois de estabilizado:
 - dependências externas não serão bloqueadas por regras de código do projeto.
 
 A T1.7 fechou o contrato [`errors-v1`](./ERROS-STDIO-T1.7.md): stdout do wrapper pertence exclusivamente ao compilador; diagnósticos AntDelirium usam stderr; falhas próprias ocupam a faixa 64–78; uma falha ou sinal do `rustc` tem precedência e é preservado; audit-only não transforma violações em exit não zero.
+
+A T6.5 concretizou essa ordem sem aguardar o serviço antes do `exec`: somente o
+membro primário cria um filho audit-only, e o pai fecha o descriptor secreto e
+se transforma imediatamente no `rustc`. O filho descobre a raiz Cargo, calcula
+fingerprints de argv, manifestos e fonte, executa bootstrap/observação/projeção
+pelo canal limitado e materializa apenas `guard/`. Qualquer falha nessa rota é
+silenciosa e não pode substituir stdout, stderr, exit ou sinal do compilador.
 
 ## 12. Modelo de ameaça e limites reais
 

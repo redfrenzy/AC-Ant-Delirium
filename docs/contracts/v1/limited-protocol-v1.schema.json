@@ -21,6 +21,46 @@
         "token": { "$ref": "#/$defs/nonce" }
       }
     },
+    "capabilityBundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract_version", "project_id", "workspace_id", "compile", "projection"],
+      "properties": {
+        "contract_version": { "const": "limited-capability-v1" },
+        "project_id": { "type": "string", "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$" },
+        "workspace_id": { "type": "string", "pattern": "^wsp_[0-9a-hjkmnp-tv-z]{26}$" },
+        "compile": { "$ref": "#/$defs/capability" },
+        "projection": { "$ref": "#/$defs/capability" }
+      }
+    },
+    "bootstrapBody": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["identity_fingerprint", "project_slug"],
+      "properties": {
+        "identity_fingerprint": { "$ref": "#/$defs/nonce" },
+        "project_slug": { "type": "string", "minLength": 1, "maxLength": 64 }
+      }
+    },
+    "compileObserveBody": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project_id", "workspace_id", "compilation_fingerprint"],
+      "properties": {
+        "project_id": { "type": "string", "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$" },
+        "workspace_id": { "type": "string", "pattern": "^wsp_[0-9a-hjkmnp-tv-z]{26}$" },
+        "compilation_fingerprint": { "$ref": "#/$defs/nonce" }
+      }
+    },
+    "projectionRefreshBody": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project_id", "workspace_id"],
+      "properties": {
+        "project_id": { "type": "string", "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$" },
+        "workspace_id": { "type": "string", "pattern": "^wsp_[0-9a-hjkmnp-tv-z]{26}$" }
+      }
+    },
     "clientHello": {
       "type": "object",
       "additionalProperties": false,
@@ -78,8 +118,21 @@
       "allOf": [
         {
           "if": { "properties": { "operation": { "const": "project.bootstrap.observe" } } },
-          "then": { "properties": { "capability": { "type": "null" } } },
+          "then": {
+            "properties": {
+              "capability": { "type": "null" },
+              "body": { "$ref": "#/$defs/bootstrapBody" }
+            }
+          },
           "else": { "properties": { "capability": { "$ref": "#/$defs/capability" } } }
+        },
+        {
+          "if": { "properties": { "operation": { "const": "compile.observe" } } },
+          "then": { "properties": { "body": { "$ref": "#/$defs/compileObserveBody" } } }
+        },
+        {
+          "if": { "properties": { "operation": { "const": "projection.refresh" } } },
+          "then": { "properties": { "body": { "$ref": "#/$defs/projectionRefreshBody" } } }
         }
       ]
     },

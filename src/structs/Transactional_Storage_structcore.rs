@@ -14,9 +14,10 @@ use crate::libres::Rusqlite_unit::{
 
 use super::{
     reject_public_path_references, validate_serialized_public_document, AtomicRecoveryReport,
-    EventWriteOutcome, NewAuditEvent, ProjectDatabase, ProjectStateRoot, StorageHealth,
-    StorageProject, StorageRecoveryReport, TransactionalStorageError, TransactionalStorageResult,
-    AUDIT_EVENT_CONTRACT_VERSION, STORAGE_BUSY_TIMEOUT_MILLIS, STORAGE_SCHEMA_VERSION,
+    EventWriteOutcome, NewAuditEvent, ProjectDatabase, ProjectStateRoot,
+    ProvisionalProjectRegistration, StorageHealth, StorageProject, StorageRecoveryReport,
+    TransactionalStorageError, TransactionalStorageResult, AUDIT_EVENT_CONTRACT_VERSION,
+    STORAGE_BUSY_TIMEOUT_MILLIS, STORAGE_SCHEMA_VERSION,
 };
 
 const INITIAL_SCHEMA: &str = r#"
@@ -269,6 +270,22 @@ CREATE INDEX governance_snapshots_fingerprint_idx
 ON governance_snapshots(project_id, fingerprint);
 "#;
 
+const STORAGE_SCHEMA_V6: &str = r#"
+CREATE TABLE provisional_project_registrations (
+    peer_uid INTEGER NOT NULL CHECK (peer_uid >= 0),
+    identity_fingerprint BLOB NOT NULL CHECK (length(identity_fingerprint) = 32),
+    project_id TEXT NOT NULL UNIQUE REFERENCES projects(project_id) ON DELETE RESTRICT,
+    workspace_id TEXT NOT NULL UNIQUE REFERENCES workspaces(workspace_id) ON DELETE RESTRICT,
+    project_key TEXT NOT NULL UNIQUE,
+    workspace_key TEXT NOT NULL,
+    created_at_unix INTEGER NOT NULL CHECK (created_at_unix >= 0),
+    PRIMARY KEY (peer_uid, identity_fingerprint)
+) STRICT;
+
+CREATE INDEX provisional_project_peer_idx
+ON provisional_project_registrations(peer_uid, created_at_unix);
+"#;
+
 impl From<AC_Error> for TransactionalStorageError {
     fn from(error: AC_Error) -> Self {
         Self::Database(error.to_string())
@@ -352,6 +369,72 @@ impl ProjectDatabase {
             projects.push(row?);
         }
         Ok(projects)
+    }
+
+    pub fn provisional_registration(
+        &self,
+        peer_uid: u32,
+        identity_fingerprint: &[u8; 32],
+    ) -> TransactionalStorageResult<Option<ProvisionalProjectRegistration>> {
+        let connection = self.open_connection(false)?;
+        connection
+            .query_row(
+                "SELECT project_id, workspace_id, project_key, workspace_key, created_at_unix FROM provisional_project_registrations WHERE peer_uid = ?1 AND identity_fingerprint = ?2",
+                AC_params![i64::from(peer_uid), identity_fingerprint.as_slice()],
+                |row| {
+                    Ok(ProvisionalProjectRegistration {
+                        peer_uid,
+                        identity_fingerprint: *identity_fingerprint,
+                        project_id: row.get(0)?,
+                        workspace_id: row.get(1)?,
+                        project_key: row.get(2)?,
+                        workspace_key: row.get(3)?,
+                        created_at_unix: row.get(4)?,
+                    })
+                },
+            )
+            .optional()
+            .map_err(Into::into)
+    }
+
+    pub fn provisional_registration_count(&self, peer_uid: u32) -> TransactionalStorageResult<i64> {
+        let connection = self.open_connection(false)?;
+        Ok(connection.query_row(
+            "SELECT count(*) FROM provisional_project_registrations WHERE peer_uid = ?1",
+            AC_params![i64::from(peer_uid)],
+            |row| row.get(0),
+        )?)
+    }
+
+    pub fn store_provisional_registration(
+        &self,
+        registration: &ProvisionalProjectRegistration,
+    ) -> TransactionalStorageResult<()> {
+        if registration
+            .identity_fingerprint
+            .iter()
+            .all(|byte| *byte == 0)
+            || registration.created_at_unix < 0
+        {
+            return Err(TransactionalStorageError::InvalidInput(
+                "invalid provisional registration".to_string(),
+            ));
+        }
+        self.with_immediate_transaction(|transaction| {
+            transaction.execute(
+                "INSERT INTO provisional_project_registrations(peer_uid, identity_fingerprint, project_id, workspace_id, project_key, workspace_key, created_at_unix) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                AC_params![
+                    i64::from(registration.peer_uid),
+                    registration.identity_fingerprint.as_slice(),
+                    registration.project_id,
+                    registration.workspace_id,
+                    registration.project_key,
+                    registration.workspace_key,
+                    registration.created_at_unix,
+                ],
+            )?;
+            Ok(())
+        })
     }
 
     pub fn contains_resource_scope(
@@ -674,6 +757,15 @@ impl ProjectDatabase {
                 AC_params!["storage-v5-canonical-governance-snapshots"],
             )?;
             transaction.pragma_update(None, "user_version", 5)?;
+            version = 5;
+        }
+        if version == 5 {
+            transaction.execute_batch(STORAGE_SCHEMA_V6)?;
+            transaction.execute(
+                "INSERT INTO schema_migrations(version, applied_at) VALUES (6, ?1)",
+                AC_params!["storage-v6-provisional-bootstrap"],
+            )?;
+            transaction.pragma_update(None, "user_version", 6)?;
         }
         transaction.commit()?;
         Ok(())

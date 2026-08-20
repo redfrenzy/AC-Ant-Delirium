@@ -8,7 +8,7 @@ use super::{
     reject_protected_administrative_references, reject_public_path_references,
     validate_agent_visible_project_path, AtomicProjectProjectionWriter,
     CanonicalTaskProjectionPayload, CurrentTaskProjection, CurrentTaskProjectionDocument,
-    CurrentTaskProjectionRefreshRequest, NewAuditEvent, ProjectProjectionWriter,
+    CurrentTaskProjectionRefreshRequest, NewAuditEvent, ProjectDatabase, ProjectProjectionWriter,
     ProjectedCurrentTask, ProjectedQueueStatus, ProjectedTaskAction, ProjectionMetadata,
     ProjectionWriteReceipt, TransactionalStorageError, TransactionalStorageResult,
     AGENT_PROJECTION_CONTRACT_VERSION, AUDIT_EVENT_CONTRACT_VERSION,
@@ -148,6 +148,85 @@ pub(super) fn refresh_current_task_projection(
         payload: b"current task projection rendered".to_vec(),
     };
     writer.write_current_task(&projection, &audit_event)
+}
+
+pub(super) fn render_current_task_projection(
+    database: &ProjectDatabase,
+    project_id: &str,
+    workspace_id: &str,
+    rendered_at: &str,
+) -> TransactionalStorageResult<Vec<u8>> {
+    validate_text(project_id, 1, 255, "project_id")?;
+    validate_text(workspace_id, 1, 255, "workspace_id")?;
+    validate_text(rendered_at, 1, 255, "rendered_at")?;
+    let connection = database.open_connection(false)?;
+    let (source_revision, current_task_id, previous_generation) = connection.query_row(
+        "SELECT p.state_revision, p.current_task_id, p.projection_generation FROM projects p JOIN workspaces w ON w.project_id = p.project_id WHERE p.project_id = ?1 AND w.workspace_id = ?2 AND w.status = 'active'",
+        AC_params![project_id, workspace_id],
+        |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, Option<String>>(1)?,
+                row.get::<_, i64>(2)?,
+            ))
+        },
+    )?;
+    let generation = previous_generation.checked_add(1).ok_or_else(|| {
+        TransactionalStorageError::Integrity("projection generation overflow".to_string())
+    })?;
+    let (task, queue_status) = match current_task_id.as_deref() {
+        Some(task_id) => {
+            let (task_revision, status, review_status, payload) = connection.query_row(
+                "SELECT t.task_revision, t.status, t.review_status, t.payload FROM tasks t JOIN projects p ON p.project_id = t.project_id AND p.active_plan_id = t.plan_id WHERE t.project_id = ?1 AND t.task_id = ?2",
+                AC_params![project_id, task_id],
+                |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, Vec<u8>>(3)?,
+                    ))
+                },
+            )?;
+            let payload = decode_canonical_task_projection_payload(&payload)?;
+            validate_action_lifecycle(payload.allowed_action, &status, &review_status)?;
+            (
+                Some(ProjectedCurrentTask {
+                    task_id: task_id.to_string(),
+                    task_revision,
+                    objective: payload.objective,
+                    allowed_action: payload.allowed_action,
+                    acceptance_criteria: payload.acceptance_criteria,
+                    relevant_paths: payload.relevant_paths,
+                }),
+                queue_status_for_action(payload.allowed_action),
+            )
+        }
+        None => (None, ProjectedQueueStatus::NoTaskAvailable),
+    };
+    let mut metadata = ProjectionMetadata {
+        project_id: project_id.to_string(),
+        workspace_id: workspace_id.to_string(),
+        source_revision,
+        generation,
+        fingerprint: "0".repeat(64),
+        rendered_at: rendered_at.to_string(),
+    };
+    let instruction = "Submit evidence with hierarchy.task.current.submit. Submission does not complete or approve the task.".to_string();
+    let mut projection = build_current_task_projection(&CurrentTaskProjectionDocument {
+        metadata: metadata.clone(),
+        task: task.clone(),
+        queue_status,
+        submission_instruction: instruction.clone(),
+    })?;
+    metadata.fingerprint = lowercase_hex(&sha256(&projection.serialized_contract));
+    projection = build_current_task_projection(&CurrentTaskProjectionDocument {
+        metadata,
+        task,
+        queue_status,
+        submission_instruction: instruction,
+    })?;
+    Ok(projection.serialized_contract)
 }
 
 fn validate_document(document: &CurrentTaskProjectionDocument) -> TransactionalStorageResult<()> {

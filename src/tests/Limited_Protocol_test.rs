@@ -14,6 +14,175 @@ fn nonce_encoding_matches_the_protocol_shape() {
     assert!(is_encoded_nonce(&encoded));
     assert!(!encoded.contains('='));
     assert!(!is_encoded_nonce("short"));
+    assert_eq!(decode_base64url(&encoded), Ok([0xff_u8; 32]));
+    let mut noncanonical = encoded;
+    noncanonical.replace_range(42..43, "_");
+    assert_eq!(
+        decode_base64url(&noncanonical),
+        Err(LimitedProtocolError::Envelope)
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn inherited_capability_descriptor_is_bounded_typed_and_closed_after_read() {
+    let bundle = LimitedCapabilityBundle {
+        contract_version: "limited-capability-v1".to_string(),
+        project_id: "prj_00000000000000000000000000".to_string(),
+        workspace_id: "wsp_00000000000000000000000000".to_string(),
+        compile: WireCapability {
+            capability_id: "cap_00000000000000000000000000".to_string(),
+            token: encode_base64url(&[7_u8; 32]),
+        },
+        projection: WireCapability {
+            capability_id: "cap_11111111111111111111111111".to_string(),
+            token: encode_base64url(&[8_u8; 32]),
+        },
+    };
+    let payload = serde_json::to_vec(&bundle).unwrap();
+    let mut descriptors = [0_i32; 2];
+    assert_eq!(unsafe { libc::pipe(descriptors.as_mut_ptr()) }, 0);
+    assert_eq!(
+        unsafe { libc::write(descriptors[1], payload.as_ptr().cast(), payload.len()) },
+        payload.len() as isize
+    );
+    unsafe {
+        libc::close(descriptors[1]);
+    }
+
+    let decoded = read_capability_bundle_from_descriptor(descriptors[0]).unwrap();
+    assert_eq!(decoded.project_id, bundle.project_id);
+    assert!(valid_capability_bundle(&decoded));
+    assert_eq!(unsafe { libc::fcntl(descriptors[0], libc::F_GETFD) }, -1);
+}
+
+#[cfg(unix)]
+#[test]
+fn bootstrap_compile_and_projection_complete_one_typed_limited_exchange() {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use ac_ant_delirium::structs::{AuditStore, ProjectDatabase};
+
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+        "target/lp/{}-{}",
+        std::process::id(),
+        nonce % 1_000_000_000_000_u128,
+    ));
+    std::fs::create_dir_all(&root).unwrap();
+    let authority = crate::service_authority::VerifiedServiceAuthority::for_current_test_process()
+        .expect("Linux effective uid");
+    let storage_root = root.join("service-state");
+    std::fs::create_dir(&storage_root).unwrap();
+    let storage =
+        crate::service_storage::ProtectedServiceStorage::initialize(&authority, &storage_root)
+            .unwrap();
+    let peer_uid = unsafe { libc::geteuid() };
+    let bootstrap_authentication =
+        crate::service_authentication::ConnectionAuthentication::for_test(peer_uid, [1_u8; 32]);
+    let bootstrap = execute_typed_limited_request(
+        &bootstrap_authentication,
+        &authority,
+        &storage,
+        "project.bootstrap.observe",
+        None,
+        LimitedRequestBody {
+            identity_fingerprint: Some(encode_base64url(&[31_u8; 32])),
+            project_slug: Some("typed-cycle".to_string()),
+            ..LimitedRequestBody::default()
+        },
+    );
+    let capabilities = bootstrap.result.unwrap().capability_bundle.unwrap();
+    let compile_authentication =
+        crate::service_authentication::ConnectionAuthentication::for_test(peer_uid, [2_u8; 32]);
+    let compile = execute_typed_limited_request(
+        &compile_authentication,
+        &authority,
+        &storage,
+        "compile.observe",
+        Some(capabilities.compile.clone()),
+        LimitedRequestBody {
+            project_id: Some(capabilities.project_id.clone()),
+            workspace_id: Some(capabilities.workspace_id.clone()),
+            compilation_fingerprint: Some(encode_base64url(&[32_u8; 32])),
+            ..LimitedRequestBody::default()
+        },
+    );
+    assert_eq!(compile.result.unwrap().deduplicated, Some(false));
+    let projection_authentication =
+        crate::service_authentication::ConnectionAuthentication::for_test(peer_uid, [3_u8; 32]);
+    let projection = execute_typed_limited_request(
+        &projection_authentication,
+        &authority,
+        &storage,
+        "projection.refresh",
+        Some(capabilities.projection.clone()),
+        LimitedRequestBody {
+            project_id: Some(capabilities.project_id.clone()),
+            workspace_id: Some(capabilities.workspace_id.clone()),
+            ..LimitedRequestBody::default()
+        },
+    )
+    .result
+    .unwrap();
+    assert!(projection.current_task.unwrap().contains("\"task\": null"));
+    assert!(projection
+        .governance_errors
+        .unwrap()
+        .contains("\"violations\": ["));
+
+    let registration = storage
+        .registry()
+        .provisional_registration(peer_uid, &[31_u8; 32])
+        .unwrap()
+        .unwrap();
+    let database = ProjectDatabase::open_existing_at(
+        &storage_root.join("projects").join(registration.project_key),
+    )
+    .unwrap();
+    assert_eq!(
+        database
+            .audit_event_count(&registration.project_id)
+            .unwrap(),
+        1
+    );
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[cfg(unix)]
+fn execute_typed_limited_request(
+    authentication: &crate::service_authentication::ConnectionAuthentication,
+    authority: &crate::service_authority::VerifiedServiceAuthority,
+    storage: &crate::service_storage::ProtectedServiceStorage,
+    operation: &str,
+    capability: Option<WireCapability>,
+    body: LimitedRequestBody,
+) -> LimitedResponse {
+    let request_id = random_request_id().unwrap();
+    let payload = serde_json::to_vec(&LimitedRequest {
+        message_type: "request".to_string(),
+        wire_version: LIMITED_WIRE_VERSION.to_string(),
+        request_id: request_id.clone(),
+        connection_nonce: encode_base64url(authentication.connection_nonce()),
+        operation: operation.to_string(),
+        capability,
+        body,
+    })
+    .unwrap();
+    let response =
+        limited_response_for_payload(&payload, authentication, authority, storage).unwrap();
+    let encoded_response = serde_json::to_vec(&response).unwrap();
+    let decoded: LimitedResponse = serde_json::from_slice(&encoded_response).unwrap();
+    assert_eq!(decoded.message_type, "response");
+    assert_eq!(decoded.wire_version, LIMITED_WIRE_VERSION);
+    assert_eq!(decoded.request_id, request_id);
+    assert_eq!(decoded.status, "ok");
+    assert!(decoded.result.is_some());
+    assert!(decoded.error.is_none());
+    decoded
 }
 
 #[test]

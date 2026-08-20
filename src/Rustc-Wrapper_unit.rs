@@ -3,10 +3,13 @@ use std::io;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
+use ac_ant_delirium::libres::Sha2_unit::sha256;
+
 use crate::public_output::{OutputRouter, PublicError};
 
 pub(crate) const WRAPPER_DEPTH_ENV: &str = "ANTDELIRIUM_WRAPPER_DEPTH";
 const LIMITED_SOCKET_ENV: &str = "ANTDELIRIUM_LIMITED_SOCKET";
+const LIMITED_CAPABILITY_FD_ENV: &str = "ANTDELIRIUM_LIMITED_CAPABILITY_FD";
 
 /// Determines whether governance may run before delegation. A recursive entry
 /// is never allowed to enter governance again; T6.2 will use `DelegationOnly`
@@ -36,6 +39,12 @@ struct CargoCompilationContext {
     manifest_dir: Option<OsString>,
     manifest_path: Option<OsString>,
     crate_name: Option<OsString>,
+}
+
+#[cfg(unix)]
+struct LimitedAuditPlan {
+    observation: crate::limited_protocol::LimitedAuditObservation,
+    project_root: std::path::PathBuf,
 }
 
 impl CargoCompilationContext {
@@ -73,10 +82,10 @@ impl CargoCompilationContext {
 pub(crate) fn run_wrapper(args: &[OsString], route: WrapperRoute) -> ! {
     if route == WrapperRoute::Governed {
         let rustc_args = args.get(1..).unwrap_or_default();
-        let workload =
-            classify_wrapper_workload(rustc_args, &CargoCompilationContext::from_environment());
+        let context = CargoCompilationContext::from_environment();
+        let workload = classify_wrapper_workload(rustc_args, &context);
         if workload == WrapperWorkload::PrimaryWorkspaceMember {
-            run_primary_workspace_member(args, route);
+            run_primary_workspace_member(args, route, &context);
         }
     }
 
@@ -85,12 +94,186 @@ pub(crate) fn run_wrapper(args: &[OsString], route: WrapperRoute) -> ! {
 
 /// This is the only branch allowed to contact the limited service. T6.4
 /// negotiates the wire best-effort; T6.5 will add typed governance requests.
-fn run_primary_workspace_member(args: &[OsString], route: WrapperRoute) -> ! {
+fn run_primary_workspace_member(
+    args: &[OsString],
+    route: WrapperRoute,
+    context: &CargoCompilationContext,
+) -> ! {
     #[cfg(unix)]
-    if let Some(endpoint) = std::env::var_os(LIMITED_SOCKET_ENV) {
-        let _ = crate::limited_protocol::connect_limited_service(&endpoint);
-    }
+    spawn_audit_only_worker(args, context);
     execute_compiler(args, route)
+}
+
+#[cfg(unix)]
+fn spawn_audit_only_worker(args: &[OsString], context: &CargoCompilationContext) {
+    let endpoint = std::env::var_os(LIMITED_SOCKET_ENV);
+    let capability_fd = inherited_capability_descriptor();
+    let Some(endpoint) = endpoint else {
+        close_inherited_descriptor(capability_fd);
+        return;
+    };
+    let child = unsafe { libc::fork() };
+    if child < 0 {
+        close_inherited_descriptor(capability_fd);
+        return;
+    }
+    if child == 0 {
+        for raw_fd in 0..=2 {
+            unsafe {
+                libc::close(raw_fd);
+            }
+        }
+        let inherited = capability_fd.and_then(|raw_fd| {
+            crate::limited_protocol::read_capability_bundle_from_descriptor(raw_fd).ok()
+        });
+        let Some(plan) = limited_audit_plan(args, context) else {
+            unsafe {
+                libc::_exit(0);
+            }
+        };
+        let result = crate::limited_protocol::run_limited_audit_cycle(
+            endpoint.as_os_str(),
+            &plan.observation,
+            inherited,
+        )
+        .and_then(|documents| {
+            ac_ant_delirium::structs::materialize_limited_project_projections(
+                &plan.project_root,
+                &documents.current_task,
+                &documents.governance_errors,
+            )
+            .map_err(|_| crate::limited_protocol::LimitedProtocolError::Envelope)
+        });
+        let _ = std::hint::black_box(result);
+        unsafe {
+            libc::_exit(0);
+        }
+    }
+    close_inherited_descriptor(capability_fd);
+}
+
+#[cfg(unix)]
+fn inherited_capability_descriptor() -> Option<i32> {
+    std::env::var(LIMITED_CAPABILITY_FD_ENV)
+        .ok()
+        .filter(|value| !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()))
+        .and_then(|value| value.parse::<i32>().ok())
+        .filter(|raw_fd| *raw_fd >= 3)
+}
+
+#[cfg(unix)]
+fn close_inherited_descriptor(raw_fd: Option<i32>) {
+    if let Some(raw_fd) = raw_fd {
+        unsafe {
+            libc::close(raw_fd);
+        }
+    }
+}
+
+#[cfg(unix)]
+fn limited_audit_plan(
+    args: &[OsString],
+    context: &CargoCompilationContext,
+) -> Option<LimitedAuditPlan> {
+    use std::os::unix::ffi::OsStrExt;
+
+    let manifest_dir = context.manifest_dir.as_deref()?;
+    let manifest_path = context.manifest_path.as_deref()?;
+    let crate_name = context.crate_name.as_deref()?.to_str()?;
+    let discovery = ac_ant_delirium::structs::ProjectDiscovery::discover(
+        Path::new(manifest_dir),
+        Some(Path::new(manifest_path)),
+    )
+    .ok()?;
+    let mut identity = Vec::new();
+    identity.extend_from_slice(b"antdelirium-provisional-identity-v1\0");
+    identity.extend_from_slice(discovery.project_root.as_os_str().as_bytes());
+
+    let mut compilation = Vec::new();
+    compilation.extend_from_slice(b"antdelirium-compilation-observation-v1\0");
+    compilation.extend_from_slice(&sha256(&identity));
+    for argument in args {
+        let bytes = argument.as_bytes();
+        let length = u64::try_from(bytes.len()).ok()?;
+        compilation.extend_from_slice(&length.to_be_bytes());
+        compilation.extend_from_slice(bytes);
+    }
+    extend_regular_file_fingerprint(&mut compilation, Path::new(manifest_path), None);
+    let workspace_manifest = discovery.project_root.join("Cargo.toml");
+    if workspace_manifest != Path::new(manifest_path) {
+        extend_regular_file_fingerprint(&mut compilation, &workspace_manifest, None);
+    }
+    if let Some(source) = rustc_source_argument(args) {
+        extend_regular_file_fingerprint(
+            &mut compilation,
+            Path::new(source),
+            Some(Path::new(manifest_dir)),
+        );
+    }
+    Some(LimitedAuditPlan {
+        project_root: discovery.project_root,
+        observation: crate::limited_protocol::LimitedAuditObservation {
+            identity_fingerprint: sha256(&identity),
+            compilation_fingerprint: sha256(&compilation),
+            project_slug: crate_name.to_string(),
+        },
+    })
+}
+
+#[cfg(unix)]
+fn rustc_source_argument(args: &[OsString]) -> Option<&OsStr> {
+    use std::os::unix::ffi::OsStrExt;
+
+    args.iter()
+        .skip(1)
+        .map(OsString::as_os_str)
+        .find(|argument| {
+            let path = Path::new(argument);
+            !argument.as_bytes().starts_with(b"-") && path.extension() == Some(OsStr::new("rs"))
+        })
+}
+
+#[cfg(unix)]
+fn extend_regular_file_fingerprint(
+    material: &mut Vec<u8>,
+    candidate: &Path,
+    relative_root: Option<&Path>,
+) {
+    use std::os::unix::ffi::OsStrExt;
+    use std::path::Component;
+
+    let path = if candidate.is_absolute() {
+        candidate.to_path_buf()
+    } else {
+        let Some(root) = relative_root else {
+            return;
+        };
+        if candidate
+            .components()
+            .any(|component| matches!(component, Component::ParentDir | Component::RootDir))
+        {
+            return;
+        }
+        root.join(candidate)
+    };
+    if let Some(root) = relative_root {
+        if path.strip_prefix(root).is_err() {
+            return;
+        }
+    }
+    let Ok(metadata) = std::fs::symlink_metadata(&path) else {
+        return;
+    };
+    if metadata.file_type().is_symlink() || !metadata.is_file() || metadata.len() > 32 * 1024 * 1024
+    {
+        return;
+    }
+    let Ok(contents) = std::fs::read(&path) else {
+        return;
+    };
+    material.extend_from_slice(&(path.as_os_str().as_bytes().len() as u64).to_be_bytes());
+    material.extend_from_slice(path.as_os_str().as_bytes());
+    material.extend_from_slice(&sha256(&contents));
 }
 
 fn execute_compiler(args: &[OsString], route: WrapperRoute) -> ! {
@@ -185,6 +368,8 @@ fn compiler_command(args: &[OsString], route: WrapperRoute) -> Option<Command> {
     command
         .args(rustc_args)
         .env(WRAPPER_DEPTH_ENV, next_depth)
+        .env_remove(LIMITED_SOCKET_ENV)
+        .env_remove(LIMITED_CAPABILITY_FD_ENV)
         .stdin(Stdio::inherit())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
@@ -451,6 +636,14 @@ mod tests {
                 depth,
                 Some((OsStr::new(WRAPPER_DEPTH_ENV), Some(OsStr::new("1"))))
             );
+            for removed in [LIMITED_SOCKET_ENV, LIMITED_CAPABILITY_FD_ENV] {
+                assert_eq!(
+                    command
+                        .get_envs()
+                        .find(|(name, _)| *name == OsStr::new(removed)),
+                    Some((OsStr::new(removed), None))
+                );
+            }
         }
     }
 
@@ -594,5 +787,51 @@ mod tests {
             classify_wrapper_workload(&args(&["--crate-name", crate_name]), &context),
             WrapperWorkload::PrimaryWorkspaceMember
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn audit_plan_binds_workspace_identity_and_changes_with_source_bytes() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+            "target/rustc-wrapper-tests/fingerprint-{}",
+            std::process::id()
+        ));
+        let source_dir = root.join("src");
+        std::fs::create_dir_all(&source_dir).unwrap();
+        let manifest = root.join("Cargo.toml");
+        std::fs::write(
+            &manifest,
+            b"[package]\nname='fingerprint_demo'\nversion='0.1.0'\n",
+        )
+        .unwrap();
+        let source = source_dir.join("lib.rs");
+        std::fs::write(&source, b"pub fn value() -> u8 { 1 }\n").unwrap();
+        let context = cargo_context(
+            true,
+            root.to_str(),
+            manifest.to_str(),
+            Some("fingerprint_demo"),
+        );
+        let invocation = vec![
+            OsString::from("/toolchain/bin/rustc"),
+            OsString::from("--crate-name"),
+            OsString::from("fingerprint_demo"),
+            source.as_os_str().to_os_string(),
+        ];
+
+        let first = limited_audit_plan(&invocation, &context).unwrap();
+        std::fs::write(&source, b"pub fn value() -> u8 { 2 }\n").unwrap();
+        let second = limited_audit_plan(&invocation, &context).unwrap();
+
+        assert_eq!(first.project_root, root);
+        assert_eq!(
+            first.observation.identity_fingerprint,
+            second.observation.identity_fingerprint
+        );
+        assert_ne!(
+            first.observation.compilation_fingerprint,
+            second.observation.compilation_fingerprint
+        );
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

@@ -1,5 +1,5 @@
 use super::{
-    AtomicProjectProjectionWriter, EventWriteOutcome, GovernanceErrorsProjection,
+    AtomicProjectProjectionWriter, EventWriteOutcome, GovernanceErrorsProjection, ProjectDatabase,
     ProjectionMetadata, ProjectionWriteReceipt, TransactionalStorageResult,
 };
 
@@ -63,6 +63,45 @@ impl AtomicProjectProjectionWriter {
     ) -> TransactionalStorageResult<ProjectionWriteReceipt> {
         super::Governance_Errors_Projection_structcore::refresh_governance_errors_projection(
             self, request,
+        )
+    }
+}
+
+impl ProjectDatabase {
+    pub fn initialize_empty_governance_snapshot(
+        &self,
+        project_id: &str,
+        workspace_id: &str,
+        observed_at: &str,
+    ) -> TransactionalStorageResult<()> {
+        super::Governance_Errors_Projection_structcore::initialize_empty_governance_snapshot(
+            self,
+            project_id,
+            workspace_id,
+            observed_at,
+        )
+    }
+
+    pub fn replace_canonical_governance_snapshot(
+        &self,
+        request: &CanonicalGovernanceSnapshotRequest,
+    ) -> TransactionalStorageResult<EventWriteOutcome> {
+        super::Governance_Errors_Projection_structcore::replace_canonical_governance_snapshot_in_database(
+            self, request,
+        )
+    }
+
+    pub fn render_governance_errors_projection(
+        &self,
+        project_id: &str,
+        workspace_id: &str,
+        rendered_at: &str,
+    ) -> TransactionalStorageResult<Vec<u8>> {
+        super::Governance_Errors_Projection_structcore::render_governance_errors_projection(
+            self,
+            project_id,
+            workspace_id,
+            rendered_at,
         )
     }
 }

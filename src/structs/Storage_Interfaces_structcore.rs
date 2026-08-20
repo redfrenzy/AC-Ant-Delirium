@@ -1,16 +1,73 @@
+use std::path::Path;
+
 use crate::libres::Rusqlite_unit::{AC_OptionalExtension, AC_Transaction, AC_params};
 
 use super::{
-    materialize_project_guard, AtomicProjectProjectionWriter, AuditStore, CanonicalMutationOutcome,
-    CanonicalStateSnapshot, CanonicalStateStore, CanonicalStateTransition,
-    CanonicalTaskProjectionRef, CanonicalTaskState, CurrentTaskProjection, EventWriteOutcome,
-    GovernanceErrorsProjection, NewAuditEvent, NewReview, NewSubmission, ProjectDatabase,
-    ProjectProjectionWriter, ProjectionArtifactKind, ProjectionMetadata, ProjectionWriteReceipt,
-    ReviewStore, ReviewWriteOutcome, StorageProject, StorageWorkspace, SubmissionStore,
-    SubmissionWriteOutcome, TransactionalStorageError, TransactionalStorageResult,
-    AGENT_PROJECTION_CONTRACT_VERSION, CANONICAL_STATE_CONTRACT_VERSION,
-    SUBMISSION_CONTRACT_VERSION,
+    materialize_project_guard, validate_serialized_public_document, AtomicProjectProjectionWriter,
+    AuditStore, CanonicalMutationOutcome, CanonicalStateSnapshot, CanonicalStateStore,
+    CanonicalStateTransition, CanonicalTaskProjectionRef, CanonicalTaskState,
+    CurrentTaskProjection, EventWriteOutcome, GovernanceErrorsProjection, NewAuditEvent, NewReview,
+    NewSubmission, ProjectDatabase, ProjectProjectionWriter, ProjectStateRoot,
+    ProjectionArtifactKind, ProjectionMetadata, ProjectionWriteReceipt, ReviewStore,
+    ReviewWriteOutcome, StorageProject, StorageWorkspace, SubmissionStore, SubmissionWriteOutcome,
+    TransactionalStorageError, TransactionalStorageResult, AGENT_PROJECTION_CONTRACT_VERSION,
+    CANONICAL_STATE_CONTRACT_VERSION, SUBMISSION_CONTRACT_VERSION,
 };
+
+pub(super) fn materialize_limited_project_projections(
+    project_root: &Path,
+    current_task: &[u8],
+    governance_errors: &[u8],
+) -> TransactionalStorageResult<()> {
+    validate_limited_projection(current_task, "current_task")?;
+    validate_limited_projection(governance_errors, "governance_errors")?;
+    let state_root = ProjectStateRoot::with_default_config(
+        project_root.to_path_buf(),
+        project_root.to_path_buf(),
+        project_root.to_path_buf(),
+    );
+    materialize_project_guard(&state_root).map_err(|_| {
+        TransactionalStorageError::InvalidInput(
+            "project guard bootstrap does not satisfy lifecycle-v1".to_string(),
+        )
+    })?;
+    super::Transactional_Storage_structcore::atomic_replace_if_changed(
+        &state_root.todo_projection_path(),
+        current_task,
+    )?;
+    super::Transactional_Storage_structcore::atomic_replace_if_changed(
+        &state_root.governance_error_projection_path(),
+        governance_errors,
+    )?;
+    Ok(())
+}
+
+fn validate_limited_projection(
+    document: &[u8],
+    expected_artifact: &str,
+) -> TransactionalStorageResult<()> {
+    validate_serialized_public_document(document, "limited projection")?;
+    let value: serde_json::Value = serde_json::from_slice(document).map_err(|_| {
+        TransactionalStorageError::InvalidInput("limited projection is not valid JSON".to_string())
+    })?;
+    let object = value.as_object().ok_or_else(|| {
+        TransactionalStorageError::InvalidInput("limited projection must be an object".to_string())
+    })?;
+    if object
+        .get("contract_version")
+        .and_then(serde_json::Value::as_str)
+        != Some(AGENT_PROJECTION_CONTRACT_VERSION)
+        || object
+            .get("artifact_kind")
+            .and_then(serde_json::Value::as_str)
+            != Some(expected_artifact)
+    {
+        return Err(TransactionalStorageError::InvalidInput(
+            "limited projection contract does not match its destination".to_string(),
+        ));
+    }
+    Ok(())
+}
 
 impl CanonicalStateStore for ProjectDatabase {
     fn register_project(&self, project: &StorageProject) -> TransactionalStorageResult<()> {

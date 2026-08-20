@@ -34,6 +34,18 @@ pub(crate) enum ConnectionAuthenticationError {
 }
 
 impl ConnectionAuthentication {
+    #[cfg(test)]
+    pub(crate) fn for_test(peer_uid: u32, connection_nonce: [u8; 32]) -> Self {
+        Self {
+            peer: KernelPeerCredentials {
+                pid: std::process::id(),
+                uid: peer_uid,
+                gid: peer_uid,
+            },
+            connection_nonce,
+        }
+    }
+
     #[cfg(unix)]
     pub(crate) fn capture(connection: &UnixStream) -> Result<Self, ConnectionAuthenticationError> {
         set_close_on_exec(connection)?;
@@ -76,6 +88,10 @@ impl ConnectionAuthentication {
 
     pub(crate) fn connection_nonce(&self) -> &[u8; CONNECTION_NONCE_BYTES] {
         &self.connection_nonce
+    }
+
+    pub(crate) fn peer_uid(&self) -> u32 {
+        self.peer.uid
     }
 }
 

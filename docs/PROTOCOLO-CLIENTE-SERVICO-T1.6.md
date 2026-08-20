@@ -215,4 +215,6 @@ A especificação se apoia no comportamento documentado de [AF_UNIX e `SO_PEERCR
 - T4.6 registra submissões e revisões junto de seus eventos na mesma transação e mantém, no registry, o journal tipado de negações e rejeições sem payload ou localização física; os listeners continuam sem ler frames até a ligação posterior dos handlers.
 - T4.7 exige hardening não-dumpable e sem tracer antes dos listeners, marca globalmente descritores herdados como `CLOEXEC` e reforça `/proc`, core dumps e namespaces na unidade.
 - T4.8 prova em namespaces reais e sem capabilities que o cliente, mesmo conhecendo os paths, não resolve, testa, abre ou enumera o root protegido; a repetição contra o serviço instalado permanece na T9.4.
-- T6 fecha descriptors antes de delegar ao compilador.
+- T6.5 implementa no listener limitado somente bootstrap provisório, observação de compilação e refresh de projeções; as demais variantes continuam fechadas.
+- T6.5 entrega ao wrapper um bundle `limited-capability-v1` com grants distintos para `compile.observe` e `projection.refresh`; quando o supervisor fornece o bundle, a variável contém apenas o número do descriptor.
+- T6.5 fecha o descriptor no pai antes do `exec`, remove as variáveis de integração do ambiente do compilador e executa requests e escrita local somente no filho audit-only.

@@ -1,5 +1,5 @@
 use super::{
-    AtomicProjectProjectionWriter, CurrentTaskProjection, ProjectionMetadata,
+    AtomicProjectProjectionWriter, CurrentTaskProjection, ProjectDatabase, ProjectionMetadata,
     ProjectionWriteReceipt, TransactionalStorageResult,
 };
 
@@ -107,5 +107,21 @@ impl AtomicProjectProjectionWriter {
         request: &CurrentTaskProjectionRefreshRequest,
     ) -> TransactionalStorageResult<ProjectionWriteReceipt> {
         super::Current_Task_Projection_structcore::refresh_current_task_projection(self, request)
+    }
+}
+
+impl ProjectDatabase {
+    pub fn render_current_task_projection(
+        &self,
+        project_id: &str,
+        workspace_id: &str,
+        rendered_at: &str,
+    ) -> TransactionalStorageResult<Vec<u8>> {
+        super::Current_Task_Projection_structcore::render_current_task_projection(
+            self,
+            project_id,
+            workspace_id,
+            rendered_at,
+        )
     }
 }

@@ -1,6 +1,6 @@
 # AntDelirium: binário único e superfície limitada do agente
 
-Este documento descreve o estado implementado até a T6.3. O projeto declara um único executável autoritativo chamado `antdelirium`; a instalação global e a integração automática com Cargo ainda pertencem às ondas posteriores.
+Este documento descreve o estado implementado até a T6.5. O projeto declara um único executável autoritativo chamado `antdelirium`; a instalação global e a configuração persistente do Cargo ainda pertencem às ondas posteriores.
 
 ## Compilar
 
@@ -294,10 +294,10 @@ equivalência de sinais fora do Linux só será afirmada depois da matriz da T6.
 Falha `NotFound` anterior ao `exec` produz somente `AD-TOOLCHAIN-0002`/exit
 `127`; as demais falhas de execução produzem somente
 `AD-TOOLCHAIN-0001`/exit `126`. Nenhuma delas inclui o path ou o erro bruto do
-sistema. Na T6.2 a rota `Governed` ainda apenas delegava; a T6.4 acrescenta a
-negociação limitada descrita abaixo e a T6.5 continua responsável pelas
-requisições de governança, preservando a precedência do resultado do
-compilador. Nenhuma configuração Cargo foi instalada nesta etapa.
+sistema. Na T6.2 a rota `Governed` ainda apenas delegava; a T6.4 acrescentou a
+negociação limitada e a T6.5 ligou as requisições de governança em um filho
+audit-only, preservando a precedência do resultado do compilador. Nenhuma
+configuração Cargo foi instalada nesta etapa.
 
 ### Classificação do trabalho Cargo
 
@@ -314,11 +314,11 @@ operação de governança. A prioridade é conservadora:
 5. contexto ausente, relativo, divergente ou malformado é `Unclassified`.
 
 Probe, dependência e forma não classificada delegam diretamente. Somente o
-membro primário entra no hook reservado às T6.4/T6.5; desde a T6.4 ele pode
-negociar o canal limitado antes de delegar. A rota recursiva `DelegationOnly` nem consulta o
-contexto Cargo. Nenhuma variável de ambiente concede autorização: esses sinais
-servem apenas para reduzir escopo, e uma futura operação protegida ainda exige
-o canal e a capability do serviço.
+membro primário entra no hook das T6.4/T6.5; ele delega imediatamente no pai e
+somente o filho audit-only negocia o canal e executa as operações limitadas. A
+rota recursiva `DelegationOnly` nem consulta o contexto Cargo. Nenhuma variável
+de ambiente concede autorização: esses sinais servem apenas para reduzir
+escopo, e toda operação protegida exige canal e capability do serviço.
 
 O contrato acompanha a documentação oficial de [variáveis fornecidas pelo
 Cargo](https://doc.rust-lang.org/cargo/reference/environment-variables.html#environment-variables-cargo-sets-for-crates)
@@ -341,20 +341,44 @@ audit-only, o wrapper permanece silencioso e executa o `rustc` normalmente.
 O cliente implementa somente frames `ADL1`, comprimento `u32` big-endian,
 JSON tipado com campos desconhecidos recusados, limite de 4 MiB e wire
 `adp/1`. Nonces têm 32 bytes de entropia do kernel e representação base64url
-sem padding. Leitura e escrita usam `poll` com deadline total de 500 ms; o
-socket cliente recebe `FD_CLOEXEC` antes de qualquer troca. O serviço captura
+sem padding. O handshake usa `poll` com deadline total de 500 ms; a espera pela
+resposta de operação, executada somente no filho audit-only, é limitada a cinco
+segundos. O socket cliente recebe `FD_CLOEXEC` antes de qualquer troca. O serviço captura
 `SO_PEERCRED` e gera o nonce antes de ler o `client_hello`, seleciona somente
 uma versão suportada e devolve `server_hello` no mesmo magic. Magic cruzado,
 frame vazio ou grande demais, JSON inválido, campo extra, versão incompatível
 e nonce malformado encerram a conexão.
 
-Esta etapa conclui apenas a negociação. Ela não envia capability, request,
-fingerprint, resultado de compilação nem pedido de projeção; portanto não chama
-resolver, handler ou operação de arquivo no storage protegido. A T6.5 deverá
-ler a capability limitada do descriptor herdado, enviar requests tipados,
-fechar o descriptor antes do `exec` e aplicar bootstrap, deduplicação, auditoria
-e refresh das duas projeções. O protocolo administrativo não é representável
-no módulo cliente.
+A T6.4 concluiu apenas essa negociação. A T6.5 acrescenta os três envelopes
+tipados `project.bootstrap.observe`, `compile.observe` e `projection.refresh`.
+O bootstrap envia somente um fingerprint SHA-256 e um slug descritivo: nenhum
+path, manifesto ou plano atravessa o socket. O registry `storage-v6` deduplica o
+registro provisório por UID do peer e fingerprint, aplica quota de 64 registros
+provisórios por UID e emite duas capabilities de cinco minutos, uma para cada
+operação posterior. O segredo bruto não entra no SQLite.
+
+Uma capability previamente entregue pode chegar pelo descriptor indicado em
+`ANTDELIRIUM_LIMITED_CAPABILITY_FD`, no contrato JSON fechado
+`limited-capability-v1`. O wrapper limita a leitura a 4 KiB, valida IDs e tokens,
+marca e fecha o descriptor. O processo que se transforma no `rustc` também
+remove as duas variáveis de integração e nunca herda o descriptor. Na ausência
+da capability, o próprio bootstrap provisório devolve o mesmo bundle estreito
+para uso somente no ciclo audit-only corrente.
+
+O fingerprint de compilação inclui argv, manifesto do membro, manifesto do
+workspace e digest da fonte Rust regular de até 32 MiB. O serviço usa o recibo
+de capability e o fingerprint do evento para tornar retries e compilações
+idênticas idempotentes. `projection.refresh` devolve somente os dois documentos
+`agent-projection-v1`; a escrita local revalida contrato e política pública,
+materializa `guard/` pelo lifecycle já existente e usa replace atômico com
+deduplicação de bytes. O protocolo administrativo continua não representável
+no cliente.
+
+Para não segurar o caminho crítico, todo esse trabalho ocorre em um filho
+audit-only criado depois da classificação. O processo pai fecha o descriptor e
+executa imediatamente o compilador real com `exec`; timeout, indisponibilidade,
+negação ou violação detectada no filho não muda stdout, stderr, exit ou sinal do
+`rustc` nesta fase.
 
 ## Modo de serviço protegido
 
@@ -464,13 +488,13 @@ validados antes do insert; caminhos físicos diretos ou codificados em JSON
 fazem toda a operação falhar e sofrer rollback. Nenhuma resposta pública recebe
 path do banco ou da raiz protegida.
 
-Desde a T6.4, o listener limitado lê somente um `client_hello` `ADL1` tipado e
-devolve o `server_hello`; o listener administrativo continua fechado. Nenhum
-request de operação foi ativado e a conexão é encerrada depois da negociação,
-sem chamar handler. Portanto o resolver existe somente dentro do serviço e
-ainda não há operação remota, materialização de projeto ou diagnóstico privado
-alcançável. A ligação aos handlers permanece para a T6.5; os journals da
-T4.6 já existem internamente, mas não ativam uma rota parcial. O isolamento
+Desde a T6.5, o listener limitado aceita, depois do hello, exatamente uma das
+três operações de wrapper implementadas. Bootstrap sem capability cria somente
+estado provisório vazio; compilação e projeção precisam passar por peer,
+capability, nonce, request fingerprint, receipt e resolver opaco antes de abrir
+o banco derivado pelo registry. As outras operações limitadas continuam
+fechadas e o listener administrativo continua sem leitura. Os journals da T4.6
+registram negações e rejeições sem payload ou localização física. O isolamento
 de descriptors da T4.7 já impede sua herança por um futuro `exec`; o serviço
 atual não cria processos filhos. A T4.8 acrescenta um probe adversarial externo
 que executa o cliente sem capabilities em namespaces descartáveis, mantém apenas

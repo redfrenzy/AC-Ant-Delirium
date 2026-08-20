@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use ac_ant_delirium::libres::Rusqlite_unit::AC_params;
 use ac_ant_delirium::libres::Sha2_unit::sha256;
 use ac_ant_delirium::structs::{
-    CanonicalStateStore, CapabilityActor, CapabilityAuthorizationOutcome,
+    AuditStore, CanonicalStateStore, CapabilityActor, CapabilityAuthorizationOutcome,
     CapabilityAuthorizationRequest, CapabilityChannel, CapabilityOperation, NewCapabilityGrant,
     NewCapabilityRevocation, StorageWorkspace,
 };
@@ -176,6 +176,72 @@ fn initializes_private_registry_and_idempotent_canonical_project_storage() {
 
     drop(storage);
     ProtectedServiceStorage::initialize(&authority, &root).expect("restart recovery");
+    fs::remove_dir_all(root).expect("fixture cleanup");
+}
+
+#[test]
+fn provisional_bootstrap_is_uid_scoped_deduplicated_and_projection_ready() {
+    let root = unique_root("provisional-bootstrap");
+    let authority = authority();
+    let storage = ProtectedServiceStorage::initialize(&authority, &root).unwrap();
+    let fingerprint = [41_u8; 32];
+
+    let first = storage
+        .bootstrap_provisional(
+            &authority,
+            authority.effective_uid(),
+            &fingerprint,
+            "Demo Crate",
+        )
+        .expect("first provisional bootstrap");
+    let second = storage
+        .bootstrap_provisional(
+            &authority,
+            authority.effective_uid(),
+            &fingerprint,
+            "renamed-client-hint",
+        )
+        .expect("deduplicated provisional bootstrap");
+
+    assert_eq!(first.project_id, second.project_id);
+    assert_eq!(first.workspace_id, second.workspace_id);
+    assert_ne!(first.compile.capability_id, second.compile.capability_id);
+    assert_ne!(
+        first.projection.capability_id,
+        second.projection.capability_id
+    );
+    assert_eq!(
+        storage
+            .registry
+            .provisional_registration_count(authority.effective_uid())
+            .unwrap(),
+        1
+    );
+    let registration = storage
+        .registry
+        .provisional_registration(authority.effective_uid(), &fingerprint)
+        .unwrap()
+        .expect("stored registration");
+    assert!(registration.project_key.starts_with("demo-crate--"));
+    let database = ProjectDatabase::open_existing_at(
+        &root.join(PROJECTS_DIR_NAME).join(registration.project_key),
+    )
+    .expect("provisional database");
+    assert_eq!(database.audit_event_count(&first.project_id).unwrap(), 0);
+    let rendered_at = "2026-08-14T00:00:00Z";
+    let current = database
+        .render_current_task_projection(&first.project_id, &first.workspace_id, rendered_at)
+        .expect("empty current task projection");
+    let governance = database
+        .render_governance_errors_projection(&first.project_id, &first.workspace_id, rendered_at)
+        .expect("empty governance projection");
+    assert!(String::from_utf8(current)
+        .unwrap()
+        .contains("\"task\": null"));
+    assert!(String::from_utf8(governance)
+        .unwrap()
+        .contains("\"violations\": ["));
+
     fs::remove_dir_all(root).expect("fixture cleanup");
 }
 

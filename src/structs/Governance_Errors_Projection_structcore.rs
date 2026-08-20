@@ -10,8 +10,9 @@ use super::{
 };
 use super::{
     AtomicProjectProjectionWriter, CanonicalGovernanceSnapshotRequest, EventWriteOutcome,
-    GovernanceErrorsRefreshRequest, NewAuditEvent, ProjectProjectionWriter, ProjectionMetadata,
-    ProjectionWriteReceipt, AUDIT_EVENT_CONTRACT_VERSION, CANONICAL_GOVERNANCE_SNAPSHOT_VERSION,
+    GovernanceErrorsRefreshRequest, NewAuditEvent, ProjectDatabase, ProjectProjectionWriter,
+    ProjectionMetadata, ProjectionWriteReceipt, AUDIT_EVENT_CONTRACT_VERSION,
+    CANONICAL_GOVERNANCE_SNAPSHOT_VERSION,
 };
 
 use super::Current_Task_Projection_structcore::{
@@ -40,6 +41,13 @@ pub(super) fn replace_canonical_governance_snapshot(
     writer: &AtomicProjectProjectionWriter,
     request: &CanonicalGovernanceSnapshotRequest,
 ) -> TransactionalStorageResult<EventWriteOutcome> {
+    replace_canonical_governance_snapshot_in_database(&writer.database, request)
+}
+
+pub(super) fn replace_canonical_governance_snapshot_in_database(
+    database: &ProjectDatabase,
+    request: &CanonicalGovernanceSnapshotRequest,
+) -> TransactionalStorageResult<EventWriteOutcome> {
     validate_text(&request.project_id, 1, 255, "project_id")?;
     validate_text(&request.workspace_id, 1, 255, "workspace_id")?;
     validate_text(&request.observed_at, 1, 255, "observed_at")?;
@@ -59,7 +67,7 @@ pub(super) fn replace_canonical_governance_snapshot(
     let payload = encode_snapshot(&request.violations)?;
     let event_id = random_crockford_id("evt_")?;
     let correlation_id = random_crockford_id("ref_")?;
-    writer.database.with_immediate_transaction(|transaction| {
+    database.with_immediate_transaction(|transaction| {
         let source_revision = transaction.query_row(
             "SELECT p.state_revision FROM projects p JOIN workspaces w ON w.project_id = p.project_id WHERE p.project_id = ?1 AND w.workspace_id = ?2 AND w.status = 'active'",
             AC_params![request.project_id, request.workspace_id],
@@ -90,7 +98,37 @@ pub(super) fn replace_canonical_governance_snapshot(
             resource_id: Some("governance_errors_snapshot".to_string()),
             payload: b"canonical governance snapshot observed".to_vec(),
         };
-        writer.database.record_event_in_transaction(transaction, &event)
+        database.record_event_in_transaction(transaction, &event)
+    })
+}
+
+pub(super) fn initialize_empty_governance_snapshot(
+    database: &ProjectDatabase,
+    project_id: &str,
+    workspace_id: &str,
+    observed_at: &str,
+) -> TransactionalStorageResult<()> {
+    validate_text(project_id, 1, 255, "project_id")?;
+    validate_text(workspace_id, 1, 255, "workspace_id")?;
+    validate_text(observed_at, 1, 255, "observed_at")?;
+    let payload = encode_snapshot(&[])?;
+    database.with_immediate_transaction(|transaction| {
+        let source_revision = transaction.query_row(
+            "SELECT p.state_revision FROM projects p JOIN workspaces w ON w.project_id = p.project_id WHERE p.project_id = ?1 AND w.workspace_id = ?2 AND w.status = 'active'",
+            AC_params![project_id, workspace_id],
+            |row| row.get::<_, i64>(0),
+        )?;
+        let fingerprint = snapshot_fingerprint(
+            project_id,
+            workspace_id,
+            source_revision,
+            &payload,
+        )?;
+        transaction.execute(
+            "INSERT INTO governance_snapshots(project_id, workspace_id, contract_version, source_revision, fingerprint, payload, observed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7) ON CONFLICT(project_id, workspace_id) DO NOTHING",
+            AC_params![project_id, workspace_id, CANONICAL_GOVERNANCE_SNAPSHOT_VERSION, source_revision, fingerprint, payload, observed_at],
+        )?;
+        Ok(())
     })
 }
 
@@ -171,6 +209,63 @@ pub(super) fn refresh_governance_errors_projection(
         payload: b"governance errors projection rendered".to_vec(),
     };
     writer.write_governance_errors(&projection, &event)
+}
+
+pub(super) fn render_governance_errors_projection(
+    database: &ProjectDatabase,
+    project_id: &str,
+    workspace_id: &str,
+    rendered_at: &str,
+) -> TransactionalStorageResult<Vec<u8>> {
+    validate_text(project_id, 1, 255, "project_id")?;
+    validate_text(workspace_id, 1, 255, "workspace_id")?;
+    validate_text(rendered_at, 1, 255, "rendered_at")?;
+    let connection = database.open_connection(false)?;
+    let (source_revision, previous_generation) = connection.query_row(
+        "SELECT p.state_revision, p.projection_generation FROM projects p JOIN workspaces w ON w.project_id = p.project_id WHERE p.project_id = ?1 AND w.workspace_id = ?2 AND w.status = 'active'",
+        AC_params![project_id, workspace_id],
+        |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+    )?;
+    let snapshot = connection
+        .query_row(
+            "SELECT contract_version, source_revision, fingerprint, payload FROM governance_snapshots WHERE project_id = ?1 AND workspace_id = ?2",
+            AC_params![project_id, workspace_id],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?, row.get::<_, Vec<u8>>(3)?)),
+        )
+        .optional()?
+        .ok_or_else(|| TransactionalStorageError::Integrity("canonical governance snapshot is unavailable".to_string()))?;
+    if snapshot.0 != CANONICAL_GOVERNANCE_SNAPSHOT_VERSION || snapshot.1 != source_revision {
+        return Err(TransactionalStorageError::Integrity(
+            "canonical governance snapshot does not match the current revision".to_string(),
+        ));
+    }
+    if snapshot_fingerprint(project_id, workspace_id, source_revision, &snapshot.3)? != snapshot.2 {
+        return Err(TransactionalStorageError::Integrity(
+            "canonical governance snapshot fingerprint is invalid".to_string(),
+        ));
+    }
+    let violations = decode_snapshot(&snapshot.3)?;
+    let generation = previous_generation.checked_add(1).ok_or_else(|| {
+        TransactionalStorageError::Integrity("projection generation overflow".to_string())
+    })?;
+    let mut metadata = ProjectionMetadata {
+        project_id: project_id.to_string(),
+        workspace_id: workspace_id.to_string(),
+        source_revision,
+        generation,
+        fingerprint: "0".repeat(64),
+        rendered_at: rendered_at.to_string(),
+    };
+    let mut projection = build_governance_errors_projection(&GovernanceErrorsProjectionDocument {
+        metadata: metadata.clone(),
+        violations: violations.clone(),
+    })?;
+    metadata.fingerprint = lowercase_hex(&sha256(&projection.serialized_contract));
+    projection = build_governance_errors_projection(&GovernanceErrorsProjectionDocument {
+        metadata,
+        violations,
+    })?;
+    Ok(projection.serialized_contract)
 }
 
 fn validate_document(

@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use super::{
     CanonicalTaskProjectionRef, EventWriteOutcome, NewAuditEvent, ProjectDatabase,
@@ -9,6 +9,18 @@ pub const CANONICAL_STATE_CONTRACT_VERSION: &str = "canonical-state-v1";
 pub const SUBMISSION_CONTRACT_VERSION: &str = "submission-v1";
 pub const AUDIT_EVENT_CONTRACT_VERSION: &str = "audit-event-v1";
 pub const AGENT_PROJECTION_CONTRACT_VERSION: &str = "agent-projection-v1";
+
+pub fn materialize_limited_project_projections(
+    project_root: &Path,
+    current_task: &[u8],
+    governance_errors: &[u8],
+) -> TransactionalStorageResult<()> {
+    super::Storage_Interfaces_structcore::materialize_limited_project_projections(
+        project_root,
+        current_task,
+        governance_errors,
+    )
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StorageWorkspace {
