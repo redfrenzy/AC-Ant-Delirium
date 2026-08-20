@@ -933,6 +933,15 @@ backup até a remoção comprovada do binário e permite retomar interrupção s
 deixar o Cargo apontando para executável ausente. O proxy `cargo`, `bin/` e
 qualquer configuração não registrada permanecem intocados.
 
+Estado da T7.6: o gate reproduzível `make cargo-command-matrix` instala o release
+em Cargo home descartável e executa literalmente `cargo check`, `cargo build`,
+`cargo test`, `cargo run` e `cargo clippy`, cada um com target limpo e sem
+variável ou argumento de wrapper. A fixture local define somente o target nativo
+para não herdar o target WASM deste checkout; o gate recusa qualquer chave de
+wrapper nela. Um probe separado com profundidade inválida exige `AD-CONFIG-0001`
+e prova que a configuração instalada foi carregada. Não foi criado comando
+alternativo AntDelirium nem estado obsoleto no projeto.
+
 ### Fase 6 — comandos Cargo existentes e gate externo
 
 Objetivo: manter a integração invisível para o agente e reduzir bypass sem substituir o Cargo.

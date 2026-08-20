@@ -78,11 +78,24 @@ check:
 .PHONY: ci
 ci:
 	cargo fmt --all -- --check
+	bash -n packaging/cargo/validate-standard-commands.sh
 	bash -n packaging/sandbox/validate-client-isolation.sh
 	bash -n packaging/sandbox/validate-wrapper-syscalls.sh
 	RUSTFLAGS="-D warnings" cargo check --locked --all-targets --target $(HOST_TARGET)
 	RUSTFLAGS="-D warnings" cargo test --locked --all-targets --target $(HOST_TARGET) --no-fail-fast
 	$(MAKE) release-nondisclosure
+
+# -----------------------------------------------
+# make cargo-command-matrix
+# -----------------------------------------------
+# Installs the release in a disposable Cargo home under target/ and runs the
+# five ordinary Cargo commands without wrapper flags or alternate syntax. It
+# is explicit rather than part of portable CI because the installer correctly
+# refuses root and the host must provide the clippy component.
+# -----------------------------------------------
+.PHONY: cargo-command-matrix
+cargo-command-matrix: binary
+	bash packaging/cargo/validate-standard-commands.sh
 
 # -----------------------------------------------
 # make adversarial-client-isolation

@@ -752,6 +752,49 @@ sentinela voltou com os mesmos bytes e modo, o proxy `cargo` permaneceu igual, e
 somente `bin/antdelirium` e o backup da instalação deixaram de existir. Nenhum
 Cargo home real foi modificado.
 
+## Matriz dos comandos Cargo existentes — T7.6
+
+O alvo explícito abaixo valida a interface que desenvolvedores e agentes já
+usam, sem introduzir um frontend AntDelirium:
+
+```bash
+make cargo-command-matrix
+```
+
+O gate compila o release, cria sob `target/t76-command-matrix/` um Cargo home e
+um pacote Rust descartáveis, executa `antdelirium install` e então chama, sem
+flags adicionais:
+
+```text
+cargo check
+cargo build
+cargo test
+cargo run
+cargo clippy
+```
+
+Cada subcomando recebe somente um `CARGO_TARGET_DIR` novo e o Cargo home
+descartável; todas as variáveis oficiais capazes de substituir compilador ou
+wrapper são removidas. A fixture possui uma configuração local que seleciona
+apenas o target Linux nativo, necessária porque ela vive sob este checkout e
+herdaria seu target WASM. O script falha se essa configuração passar a conter
+qualquer chave de wrapper, portanto a integração continua vindo exclusivamente
+do `config.toml` criado pelo instalador.
+
+Além dos cinco fluxos bem-sucedidos, um `cargo check` isolado usa profundidade
+deliberadamente inválida e precisa falhar com o erro público `AD-CONFIG-0001`.
+Isso prova que o Cargo carregou o wrapper global; não depende apenas de observar
+que a compilação direta também passaria. O gate ainda confere o resultado do
+programa e do teste, a ausência de `bin/cargo` no Cargo home descartável e a
+ausência de `guard/`, `login.json`, `AC_Ant-Delirium_props` ou `plugins/` criados
+pelo fluxo com serviço ainda indisponível.
+
+O alvo fica separado do CI portável porque o instalador corretamente recusa UID
+root e o host precisa ter o componente Clippy. Ausência dessas precondições
+termina inconclusiva com exit `77`; falha de comando ou contrato termina com
+erro. Os artefatos são mantidos sob `target/` para inspeção e nenhum Cargo home
+real é alterado.
+
 As fixtures Cargo T7.1, T7.2, T7.4 e T7.5 combinam relógio, PID e sequência no
 nome sob `target/`. A mesma seleção de testes passou duas vezes consecutivas sem
 limpeza, portanto os testes não dependem mais de apagar artefatos anteriores.

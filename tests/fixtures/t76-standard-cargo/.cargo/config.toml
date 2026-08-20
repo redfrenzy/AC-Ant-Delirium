@@ -1,0 +1,3 @@
+# Keep this nested validation fixture native without selecting any wrapper.
+[build]
+target = "x86_64-unknown-linux-gnu"
