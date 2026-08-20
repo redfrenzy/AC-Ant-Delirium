@@ -896,6 +896,14 @@ inode. Esta etapa ainda não modifica a configuração: ativação do wrapper,
 backup e rollback pertencem às T7.2–T7.5, portanto nenhuma instalação real foi
 feita no Cargo home do usuário.
 
+Estado da T7.2: a transação format-preserving de `config.toml` está pronta e
+testada em Cargo homes descartáveis. Antes do replace ela persiste bytes exatos,
+presença, modo e hashes anterior/planejado em backup privado, recusa o arquivo
+legado `config`, symlinks, TOML inválido, backup ambíguo e mudança concorrente,
+e preserva inode quando a mutação é no-op. A transação permanece desligada do
+comando `install` até a T7.3 limitar a mutação exclusivamente ao wrapper de
+workspace e fechar a política de conflitos.
+
 ### Fase 6 — comandos Cargo existentes e gate externo
 
 Objetivo: manter a integração invisível para o agente e reduzir bypass sem substituir o Cargo.

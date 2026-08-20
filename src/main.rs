@@ -15,6 +15,10 @@ mod public_output;
 #[path = "Cargo-Installer_unit.rs"]
 mod cargo_installer;
 
+#[allow(dead_code)]
+#[path = "Cargo-Config_unit.rs"]
+mod cargo_config;
+
 #[path = "Service-Authority_unit.rs"]
 mod service_authority;
 

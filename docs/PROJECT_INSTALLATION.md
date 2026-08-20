@@ -604,3 +604,33 @@ O teste da T7.1 foi executado somente com um `CARGO_HOME` descartável dentro de
 adiada até a mesclagem recuperável de T7.2 e a política de conflitos de T7.3.
 O argumento `install` seleciona a operação, mas não concede autoridade: as
 permissões/sandbox externos ainda decidem se o Cargo home real é gravável.
+
+## Transação recuperável de configuração — T7.2
+
+A camada interna de configuração agora lê `config.toml` com `toml_edit`, aplica
+uma mutação tipada e reserializa o documento preservando comentários, ordem,
+formatação e chaves desconhecidas. A dependência está fixada em `0.25.12` e
+possui MSRV 1.85; o grafo completo foi recompilado com o MSRV 1.88 declarado
+pelo AntDelirium.
+
+Antes de qualquer alteração real, a transação cria sob o Cargo home um diretório
+privado `.antdelirium-install/` com modo `0700`. Ele contém:
+
+- `config.toml.original`, com os bytes anteriores exatos e modo `0600`;
+- `config-backup-v1.json`, com presença anterior, modo original e hashes SHA-256
+  dos bytes anterior e planejado, sem armazenar paths.
+
+Se `config.toml` não existia, o payload é vazio e o recibo registra
+explicitamente `original_present=false`; assim a desinstalação futura poderá
+distinguir ausência de um arquivo originalmente vazio. Configuração nova usa
+modo `0600`; configuração existente preserva seu modo.
+
+O replace é atômico e revalida inode, modo e bytes imediatamente antes da
+publicação. Symlink, TOML inválido, arquivo acima de 4 MiB, backup preexistente,
+alteração concorrente ou o arquivo legado `$CARGO_HOME/config` causam recusa sem
+sobrescrever configuração ou backup. Uma mutação que não muda bytes preserva o
+inode e não cria backup.
+
+Essa transação ainda não é chamada por `install`: a T7.3 definirá a única chave
+permitida, tratará conflitos de wrapper e então ligará configuração e instalação
+em um fluxo único. Até lá, o Cargo home real continua sem alteração.
