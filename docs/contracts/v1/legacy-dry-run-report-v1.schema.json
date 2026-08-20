@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:legacy-dry-run-report-v1",
+  "title": "AntDelirium legacy dry-run report v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "migration_id",
+    "project_id",
+    "source_snapshot_sha256",
+    "staging_snapshot_sha256",
+    "normalized_snapshot_sha256",
+    "semantic_snapshot_sha256",
+    "manifest_snapshot_sha256",
+    "target_contract_version",
+    "target_storage_schema_version",
+    "source_counts",
+    "projected_counts",
+    "differences",
+    "checks",
+    "target_project_preexisting",
+    "comparison",
+    "cutover_readiness",
+    "approval_eligible",
+    "approval_created",
+    "cutover_performed",
+    "manifest_state_before",
+    "manifest_state_after",
+    "state"
+  ],
+  "properties": {
+    "contract_version": { "const": "legacy-dry-run-report-v1" },
+    "migration_id": { "type": "string", "pattern": "^mig_[0-9a-hjkmnp-tv-z]{26}$" },
+    "project_id": { "type": "string", "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$" },
+    "source_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+    "staging_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+    "normalized_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+    "semantic_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+    "manifest_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+    "target_contract_version": { "const": "canonical-state-v1" },
+    "target_storage_schema_version": { "type": "integer", "minimum": 1 },
+    "source_counts": { "$ref": "#/$defs/domainCounts" },
+    "projected_counts": { "$ref": "#/$defs/domainCounts" },
+    "differences": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 9,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/difference" }
+    },
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["normalized_equivalence", "target_schema_migrations", "target_integrity", "canonical_import", "target_projection"],
+      "properties": {
+        "normalized_equivalence": { "const": "passed" },
+        "target_schema_migrations": { "const": "passed" },
+        "target_integrity": { "const": "passed" },
+        "canonical_import": { "const": "not_materialized" },
+        "target_projection": { "const": "blocked_by_unmapped_state" }
+      }
+    },
+    "target_project_preexisting": { "type": "boolean" },
+    "comparison": { "const": "differences_found" },
+    "cutover_readiness": { "const": "blocked" },
+    "approval_eligible": { "const": false },
+    "approval_created": { "const": false },
+    "cutover_performed": { "const": false },
+    "manifest_state_before": { "const": "staged" },
+    "manifest_state_after": { "const": "staged" },
+    "state": { "const": "dry_run_completed" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "count": { "type": "integer", "minimum": 0 },
+    "domainCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plans", "tasks", "submissions", "reviews", "history_events", "problems", "transitions"],
+      "properties": {
+        "plans": { "$ref": "#/$defs/count" },
+        "tasks": { "$ref": "#/$defs/count" },
+        "submissions": { "$ref": "#/$defs/count" },
+        "reviews": { "$ref": "#/$defs/count" },
+        "history_events": { "$ref": "#/$defs/count" },
+        "problems": { "$ref": "#/$defs/count" },
+        "transitions": { "$ref": "#/$defs/count" }
+      }
+    },
+    "difference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "severity", "domain", "source_count", "projected_count", "decision_required"],
+      "properties": {
+        "code": {
+          "enum": [
+            "target_project_identity_conflict",
+            "workspace_identity_mapping_missing",
+            "plan_identity_mapping_missing",
+            "task_identity_and_state_mapping_missing",
+            "submission_contract_mapping_missing",
+            "review_contract_mapping_missing",
+            "history_event_contract_mapping_missing",
+            "problem_projection_mapping_missing",
+            "transition_event_mapping_missing"
+          ]
+        },
+        "severity": { "const": "blocker" },
+        "domain": { "enum": ["project", "workspace", "plans", "tasks", "submissions", "reviews", "history_events", "problems", "transitions"] },
+        "source_count": { "$ref": "#/$defs/count" },
+        "projected_count": { "const": 0 },
+        "decision_required": { "const": true }
+      }
+    }
+  }
+}

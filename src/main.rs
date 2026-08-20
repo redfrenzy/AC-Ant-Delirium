@@ -52,6 +52,9 @@ mod legacy_staging;
 #[path = "Legacy-Normalization_unit.rs"]
 mod legacy_normalization;
 
+#[path = "Legacy-Dry-Run_unit.rs"]
+mod legacy_dry_run;
+
 #[path = "Administrative-Protocol_unit.rs"]
 mod administrative_protocol;
 

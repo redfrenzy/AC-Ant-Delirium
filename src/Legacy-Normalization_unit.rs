@@ -16,6 +16,7 @@ use crate::legacy_staging::{
     staged_content_digest, sync_directory, valid_sha256, validated_inventory_document,
     validated_relative_path, write_private_bytes, write_private_json,
     write_validated_source_stream, InventoryEntry, LegacyStageReceipt, LegacyStagingError,
+    SemanticCounts,
 };
 use crate::limited_protocol::valid_opaque_id;
 
@@ -88,6 +89,11 @@ struct PhysicalReferenceBindingsDocument {
     migration_id: String,
     project_id: String,
     bindings: Vec<PhysicalReferenceBinding>,
+}
+
+pub(crate) struct ValidatedLegacyNormalization {
+    pub(crate) receipt: LegacyNormalizationReceipt,
+    pub(crate) semantic_counts: SemanticCounts,
 }
 
 #[derive(Clone)]
@@ -293,6 +299,67 @@ pub(crate) fn normalize_staged_migration(
     fs::rename(&partial_root, &final_root).map_err(|_| LegacyNormalizationError::Destination)?;
     sync_directory(&migration_root)?;
     Ok(normalization_receipt)
+}
+
+pub(crate) fn validate_existing_normalization(
+    staging_parent: &Path,
+    migration_id: &str,
+    expected_source_snapshot_sha256: &str,
+    expected_staging_snapshot_sha256: &str,
+    expected_normalized_snapshot_sha256: &str,
+    expected_semantic_snapshot_sha256: &str,
+) -> Result<ValidatedLegacyNormalization, LegacyNormalizationError> {
+    if !valid_opaque_id(migration_id, "mig_")
+        || !valid_sha256(expected_source_snapshot_sha256)
+        || !valid_sha256(expected_staging_snapshot_sha256)
+        || !valid_sha256(expected_normalized_snapshot_sha256)
+        || !valid_sha256(expected_semantic_snapshot_sha256)
+    {
+        return Err(LegacyNormalizationError::Inventory);
+    }
+    require_private_directory(staging_parent)?;
+    let migration_root = staging_parent.join(migration_id);
+    require_private_directory(&migration_root)?;
+    let normalized_root = migration_root.join("normalized");
+    require_private_directory(&normalized_root)?;
+    let receipt: LegacyNormalizationReceipt =
+        read_control_json(&normalized_root.join("normalization-receipt-v1.json"))?;
+    let bindings: PhysicalReferenceBindingsDocument =
+        read_control_json(&normalized_root.join("physical-reference-bindings-v1.json"))?;
+    if receipt.contract_version != NORMALIZATION_RECEIPT_CONTRACT
+        || receipt.migration_id != migration_id
+        || receipt.source_snapshot_sha256 != expected_source_snapshot_sha256
+        || receipt.staging_snapshot_sha256 != expected_staging_snapshot_sha256
+        || receipt.normalized_snapshot_sha256 != expected_normalized_snapshot_sha256
+        || receipt.semantic_snapshot_sha256 != expected_semantic_snapshot_sha256
+        || bindings.contract_version != REFERENCE_BINDINGS_CONTRACT
+        || bindings.migration_id != migration_id
+        || bindings.project_id != receipt.project_id
+    {
+        return Err(LegacyNormalizationError::Destination);
+    }
+    let request = LegacyNormalizationRequest {
+        contract_version: NORMALIZATION_REQUEST_CONTRACT.to_string(),
+        migration_id: migration_id.to_string(),
+        expected_source_snapshot_sha256: expected_source_snapshot_sha256.to_string(),
+        source_normalized_snapshot_sha256: expected_normalized_snapshot_sha256.to_string(),
+        source_semantic_snapshot_sha256: expected_semantic_snapshot_sha256.to_string(),
+        physical_references: bindings.bindings,
+    };
+    let verified = normalize_staged_migration(staging_parent, &request)?;
+    if verified != receipt {
+        return Err(LegacyNormalizationError::Destination);
+    }
+    let inventory_document = read_control_file(
+        &migration_root.join("legacy-source-inventory-v1.json"),
+        MAX_CONTROL_DOCUMENT_BYTES,
+    )?;
+    let payload =
+        validated_inventory_document(&inventory_document, expected_source_snapshot_sha256)?;
+    Ok(ValidatedLegacyNormalization {
+        receipt,
+        semantic_counts: payload.semantic_counts,
+    })
 }
 
 fn validate_request(request: &LegacyNormalizationRequest) -> Result<(), LegacyNormalizationError> {

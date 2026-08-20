@@ -58,20 +58,28 @@
         "wire_version": { "const": "ada/1" },
         "request_id": { "$ref": "#/$defs/requestId" },
         "connection_nonce": { "$ref": "#/$defs/nonce" },
-        "operation": { "enum": ["migration.stage", "migration.normalize"] },
+        "operation": { "enum": ["migration.stage", "migration.normalize", "migration.dry-run"] },
         "capability": { "$ref": "#/$defs/capability" },
         "body": {
           "oneOf": [
             { "$ref": "#/$defs/migrationStageBody" },
-            { "$ref": "urn:antdelirium:contract:legacy-normalization-request-v1" }
+            { "$ref": "urn:antdelirium:contract:legacy-normalization-request-v1" },
+            { "$ref": "urn:antdelirium:contract:legacy-dry-run-request-v1" }
           ]
         }
       },
       "allOf": [
         {
           "if": { "properties": { "operation": { "const": "migration.stage" } } },
-          "then": { "properties": { "body": { "$ref": "#/$defs/migrationStageBody" } } },
-          "else": { "properties": { "body": { "$ref": "urn:antdelirium:contract:legacy-normalization-request-v1" } } }
+          "then": { "properties": { "body": { "$ref": "#/$defs/migrationStageBody" } } }
+        },
+        {
+          "if": { "properties": { "operation": { "const": "migration.normalize" } } },
+          "then": { "properties": { "body": { "$ref": "urn:antdelirium:contract:legacy-normalization-request-v1" } } }
+        },
+        {
+          "if": { "properties": { "operation": { "const": "migration.dry-run" } } },
+          "then": { "properties": { "body": { "$ref": "urn:antdelirium:contract:legacy-dry-run-request-v1" } } }
         }
       ]
     },
@@ -97,6 +105,7 @@
           "oneOf": [
             { "$ref": "urn:antdelirium:contract:legacy-stage-receipt-v1" },
             { "$ref": "urn:antdelirium:contract:legacy-normalization-receipt-v1" },
+            { "$ref": "urn:antdelirium:contract:legacy-dry-run-report-v1" },
             { "type": "null" }
           ]
         },
@@ -159,7 +168,8 @@
               "result": {
                 "oneOf": [
                   { "$ref": "urn:antdelirium:contract:legacy-stage-receipt-v1" },
-                  { "$ref": "urn:antdelirium:contract:legacy-normalization-receipt-v1" }
+                  { "$ref": "urn:antdelirium:contract:legacy-normalization-receipt-v1" },
+                  { "$ref": "urn:antdelirium:contract:legacy-dry-run-report-v1" }
                 ]
               },
               "error": { "type": "null" }

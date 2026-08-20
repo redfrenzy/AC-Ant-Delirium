@@ -138,6 +138,15 @@ fn migration_request_binds_connection_operation_and_inventory_digest() {
         physical_references: Vec::new(),
     });
     assert_eq!(validate_request(&request, &nonce), Ok(()));
+    request.operation = "migration.dry-run".to_string();
+    request.body = AdministrativeBody::DryRun(crate::legacy_dry_run::dry_run_request(
+        "mig_00000000000000000000000000".to_string(),
+        "a".repeat(64),
+        "b".repeat(64),
+        "c".repeat(64),
+        "d".repeat(64),
+    ));
+    assert_eq!(validate_request(&request, &nonce), Ok(()));
     request.operation = "migration.stage".to_string();
     assert_eq!(
         validate_request(&request, &nonce),
@@ -225,6 +234,10 @@ fn authorized_admin_request_stages_bytes_through_the_socket_service() {
     let normalization_authentication =
         ConnectionAuthentication::for_test(authority.effective_uid(), normalization_nonce);
     let (mut normalization_client, mut normalization_server) = UnixStream::pair().unwrap();
+    let dry_run_nonce = [11_u8; 32];
+    let dry_run_authentication =
+        ConnectionAuthentication::for_test(authority.effective_uid(), dry_run_nonce);
+    let (mut dry_run_client, mut dry_run_server) = UnixStream::pair().unwrap();
     let server_thread = std::thread::spawn(move || {
         answer_administrative_hello(&mut server, &connection_nonce).unwrap();
         serve_administrative_request(&mut server, &authentication, &authority, &storage).unwrap();
@@ -232,6 +245,14 @@ fn authorized_admin_request_stages_bytes_through_the_socket_service() {
         serve_administrative_request(
             &mut normalization_server,
             &normalization_authentication,
+            &authority,
+            &storage,
+        )
+        .unwrap();
+        answer_administrative_hello(&mut dry_run_server, &dry_run_nonce).unwrap();
+        serve_administrative_request(
+            &mut dry_run_server,
+            &dry_run_authentication,
             &authority,
             &storage,
         )
@@ -322,10 +343,49 @@ fn authorized_admin_request_stages_bytes_through_the_socket_service() {
     };
     assert_eq!(normalization.comparison, "equivalent");
     assert_eq!(normalization.state, "normalized");
+
+    let negotiated = negotiate_client(&mut dry_run_client).unwrap();
+    let dry_run_request_id = "req_22222222222222222222222222".to_string();
+    write_frame(
+        &mut dry_run_client,
+        &AdministrativeRequest {
+            message_type: "request".to_string(),
+            wire_version: ADMIN_WIRE_VERSION.to_string(),
+            request_id: dry_run_request_id.clone(),
+            connection_nonce: negotiated,
+            operation: "migration.dry-run".to_string(),
+            capability: WireCapability {
+                capability_id: "cap_00000000000000000000000000".to_string(),
+                token: encode_base64url(&secret),
+            },
+            body: AdministrativeBody::DryRun(crate::legacy_dry_run::dry_run_request(
+                receipt.migration_id.clone(),
+                normalization.source_snapshot_sha256.clone(),
+                normalization.staging_snapshot_sha256.clone(),
+                normalization.normalized_snapshot_sha256.clone(),
+                normalization.semantic_snapshot_sha256.clone(),
+            )),
+        },
+    )
+    .unwrap();
+    let response: AdministrativeResponse =
+        serde_json::from_slice(&read_frame(&mut dry_run_client).unwrap()).unwrap();
+    assert_eq!(response.request_id, dry_run_request_id);
+    let AdministrativeResult::DryRun(report) = response.result.unwrap() else {
+        panic!("dry-run report expected");
+    };
+    assert_eq!(report.cutover_readiness, "blocked");
+    assert!(!report.approval_created);
+    assert!(!report.cutover_performed);
+    assert!(root
+        .join("migration-staging")
+        .join(&receipt.migration_id)
+        .join("normalized/source/governance_history.json")
+        .is_file());
     assert!(root
         .join("migration-staging")
         .join(receipt.migration_id)
-        .join("normalized/source/governance_history.json")
+        .join("dry-run/legacy-dry-run-report-v1.json")
         .is_file());
     server_thread.join().unwrap();
 }

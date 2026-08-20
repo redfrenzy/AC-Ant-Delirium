@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:legacy-dry-run-request-v1",
+  "title": "AntDelirium legacy dry-run request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "migration_id",
+    "expected_source_snapshot_sha256",
+    "expected_staging_snapshot_sha256",
+    "expected_normalized_snapshot_sha256",
+    "expected_semantic_snapshot_sha256"
+  ],
+  "properties": {
+    "contract_version": { "const": "legacy-dry-run-request-v1" },
+    "migration_id": { "type": "string", "pattern": "^mig_[0-9a-hjkmnp-tv-z]{26}$" },
+    "expected_source_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+    "expected_staging_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+    "expected_normalized_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+    "expected_semantic_snapshot_sha256": { "$ref": "#/$defs/sha256" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  }
+}

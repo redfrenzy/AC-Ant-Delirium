@@ -66,7 +66,7 @@ pub(crate) struct LegacyInventoryPayload {
     counts: InventoryEntryCounts,
     mode_histogram: Vec<ModeCount>,
     ownership_histogram: Vec<OwnershipCount>,
-    semantic_counts: SemanticCounts,
+    pub(crate) semantic_counts: SemanticCounts,
     git: GitState,
     pub(crate) entries: Vec<InventoryEntry>,
 }
@@ -115,17 +115,17 @@ struct OwnershipCount {
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct SemanticCounts {
-    plans: u64,
-    tasks: u64,
-    submissions: u64,
-    reviews: u64,
-    history_events: u64,
-    problems: u64,
-    transitions: u64,
-    json_schemas: u64,
-    generated_artifacts: u64,
-    task_evidence: u64,
+pub(crate) struct SemanticCounts {
+    pub(crate) plans: u64,
+    pub(crate) tasks: u64,
+    pub(crate) submissions: u64,
+    pub(crate) reviews: u64,
+    pub(crate) history_events: u64,
+    pub(crate) problems: u64,
+    pub(crate) transitions: u64,
+    pub(crate) json_schemas: u64,
+    pub(crate) generated_artifacts: u64,
+    pub(crate) task_evidence: u64,
 }
 
 #[derive(Deserialize)]

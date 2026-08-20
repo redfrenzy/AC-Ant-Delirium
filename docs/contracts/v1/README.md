@@ -20,7 +20,13 @@ Os arquivos deste diretório congelam a primeira versão das fronteiras de dados
   entre origem revalidada e derivação normalizada do staging.
 - `physical-reference-bindings-v1.schema.json`: tabela administrativa protegida
   que persiste somente hash do valor legado e ID `ref_`, nunca o path original.
+- `legacy-dry-run-request-v1.schema.json`: seleção administrativa path-free de
+  uma geração exata de origem, staging, normalização e semântica.
+- `legacy-dry-run-report-v1.schema.json`: diferenças bloqueadoras entre as
+  contagens legadas e um SQLite sombra vazio, sem aprovação ou cutover.
 
 Todos usam JSON Schema Draft 2020-12 e `additionalProperties: false`. Eles são contratos de domínio e API, não autorização, schema SQL nem descrição do transporte.
 
-O runtime legado ainda não produz estes formatos. Essa compatibilidade será implementada pelas tarefas T2.4 a T2.7; até lá, estes schemas servem como referência normativa e gate de testes.
+O serviço novo já produz e valida os contratos implementados pelas Ondas 2–8.
+O runtime legado preservado para rollback não é autoridade desses formatos;
+contratos ainda sem writer continuam sendo referência normativa e gate de testes.

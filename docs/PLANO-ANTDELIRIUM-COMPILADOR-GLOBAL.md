@@ -1045,6 +1045,17 @@ coincidiram entre origem e staging; HEAD/status da origem permaneceram iguais.
 O manifesto continua `staged`, e dry-run/importação/cutover permanecem na T8.5+
 sem qualquer approval implícito.
 
+Estado da T8.5: o [dry-run do AutoBrowser](./VALIDACAO-DRY-RUN-AUTOBROWSER-T8.5.md)
+revalida os quatro digests das T8.2–T8.4 e executa migrations/integridade do
+schema 6 em SQLite sombra privado, sem registrar projeto canônico. O relatório
+fechado encontrou seis bloqueadores reais: faltam identidade de workspace,
+mapeamento de 16 planos, identidade/lifecycle de 73 tarefas, tradução de 275
+eventos, um problema e quatro transições. O banco sombra e a projeção permanecem
+vazios; `approval_eligible`, `approval_created` e `cutover_performed` são falsos.
+O manifesto ficou byte-idêntico em `staged`, sem approvals. A T8.6 precisa
+resolver essas traduções em staging e repetir a comparação antes de qualquer
+troca de autoridade.
+
 ### Fase 8 — endurecimento contra agentes hostis
 
 Objetivo: transformar detecção local em enforcement confiável.
