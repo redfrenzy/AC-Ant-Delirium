@@ -538,9 +538,9 @@ três operações de wrapper implementadas. Bootstrap sem capability cria soment
 estado provisório vazio; compilação e projeção precisam passar por peer,
 capability, nonce, request fingerprint, receipt e resolver opaco antes de abrir
 o banco derivado pelo registry. As outras operações limitadas continuam
-fechadas. Desde a T8.3, o listener administrativo aceita somente a operação
-fechada `migration.stage`; as demais operações planejadas não são representáveis
-no parser atual. Os journals da T4.6
+fechadas. Desde a T8.4, o listener administrativo aceita somente as operações
+fechadas `migration.stage` e `migration.normalize`; commit, approval, cutover e
+rollback continuam não representáveis no parser atual. Os journals da T4.6
 registram negações e rejeições sem payload ou localização física. O isolamento
 de descriptors da T4.7 já impede sua herança por um futuro `exec`; o serviço
 atual não cria processos filhos. A T4.8 acrescenta um probe adversarial externo
@@ -562,10 +562,13 @@ ANTDELIRIUM_ADMIN_SOCKET
 ANTDELIRIUM_MIGRATION_SOURCE
 ANTDELIRIUM_MIGRATION_INVENTORY
 ANTDELIRIUM_EXPECTED_SOURCE_SHA256
+ANTDELIRIUM_MIGRATION_ID
 ANTDELIRIUM_ADMIN_CAPABILITY_FD
 ```
 
-O descriptor contém somente `admin-capability-v1` com ID e token. O processo
+`ANTDELIRIUM_MIGRATION_ID` só é exigido pela segunda chamada interna,
+`migrate-plugin normalize`; o staging inicial continua sem ID escolhido pelo
+cliente. O descriptor contém somente `admin-capability-v1` com ID e token. O processo
 marca-o `FD_CLOEXEC`, limita a leitura a 4 KiB e o fecha ao terminar o parse. Os
 quatro valores de path/digest são removidos do ambiente antes de abrir a origem.
 Esse mecanismo é para um supervisor fora do sandbox do agente; não se deve
@@ -581,6 +584,32 @@ o retorno público contém apenas IDs opacos, contagens e hashes.
 O [relatório T8.3](./VALIDACAO-STAGING-AUTOBROWSER-T8.3.md) prova o fluxo com o
 storage protegido e a origem real. Ele não substitui o futuro provisionamento
 da unidade systemd/capability, nem autoriza cutover.
+
+## Normalização e comparação de legado — T8.4
+
+O submodo interno `migrate-plugin normalize` usa o mesmo socket e a mesma
+capability administrativa. Antes de enviar o request, o cliente operador
+revalida a origem integralmente contra o inventário e cria IDs `ref_` aleatórios
+para cada valor de path físico encontrado em texto. O request contém somente o
+`migration_id`, hashes, IDs opacos e os digests normalizado/semântico esperados;
+o locator e o valor original de cada path nunca atravessam o socket.
+
+O serviço reabre somente `migration-staging/<migration_id>/source` por
+descriptors, verifica todos os hashes e aplica os mesmos bindings. A derivação
+é gravada em `normalized.partial` com modos privados e publicada por rename em
+`normalized`. JSON é comparado após serialização canônica; texto é comparado
+depois da substituição; binários permanecem byte a byte. A tabela protegida
+persiste apenas `sha256(valor legado) -> ref_id`, nunca o valor físico. O recibo
+público contém IDs, contagens, hashes e `comparison=equivalent`.
+
+Handshake e frames comuns conservam deadline de 120 segundos. Somente o stream
+e a espera de resposta das duas operações de migração usam deadline finito de
+600 segundos, pois a publicação durável sincroniza milhares de arquivos. Isso
+é timeout de transporte interno, não timer de tarefa nem espera por aprovação.
+
+O [relatório T8.4](./VALIDACAO-NORMALIZACAO-AUTOBROWSER-T8.4.md) prova esse fluxo
+na cópia T8.3. O manifesto continua `staged`: normalização não significa
+validação final, approval, importação canônica nem cutover.
 
 Os templates não instalados
 [`packaging/systemd/antdelirium.service.in`](../packaging/systemd/antdelirium.service.in)

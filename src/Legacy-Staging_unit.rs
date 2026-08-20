@@ -58,7 +58,7 @@ struct LegacyInventoryDocument {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct LegacyInventoryPayload {
+pub(crate) struct LegacyInventoryPayload {
     source_kind: String,
     source_locator: String,
     root: InventoryRoot,
@@ -68,7 +68,7 @@ struct LegacyInventoryPayload {
     ownership_histogram: Vec<OwnershipCount>,
     semantic_counts: SemanticCounts,
     git: GitState,
-    entries: Vec<InventoryEntry>,
+    pub(crate) entries: Vec<InventoryEntry>,
 }
 
 #[derive(Deserialize)]
@@ -140,14 +140,14 @@ struct GitState {
 
 #[derive(Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct InventoryEntry {
-    path: String,
-    r#type: String,
-    mode: String,
-    uid: u32,
-    gid: u32,
-    size: u64,
-    sha256: Option<String>,
+pub(crate) struct InventoryEntry {
+    pub(crate) path: String,
+    pub(crate) r#type: String,
+    pub(crate) mode: String,
+    pub(crate) uid: u32,
+    pub(crate) gid: u32,
+    pub(crate) size: u64,
+    pub(crate) sha256: Option<String>,
     link: InventoryLink,
 }
 
@@ -213,7 +213,7 @@ pub(crate) fn stage_legacy_stream<R: Read>(
     )
 }
 
-fn validated_inventory_document(
+pub(crate) fn validated_inventory_document(
     inventory_document: &[u8],
     expected_inventory_sha256: &str,
 ) -> Result<LegacyInventoryPayload, LegacyStagingError> {
@@ -451,7 +451,7 @@ pub(crate) fn write_validated_source_stream<W: Write>(
 }
 
 #[cfg(unix)]
-fn open_source_entry_beneath(
+pub(crate) fn open_source_entry_beneath(
     root: &File,
     relative: &Path,
     final_is_directory: bool,
@@ -480,7 +480,7 @@ fn open_source_entry_beneath(
     Ok(current)
 }
 
-fn collect_source_paths(root: &Path) -> Result<Vec<String>, LegacyStagingError> {
+pub(crate) fn collect_source_paths(root: &Path) -> Result<Vec<String>, LegacyStagingError> {
     let mut pending = vec![root.to_path_buf()];
     let mut paths = Vec::new();
     while let Some(directory) = pending.pop() {
@@ -674,7 +674,9 @@ fn stage_regular_file<R: Read>(
     write_private_bytes(destination, &bytes)
 }
 
-fn staged_content_digest(entries: &[InventoryEntry]) -> Result<String, LegacyStagingError> {
+pub(crate) fn staged_content_digest(
+    entries: &[InventoryEntry],
+) -> Result<String, LegacyStagingError> {
     let summary = entries
         .iter()
         .map(|entry| {
@@ -689,7 +691,7 @@ fn staged_content_digest(entries: &[InventoryEntry]) -> Result<String, LegacySta
     Ok(lowercase_hex(&sha256(&bytes)))
 }
 
-fn validated_relative_path(value: &str) -> Result<PathBuf, LegacyStagingError> {
+pub(crate) fn validated_relative_path(value: &str) -> Result<PathBuf, LegacyStagingError> {
     if value.is_empty() || value.contains('\0') || value.contains('\n') || value.contains('\r') {
         return Err(LegacyStagingError::Inventory);
     }
@@ -721,7 +723,7 @@ fn valid_mode(value: &str) -> bool {
     (value.len() == 3 || value.len() == 4) && value.bytes().all(|byte| matches!(byte, b'0'..=b'7'))
 }
 
-fn valid_sha256(value: &str) -> bool {
+pub(crate) fn valid_sha256(value: &str) -> bool {
     value.len() == 64
         && value
             .bytes()
@@ -734,7 +736,7 @@ fn create_private_directory(path: &Path) -> Result<(), LegacyStagingError> {
         .map_err(|_| LegacyStagingError::Destination)
 }
 
-fn require_private_directory(path: &Path) -> Result<(), LegacyStagingError> {
+pub(crate) fn require_private_directory(path: &Path) -> Result<(), LegacyStagingError> {
     let metadata = fs::symlink_metadata(path).map_err(|_| LegacyStagingError::Destination)?;
     if metadata.file_type().is_symlink() || !metadata.is_dir() {
         return Err(LegacyStagingError::Destination);
@@ -742,12 +744,15 @@ fn require_private_directory(path: &Path) -> Result<(), LegacyStagingError> {
     Ok(())
 }
 
-fn write_private_json<T: Serialize>(path: &Path, value: &T) -> Result<(), LegacyStagingError> {
+pub(crate) fn write_private_json<T: Serialize>(
+    path: &Path,
+    value: &T,
+) -> Result<(), LegacyStagingError> {
     let bytes = serde_json::to_vec_pretty(value).map_err(|_| LegacyStagingError::Destination)?;
     write_private_bytes(path, &bytes)
 }
 
-fn write_private_bytes(path: &Path, bytes: &[u8]) -> Result<(), LegacyStagingError> {
+pub(crate) fn write_private_bytes(path: &Path, bytes: &[u8]) -> Result<(), LegacyStagingError> {
     let mut options = OpenOptions::new();
     options.write(true).create_new(true).mode(0o600);
     #[cfg(unix)]
@@ -760,7 +765,7 @@ fn write_private_bytes(path: &Path, bytes: &[u8]) -> Result<(), LegacyStagingErr
     file.sync_all().map_err(|_| LegacyStagingError::Destination)
 }
 
-fn sync_directory(path: &Path) -> Result<(), LegacyStagingError> {
+pub(crate) fn sync_directory(path: &Path) -> Result<(), LegacyStagingError> {
     File::open(path)
         .and_then(|directory| directory.sync_all())
         .map_err(|_| LegacyStagingError::Destination)
@@ -789,7 +794,7 @@ fn rfc3339_utc_now() -> Result<String, LegacyStagingError> {
     ))
 }
 
-fn lowercase_hex(input: &[u8]) -> String {
+pub(crate) fn lowercase_hex(input: &[u8]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut output = String::with_capacity(input.len() * 2);
     for byte in input {

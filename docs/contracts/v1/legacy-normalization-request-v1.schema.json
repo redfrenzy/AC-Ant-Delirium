@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:legacy-normalization-request-v1",
+  "title": "AntDelirium protected legacy normalization request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "migration_id",
+    "expected_source_snapshot_sha256",
+    "source_normalized_snapshot_sha256",
+    "source_semantic_snapshot_sha256",
+    "physical_references"
+  ],
+  "properties": {
+    "contract_version": { "const": "legacy-normalization-request-v1" },
+    "migration_id": { "type": "string", "pattern": "^mig_[0-9a-hjkmnp-tv-z]{26}$" },
+    "expected_source_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+    "source_normalized_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+    "source_semantic_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+    "physical_references": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": { "$ref": "#/$defs/binding" }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_value_sha256", "reference_id"],
+      "properties": {
+        "source_value_sha256": { "$ref": "#/$defs/sha256" },
+        "reference_id": { "type": "string", "pattern": "^ref_[0-9a-hjkmnp-tv-z]{26}$" }
+      }
+    }
+  }
+}

@@ -49,6 +49,9 @@ mod limited_protocol;
 #[path = "Legacy-Staging_unit.rs"]
 mod legacy_staging;
 
+#[path = "Legacy-Normalization_unit.rs"]
+mod legacy_normalization;
+
 #[path = "Administrative-Protocol_unit.rs"]
 mod administrative_protocol;
 

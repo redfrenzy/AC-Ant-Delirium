@@ -1034,6 +1034,17 @@ local usa o storage de serviço sob `target/`; instalação da unidade e state r
 dedicado continuam posteriores. A T8.4 deve normalizar somente a cópia
 controlada.
 
+Estado da T8.4: a [validação de normalização](./VALIDACAO-NORMALIZACAO-AUTOBROWSER-T8.4.md)
+adicionou `migration.normalize` ao canal administrativo fechado. O operador
+revalida a origem T8.2, produz bindings aleatórios entre hashes de localizadores
+e IDs `ref_` e envia somente esses objetos e os digests esperados. O serviço
+revalida os 3.102 entries do staging, preserva binários, substitui 208
+ocorrências textuais por 47 referências opacas, mantém referências relativas e
+publica uma derivação privada atômica. Os digests semântico e normalizado
+coincidiram entre origem e staging; HEAD/status da origem permaneceram iguais.
+O manifesto continua `staged`, e dry-run/importação/cutover permanecem na T8.5+
+sem qualquer approval implícito.
+
 ### Fase 8 — endurecimento contra agentes hostis
 
 Objetivo: transformar detecção local em enforcement confiável.

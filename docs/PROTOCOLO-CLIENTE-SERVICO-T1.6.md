@@ -131,7 +131,7 @@ No modo protegido, o supervisor valida Git/filesystem/manifest, promove o regist
 O parser administrativo reconhece somente variantes administrativas tipadas, incluindo:
 
 - `project.enroll`, `project.rebind` e `project.retire`;
-- `migration.stage`, `migration.commit` e `migration.rollback`;
+- `migration.stage`, `migration.normalize`, `migration.commit` e `migration.rollback`;
 - `capability.grant` e `capability.revoke`;
 - `state.transition` e overrides auditados;
 - `diagnostic.private` e manutenção do storage;

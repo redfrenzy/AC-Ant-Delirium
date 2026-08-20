@@ -74,7 +74,7 @@ pub(crate) fn run_operator_mode(args: &[OsString]) {
         .first()
         .is_some_and(|arg| arg == OsStr::new("migrate-plugin"))
     {
-        crate::administrative_protocol::run_migration_stage_operator(args);
+        crate::administrative_protocol::run_migration_operator(args);
         return;
     }
     if args.len() == 1 && args[0] == OsStr::new("doctor") {

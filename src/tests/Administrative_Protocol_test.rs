@@ -113,13 +113,32 @@ fn migration_request_binds_connection_operation_and_inventory_digest() {
             capability_id: "cap_00000000000000000000000000".to_string(),
             token: encode_base64url(&[7_u8; 32]),
         },
-        body: MigrationStageBody {
+        body: AdministrativeBody::Stage(MigrationStageBody {
             expected_source_snapshot_sha256: digest.clone(),
             inventory: serde_json::json!({"inventory_sha256": digest}),
-        },
+        }),
     };
     assert_eq!(validate_request(&request, &nonce), Ok(()));
     request.operation = "migration.commit".to_string();
+    assert_eq!(
+        validate_request(&request, &nonce),
+        Err(AdministrativeProtocolError::Envelope)
+    );
+    request.operation = "migration.normalize".to_string();
+    assert_eq!(
+        validate_request(&request, &nonce),
+        Err(AdministrativeProtocolError::Envelope)
+    );
+    request.body = AdministrativeBody::Normalize(LegacyNormalizationRequest {
+        contract_version: "legacy-normalization-request-v1".to_string(),
+        migration_id: "mig_00000000000000000000000000".to_string(),
+        expected_source_snapshot_sha256: "a".repeat(64),
+        source_normalized_snapshot_sha256: "b".repeat(64),
+        source_semantic_snapshot_sha256: "c".repeat(64),
+        physical_references: Vec::new(),
+    });
+    assert_eq!(validate_request(&request, &nonce), Ok(()));
+    request.operation = "migration.stage".to_string();
     assert_eq!(
         validate_request(&request, &nonce),
         Err(AdministrativeProtocolError::Envelope)
@@ -202,9 +221,21 @@ fn authorized_admin_request_stages_bytes_through_the_socket_service() {
     let authentication =
         ConnectionAuthentication::for_test(authority.effective_uid(), connection_nonce);
     let (mut client, mut server) = UnixStream::pair().unwrap();
+    let normalization_nonce = [10_u8; 32];
+    let normalization_authentication =
+        ConnectionAuthentication::for_test(authority.effective_uid(), normalization_nonce);
+    let (mut normalization_client, mut normalization_server) = UnixStream::pair().unwrap();
     let server_thread = std::thread::spawn(move || {
         answer_administrative_hello(&mut server, &connection_nonce).unwrap();
         serve_administrative_request(&mut server, &authentication, &authority, &storage).unwrap();
+        answer_administrative_hello(&mut normalization_server, &normalization_nonce).unwrap();
+        serve_administrative_request(
+            &mut normalization_server,
+            &normalization_authentication,
+            &authority,
+            &storage,
+        )
+        .unwrap();
     });
 
     let negotiated = negotiate_client(&mut client).unwrap();
@@ -221,10 +252,10 @@ fn authorized_admin_request_stages_bytes_through_the_socket_service() {
                 capability_id: "cap_00000000000000000000000000".to_string(),
                 token: encode_base64url(&secret),
             },
-            body: MigrationStageBody {
+            body: AdministrativeBody::Stage(MigrationStageBody {
                 expected_source_snapshot_sha256: digest.clone(),
                 inventory,
-            },
+            }),
         },
     )
     .unwrap();
@@ -233,14 +264,68 @@ fn authorized_admin_request_stages_bytes_through_the_socket_service() {
         serde_json::from_slice(&read_frame(&mut client).unwrap()).unwrap();
     assert_eq!(response.request_id, request_id);
     assert_eq!(response.status, "ok");
-    let receipt = response.result.unwrap();
+    let AdministrativeResult::Stage(receipt) = response.result.unwrap() else {
+        panic!("stage receipt expected");
+    };
     assert_eq!(receipt.source_snapshot_sha256, digest);
     assert_eq!(receipt.regular_files, 1);
     assert_eq!(receipt.staged_bytes, source.len() as u64);
     assert!(root
         .join("migration-staging")
-        .join(receipt.migration_id)
+        .join(&receipt.migration_id)
         .join("source/governance_history.json")
+        .is_file());
+
+    let content_sha256 = lowercase_hex(&sha256(&source));
+    #[derive(Serialize)]
+    struct TestSnapshotEntry<'a> {
+        path: &'a str,
+        r#type: &'a str,
+        content_sha256: String,
+    }
+    let snapshot = [TestSnapshotEntry {
+        path: "governance_history.json",
+        r#type: "regular",
+        content_sha256,
+    }];
+    let snapshot_sha256 = lowercase_hex(&sha256(&serde_json::to_vec(&snapshot).unwrap()));
+    let negotiated = negotiate_client(&mut normalization_client).unwrap();
+    let normalization_request_id = "req_11111111111111111111111111".to_string();
+    write_frame(
+        &mut normalization_client,
+        &AdministrativeRequest {
+            message_type: "request".to_string(),
+            wire_version: ADMIN_WIRE_VERSION.to_string(),
+            request_id: normalization_request_id.clone(),
+            connection_nonce: negotiated,
+            operation: "migration.normalize".to_string(),
+            capability: WireCapability {
+                capability_id: "cap_00000000000000000000000000".to_string(),
+                token: encode_base64url(&secret),
+            },
+            body: AdministrativeBody::Normalize(LegacyNormalizationRequest {
+                contract_version: "legacy-normalization-request-v1".to_string(),
+                migration_id: receipt.migration_id.clone(),
+                expected_source_snapshot_sha256: digest,
+                source_normalized_snapshot_sha256: snapshot_sha256.clone(),
+                source_semantic_snapshot_sha256: snapshot_sha256,
+                physical_references: Vec::new(),
+            }),
+        },
+    )
+    .unwrap();
+    let response: AdministrativeResponse =
+        serde_json::from_slice(&read_frame(&mut normalization_client).unwrap()).unwrap();
+    assert_eq!(response.request_id, normalization_request_id);
+    let AdministrativeResult::Normalize(normalization) = response.result.unwrap() else {
+        panic!("normalization receipt expected");
+    };
+    assert_eq!(normalization.comparison, "equivalent");
+    assert_eq!(normalization.state, "normalized");
+    assert!(root
+        .join("migration-staging")
+        .join(receipt.migration_id)
+        .join("normalized/source/governance_history.json")
         .is_file());
     server_thread.join().unwrap();
 }

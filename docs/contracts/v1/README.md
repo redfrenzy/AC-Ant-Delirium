@@ -14,6 +14,12 @@ Os arquivos deste diretório congelam a primeira versão das fronteiras de dados
   hashes, modos, ownership, links, validação JSON e contagens anteriores ao staging.
 - `legacy-stage-receipt-v1.schema.json`: recibo sem paths da cópia publicada no
   staging protegido.
+- `legacy-normalization-request-v1.schema.json`: digest semântico da origem e
+  bindings hash→ID opaco entregues somente pelo operador autenticado.
+- `legacy-normalization-receipt-v1.schema.json`: prova sem paths de equivalência
+  entre origem revalidada e derivação normalizada do staging.
+- `physical-reference-bindings-v1.schema.json`: tabela administrativa protegida
+  que persiste somente hash do valor legado e ID `ref_`, nunca o path original.
 
 Todos usam JSON Schema Draft 2020-12 e `additionalProperties: false`. Eles são contratos de domínio e API, não autorização, schema SQL nem descrição do transporte.
 

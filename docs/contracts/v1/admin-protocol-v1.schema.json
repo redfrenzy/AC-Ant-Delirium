@@ -58,10 +58,22 @@
         "wire_version": { "const": "ada/1" },
         "request_id": { "$ref": "#/$defs/requestId" },
         "connection_nonce": { "$ref": "#/$defs/nonce" },
-        "operation": { "const": "migration.stage" },
+        "operation": { "enum": ["migration.stage", "migration.normalize"] },
         "capability": { "$ref": "#/$defs/capability" },
-        "body": { "$ref": "#/$defs/migrationStageBody" }
-      }
+        "body": {
+          "oneOf": [
+            { "$ref": "#/$defs/migrationStageBody" },
+            { "$ref": "urn:antdelirium:contract:legacy-normalization-request-v1" }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "operation": { "const": "migration.stage" } } },
+          "then": { "properties": { "body": { "$ref": "#/$defs/migrationStageBody" } } },
+          "else": { "properties": { "body": { "$ref": "urn:antdelirium:contract:legacy-normalization-request-v1" } } }
+        }
+      ]
     },
     "migrationStageBody": {
       "type": "object",
@@ -84,6 +96,7 @@
         "result": {
           "oneOf": [
             { "$ref": "urn:antdelirium:contract:legacy-stage-receipt-v1" },
+            { "$ref": "urn:antdelirium:contract:legacy-normalization-receipt-v1" },
             { "type": "null" }
           ]
         },
@@ -143,7 +156,12 @@
           "if": { "properties": { "status": { "const": "ok" } } },
           "then": {
             "properties": {
-              "result": { "$ref": "urn:antdelirium:contract:legacy-stage-receipt-v1" },
+              "result": {
+                "oneOf": [
+                  { "$ref": "urn:antdelirium:contract:legacy-stage-receipt-v1" },
+                  { "$ref": "urn:antdelirium:contract:legacy-normalization-receipt-v1" }
+                ]
+              },
               "error": { "type": "null" }
             }
           },

@@ -19,6 +19,7 @@ use ac_ant_delirium::structs::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::legacy_normalization::{LegacyNormalizationReceipt, LegacyNormalizationRequest};
 use crate::legacy_staging::LegacyStageReceipt;
 use crate::limited_protocol::{
     decode_base64url, encode_base64url, is_encoded_nonce, random_request_id, valid_opaque_id,
@@ -34,11 +35,13 @@ const ADMIN_WIRE_VERSION: &str = "ada/1";
 const MAX_FRAME_BYTES: usize = 4 * 1024 * 1024;
 const MAX_INVENTORY_BYTES: u64 = 8 * 1024 * 1024;
 const ADMIN_TIMEOUT: Duration = Duration::from_secs(120);
+const MIGRATION_OPERATION_TIMEOUT: Duration = Duration::from_secs(600);
 const ADMIN_SOCKET_ENV: &str = "ANTDELIRIUM_ADMIN_SOCKET";
 const ADMIN_CAPABILITY_FD_ENV: &str = "ANTDELIRIUM_ADMIN_CAPABILITY_FD";
 const MIGRATION_SOURCE_ENV: &str = "ANTDELIRIUM_MIGRATION_SOURCE";
 const MIGRATION_INVENTORY_ENV: &str = "ANTDELIRIUM_MIGRATION_INVENTORY";
 const EXPECTED_SOURCE_SHA256_ENV: &str = "ANTDELIRIUM_EXPECTED_SOURCE_SHA256";
+const MIGRATION_ID_ENV: &str = "ANTDELIRIUM_MIGRATION_ID";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum AdministrativeProtocolError {
@@ -90,6 +93,13 @@ struct MigrationStageBody {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+enum AdministrativeBody {
+    Stage(MigrationStageBody),
+    Normalize(LegacyNormalizationRequest),
+}
+
+#[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct AdministrativeRequest {
     message_type: String,
@@ -98,7 +108,14 @@ struct AdministrativeRequest {
     connection_nonce: String,
     operation: String,
     capability: WireCapability,
-    body: MigrationStageBody,
+    body: AdministrativeBody,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+enum AdministrativeResult {
+    Stage(LegacyStageReceipt),
+    Normalize(LegacyNormalizationReceipt),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -108,26 +125,39 @@ struct AdministrativeResponse {
     wire_version: String,
     request_id: String,
     status: String,
-    result: Option<LegacyStageReceipt>,
+    result: Option<AdministrativeResult>,
     error: Option<Value>,
 }
 
-pub(crate) fn run_migration_stage_operator(args: &[OsString]) {
-    if args.len() != 1 || args[0] != OsStr::new("migrate-plugin") {
+pub(crate) fn run_migration_operator(args: &[OsString]) {
+    let normalize = args.len() == 2
+        && args[0] == OsStr::new("migrate-plugin")
+        && args[1] == OsStr::new("normalize");
+    if !(args.len() == 1 && args[0] == OsStr::new("migrate-plugin")) && !normalize {
         OutputRouter::exit(PublicError::Authorization);
     }
     if cfg!(debug_assertions) {
         OutputRouter::exit(PublicError::Configuration);
     }
-    let result = run_operator_stage_inner();
+    let result = if normalize {
+        run_operator_normalize_inner().map(AdministrativeResult::Normalize)
+    } else {
+        run_operator_stage_inner().map(AdministrativeResult::Stage)
+    };
     match result {
-        Ok(receipt) => OutputRouter::write_success(&format!(
-            "antdelirium[AD-MIGRATION-STAGED]: migration_id={} project_id={} source_sha256={} staging_sha256={} state=staged",
-            receipt.migration_id,
-            receipt.project_id,
-            receipt.source_snapshot_sha256,
-            receipt.staging_snapshot_sha256,
-        )),
+        Ok(AdministrativeResult::Stage(receipt)) => OutputRouter::write_success(&format!(
+                "antdelirium[AD-MIGRATION-STAGED]: migration_id={} project_id={} source_sha256={} staging_sha256={} state=staged",
+                receipt.migration_id,
+                receipt.project_id,
+                receipt.source_snapshot_sha256,
+                receipt.staging_snapshot_sha256,
+            )),
+        Ok(AdministrativeResult::Normalize(receipt)) => OutputRouter::write_success(&format!(
+                "antdelirium[AD-MIGRATION-NORMALIZED]: migration_id={} project_id={} semantic_sha256={} comparison=equivalent state=normalized",
+                receipt.migration_id,
+                receipt.project_id,
+                receipt.semantic_snapshot_sha256,
+            )),
         Err(AdministrativeProtocolError::Authorization) => {
             OutputRouter::exit(PublicError::Authorization)
         }
@@ -172,14 +202,14 @@ fn run_operator_stage_inner() -> Result<LegacyStageReceipt, AdministrativeProtoc
         connection_nonce,
         operation: "migration.stage".to_string(),
         capability: capability.capability,
-        body: MigrationStageBody {
+        body: AdministrativeBody::Stage(MigrationStageBody {
             expected_source_snapshot_sha256: expected.clone(),
             inventory: inventory_value,
-        },
+        }),
     };
     write_frame(&mut stream, &request)?;
     {
-        let mut writer = DeadlineWriter::new(&mut stream, ADMIN_TIMEOUT);
+        let mut writer = DeadlineWriter::new(&mut stream, MIGRATION_OPERATION_TIMEOUT);
         crate::legacy_staging::write_validated_source_stream(
             &source,
             &inventory,
@@ -191,8 +221,11 @@ fn run_operator_stage_inner() -> Result<LegacyStageReceipt, AdministrativeProtoc
             .flush()
             .map_err(|_| AdministrativeProtocolError::Transport("source-flush"))?;
     }
-    let response: AdministrativeResponse = serde_json::from_slice(&read_frame(&mut stream)?)
-        .map_err(|_| AdministrativeProtocolError::Envelope)?;
+    let response: AdministrativeResponse = serde_json::from_slice(&read_frame_with_timeout(
+        &mut stream,
+        MIGRATION_OPERATION_TIMEOUT,
+    )?)
+    .map_err(|_| AdministrativeProtocolError::Envelope)?;
     if response.message_type != "response"
         || response.wire_version != ADMIN_WIRE_VERSION
         || response.request_id != request_id
@@ -201,11 +234,83 @@ fn run_operator_stage_inner() -> Result<LegacyStageReceipt, AdministrativeProtoc
     {
         return Err(AdministrativeProtocolError::Envelope);
     }
-    response.result.ok_or(AdministrativeProtocolError::Envelope)
+    match response.result {
+        Some(AdministrativeResult::Stage(receipt)) => Ok(receipt),
+        _ => Err(AdministrativeProtocolError::Envelope),
+    }
 }
 
 #[cfg(not(unix))]
 fn run_operator_stage_inner() -> Result<LegacyStageReceipt, AdministrativeProtocolError> {
+    Err(AdministrativeProtocolError::Transport(
+        "unsupported-platform",
+    ))
+}
+
+#[cfg(unix)]
+fn run_operator_normalize_inner() -> Result<LegacyNormalizationReceipt, AdministrativeProtocolError>
+{
+    let endpoint = std::env::var_os(ADMIN_SOCKET_ENV);
+    let source = std::env::var_os(MIGRATION_SOURCE_ENV);
+    let inventory_path = std::env::var_os(MIGRATION_INVENTORY_ENV);
+    let expected = std::env::var(EXPECTED_SOURCE_SHA256_ENV).ok();
+    let migration_id = std::env::var(MIGRATION_ID_ENV).ok();
+    clear_operator_path_environment();
+    let endpoint = required_absolute_path(endpoint)?;
+    let source = required_absolute_path(source)?;
+    let inventory_path = required_absolute_path(inventory_path)?;
+    let expected = expected.ok_or(AdministrativeProtocolError::Envelope)?;
+    let migration_id = migration_id.ok_or(AdministrativeProtocolError::Envelope)?;
+    let capability = read_administrative_capability()?;
+    let inventory = read_bounded_regular_file(&inventory_path, MAX_INVENTORY_BYTES)?;
+    let normalization = crate::legacy_normalization::prepare_source_normalization(
+        &source,
+        &inventory,
+        &expected,
+        &migration_id,
+    )
+    .map_err(|_| AdministrativeProtocolError::Staging)?;
+
+    let mut stream = UnixStream::connect(endpoint)
+        .map_err(|_| AdministrativeProtocolError::Transport("connect"))?;
+    set_descriptor_close_on_exec(stream.as_raw_fd())
+        .map_err(|_| AdministrativeProtocolError::Transport("close-on-exec"))?;
+    let connection_nonce = negotiate_client(&mut stream)?;
+    let request_id = random_request_id().map_err(|_| AdministrativeProtocolError::Envelope)?;
+    write_frame(
+        &mut stream,
+        &AdministrativeRequest {
+            message_type: "request".to_string(),
+            wire_version: ADMIN_WIRE_VERSION.to_string(),
+            request_id: request_id.clone(),
+            connection_nonce,
+            operation: "migration.normalize".to_string(),
+            capability: capability.capability,
+            body: AdministrativeBody::Normalize(normalization),
+        },
+    )?;
+    let response: AdministrativeResponse = serde_json::from_slice(&read_frame_with_timeout(
+        &mut stream,
+        MIGRATION_OPERATION_TIMEOUT,
+    )?)
+    .map_err(|_| AdministrativeProtocolError::Envelope)?;
+    if response.message_type != "response"
+        || response.wire_version != ADMIN_WIRE_VERSION
+        || response.request_id != request_id
+        || response.status != "ok"
+        || response.error.is_some()
+    {
+        return Err(AdministrativeProtocolError::Envelope);
+    }
+    match response.result {
+        Some(AdministrativeResult::Normalize(receipt)) => Ok(receipt),
+        _ => Err(AdministrativeProtocolError::Envelope),
+    }
+}
+
+#[cfg(not(unix))]
+fn run_operator_normalize_inner() -> Result<LegacyNormalizationReceipt, AdministrativeProtocolError>
+{
     Err(AdministrativeProtocolError::Transport(
         "unsupported-platform",
     ))
@@ -248,8 +353,6 @@ pub(crate) fn serve_administrative_request(
     let request: AdministrativeRequest =
         serde_json::from_slice(&payload).map_err(|_| AdministrativeProtocolError::Envelope)?;
     validate_request(&request, authentication.connection_nonce())?;
-    let inventory_document = serde_json::to_vec_pretty(&request.body.inventory)
-        .map_err(|_| AdministrativeProtocolError::Envelope)?;
     let authorization = capability_request(authentication, &request)?;
     let outcome = authentication
         .authorize(
@@ -267,17 +370,28 @@ pub(crate) fn serve_administrative_request(
         }
         _ => return Err(AdministrativeProtocolError::Authorization),
     };
-    let receipt = {
-        let mut reader = DeadlineReader::new(stream, ADMIN_TIMEOUT);
-        storage
-            .stage_legacy_stream(
-                authority,
-                &capability,
-                &inventory_document,
-                &request.body.expected_source_snapshot_sha256,
-                &mut reader,
-            )
-            .map_err(|_| AdministrativeProtocolError::Staging)?
+    let result = match request.body {
+        AdministrativeBody::Stage(body) => {
+            let inventory_document = serde_json::to_vec_pretty(&body.inventory)
+                .map_err(|_| AdministrativeProtocolError::Envelope)?;
+            let mut reader = DeadlineReader::new(stream, MIGRATION_OPERATION_TIMEOUT);
+            let receipt = storage
+                .stage_legacy_stream(
+                    authority,
+                    &capability,
+                    &inventory_document,
+                    &body.expected_source_snapshot_sha256,
+                    &mut reader,
+                )
+                .map_err(|_| AdministrativeProtocolError::Staging)?;
+            AdministrativeResult::Stage(receipt)
+        }
+        AdministrativeBody::Normalize(body) => {
+            let receipt = storage
+                .normalize_legacy_migration(authority, &capability, &body)
+                .map_err(|_| AdministrativeProtocolError::Staging)?;
+            AdministrativeResult::Normalize(receipt)
+        }
     };
     write_frame(
         stream,
@@ -286,7 +400,7 @@ pub(crate) fn serve_administrative_request(
             wire_version: ADMIN_WIRE_VERSION.to_string(),
             request_id: request.request_id,
             status: "ok".to_string(),
-            result: Some(receipt),
+            result: Some(result),
             error: None,
         },
     )
@@ -299,7 +413,8 @@ fn capability_request(
     if !valid_opaque_id(&request.capability.capability_id, "cap_") {
         return Err(AdministrativeProtocolError::Authorization);
     }
-    let mut fingerprint = b"migration.stage\0".to_vec();
+    let mut fingerprint = request.operation.as_bytes().to_vec();
+    fingerprint.push(0);
     fingerprint.extend_from_slice(
         &serde_json::to_vec(&request.body).map_err(|_| AdministrativeProtocolError::Envelope)?,
     );
@@ -323,17 +438,31 @@ fn validate_request(
 ) -> Result<(), AdministrativeProtocolError> {
     if request.message_type != "request"
         || request.wire_version != ADMIN_WIRE_VERSION
-        || request.operation != "migration.stage"
+        || !matches!(
+            request.operation.as_str(),
+            "migration.stage" | "migration.normalize"
+        )
         || !valid_opaque_id(&request.request_id, "req_")
         || decode_base64url(&request.connection_nonce)
             .map_err(|_| AdministrativeProtocolError::Envelope)?
             != *expected_nonce
-        || request.body.inventory["inventory_sha256"].as_str()
-            != Some(&request.body.expected_source_snapshot_sha256)
     {
         return Err(AdministrativeProtocolError::Envelope);
     }
-    Ok(())
+    match (&request.operation[..], &request.body) {
+        ("migration.stage", AdministrativeBody::Stage(body))
+            if body.inventory["inventory_sha256"].as_str()
+                == Some(&body.expected_source_snapshot_sha256) =>
+        {
+            Ok(())
+        }
+        ("migration.normalize", AdministrativeBody::Normalize(body))
+            if body.contract_version == "legacy-normalization-request-v1" =>
+        {
+            Ok(())
+        }
+        _ => Err(AdministrativeProtocolError::Envelope),
+    }
 }
 
 #[cfg(unix)]
@@ -387,7 +516,15 @@ fn write_frame<T: Serialize>(
 
 #[cfg(unix)]
 fn read_frame(stream: &mut UnixStream) -> Result<Vec<u8>, AdministrativeProtocolError> {
-    let deadline = Instant::now() + ADMIN_TIMEOUT;
+    read_frame_with_timeout(stream, ADMIN_TIMEOUT)
+}
+
+#[cfg(unix)]
+fn read_frame_with_timeout(
+    stream: &mut UnixStream,
+    timeout: Duration,
+) -> Result<Vec<u8>, AdministrativeProtocolError> {
+    let deadline = Instant::now() + timeout;
     let mut header = [0_u8; 8];
     read_exact_before(stream, &mut header, deadline)?;
     if header[..4] != ADMIN_MAGIC {
@@ -605,6 +742,7 @@ fn clear_operator_path_environment() {
         MIGRATION_SOURCE_ENV,
         MIGRATION_INVENTORY_ENV,
         EXPECTED_SOURCE_SHA256_ENV,
+        MIGRATION_ID_ENV,
     ] {
         std::env::remove_var(name);
     }
