@@ -1,5 +1,6 @@
 use super::*;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
 use toml_edit::value;
 
 #[cfg(unix)]
@@ -9,9 +10,13 @@ static FIXTURE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 fn fixture_cargo_home(label: &str) -> PathBuf {
     let sequence = FIXTURE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("fixture clock after epoch")
+        .as_nanos();
     let cargo_home = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("target/t72-config-tests")
-        .join(format!("{label}-{}-{sequence}", std::process::id()))
+        .join(format!("{label}-{}-{nonce}-{sequence}", std::process::id()))
         .join("cargo-home");
     fs::create_dir_all(&cargo_home).expect("create Cargo home fixture");
     cargo_home
@@ -63,6 +68,19 @@ fn configures_only_the_workspace_wrapper_and_preserves_other_build_settings() {
             .original_bytes,
         original
     );
+    assert_eq!(
+        inspect_workspace_wrapper(&cargo_home),
+        Ok(WorkspaceWrapperStatus::ActiveOwned)
+    );
+    #[cfg(unix)]
+    {
+        fs::set_permissions(&config, fs::Permissions::from_mode(0o600))
+            .expect("tamper installed config mode");
+        assert_eq!(
+            inspect_workspace_wrapper(&cargo_home),
+            Ok(WorkspaceWrapperStatus::Conflict)
+        );
+    }
 }
 
 #[cfg(unix)]
@@ -89,6 +107,10 @@ fn identical_preexisting_workspace_wrapper_is_an_unclaimed_no_op() {
         configured
     );
     assert!(!cargo_home.join(BACKUP_DIRECTORY_NAME).exists());
+    assert_eq!(
+        inspect_workspace_wrapper(&cargo_home),
+        Ok(WorkspaceWrapperStatus::ActiveUnclaimed)
+    );
 }
 
 #[test]
@@ -117,7 +139,26 @@ fn refuses_cache_divergent_wrapper_and_malformed_build_without_writing() {
             "case {label}"
         );
         assert!(!cargo_home.join(BACKUP_DIRECTORY_NAME).exists());
+        assert_eq!(
+            inspect_workspace_wrapper(&cargo_home),
+            Ok(WorkspaceWrapperStatus::Conflict),
+            "inspection case {label}"
+        );
     }
+}
+
+#[test]
+fn inspection_distinguishes_missing_workspace_wrapper() {
+    let cargo_home = fixture_cargo_home("workspace-wrapper-missing");
+    fs::write(
+        cargo_home.join(CONFIG_FILE_NAME),
+        b"[net]\noffline = true\n",
+    )
+    .expect("write config without wrapper");
+    assert_eq!(
+        inspect_workspace_wrapper(&cargo_home),
+        Ok(WorkspaceWrapperStatus::Missing)
+    );
 }
 
 #[test]

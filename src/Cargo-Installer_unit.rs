@@ -23,6 +23,13 @@ pub(crate) enum BinaryInstallOutcome {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BinaryInstallationStatus {
+    Ready,
+    Missing,
+    Conflict,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum BinaryInstallError {
     InvalidSource,
     InvalidCargoHome,
@@ -44,6 +51,10 @@ pub(crate) enum CargoInstallError {
 }
 
 pub(crate) fn run_operator_mode(args: &[OsString]) {
+    if args.len() == 1 && args[0] == OsStr::new("doctor") {
+        crate::cargo_doctor::run_doctor();
+        return;
+    }
     if args.len() != 1 || args[0] != OsStr::new("install") {
         OutputRouter::exit(PublicError::Authorization);
     }
@@ -98,7 +109,7 @@ pub(crate) fn install_release_and_configure(
     Ok(CargoInstallOutcome { binary, config })
 }
 
-fn cargo_home_from_environment() -> Result<PathBuf, BinaryInstallError> {
+pub(crate) fn cargo_home_from_environment() -> Result<PathBuf, BinaryInstallError> {
     let configured = std::env::var_os("CARGO_HOME").filter(|value| !value.is_empty());
     let cargo_home = match configured {
         Some(path) => PathBuf::from(path),
@@ -113,6 +124,52 @@ fn cargo_home_from_environment() -> Result<PathBuf, BinaryInstallError> {
         return Err(BinaryInstallError::InvalidCargoHome);
     }
     Ok(cargo_home)
+}
+
+pub(crate) fn inspect_release_binary(
+    source: &Path,
+    cargo_home: &Path,
+) -> Result<BinaryInstallationStatus, BinaryInstallError> {
+    if !source.is_absolute() {
+        return Err(BinaryInstallError::InvalidSource);
+    }
+    if !cargo_home.is_absolute() {
+        return Err(BinaryInstallError::InvalidCargoHome);
+    }
+    let owner = effective_uid()?;
+    match fs::symlink_metadata(cargo_home) {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            return Ok(BinaryInstallationStatus::Missing)
+        }
+        Err(_) => return Err(BinaryInstallError::Io),
+        Ok(_) => validate_owned_directory(cargo_home, owner)?,
+    }
+    let bin_directory = cargo_home.join("bin");
+    match fs::symlink_metadata(&bin_directory) {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            return Ok(BinaryInstallationStatus::Missing)
+        }
+        Err(_) => return Err(BinaryInstallError::Io),
+        Ok(_) => validate_owned_directory(&bin_directory, owner)?,
+    }
+    let source_file = open_owned_executable(source, owner)?;
+    let source_metadata = source_file
+        .metadata()
+        .map_err(|_| BinaryInstallError::InvalidSource)?;
+    match inspect_existing_destination(
+        &bin_directory.join(INSTALLED_BINARY_NAME),
+        owner,
+        &source_file,
+        &source_metadata,
+    ) {
+        Ok(Some(BinaryInstallOutcome::AlreadyInstalled)) => Ok(BinaryInstallationStatus::Ready),
+        Ok(Some(BinaryInstallOutcome::Installed)) => Ok(BinaryInstallationStatus::Conflict),
+        Ok(None) => Ok(BinaryInstallationStatus::Missing),
+        Err(BinaryInstallError::ExistingInstallationConflict) => {
+            Ok(BinaryInstallationStatus::Conflict)
+        }
+        Err(error) => Err(error),
+    }
 }
 
 pub(crate) fn install_release_binary(

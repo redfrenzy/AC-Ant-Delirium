@@ -27,6 +27,14 @@ pub(crate) enum CargoConfigMergeOutcome {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum WorkspaceWrapperStatus {
+    ActiveOwned,
+    ActiveUnclaimed,
+    Missing,
+    Conflict,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CargoConfigError {
     InvalidCargoHome,
     UnsafeFilesystemEntry,
@@ -64,6 +72,55 @@ pub(crate) fn configure_workspace_wrapper(
     merge_cargo_config(cargo_home, move |document| {
         configure_workspace_wrapper_document(document, &wrapper)
     })
+}
+
+pub(crate) fn inspect_workspace_wrapper(
+    cargo_home: &Path,
+) -> Result<WorkspaceWrapperStatus, CargoConfigError> {
+    let owner = effective_uid()?;
+    validate_cargo_home(cargo_home, owner)?;
+    reject_legacy_config(cargo_home)?;
+    let config = match read_existing_config(&cargo_home.join(CONFIG_FILE_NAME), owner)? {
+        Some(config) => config,
+        None => return Ok(WorkspaceWrapperStatus::Missing),
+    };
+    let source = std::str::from_utf8(&config.bytes).map_err(|_| CargoConfigError::InvalidConfig)?;
+    let document = source
+        .parse::<DocumentMut>()
+        .map_err(|_| CargoConfigError::InvalidConfig)?;
+    let build = match document.get("build") {
+        None => return Ok(WorkspaceWrapperStatus::Missing),
+        Some(item) => match item.as_table_like() {
+            Some(build) => build,
+            None => return Ok(WorkspaceWrapperStatus::Conflict),
+        },
+    };
+    if build.get("rustc-wrapper").is_some() {
+        return Ok(WorkspaceWrapperStatus::Conflict);
+    }
+    let expected = expected_workspace_wrapper(cargo_home)?;
+    match build.get("rustc-workspace-wrapper") {
+        None => return Ok(WorkspaceWrapperStatus::Missing),
+        Some(configured) if configured.as_str() == Some(expected.as_str()) => {}
+        Some(_) => return Ok(WorkspaceWrapperStatus::Conflict),
+    }
+    match fs::symlink_metadata(cargo_home.join(BACKUP_DIRECTORY_NAME)) {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            Ok(WorkspaceWrapperStatus::ActiveUnclaimed)
+        }
+        Err(_) => Err(CargoConfigError::Io),
+        Ok(_) => {
+            let backup = read_verified_config_backup(cargo_home)?;
+            let expected_mode = backup.original_mode.unwrap_or(0o600);
+            if backup.installed_sha256 == lowercase_hex(&sha256(&config.bytes))
+                && config.mode == expected_mode
+            {
+                Ok(WorkspaceWrapperStatus::ActiveOwned)
+            } else {
+                Ok(WorkspaceWrapperStatus::Conflict)
+            }
+        }
+    }
 }
 
 pub(crate) fn preflight_workspace_wrapper(cargo_home: &Path) -> Result<(), CargoConfigError> {

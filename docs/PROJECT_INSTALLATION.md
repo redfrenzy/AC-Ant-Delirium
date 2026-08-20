@@ -673,3 +673,57 @@ home descartável, confirmou os modos `0755` do binário, `0600` da configuraç�
 novo sem dependências passou `cargo check` usando somente essa configuração. O
 mesmo check em target separado com profundidade deliberadamente inválida foi
 rejeitado pelo wrapper, provando que o Cargo carregou a integração instalada.
+
+## Diagnóstico administrativo sem divulgação — T7.4
+
+O release aceita `antdelirium doctor` como operação administrativa read-only.
+Ela permanece ausente da ajuda e da API do agente. O relatório textual possui
+contrato `doctor v1` e publica somente versões e estados fechados; nunca imprime
+paths, valores de ambiente, nomes dos arquivos locais encontrados ou localização
+do serviço.
+
+O diagnóstico verifica:
+
+- Cargo 1.50 ou posterior, piso do protocolo `rustc-workspace-wrapper`;
+- rustc 1.88 ou posterior, MSRV declarado pelo pacote;
+- bytes e modo do binário instalado em relação ao executável em execução;
+- wrapper global ativo, backup íntegro, hash atual e modo pertencente à instalação;
+- presença dos seis overrides `RUSTC*`/`CARGO_BUILD_RUSTC*`, inclusive valor vazio;
+- `.cargo/config` e `.cargo/config.toml` desde o cwd até a raiz, sem seguir
+  symlinks e distinguindo configuração comum de override do compilador;
+- endpoint limitado disponível e serviço ativo, ou ambos os sockets systemd
+  ativos para socket activation.
+
+Uma configuração idêntica que já existia antes da instalação aparece como
+`active-unclaimed`: ela funciona, mas não é considerada pertencente ao
+AntDelirium e o futuro `uninstall` não poderá removê-la. Alteração posterior de
+bytes ou modo do arquivo registrado aparece como conflito.
+
+O `doctor` consulta `systemctl is-active` sem ativar unidades e apenas verifica o
+tipo do endpoint configurado; não conecta ao socket. Configuração local comum é
+informativa, enquanto `include`, `build.rustc`, `build.rustc-wrapper` ou
+`build.rustc-workspace-wrapper` local produz `override-detected`. Arquivos
+ambíguos, TOML inválido, entrada symlink ou mudança concorrente produzem
+`invalid`, sempre sem revelar onde foram encontrados.
+
+Variáveis de ambiente têm precedência sobre TOML. `--config`, por sua vez, tem
+precedência ainda maior e só existe na execução específica do Cargo; por isso o
+relatório declara `command_line_config=per-invocation-unobservable` em vez de
+prometer uma detecção impossível antecipadamente. CI ou supervisor continua
+necessário para detectar esse bypass durante o comando real.
+
+O processo termina com exit `0` apenas quando versões, instalação, configuração
+pertencente, ausência de overrides e serviço estão prontos. Qualquer atenção
+termina com exit `78`, depois do relatório sanitizado. O comando não modifica
+configuração, instalação, serviço ou projeto.
+
+O probe do ELF release em Cargo home descartável confirmou Cargo/rustc 1.97.1,
+binário `ready`, configuração `active-owned`, uma configuração local comum sem
+override e serviço `unavailable`, estado esperado antes da instalação systemd;
+o resultado foi `attention`/exit `78`. Uma segunda execução com override vazio
+mudou somente a contagem sanitizada de zero para um, sem publicar nome, valor ou
+path.
+
+As fixtures Cargo T7.1, T7.2 e T7.4 agora combinam relógio, PID e sequência no
+nome sob `target/`. A mesma seleção de testes passou duas vezes consecutivas sem
+limpeza, portanto os testes não dependem mais de apagar artefatos anteriores.

@@ -1,5 +1,6 @@
 use super::*;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[cfg(unix)]
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
@@ -8,9 +9,13 @@ static FIXTURE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 fn fixture_root(label: &str) -> PathBuf {
     let sequence = FIXTURE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("fixture clock after epoch")
+        .as_nanos();
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("target/t71-installer-tests")
-        .join(format!("{label}-{}-{sequence}", std::process::id()));
+        .join(format!("{label}-{}-{nonce}-{sequence}", std::process::id()));
     fs::create_dir_all(&root).expect("create installer fixture");
     root
 }
@@ -58,6 +63,10 @@ fn integrated_install_activates_only_the_workspace_wrapper() {
     assert!(cargo_home
         .join(".antdelirium-install/config-backup-v1.json")
         .is_file());
+    assert_eq!(
+        inspect_release_binary(&executable_source(), &cargo_home),
+        Ok(BinaryInstallationStatus::Ready)
+    );
 }
 
 #[test]
@@ -201,6 +210,10 @@ fn refuses_to_overwrite_an_unknown_existing_binary() {
         fs::read(destination).expect("read preserved conflict"),
         b"unowned installation\n"
     );
+    assert_eq!(
+        inspect_release_binary(&executable_source(), &cargo_home),
+        Ok(BinaryInstallationStatus::Conflict)
+    );
 }
 
 #[cfg(unix)]
@@ -243,6 +256,10 @@ fn rejects_relative_cargo_home_and_creates_one_missing_level() {
         Err(BinaryInstallError::InvalidCargoHome)
     );
     let missing = fixture_root("missing").join("missing-cargo-home");
+    assert_eq!(
+        inspect_release_binary(&executable_source(), &missing),
+        Ok(BinaryInstallationStatus::Missing)
+    );
     assert_eq!(
         install_release_binary(&executable_source(), &missing),
         Ok(BinaryInstallOutcome::Installed)

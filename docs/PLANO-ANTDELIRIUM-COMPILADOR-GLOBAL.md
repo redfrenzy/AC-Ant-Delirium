@@ -227,16 +227,17 @@ O código não deve definir `build.rustc = "antdelirium"`. O AntDelirium não im
 
 ### 4.1. Compatibilidade com a versão instalada
 
-`RUSTC_WORKSPACE_WRAPPER` foi estabilizado no Cargo 1.50. O ambiente atual foi verificado com:
+`RUSTC_WORKSPACE_WRAPPER` foi estabilizado no Cargo 1.50. O ambiente atual foi
+reverificado durante a T7.4 com:
 
 ```text
-cargo 1.93.1 (083ac5135 2025-12-15)
-rustc 1.93.1 (01f6ddf75 2026-02-11)
+cargo 1.97.1 (c980f4866 2026-06-30)
+rustc 1.97.1 (8bab26f4f 2026-07-14)
 ```
 
-Portanto, não é necessário atualizar Rust ou Cargo para implementar o wrapper. O `Cargo.toml` atual usa edition 2021, foi aceito por `cargo metadata --locked` e compilou com `cargo check --locked --target x86_64-unknown-linux-gnu` nessa toolchain. Uma segunda compilação usando `build.rustc-workspace-wrapper="/usr/bin/env"` como delegador transparente também passou, provando que o Cargo 1.93.1 instalado reconhece a chave e aplica o protocolo de wrapper. A opção explícita de target é necessária porque a configuração local deste repositório ainda define `wasm32-unknown-unknown` como target padrão; isso é independente do suporte ao wrapper global.
+Portanto, não é necessário atualizar Rust ou Cargo para implementar o wrapper. O `Cargo.toml` atual usa edition 2021, foi aceito por `cargo metadata --locked` e compilou com `cargo check --locked --target x86_64-unknown-linux-gnu` nessa família de toolchains. A prova original com 1.93.1 usando `build.rustc-workspace-wrapper="/usr/bin/env"` como delegador transparente passou, e a T7.4 voltou a validar o fluxo com 1.97.1. A opção explícita de target é necessária porque a configuração local deste repositório ainda define `wasm32-unknown-unknown` como target padrão; isso é independente do suporte ao wrapper global.
 
-O piso do protocolo de integração é Cargo 1.50. Isso não significa que o binário atual inteiro já tenha MSRV 1.50: o `Cargo.toml` ainda não declara `package.rust-version`, e dependências como `gix` podem exigir uma toolchain mais recente. A Fase 0 deve determinar, testar e declarar o MSRV real do AntDelirium. Para a decisão imediata, a evidência necessária está fechada: a toolchain 1.93.1 instalada suporta tanto o manifesto atual quanto o wrapper, sem atualização.
+O piso do protocolo de integração é Cargo 1.50; ele não é o MSRV do binário inteiro. O `Cargo.toml` agora declara `package.rust-version = "1.88"`, piso validado com o grafo bloqueado, enquanto a toolchain 1.97.1 atual suporta tanto o manifesto quanto o wrapper sem atualização adicional.
 
 Segundo a documentação oficial do Cargo:
 
@@ -912,6 +913,16 @@ divergente, tipo inválido ou backup conflitante falha no preflight sem copiar o
 binário nem reescrever configuração. Não há `--force`: composição com `sccache`
 ou outro wrapper permanece uma decisão explícita do operador. A revalidação após
 a cópia preserva fail-closed em caso de corrida.
+
+Estado da T7.4: o diagnóstico administrativo `doctor v1` verifica os pisos Cargo
+1.50 e rustc/MSRV 1.88, identidade da instalação, ownership registrado e modo
+da configuração, overrides de compilador por ambiente, hierarquia Cargo local e
+disponibilidade estática do serviço/socket activation. Sua saída usa somente
+estados e contagens sem paths ou valores. Arquivos locais são lidos com limite,
+`O_NOFOLLOW` e snapshot consistente. `--config` é declarado não observável antes
+da execução porque vence ambiente e TOML por comando; CI/supervisor permanece o
+gate autoritativo. O diagnóstico não ativa unidade, não conecta a socket e não
+escreve estado.
 
 ### Fase 6 — comandos Cargo existentes e gate externo
 
