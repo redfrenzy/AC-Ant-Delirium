@@ -698,6 +698,8 @@ Requisitos para o serviço protegido:
 
 Hardening de release, remoção de símbolos e remapeamento de caminhos de compilação são defesa em profundidade. Eles reduzem pistas estáticas, mas não substituem permissões, sandbox e separação de processo. Nomes genéricos eventualmente descobertos não podem conceder localização nem acesso ao armazenamento real.
 
+A T6.8 materializou a prova dinâmica do lado cliente em `make syscall-client-nondisclosure`. O gate segue com `strace -f` todo o `cargo check` isolado, o wrapper, seus filhos audit-only e o compilador real; exige a conexão limitada e rejeita qualquer syscall que mencione roots, layout ou payload sentinela do estado protegido. O teste não usa `sudo`, falha inconclusivo com exit `77` se `ptrace` não estiver disponível e não substitui a prova posterior de que o serviço instalado resiste a attach e inspeção de `/proc`.
+
 ## 13. Como evitar que o agente abandone o projeto
 
 O novo sistema deve mudar também a experiência apresentada ao agente.

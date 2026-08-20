@@ -79,6 +79,7 @@ check:
 ci:
 	cargo fmt --all -- --check
 	bash -n packaging/sandbox/validate-client-isolation.sh
+	bash -n packaging/sandbox/validate-wrapper-syscalls.sh
 	RUSTFLAGS="-D warnings" cargo check --locked --all-targets --target $(HOST_TARGET)
 	RUSTFLAGS="-D warnings" cargo test --locked --all-targets --target $(HOST_TARGET) --no-fail-fast
 	$(MAKE) release-nondisclosure
@@ -93,6 +94,17 @@ ci:
 .PHONY: adversarial-client-isolation
 adversarial-client-isolation:
 	bash packaging/sandbox/validate-client-isolation.sh
+
+# -----------------------------------------------
+# make syscall-client-nondisclosure
+# -----------------------------------------------
+# Traces every file syscall made by Cargo, the wrapper, its audit-only child
+# and rustc, then rejects any reference to known protected state roots. This
+# requires ptrace permission and is intentionally separate from portable CI.
+# -----------------------------------------------
+.PHONY: syscall-client-nondisclosure
+syscall-client-nondisclosure: binary
+	bash packaging/sandbox/validate-wrapper-syscalls.sh
 
 # -----------------------------------------------
 # make clean

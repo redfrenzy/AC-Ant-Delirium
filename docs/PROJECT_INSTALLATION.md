@@ -255,6 +255,23 @@ agente e permanece em stderr com `AD-AUTH-0001`/exit `77`. Da mesma forma,
 `antdelirium <rustc-qualificado> --version` continua sendo uma invocação de
 wrapper e não intercepta a consulta do compilador como versão do AntDelirium.
 
+## Prova dinâmica de não divulgação do cliente
+
+Em Linux com `strace` e permissão de `ptrace`, a fronteira de syscalls pode ser
+reproduzida sem `sudo`:
+
+```bash
+make syscall-client-nondisclosure
+```
+
+O alvo segue todos os descendentes de um `cargo check` isolado, confirma o
+wrapper e o filho audit-only e falha se qualquer processo abrir, testar,
+resolver ou enumerar as raízes sentinelas de estado protegido. Exit `77`
+significa que o ambiente negou o tracing ou não ofereceu a ferramenta; não é
+tratado como prova positiva. O método, os sentinelas e o resultado observado
+estão em
+[`VALIDACAO-SYSCALLS-WRAPPER-T6.8.md`](./VALIDACAO-SYSCALLS-WRAPPER-T6.8.md).
+
 ## Protocolo do wrapper e proteção de recursão
 
 A classificação do wrapper agora pertence a um módulo próprio e ocorre antes
