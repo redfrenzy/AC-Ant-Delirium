@@ -408,6 +408,14 @@ invoca e compara a saída do binário nativo direto e encapsulado. A matriz não
 instala configuração global nem substitui os gates posteriores contra um
 serviço protegido ativo.
 
+A T6.7 fechou o orçamento desta rota com um benchmark pareado e automatizado.
+Medianas alternadas com targets isolados limitam o overhead positivo a `25 ms`
+por entrada do wrapper, `2 s` no check limpo, `1 s` no incremental e `250 ms`
+no no-op. A [evidência T6.7](./VALIDACAO-OVERHEAD-WRAPPER-T6.7.md) registra
+deltas de `2,220 ms`, `48,752 ms`, `5,214 ms` e `1,139 ms`, respectivamente,
+com exit, stdout e stderr idênticos. A rota com serviço ativo permanece fora
+dessa medição e será coberta na T10.6.
+
 ## 8. Estrutura externa por projeto
 
 A estrutura deve manter a utilidade do plugin AutoBrowser sem copiar os binários para cada projeto.
@@ -996,7 +1004,8 @@ Critério de saída:
 
 1. **Fechada na T1.2:** cliente user-local não confiável, serviço systemd sob UID dedicado e CI/supervisor como autoridade final.
 2. **Fechada na T1.3:** SQLite/WAL protegido é canônico; eventos permanecem append-only em tabela transacional e JSON é apenas projeção/exportação.
-3. Qual overhead máximo aceitável por invocação do wrapper?
+3. **Fechada na T6.7:** até `25 ms` adicionais por entrada do wrapper; checks
+   limpo, incremental e no-op têm tetos pareados de `2 s`, `1 s` e `250 ms`.
 4. Auditoria ocorre antes, depois ou em paralelo ao `rustc` em modo de produção?
 5. Quais violações bloqueiam e quais apenas geram dados?
 6. Como compor com `sccache` e outros wrappers já instalados?

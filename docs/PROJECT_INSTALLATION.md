@@ -344,6 +344,18 @@ prova transparência, targets e ausência de deadlock quando o serviço limitado
 está indisponível. O transporte contra serviço instalado e o isolamento do
 state root continuam nos gates adversariais posteriores.
 
+### Orçamento de overhead
+
+A T6.7 transforma a comparação direto/wrapper em um gate reproduzível. A
+[validação de overhead](./VALIDACAO-OVERHEAD-WRAPPER-T6.7.md) usa medianas,
+targets isolados e ordem alternada. Os tetos adicionais são `25 ms` por entrada
+do wrapper, `2 s` para check limpo, `1 s` para incremental e `250 ms` para
+no-op. Na amostra registrada, os deltas foram respectivamente `2,220 ms`,
+`48,752 ms`, `5,214 ms` e `1,139 ms`, com exit, stdout e stderr equivalentes.
+
+Esses limites cobrem o wrapper com endpoint ausente. O no-op pode não chamar o
+wrapper, e a rota com serviço ativo continua na matriz integral posterior.
+
 ### Negociação do protocolo limitado
 
 A T6.4 liga exclusivamente o hook de `PrimaryWorkspaceMember` ao endpoint
