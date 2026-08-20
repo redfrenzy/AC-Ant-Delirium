@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:migration-attestation-receipt-v1",
+  "title": "Migration verifier attestation receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "attestation", "attestation_sha256"],
+  "properties": {
+    "contract_version": { "const": "migration-attestation-receipt-v1" },
+    "attestation": { "$ref": "urn:antdelirium:contract:migration-verifier-attestation-v1" },
+    "attestation_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

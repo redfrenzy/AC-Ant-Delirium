@@ -1062,9 +1062,17 @@ Planos e tarefas receberam IDs opacos; histórico, problema e transições foram
 retidos em storage protegido; as projeções simuladas passaram sem divulgar
 paths ou estado administrativo. As contagens 16/73/275/1/4 coincidiram e as 73
 metas foram validadas sem fallback. O manifesto continua `staged`, sem
-approval/cutover, e a origem permanece intacta. A T8.6 não está concluída: a
-atestação independente, a aprovação explícita e a troca de autoridade devem
-ocorrer em passos posteriores e separados.
+approval/cutover, e a origem permanece intacta. A
+[atestação independente](./VALIDACAO-ATESTACAO-INDEPENDENTE-AUTOBROWSER-T8.6.md)
+acrescentou `migration.attest`, autorizada somente por capability CI
+administrativa vinculada ao projeto/workspace. Ela repetiu conversão,
+integridade, fingerprint lógico, bindings, projeções e contagens e persistiu
+evidência mais auditoria atomicamente. A prova real foi idempotente, mas declara
+explicitamente `signature=absent`, `approval_created=false` e
+`cutover_performed=false`; a identidade CI implantada ainda não foi demonstrada.
+A T8.6 não está concluída: aprovação explícita do operador, instalação do
+serviço/wrapper global e troca de autoridade devem ocorrer em passos posteriores
+e separados.
 
 ### Fase 8 — endurecimento contra agentes hostis
 

@@ -165,6 +165,56 @@ mod tests {
     }
 
     #[test]
+    fn ci_attestation_is_allowed_only_on_the_exact_administrative_candidate_scope() {
+        let root = fixture_root("ci-migration-attestation");
+        let database = database(&root);
+        let secret = [12; 32];
+        let mut ci_grant = grant(&secret);
+        ci_grant.actor = CapabilityActor::Ci;
+        ci_grant.channel = CapabilityChannel::Administrative;
+        ci_grant.operation = CapabilityOperation::AttestationCreate;
+        ci_grant.task_id = None;
+        database.store_capability_grant(&ci_grant).unwrap();
+        let request = CapabilityAuthorizationRequest {
+            grant_id: GRANT_ID.to_string(),
+            presented_secret: secret,
+            operation: CapabilityOperation::AttestationCreate,
+            project_id: Some(PROJECT_ID.to_string()),
+            workspace_id: Some(WORKSPACE_ID.to_string()),
+            task_id: None,
+            presented_connection_nonce: [9; 32],
+            request_id: REQUEST_ID.to_string(),
+            request_fingerprint: [13; 32],
+        };
+        let outcome = authorize(
+            &database,
+            1000,
+            CapabilityChannel::Administrative,
+            &[9; 32],
+            150,
+            &request,
+        );
+        let CapabilityAuthorizationOutcome::Fresh(authorized) = outcome else {
+            panic!("CI verifier capability should be fresh");
+        };
+        assert_eq!(authorized.actor(), CapabilityActor::Ci);
+        assert_eq!(
+            authorized.operation(),
+            CapabilityOperation::AttestationCreate
+        );
+        assert_eq!(authorized.project_id(), Some(PROJECT_ID));
+        assert_eq!(authorized.workspace_id(), Some(WORKSPACE_ID));
+
+        let mut operator_grant = grant(&[14; 32]);
+        operator_grant.grant_id = "cap_11111111111111111111111111".to_string();
+        operator_grant.actor = CapabilityActor::Operator;
+        operator_grant.channel = CapabilityChannel::Administrative;
+        operator_grant.operation = CapabilityOperation::AttestationCreate;
+        operator_grant.task_id = None;
+        assert!(database.store_capability_grant(&operator_grant).is_err());
+    }
+
+    #[test]
     fn all_credential_channel_operation_scope_nonce_and_time_mismatches_are_denied() {
         let root = fixture_root("mismatch");
         let database = database(&root);

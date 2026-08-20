@@ -538,9 +538,13 @@ três operações de wrapper implementadas. Bootstrap sem capability cria soment
 estado provisório vazio; compilação e projeção precisam passar por peer,
 capability, nonce, request fingerprint, receipt e resolver opaco antes de abrir
 o banco derivado pelo registry. As outras operações limitadas continuam
-fechadas. Desde a T8.4, o listener administrativo aceita somente as operações
-fechadas `migration.stage` e `migration.normalize`; commit, approval, cutover e
-rollback continuam não representáveis no parser atual. Os journals da T4.6
+fechadas. O listener administrativo aceita somente as operações fechadas
+implementadas de migração: `migration.stage`, `migration.normalize`,
+`migration.dry-run`, `migration.convert` e `migration.attest`. As quatro
+primeiras exigem `Operator/Administrative/StateAdmin`; a atestação exige
+exatamente `Ci/Administrative/AttestationCreate`, vinculada ao projeto e
+workspace. Approval, cutover e rollback continuam não representáveis no parser
+atual. Os journals da T4.6
 registram negações e rejeições sem payload ou localização física. O isolamento
 de descriptors da T4.7 já impede sua herança por um futuro `exec`; o serviço
 atual não cria processos filhos. A T4.8 acrescenta um probe adversarial externo
@@ -610,6 +614,36 @@ e a espera de resposta das duas operações de migração usam deadline finito d
 O [relatório T8.4](./VALIDACAO-NORMALIZACAO-AUTOBROWSER-T8.4.md) prova esse fluxo
 na cópia T8.3. O manifesto continua `staged`: normalização não significa
 validação final, approval, importação canônica nem cutover.
+
+## Conversão e atestação do candidato — T8.5/T8.6
+
+`migrate-plugin dry-run` compara a geração normalizada em banco sombra sem
+registrar projeto. `migrate-plugin convert` resolve os domínios bloqueados e
+publica um candidato SQLite privado, ainda sem mudar a autoridade. Ambos usam a
+capability global de operador e vinculam a geração por digests.
+
+`migrate-plugin attest` é deliberadamente diferente: exige capability CI
+administrativa no projeto/workspace exatos e o digest do relatório de conversão
+pelos quatro bindings do cliente verificador:
+
+```text
+ANTDELIRIUM_MIGRATION_ID
+ANTDELIRIUM_MIGRATION_PROJECT_ID
+ANTDELIRIUM_MIGRATION_WORKSPACE_ID
+ANTDELIRIUM_EXPECTED_CONVERSION_REPORT_SHA256
+```
+
+O serviço deriva a identidade hash do verificador da capability autenticada,
+revalida todo o candidato e persiste atestação mais auditoria na mesma
+transação. Essa operação não é uma aprovação e não executa cutover. O artefato
+atual registra assinatura ausente; identidade CI protegida e assinatura externa
+pertencem aos gates posteriores.
+
+Os relatórios de [dry-run](./VALIDACAO-DRY-RUN-AUTOBROWSER-T8.5.md),
+[conversão](./VALIDACAO-CONVERSAO-CANDIDATA-AUTOBROWSER-T8.6.md) e
+[atestação](./VALIDACAO-ATESTACAO-INDEPENDENTE-AUTOBROWSER-T8.6.md) registram a
+execução real e seus limites. O manifesto continua `staged`, sem approvals ou
+cutover.
 
 Os templates não instalados
 [`packaging/systemd/antdelirium.service.in`](../packaging/systemd/antdelirium.service.in)

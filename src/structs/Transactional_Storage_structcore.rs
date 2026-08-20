@@ -562,7 +562,7 @@ impl ProjectDatabase {
         })
     }
 
-    pub(crate) fn record_event_in_transaction(
+    pub fn record_event_in_transaction(
         &self,
         transaction: &AC_Transaction<'_>,
         event: &NewAuditEvent,

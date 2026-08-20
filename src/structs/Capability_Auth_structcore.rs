@@ -571,6 +571,11 @@ fn actor_operation_allowed(
             | (
                 Actor::Ci,
                 Channel::Administrative,
+                Operation::AttestationCreate
+            )
+            | (
+                Actor::Ci,
+                Channel::Administrative,
                 Operation::InstallationAdmin
             )
             | (

@@ -10,6 +10,9 @@ Os arquivos deste diretório congelam a primeira versão das fronteiras de dados
 - `admin-protocol-v1.schema.json`: envelopes aceitos somente no listener administrativo.
 - `public-error-v1.schema.json`: erro sanitizado, código estável e exit code.
 - `migration-manifest-v1.schema.json`: hashes, contagens, approvals e rollback de uma migração.
+- `migration-attestation-request-v1.schema.json`: escopo opaco e digest exato que um CI verificador deve revalidar.
+- `migration-verifier-attestation-v1.schema.json`: evidência privada produzida sob capability independente, sem aprovação implícita.
+- `migration-attestation-receipt-v1.schema.json`: attestation e seu SHA-256 para a futura decisão do operador.
 - `legacy-source-inventory-v1.schema.json`: ledger read-only de paths relativos,
   hashes, modos, ownership, links, validação JSON e contagens anteriores ao staging.
 - `legacy-stage-receipt-v1.schema.json`: recibo sem paths da cópia publicada no

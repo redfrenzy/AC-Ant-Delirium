@@ -58,6 +58,9 @@ mod legacy_dry_run;
 #[path = "Legacy-Conversion_unit.rs"]
 mod legacy_conversion;
 
+#[path = "Legacy-Attestation_unit.rs"]
+mod legacy_attestation;
+
 #[path = "Administrative-Protocol_unit.rs"]
 mod administrative_protocol;
 

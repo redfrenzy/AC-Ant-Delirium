@@ -157,6 +157,31 @@ fn migration_request_binds_connection_operation_and_inventory_digest() {
         "e".repeat(64),
     ));
     assert_eq!(validate_request(&request, &nonce), Ok(()));
+    request.operation = "migration.attest".to_string();
+    request.body = AdministrativeBody::Attest(crate::legacy_attestation::attestation_request(
+        "mig_00000000000000000000000000".to_string(),
+        "prj_00000000000000000000000000".to_string(),
+        "wsp_00000000000000000000000000".to_string(),
+        "f".repeat(64),
+    ));
+    assert_eq!(validate_request(&request, &nonce), Ok(()));
+    let authorization = capability_request(
+        &ConnectionAuthentication::for_test(1000, [4_u8; 32]),
+        &request,
+    )
+    .unwrap();
+    assert_eq!(
+        authorization.operation,
+        CapabilityOperation::AttestationCreate
+    );
+    assert_eq!(
+        authorization.project_id.as_deref(),
+        Some("prj_00000000000000000000000000")
+    );
+    assert_eq!(
+        authorization.workspace_id.as_deref(),
+        Some("wsp_00000000000000000000000000")
+    );
     request.operation = "migration.stage".to_string();
     assert_eq!(
         validate_request(&request, &nonce),

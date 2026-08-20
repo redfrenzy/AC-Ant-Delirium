@@ -897,7 +897,7 @@ fn create_private_directory(path: &Path) -> Result<(), LegacyConversionError> {
         .map_err(|_| LegacyConversionError::Destination)
 }
 
-fn read_control_file(path: &Path) -> Result<Vec<u8>, LegacyConversionError> {
+pub(crate) fn read_control_file(path: &Path) -> Result<Vec<u8>, LegacyConversionError> {
     let parent = path.parent().ok_or(LegacyConversionError::Destination)?;
     let parent_metadata =
         fs::symlink_metadata(parent).map_err(|_| LegacyConversionError::Destination)?;

@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:migration-verifier-attestation-v1",
+  "title": "Capability-authenticated migration verifier attestation v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version", "attestation_id", "migration_id", "project_id", "workspace_id",
+    "verifier_subject_sha256", "conversion_report_sha256", "manifest_snapshot_sha256",
+    "source_snapshot_sha256", "staging_snapshot_sha256", "normalized_snapshot_sha256",
+    "semantic_snapshot_sha256", "dry_run_report_sha256", "identity_bindings_sha256",
+    "current_task_projection_sha256", "governance_errors_projection_sha256",
+    "candidate_logical_state_sha256", "target_storage_schema_version", "verified_counts",
+    "checks", "authentication", "signature", "decision", "manifest_state",
+    "approval_created", "cutover_performed", "attested_at", "state"
+  ],
+  "properties": {
+    "contract_version": { "const": "migration-verifier-attestation-v1" },
+    "attestation_id": { "type": "string", "pattern": "^att_[0-9a-hjkmnp-tv-z]{26}$" },
+    "migration_id": { "type": "string", "pattern": "^mig_[0-9a-hjkmnp-tv-z]{26}$" },
+    "project_id": { "type": "string", "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$" },
+    "workspace_id": { "type": "string", "pattern": "^wsp_[0-9a-hjkmnp-tv-z]{26}$" },
+    "verifier_subject_sha256": { "$ref": "#/$defs/sha256" },
+    "conversion_report_sha256": { "$ref": "#/$defs/sha256" },
+    "manifest_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+    "source_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+    "staging_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+    "normalized_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+    "semantic_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+    "dry_run_report_sha256": { "$ref": "#/$defs/sha256" },
+    "identity_bindings_sha256": { "$ref": "#/$defs/sha256" },
+    "current_task_projection_sha256": { "$ref": "#/$defs/sha256" },
+    "governance_errors_projection_sha256": { "$ref": "#/$defs/sha256" },
+    "candidate_logical_state_sha256": { "$ref": "#/$defs/sha256" },
+    "target_storage_schema_version": { "type": "integer", "minimum": 1 },
+    "verified_counts": { "$ref": "#/$defs/counts" },
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["conversion_revalidation", "storage_integrity", "logical_state_fingerprint", "opaque_identity_bindings", "projection_nondisclosure", "domain_count_parity"],
+      "properties": {
+        "conversion_revalidation": { "const": "passed" },
+        "storage_integrity": { "const": "passed" },
+        "logical_state_fingerprint": { "const": "passed" },
+        "opaque_identity_bindings": { "const": "passed" },
+        "projection_nondisclosure": { "const": "passed" },
+        "domain_count_parity": { "const": "passed" }
+      }
+    },
+    "authentication": { "const": "ci_capability" },
+    "signature": { "const": "absent" },
+    "decision": { "const": "attested" },
+    "manifest_state": { "const": "staged" },
+    "approval_created": { "const": false },
+    "cutover_performed": { "const": false },
+    "attested_at": { "type": "string", "pattern": "^unix:[0-9]+$" },
+    "state": { "const": "verifier_attested" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plans", "tasks", "submissions", "reviews", "history_events", "problems", "transitions"],
+      "properties": {
+        "plans": { "type": "integer", "minimum": 0 },
+        "tasks": { "type": "integer", "minimum": 0 },
+        "submissions": { "type": "integer", "minimum": 0 },
+        "reviews": { "type": "integer", "minimum": 0 },
+        "history_events": { "type": "integer", "minimum": 0 },
+        "problems": { "type": "integer", "minimum": 0 },
+        "transitions": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}
