@@ -1001,6 +1001,15 @@ Critério de saída:
 
 A T1.8 fechou a política [`lifecycle-v1`](./POLITICA-GIT-RETENCAO-MIGRACAO-T1.8.md): projections são ignoradas por regra mínima autocontida em `guard/`, sem editar Git global/raiz; cutover exige operador e verificador; origem permanece recuperável por no mínimo 30 dias; state governado nunca sofre purge automático.
 
+Estado da T8.1: o [inventário read-only do AutoBrowser](./INVENTARIO-READ-ONLY-AUTOBROWSER-T8.1.md)
+localizou planos, orquestrador, configuração, schemas, problemas, transição,
+artefatos, evidências e histórico sem interpretar JSON, executar scripts ou
+alterar a origem. O plugin é um repositório próprio e já estava com worktree
+sujo: planos antigos removidos coexistem com substitutos não rastreados, além de
+mudanças no orquestrador. Esse estado foi preservado sem inferir renomes. A T8.2
+deve congelar hashes e metadados antes de qualquer cópia; staging e cutover
+continuam proibidos nesta etapa.
+
 ### Fase 8 — endurecimento contra agentes hostis
 
 Objetivo: transformar detecção local em enforcement confiável.
