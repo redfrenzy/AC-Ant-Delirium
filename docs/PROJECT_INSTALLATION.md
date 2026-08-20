@@ -1,6 +1,6 @@
 # AntDelirium: binário único e superfície limitada do agente
 
-Este documento descreve o estado implementado até a T6.5. O projeto declara um único executável autoritativo chamado `antdelirium`; a instalação global e a configuração persistente do Cargo ainda pertencem às ondas posteriores.
+Este documento descreve o estado implementado até a T6.6. O projeto declara um único executável autoritativo chamado `antdelirium`; a instalação global e a configuração persistente do Cargo ainda pertencem às ondas posteriores.
 
 ## Compilar
 
@@ -288,8 +288,9 @@ dos argumentos, força a próxima profundidade para `1`, herda explicitamente
 stdin/stdout/stderr e usa `exec` para substituir o próprio processo. Assim o
 PID passa a ser o `rustc`, e exit status ou sinal pertencem diretamente ao
 compilador, sem tradução por um supervisor intermediário. O fallback compilado
-para plataformas não Unix herda os mesmos streams e status normal, mas a
-equivalência de sinais fora do Linux só será afirmada depois da matriz da T6.6.
+para plataformas não Unix herda os mesmos streams e status normal. A T6.6
+validou o wrapper host no Linux também ao produzir código para WASM; ela não
+afirma equivalência de sinais em um host não Unix.
 
 Falha `NotFound` anterior ao `exec` produz somente `AD-TOOLCHAIN-0002`/exit
 `127`; as demais falhas de execução produzem somente
@@ -327,6 +328,21 @@ Além dos testes sintéticos, a própria compilação de teste confirma os quatr
 campos realmente injetados pelo Cargo. Um `cargo check` nativo com o wrapper
 fornecido somente por `--config` também passou; nenhuma configuração global foi
 gravada.
+
+A T6.6 acrescenta uma matriz Cargo autocontida em
+[`tests/fixtures/t66-cargo-matrix`](../tests/fixtures/t66-cargo-matrix). Ela usa
+um workspace virtual bloqueado por `Cargo.lock`, com biblioteca, binário, build
+script, proc-macro, teste de integração e exemplo, e fornece o binário de teste
+somente por `RUSTC_WORKSPACE_WRAPPER`. A matriz prova a participação efetiva do
+wrapper por uma profundidade deliberadamente inválida e depois executa, com a
+profundidade normal, `check -j 4`, um segundo check em cache, `test`, `run`, o
+exemplo e `build -j 4` para `wasm32-unknown-unknown`. A saída do binário nativo
+direto e encapsulado é idêntica. Nenhum arquivo de configuração Cargo é escrito.
+
+Essa matriz remove deliberadamente endpoint e capability do ambiente: ela
+prova transparência, targets e ausência de deadlock quando o serviço limitado
+está indisponível. O transporte contra serviço instalado e o isolamento do
+state root continuam nos gates adversariais posteriores.
 
 ### Negociação do protocolo limitado
 

@@ -1,0 +1,9 @@
+[package]
+name = "matrix-app"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+[dependencies]
+matrix-derive = { path = "../derive" }
+matrix-support = { path = "../support" }

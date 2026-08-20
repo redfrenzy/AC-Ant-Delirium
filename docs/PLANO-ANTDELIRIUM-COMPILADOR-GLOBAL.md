@@ -400,6 +400,14 @@ próprio `rustc` passa a controlar exit e sinal. A T6.4 acrescentou a negociaç�
 limitada e a T6.5 colocou bootstrap, fingerprint, auditoria e projeções em um
 filho audit-only, enquanto o pai continua delegando imediatamente.
 
+A T6.6 executou essa delegação em uma fixture Cargo real: workspace virtual,
+três membros, build script, proc-macro, testes, exemplo, compilação Linux e
+target WASM, com paralelismo `-j 4` e repetição em cache. O teste configura o
+binário somente no ambiente do subprocesso, demonstra que o Cargo realmente o
+invoca e compara a saída do binário nativo direto e encapsulado. A matriz não
+instala configuração global nem substitui os gates posteriores contra um
+serviço protegido ativo.
+
 ## 8. Estrutura externa por projeto
 
 A estrutura deve manter a utilidade do plugin AutoBrowser sem copiar os binários para cada projeto.
@@ -589,6 +597,12 @@ se transforma imediatamente no `rustc`. O filho descobre a raiz Cargo, calcula
 fingerprints de argv, manifestos e fonte, executa bootstrap/observação/projeção
 pelo canal limitado e materializa apenas `guard/`. Qualquer falha nessa rota é
 silenciosa e não pode substituir stdout, stderr, exit ou sinal do compilador.
+
+A T6.6 validou o caminho de falha silenciosa em builds Cargo reais com endpoint
+e capability ausentes: check paralelo e em cache, testes, binário, exemplo,
+build script, proc-macro e target WASM terminam normalmente, sem criar `guard/`.
+Concorrência contra o serviço ativo continua separada na matriz integral da
+T10.6, depois dos gates de isolamento e instalação.
 
 ## 12. Modelo de ameaça e limites reais
 
