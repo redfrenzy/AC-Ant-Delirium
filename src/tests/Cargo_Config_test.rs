@@ -363,3 +363,138 @@ fn existing_backup_and_concurrent_content_change_are_never_overwritten() {
     );
     assert!(read_verified_config_backup(&concurrent_home).is_ok());
 }
+
+#[test]
+fn rollback_restores_exact_original_bytes_mode_and_is_resumable() {
+    let cargo_home = fixture_cargo_home("rollback-original");
+    let config = cargo_home.join(CONFIG_FILE_NAME);
+    let original = b"# preserve exactly\n[net]\nretry = 7\n";
+    fs::write(&config, original).expect("write original config");
+    #[cfg(unix)]
+    fs::set_permissions(&config, fs::Permissions::from_mode(0o640)).expect("set original mode");
+    assert_eq!(
+        configure_workspace_wrapper(&cargo_home),
+        Ok(CargoConfigMergeOutcome::Updated)
+    );
+
+    assert_eq!(
+        rollback_owned_workspace_wrapper(&cargo_home),
+        Ok(CargoConfigRollbackOutcome::Restored)
+    );
+    assert_eq!(fs::read(&config).expect("read restored config"), original);
+    #[cfg(unix)]
+    assert_eq!(
+        fs::metadata(&config)
+            .expect("restored metadata")
+            .permissions()
+            .mode()
+            & 0o777,
+        0o640
+    );
+    assert!(cargo_home
+        .join(BACKUP_DIRECTORY_NAME)
+        .join(ROLLBACK_MARKER_NAME)
+        .is_file());
+    assert_eq!(
+        rollback_owned_workspace_wrapper(&cargo_home),
+        Ok(CargoConfigRollbackOutcome::AlreadyRestored)
+    );
+
+    finalize_owned_workspace_wrapper_rollback(&cargo_home).expect("finalize rollback");
+    assert!(!cargo_home.join(BACKUP_DIRECTORY_NAME).exists());
+    assert_eq!(fs::read(config).expect("read final config"), original);
+}
+
+#[test]
+fn rollback_removes_only_a_config_created_by_the_owned_installation() {
+    let cargo_home = fixture_cargo_home("rollback-absence");
+    assert_eq!(
+        configure_workspace_wrapper(&cargo_home),
+        Ok(CargoConfigMergeOutcome::Updated)
+    );
+    assert!(cargo_home.join(CONFIG_FILE_NAME).is_file());
+
+    assert_eq!(
+        rollback_owned_workspace_wrapper(&cargo_home),
+        Ok(CargoConfigRollbackOutcome::Restored)
+    );
+    assert!(!cargo_home.join(CONFIG_FILE_NAME).exists());
+    assert_eq!(
+        rollback_owned_workspace_wrapper(&cargo_home),
+        Ok(CargoConfigRollbackOutcome::AlreadyRestored)
+    );
+    finalize_owned_workspace_wrapper_rollback(&cargo_home).expect("finalize absence rollback");
+    assert!(!cargo_home.join(BACKUP_DIRECTORY_NAME).exists());
+}
+
+#[test]
+fn rollback_refuses_unclaimed_changed_or_ambiguous_configuration() {
+    let unclaimed_home = fixture_cargo_home("rollback-unclaimed");
+    fs::write(
+        unclaimed_home.join(CONFIG_FILE_NAME),
+        format!(
+            "[build]\nrustc-workspace-wrapper = {:?}\n",
+            expected_wrapper(&unclaimed_home)
+        ),
+    )
+    .expect("write unclaimed wrapper");
+    assert!(rollback_owned_workspace_wrapper(&unclaimed_home).is_err());
+    assert!(unclaimed_home.join(CONFIG_FILE_NAME).is_file());
+
+    let changed_home = fixture_cargo_home("rollback-changed");
+    let changed_config = changed_home.join(CONFIG_FILE_NAME);
+    fs::write(&changed_config, b"[net]\nretry = 1\n").expect("write original config");
+    configure_workspace_wrapper(&changed_home).expect("configure owned wrapper");
+    fs::write(&changed_config, b"[net]\nretry = 99\n").expect("change installed config");
+    assert_eq!(
+        rollback_owned_workspace_wrapper(&changed_home),
+        Err(CargoConfigError::RollbackConflict)
+    );
+    assert_eq!(
+        fs::read(&changed_config).expect("read preserved changed config"),
+        b"[net]\nretry = 99\n"
+    );
+    assert!(!changed_home
+        .join(BACKUP_DIRECTORY_NAME)
+        .join(ROLLBACK_MARKER_NAME)
+        .exists());
+
+    let ambiguous_home = fixture_cargo_home("rollback-ambiguous");
+    configure_workspace_wrapper(&ambiguous_home).expect("configure ambiguous fixture");
+    fs::write(
+        ambiguous_home.join(BACKUP_DIRECTORY_NAME).join("unknown"),
+        b"sentinel",
+    )
+    .expect("write unknown backup entry");
+    assert_eq!(
+        rollback_owned_workspace_wrapper(&ambiguous_home),
+        Err(CargoConfigError::InvalidConfig)
+    );
+    assert!(ambiguous_home.join(CONFIG_FILE_NAME).is_file());
+
+    let forged_home = fixture_cargo_home("rollback-forged-marker");
+    configure_workspace_wrapper(&forged_home).expect("configure forged marker fixture");
+    let forged_marker = CargoConfigRollbackMarker {
+        contract_version: ROLLBACK_CONTRACT_VERSION.to_string(),
+        original_present: true,
+        original_sha256: "0".repeat(64),
+        installed_sha256: "1".repeat(64),
+        original_mode: Some(0o600),
+    };
+    let forged_path = forged_home
+        .join(BACKUP_DIRECTORY_NAME)
+        .join(ROLLBACK_MARKER_NAME);
+    fs::write(
+        &forged_path,
+        serde_json::to_vec_pretty(&forged_marker).expect("serialize forged marker"),
+    )
+    .expect("write forged marker");
+    #[cfg(unix)]
+    fs::set_permissions(&forged_path, fs::Permissions::from_mode(0o600))
+        .expect("set forged marker mode");
+    assert_eq!(
+        rollback_owned_workspace_wrapper(&forged_home),
+        Err(CargoConfigError::InvalidConfig)
+    );
+    assert!(forged_home.join(CONFIG_FILE_NAME).is_file());
+}

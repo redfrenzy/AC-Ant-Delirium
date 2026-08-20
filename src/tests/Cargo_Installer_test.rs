@@ -95,6 +95,136 @@ fn integrated_install_is_idempotent_after_owned_configuration() {
 }
 
 #[test]
+fn integrated_uninstall_restores_config_and_preserves_cargo_proxy() {
+    let root = fixture_root("integrated-uninstall");
+    let cargo_home = root.join("cargo-home");
+    let bin = cargo_home.join("bin");
+    fs::create_dir_all(&bin).expect("create Cargo bin");
+    let cargo_proxy = bin.join("cargo");
+    let config = cargo_home.join("config.toml");
+    let original = b"# original\n[net]\noffline = true\n";
+    fs::write(&cargo_proxy, b"rustup proxy sentinel\n").expect("write Cargo proxy");
+    fs::write(&config, original).expect("write original config");
+    #[cfg(unix)]
+    fs::set_permissions(&config, fs::Permissions::from_mode(0o640)).expect("set original mode");
+    let source = executable_source();
+    install_release_and_configure(&source, &cargo_home).expect("install fixture");
+
+    assert_eq!(
+        uninstall_release_and_configure(&source, &cargo_home),
+        Ok(CargoUninstallOutcome {
+            binary: BinaryUninstallOutcome::Removed,
+            config: CargoConfigRollbackOutcome::Restored,
+        })
+    );
+    assert_eq!(fs::read(&config).expect("read restored config"), original);
+    #[cfg(unix)]
+    assert_eq!(
+        fs::metadata(&config)
+            .expect("restored config metadata")
+            .permissions()
+            .mode()
+            & 0o777,
+        0o640
+    );
+    assert_eq!(
+        fs::read(&cargo_proxy).expect("read preserved Cargo proxy"),
+        b"rustup proxy sentinel\n"
+    );
+    assert!(!bin.join(INSTALLED_BINARY_NAME).exists());
+    assert!(!cargo_home.join(".antdelirium-install").exists());
+}
+
+#[test]
+fn integrated_uninstall_restores_original_absence() {
+    let root = fixture_root("integrated-uninstall-absence");
+    let cargo_home = root.join("cargo-home");
+    fs::create_dir_all(&cargo_home).expect("create Cargo home");
+    let source = executable_source();
+    install_release_and_configure(&source, &cargo_home).expect("install fixture");
+
+    assert!(uninstall_release_and_configure(&source, &cargo_home).is_ok());
+    assert!(!cargo_home.join("config.toml").exists());
+    assert!(!cargo_home.join("bin").join(INSTALLED_BINARY_NAME).exists());
+    assert!(!cargo_home.join(".antdelirium-install").exists());
+}
+
+#[test]
+fn integrated_uninstall_resumes_after_config_and_binary_were_already_reverted() {
+    let root = fixture_root("integrated-uninstall-resume");
+    let cargo_home = root.join("cargo-home");
+    fs::create_dir_all(&cargo_home).expect("create Cargo home");
+    let source = executable_source();
+    install_release_and_configure(&source, &cargo_home).expect("install fixture");
+    assert_eq!(
+        rollback_owned_workspace_wrapper(&cargo_home),
+        Ok(CargoConfigRollbackOutcome::Restored)
+    );
+    assert_eq!(
+        remove_owned_release_binary(&source, &cargo_home),
+        Ok(BinaryUninstallOutcome::Removed)
+    );
+
+    assert_eq!(
+        uninstall_release_and_configure(&source, &cargo_home),
+        Ok(CargoUninstallOutcome {
+            binary: BinaryUninstallOutcome::AlreadyAbsent,
+            config: CargoConfigRollbackOutcome::AlreadyRestored,
+        })
+    );
+    assert!(!cargo_home.join("config.toml").exists());
+    assert!(!cargo_home.join(".antdelirium-install").exists());
+}
+
+#[test]
+fn integrated_uninstall_refuses_changed_config_or_binary_without_deleting_them() {
+    let changed_config_root = fixture_root("uninstall-changed-config");
+    let changed_config_home = changed_config_root.join("cargo-home");
+    fs::create_dir_all(&changed_config_home).expect("create changed config Cargo home");
+    let source = executable_source();
+    install_release_and_configure(&source, &changed_config_home).expect("install config fixture");
+    let config = changed_config_home.join("config.toml");
+    fs::write(&config, b"[net]\nretry = 42\n").expect("change installed config");
+    assert_eq!(
+        uninstall_release_and_configure(&source, &changed_config_home),
+        Err(CargoUninstallError::Config(
+            CargoConfigError::RollbackConflict
+        ))
+    );
+    assert_eq!(
+        fs::read(&config).expect("read preserved changed config"),
+        b"[net]\nretry = 42\n"
+    );
+    assert!(changed_config_home
+        .join("bin")
+        .join(INSTALLED_BINARY_NAME)
+        .is_file());
+
+    let changed_binary_root = fixture_root("uninstall-changed-binary");
+    let changed_binary_home = changed_binary_root.join("cargo-home");
+    fs::create_dir_all(&changed_binary_home).expect("create changed binary Cargo home");
+    install_release_and_configure(&source, &changed_binary_home).expect("install binary fixture");
+    let installed = changed_binary_home.join("bin").join(INSTALLED_BINARY_NAME);
+    fs::write(&installed, b"changed binary\n").expect("change installed binary");
+    let config_before = fs::read(changed_binary_home.join("config.toml"))
+        .expect("read configured bytes before refusal");
+    assert_eq!(
+        uninstall_release_and_configure(&source, &changed_binary_home),
+        Err(CargoUninstallError::Binary(
+            BinaryInstallError::ExistingInstallationConflict
+        ))
+    );
+    assert_eq!(
+        fs::read(&installed).expect("read preserved changed binary"),
+        b"changed binary\n"
+    );
+    assert_eq!(
+        fs::read(changed_binary_home.join("config.toml")).expect("read preserved configured bytes"),
+        config_before
+    );
+}
+
+#[test]
 fn wrapper_conflict_is_preserved_and_never_activated() {
     let root = fixture_root("integrated-wrapper-conflict");
     let cargo_home = root.join("cargo-home");

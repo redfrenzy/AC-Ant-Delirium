@@ -924,6 +924,15 @@ da execução porque vence ambiente e TOML por comando; CI/supervisor permanece 
 gate autoritativo. O diagnóstico não ativa unidade, não conecta a socket e não
 escreve estado.
 
+Estado da T7.5: `antdelirium uninstall` exige o backup privado e os hashes da
+instalação para reconhecer ownership. Ele restaura bytes e modo anteriores, ou
+remove `config.toml` apenas quando o recibo prova que o arquivo não existia;
+configuração idêntica não reivindicada, bytes/modo alterados, entrada inesperada,
+symlink e binário divergente falham fechados. Um marcador sincronizado mantém o
+backup até a remoção comprovada do binário e permite retomar interrupção sem
+deixar o Cargo apontando para executável ausente. O proxy `cargo`, `bin/` e
+qualquer configuração não registrada permanecem intocados.
+
 ### Fase 6 — comandos Cargo existentes e gate externo
 
 Objetivo: manter a integração invisível para o agente e reduzir bypass sem substituir o Cargo.

@@ -724,6 +724,34 @@ o resultado foi `attention`/exit `78`. Uma segunda execução com override vazio
 mudou somente a contagem sanitizada de zero para um, sem publicar nome, valor ou
 path.
 
-As fixtures Cargo T7.1, T7.2 e T7.4 agora combinam relógio, PID e sequência no
+## Desinstalação restrita à integração própria — T7.5
+
+O release aceita `antdelirium uninstall` como operação administrativa oculta da
+ajuda e da API do agente. Ela não edita TOML por aproximação: exige o diretório
+privado `.antdelirium-install/`, valida ownership, modos, conjunto exato de
+arquivos, recibo e hashes, e só então reconhece a configuração como pertencente
+à instalação.
+
+Se `config.toml` existia antes, a desinstalação restaura exatamente seus bytes e
+modo originais por replace atômico. Se não existia, remove somente o arquivo
+cujo hash e modo ainda correspondem ao resultado registrado. Um wrapper igual
+que já existia e não gerou backup continua `active-unclaimed` e não pode ser
+removido pelo comando. Qualquer alteração posterior de bytes ou modo, arquivo
+legado, symlink, entrada inesperada no backup ou binário divergente causa recusa
+sem apagar o conteúdo conflitante.
+
+Depois da restauração, um marcador `cargo-config-rollback-v1` é sincronizado no
+backup antes de remover o binário comprovadamente idêntico ao release em
+execução. O backup só é finalizado depois dessa remoção; assim uma interrupção
+entre as etapas pode ser retomada com o estado original já verificado. O comando
+nunca remove `$CARGO_HOME/bin/cargo`, o diretório `bin/` ou o Cargo home.
+
+Um probe do ELF release executou `install` e depois o próprio binário instalado
+executou `uninstall` em Cargo home descartável sob `target/`. A configuração
+sentinela voltou com os mesmos bytes e modo, o proxy `cargo` permaneceu igual, e
+somente `bin/antdelirium` e o backup da instalação deixaram de existir. Nenhum
+Cargo home real foi modificado.
+
+As fixtures Cargo T7.1, T7.2, T7.4 e T7.5 combinam relógio, PID e sequência no
 nome sob `target/`. A mesma seleção de testes passou duas vezes consecutivas sem
 limpeza, portanto os testes não dependem mais de apagar artefatos anteriores.

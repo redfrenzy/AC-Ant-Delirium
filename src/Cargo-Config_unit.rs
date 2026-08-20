@@ -16,6 +16,8 @@ const BACKUP_DIRECTORY_NAME: &str = ".antdelirium-install";
 const BACKUP_PAYLOAD_NAME: &str = "config.toml.original";
 const BACKUP_RECEIPT_NAME: &str = "config-backup-v1.json";
 const BACKUP_CONTRACT_VERSION: &str = "cargo-config-backup-v1";
+const ROLLBACK_MARKER_NAME: &str = "rollback-complete-v1.json";
+const ROLLBACK_CONTRACT_VERSION: &str = "cargo-config-rollback-v1";
 const INSTALLED_BINARY_NAME: &str = "antdelirium";
 const MAXIMUM_CONFIG_BYTES: u64 = 4 * 1024 * 1024;
 static TEMPORARY_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -24,6 +26,12 @@ static TEMPORARY_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 pub(crate) enum CargoConfigMergeOutcome {
     Updated,
     Unchanged,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CargoConfigRollbackOutcome {
+    Restored,
+    AlreadyRestored,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -43,6 +51,7 @@ pub(crate) enum CargoConfigError {
     ConfigTooLarge,
     WrapperConflict,
     BackupConflict,
+    RollbackConflict,
     ConcurrentChange,
     Io,
 }
@@ -55,6 +64,23 @@ struct CargoConfigBackupReceipt {
     original_sha256: String,
     installed_sha256: String,
     original_mode: Option<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CargoConfigRollbackMarker {
+    contract_version: String,
+    original_present: bool,
+    original_sha256: String,
+    installed_sha256: String,
+    original_mode: Option<u32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct BackupDirectoryEntries {
+    payload: bool,
+    receipt: bool,
+    marker: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -157,6 +183,110 @@ pub(crate) fn preflight_workspace_wrapper(cargo_home: &Path) -> Result<(), Cargo
     Ok(())
 }
 
+pub(crate) fn rollback_owned_workspace_wrapper(
+    cargo_home: &Path,
+) -> Result<CargoConfigRollbackOutcome, CargoConfigError> {
+    let owner = effective_uid()?;
+    validate_cargo_home(cargo_home, owner)?;
+    reject_legacy_config(cargo_home)?;
+    let backup_directory = cargo_home.join(BACKUP_DIRECTORY_NAME);
+    validate_owned_directory(&backup_directory, owner)?;
+    if directory_mode(&backup_directory)? != 0o700 {
+        return Err(CargoConfigError::InvalidConfig);
+    }
+
+    let rollback_started = match fs::symlink_metadata(backup_directory.join(ROLLBACK_MARKER_NAME)) {
+        Ok(_) => true,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => false,
+        Err(_) => return Err(CargoConfigError::Io),
+    };
+    if rollback_started {
+        let entries = validate_backup_entries(&backup_directory, true)?;
+        let marker = read_rollback_marker(&backup_directory, owner)?;
+        if entries.payload && entries.receipt {
+            let backup = read_verified_backup_files(&backup_directory, owner)?;
+            if marker != CargoConfigRollbackMarker::from(&backup) {
+                return Err(CargoConfigError::InvalidConfig);
+            }
+        }
+        ensure_original_config_state(cargo_home, owner, &marker)?;
+        return Ok(CargoConfigRollbackOutcome::AlreadyRestored);
+    }
+
+    validate_backup_entries(&backup_directory, false)?;
+    let backup = read_verified_config_backup(cargo_home)?;
+    let marker = CargoConfigRollbackMarker::from(&backup);
+    let config_path = cargo_home.join(CONFIG_FILE_NAME);
+    let current = read_existing_config(&config_path, owner)?;
+    let expected_installed_mode = backup.original_mode.unwrap_or(0o600);
+    let installed_matches = current.as_ref().is_some_and(|config| {
+        config.mode == expected_installed_mode
+            && lowercase_hex(&sha256(&config.bytes)) == backup.installed_sha256
+    });
+    let original_matches = config_matches_original(current.as_ref(), &marker);
+
+    let outcome = if installed_matches {
+        match (backup.original_present, current.as_ref()) {
+            (true, Some(installed)) => write_config_atomically_with_mode(
+                cargo_home,
+                &config_path,
+                Some(installed),
+                &backup.original_bytes,
+                backup
+                    .original_mode
+                    .ok_or(CargoConfigError::InvalidConfig)?,
+                owner,
+            )?,
+            (false, Some(installed)) => {
+                remove_config_if_unchanged(cargo_home, &config_path, installed, owner)?
+            }
+            _ => return Err(CargoConfigError::RollbackConflict),
+        }
+        CargoConfigRollbackOutcome::Restored
+    } else if original_matches {
+        CargoConfigRollbackOutcome::AlreadyRestored
+    } else {
+        return Err(CargoConfigError::RollbackConflict);
+    };
+
+    ensure_original_config_state(cargo_home, owner, &marker)?;
+    create_rollback_marker(&backup_directory, &marker)?;
+    Ok(outcome)
+}
+
+pub(crate) fn finalize_owned_workspace_wrapper_rollback(
+    cargo_home: &Path,
+) -> Result<(), CargoConfigError> {
+    let owner = effective_uid()?;
+    validate_cargo_home(cargo_home, owner)?;
+    let backup_directory = cargo_home.join(BACKUP_DIRECTORY_NAME);
+    validate_owned_directory(&backup_directory, owner)?;
+    if directory_mode(&backup_directory)? != 0o700 {
+        return Err(CargoConfigError::InvalidConfig);
+    }
+    validate_backup_entries(&backup_directory, true)?;
+    let marker = read_rollback_marker(&backup_directory, owner)?;
+    ensure_original_config_state(cargo_home, owner, &marker)?;
+
+    remove_known_backup_file(&backup_directory, BACKUP_PAYLOAD_NAME, owner)?;
+    remove_known_backup_file(&backup_directory, BACKUP_RECEIPT_NAME, owner)?;
+    remove_known_backup_file(&backup_directory, ROLLBACK_MARKER_NAME, owner)?;
+    fs::remove_dir(&backup_directory).map_err(|_| CargoConfigError::Io)?;
+    sync_directory(cargo_home)
+}
+
+impl From<&VerifiedCargoConfigBackup> for CargoConfigRollbackMarker {
+    fn from(backup: &VerifiedCargoConfigBackup) -> Self {
+        Self {
+            contract_version: ROLLBACK_CONTRACT_VERSION.to_string(),
+            original_present: backup.original_present,
+            original_sha256: lowercase_hex(&sha256(&backup.original_bytes)),
+            installed_sha256: backup.installed_sha256.clone(),
+            original_mode: backup.original_mode,
+        }
+    }
+}
+
 fn expected_workspace_wrapper(cargo_home: &Path) -> Result<String, CargoConfigError> {
     cargo_home
         .join("bin")
@@ -223,11 +353,12 @@ pub(crate) fn merge_cargo_config(
     }
 
     create_recovery_backup(cargo_home, original.as_ref(), &installed_bytes, owner)?;
-    write_config_atomically(
+    write_config_atomically_with_mode(
         cargo_home,
         &config_path,
         original.as_ref(),
         &installed_bytes,
+        original.as_ref().map(|config| config.mode).unwrap_or(0o600),
         owner,
     )?;
     Ok(CargoConfigMergeOutcome::Updated)
@@ -244,6 +375,14 @@ pub(crate) fn read_verified_config_backup(
     if directory_mode(&backup_directory)? != 0o700 {
         return Err(CargoConfigError::InvalidConfig);
     }
+    validate_backup_entries(&backup_directory, false)?;
+    read_verified_backup_files(&backup_directory, owner)
+}
+
+fn read_verified_backup_files(
+    backup_directory: &Path,
+    owner: u32,
+) -> Result<VerifiedCargoConfigBackup, CargoConfigError> {
     let payload = read_owned_regular_file(
         &backup_directory.join(BACKUP_PAYLOAD_NAME),
         owner,
@@ -274,6 +413,144 @@ pub(crate) fn read_verified_config_backup(
         original_mode: receipt.original_mode,
         installed_sha256: receipt.installed_sha256,
     })
+}
+
+fn create_rollback_marker(
+    backup_directory: &Path,
+    marker: &CargoConfigRollbackMarker,
+) -> Result<(), CargoConfigError> {
+    let bytes = serde_json::to_vec_pretty(marker).map_err(|_| CargoConfigError::Io)?;
+    create_synced_file(&backup_directory.join(ROLLBACK_MARKER_NAME), &bytes, 0o600)?;
+    sync_directory(backup_directory)
+}
+
+fn read_rollback_marker(
+    backup_directory: &Path,
+    owner: u32,
+) -> Result<CargoConfigRollbackMarker, CargoConfigError> {
+    let bytes = read_owned_regular_file(
+        &backup_directory.join(ROLLBACK_MARKER_NAME),
+        owner,
+        16 * 1024,
+    )?;
+    let marker: CargoConfigRollbackMarker =
+        serde_json::from_slice(&bytes).map_err(|_| CargoConfigError::InvalidConfig)?;
+    if marker.contract_version != ROLLBACK_CONTRACT_VERSION
+        || !is_lowercase_sha256(&marker.original_sha256)
+        || !is_lowercase_sha256(&marker.installed_sha256)
+        || marker.original_present != marker.original_mode.is_some()
+        || marker.original_mode.is_some_and(|mode| mode > 0o777)
+    {
+        return Err(CargoConfigError::InvalidConfig);
+    }
+    Ok(marker)
+}
+
+fn validate_backup_entries(
+    backup_directory: &Path,
+    rollback_started: bool,
+) -> Result<BackupDirectoryEntries, CargoConfigError> {
+    let mut payload = false;
+    let mut receipt = false;
+    let mut marker = false;
+    for entry in fs::read_dir(backup_directory).map_err(|_| CargoConfigError::Io)? {
+        let entry = entry.map_err(|_| CargoConfigError::Io)?;
+        match entry.file_name().to_str() {
+            Some(BACKUP_PAYLOAD_NAME) if !payload => payload = true,
+            Some(BACKUP_RECEIPT_NAME) if !receipt => receipt = true,
+            Some(ROLLBACK_MARKER_NAME) if !marker => marker = true,
+            _ => return Err(CargoConfigError::InvalidConfig),
+        }
+    }
+    if rollback_started {
+        if !marker {
+            return Err(CargoConfigError::InvalidConfig);
+        }
+    } else if !payload || !receipt || marker {
+        return Err(CargoConfigError::InvalidConfig);
+    }
+    Ok(BackupDirectoryEntries {
+        payload,
+        receipt,
+        marker,
+    })
+}
+
+fn ensure_original_config_state(
+    cargo_home: &Path,
+    owner: u32,
+    marker: &CargoConfigRollbackMarker,
+) -> Result<(), CargoConfigError> {
+    let current = read_existing_config(&cargo_home.join(CONFIG_FILE_NAME), owner)?;
+    if config_matches_original(current.as_ref(), marker) {
+        Ok(())
+    } else {
+        Err(CargoConfigError::RollbackConflict)
+    }
+}
+
+fn config_matches_original(
+    current: Option<&ExistingCargoConfig>,
+    marker: &CargoConfigRollbackMarker,
+) -> bool {
+    match (marker.original_present, current) {
+        (false, None) => true,
+        (true, Some(config)) => {
+            Some(config.mode) == marker.original_mode
+                && lowercase_hex(&sha256(&config.bytes)) == marker.original_sha256
+        }
+        _ => false,
+    }
+}
+
+fn remove_config_if_unchanged(
+    cargo_home: &Path,
+    config_path: &Path,
+    expected: &ExistingCargoConfig,
+    owner: u32,
+) -> Result<(), CargoConfigError> {
+    let current =
+        read_existing_config(config_path, owner)?.ok_or(CargoConfigError::ConcurrentChange)?;
+    if !same_snapshot(&expected.metadata, &current.metadata)
+        || current.mode != expected.mode
+        || current.bytes != expected.bytes
+    {
+        return Err(CargoConfigError::ConcurrentChange);
+    }
+    fs::remove_file(config_path).map_err(|_| CargoConfigError::Io)?;
+    sync_directory(cargo_home)
+}
+
+fn remove_known_backup_file(
+    backup_directory: &Path,
+    name: &str,
+    owner: u32,
+) -> Result<(), CargoConfigError> {
+    let path = backup_directory.join(name);
+    match fs::symlink_metadata(&path) {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(_) => return Err(CargoConfigError::Io),
+        Ok(metadata)
+            if metadata.file_type().is_file()
+                && owned_by(&metadata, owner)
+                && file_mode(&metadata) == 0o600 => {}
+        Ok(_) => return Err(CargoConfigError::InvalidConfig),
+    }
+    fs::remove_file(path).map_err(|_| CargoConfigError::Io)?;
+    sync_directory(backup_directory)
+}
+
+fn sync_directory(path: &Path) -> Result<(), CargoConfigError> {
+    File::open(path)
+        .and_then(|directory| directory.sync_all())
+        .map_err(|_| CargoConfigError::Io)
+}
+
+fn is_lowercase_sha256(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
 }
 
 fn effective_uid() -> Result<u32, CargoConfigError> {
@@ -440,15 +717,15 @@ fn create_synced_file(path: &Path, bytes: &[u8], mode: u32) -> Result<(), CargoC
     file.sync_all().map_err(|_| CargoConfigError::Io)
 }
 
-fn write_config_atomically(
+fn write_config_atomically_with_mode(
     cargo_home: &Path,
     destination: &Path,
     original: Option<&ExistingCargoConfig>,
     bytes: &[u8],
+    mode: u32,
     owner: u32,
 ) -> Result<(), CargoConfigError> {
     let temporary = unique_temporary_path(cargo_home)?;
-    let mode = original.map(|config| config.mode).unwrap_or(0o600);
     let result = (|| {
         create_synced_file(&temporary, bytes, mode)?;
         match original {

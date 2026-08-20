@@ -8,8 +8,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 
 use crate::cargo_config::{
-    configure_workspace_wrapper, preflight_workspace_wrapper, CargoConfigError,
-    CargoConfigMergeOutcome,
+    configure_workspace_wrapper, finalize_owned_workspace_wrapper_rollback,
+    preflight_workspace_wrapper, rollback_owned_workspace_wrapper, CargoConfigError,
+    CargoConfigMergeOutcome, CargoConfigRollbackOutcome,
 };
 use crate::public_output::{OutputRouter, PublicError};
 
@@ -20,6 +21,12 @@ static TEMPORARY_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 pub(crate) enum BinaryInstallOutcome {
     Installed,
     AlreadyInstalled,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BinaryUninstallOutcome {
+    Removed,
+    AlreadyAbsent,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,7 +52,19 @@ pub(crate) struct CargoInstallOutcome {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct CargoUninstallOutcome {
+    pub(crate) binary: BinaryUninstallOutcome,
+    pub(crate) config: CargoConfigRollbackOutcome,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CargoInstallError {
+    Binary(BinaryInstallError),
+    Config(CargoConfigError),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CargoUninstallError {
     Binary(BinaryInstallError),
     Config(CargoConfigError),
 }
@@ -55,11 +74,40 @@ pub(crate) fn run_operator_mode(args: &[OsString]) {
         crate::cargo_doctor::run_doctor();
         return;
     }
-    if args.len() != 1 || args[0] != OsStr::new("install") {
+    if args.len() != 1 || (args[0] != OsStr::new("install") && args[0] != OsStr::new("uninstall")) {
         OutputRouter::exit(PublicError::Authorization);
     }
     if cfg!(debug_assertions) {
         OutputRouter::exit(PublicError::Configuration);
+    }
+
+    if args[0] == OsStr::new("uninstall") {
+        let outcome = uninstall_current_release().unwrap_or_else(|error| match error {
+            CargoUninstallError::Binary(BinaryInstallError::Io)
+            | CargoUninstallError::Config(CargoConfigError::Io) => {
+                OutputRouter::exit(PublicError::Internal)
+            }
+            CargoUninstallError::Binary(_) | CargoUninstallError::Config(_) => {
+                OutputRouter::exit(PublicError::Configuration)
+            }
+        });
+        let message = match (outcome.binary, outcome.config) {
+            (BinaryUninstallOutcome::Removed, CargoConfigRollbackOutcome::Restored) => {
+                "antdelirium[AD-UNINSTALL]: integração Cargo revertida; binário removido"
+            }
+            (BinaryUninstallOutcome::Removed, CargoConfigRollbackOutcome::AlreadyRestored) => {
+                "antdelirium[AD-UNINSTALL]: integração Cargo já revertida; binário removido"
+            }
+            (BinaryUninstallOutcome::AlreadyAbsent, CargoConfigRollbackOutcome::Restored) => {
+                "antdelirium[AD-UNINSTALL]: integração Cargo revertida; binário já estava ausente"
+            }
+            (
+                BinaryUninstallOutcome::AlreadyAbsent,
+                CargoConfigRollbackOutcome::AlreadyRestored,
+            ) => "antdelirium[AD-UNINSTALL]: desinstalação recuperada",
+        };
+        OutputRouter::write_success(message);
+        return;
     }
 
     let outcome = install_current_release().unwrap_or_else(|error| match error {
@@ -86,6 +134,38 @@ pub(crate) fn run_operator_mode(args: &[OsString]) {
         }
     };
     OutputRouter::write_success(message);
+}
+
+fn uninstall_current_release() -> Result<CargoUninstallOutcome, CargoUninstallError> {
+    let source = std::env::current_exe()
+        .map_err(|_| CargoUninstallError::Binary(BinaryInstallError::InvalidSource))?;
+    let cargo_home = cargo_home_from_environment().map_err(CargoUninstallError::Binary)?;
+    uninstall_release_and_configure(&source, &cargo_home)
+}
+
+pub(crate) fn uninstall_release_and_configure(
+    source: &Path,
+    cargo_home: &Path,
+) -> Result<CargoUninstallOutcome, CargoUninstallError> {
+    let binary_status =
+        inspect_release_binary(source, cargo_home).map_err(CargoUninstallError::Binary)?;
+    if binary_status == BinaryInstallationStatus::Conflict {
+        return Err(CargoUninstallError::Binary(
+            BinaryInstallError::ExistingInstallationConflict,
+        ));
+    }
+
+    let config =
+        rollback_owned_workspace_wrapper(cargo_home).map_err(CargoUninstallError::Config)?;
+    let binary = match binary_status {
+        BinaryInstallationStatus::Ready => {
+            remove_owned_release_binary(source, cargo_home).map_err(CargoUninstallError::Binary)?
+        }
+        BinaryInstallationStatus::Missing => BinaryUninstallOutcome::AlreadyAbsent,
+        BinaryInstallationStatus::Conflict => unreachable!("conflict returned before rollback"),
+    };
+    finalize_owned_workspace_wrapper_rollback(cargo_home).map_err(CargoUninstallError::Config)?;
+    Ok(CargoUninstallOutcome { binary, config })
 }
 
 fn install_current_release() -> Result<CargoInstallOutcome, CargoInstallError> {
@@ -200,6 +280,61 @@ pub(crate) fn install_release_binary(
 
     install_without_overwrite(source_file, &destination, &bin_directory)?;
     Ok(BinaryInstallOutcome::Installed)
+}
+
+pub(crate) fn remove_owned_release_binary(
+    source: &Path,
+    cargo_home: &Path,
+) -> Result<BinaryUninstallOutcome, BinaryInstallError> {
+    match inspect_release_binary(source, cargo_home)? {
+        BinaryInstallationStatus::Missing => return Ok(BinaryUninstallOutcome::AlreadyAbsent),
+        BinaryInstallationStatus::Conflict => {
+            return Err(BinaryInstallError::ExistingInstallationConflict)
+        }
+        BinaryInstallationStatus::Ready => {}
+    }
+
+    let owner = effective_uid()?;
+    let bin_directory = cargo_home.join("bin");
+    validate_owned_directory(cargo_home, owner)?;
+    validate_owned_directory(&bin_directory, owner)?;
+    let source_file = open_owned_executable(source, owner)?;
+    let destination = bin_directory.join(INSTALLED_BINARY_NAME);
+    let before = fs::symlink_metadata(&destination)
+        .map_err(|_| BinaryInstallError::ExistingInstallationConflict)?;
+    if !before.file_type().is_file() || !owned_by(&before, owner) || !has_installed_mode(&before) {
+        return Err(BinaryInstallError::ExistingInstallationConflict);
+    }
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    options.custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC);
+    let installed = options
+        .open(&destination)
+        .map_err(|_| BinaryInstallError::ExistingInstallationConflict)?;
+    let opened = installed
+        .metadata()
+        .map_err(|_| BinaryInstallError::ExistingInstallationConflict)?;
+    if !same_snapshot(&before, &opened)
+        || source_file
+            .metadata()
+            .map_err(|_| BinaryInstallError::InvalidSource)?
+            .len()
+            != opened.len()
+        || !files_have_equal_bytes(&source_file, &installed)?
+    {
+        return Err(BinaryInstallError::ExistingInstallationConflict);
+    }
+    let current = fs::symlink_metadata(&destination)
+        .map_err(|_| BinaryInstallError::ExistingInstallationConflict)?;
+    if !same_snapshot(&opened, &current) {
+        return Err(BinaryInstallError::ExistingInstallationConflict);
+    }
+    fs::remove_file(&destination).map_err(|_| BinaryInstallError::Io)?;
+    File::open(&bin_directory)
+        .and_then(|directory| directory.sync_all())
+        .map_err(|_| BinaryInstallError::Io)?;
+    Ok(BinaryUninstallOutcome::Removed)
 }
 
 fn effective_uid() -> Result<u32, BinaryInstallError> {
@@ -410,6 +545,22 @@ fn owned_by(_metadata: &fs::Metadata, _owner: u32) -> bool {
 #[cfg(unix)]
 fn same_identity(left: &fs::Metadata, right: &fs::Metadata) -> bool {
     left.dev() == right.dev() && left.ino() == right.ino()
+}
+
+#[cfg(unix)]
+fn same_snapshot(left: &fs::Metadata, right: &fs::Metadata) -> bool {
+    same_identity(left, right)
+        && left.len() == right.len()
+        && left.mode() == right.mode()
+        && left.mtime() == right.mtime()
+        && left.mtime_nsec() == right.mtime_nsec()
+        && left.ctime() == right.ctime()
+        && left.ctime_nsec() == right.ctime_nsec()
+}
+
+#[cfg(not(unix))]
+fn same_snapshot(_left: &fs::Metadata, _right: &fs::Metadata) -> bool {
+    false
 }
 
 #[cfg(not(unix))]
