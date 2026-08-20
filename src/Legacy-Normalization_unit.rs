@@ -94,6 +94,12 @@ struct PhysicalReferenceBindingsDocument {
 pub(crate) struct ValidatedLegacyNormalization {
     pub(crate) receipt: LegacyNormalizationReceipt,
     pub(crate) semantic_counts: SemanticCounts,
+    pub(crate) files: Vec<ValidatedNormalizedFile>,
+}
+
+pub(crate) struct ValidatedNormalizedFile {
+    pub(crate) relative_path: String,
+    pub(crate) bytes: Vec<u8>,
 }
 
 #[derive(Clone)]
@@ -344,7 +350,7 @@ pub(crate) fn validate_existing_normalization(
         expected_source_snapshot_sha256: expected_source_snapshot_sha256.to_string(),
         source_normalized_snapshot_sha256: expected_normalized_snapshot_sha256.to_string(),
         source_semantic_snapshot_sha256: expected_semantic_snapshot_sha256.to_string(),
-        physical_references: bindings.bindings,
+        physical_references: bindings.bindings.clone(),
     };
     let verified = normalize_staged_migration(staging_parent, &request)?;
     if verified != receipt {
@@ -356,9 +362,27 @@ pub(crate) fn validate_existing_normalization(
     )?;
     let payload =
         validated_inventory_document(&inventory_document, expected_source_snapshot_sha256)?;
+    let staged_entries = read_staged_entries(&migration_root.join("source"), &payload.entries)?;
+    let snapshot = normalize_entries(&staged_entries, &bindings.bindings)?;
+    if snapshot.normalized_snapshot_sha256 != receipt.normalized_snapshot_sha256
+        || snapshot.semantic_snapshot_sha256 != receipt.semantic_snapshot_sha256
+    {
+        return Err(LegacyNormalizationError::Destination);
+    }
+    let files = snapshot
+        .entries
+        .into_iter()
+        .filter_map(|entry| {
+            entry.bytes.map(|bytes| ValidatedNormalizedFile {
+                relative_path: entry.entry.path,
+                bytes,
+            })
+        })
+        .collect();
     Ok(ValidatedLegacyNormalization {
         receipt,
         semantic_counts: payload.semantic_counts,
+        files,
     })
 }
 

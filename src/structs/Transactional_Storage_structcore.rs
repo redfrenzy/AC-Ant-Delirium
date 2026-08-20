@@ -286,6 +286,22 @@ CREATE INDEX provisional_project_peer_idx
 ON provisional_project_registrations(peer_uid, created_at_unix);
 "#;
 
+const STORAGE_SCHEMA_V7: &str = r#"
+CREATE TABLE legacy_migration_records (
+    project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE RESTRICT,
+    migration_id TEXT NOT NULL,
+    record_kind TEXT NOT NULL CHECK (record_kind IN ('history', 'problem', 'transition')),
+    ordinal INTEGER NOT NULL CHECK (ordinal >= 0),
+    source_key_sha256 TEXT NOT NULL CHECK (length(source_key_sha256) = 64 AND source_key_sha256 NOT GLOB '*[^0-9a-f]*'),
+    payload_sha256 TEXT NOT NULL CHECK (length(payload_sha256) = 64 AND payload_sha256 NOT GLOB '*[^0-9a-f]*'),
+    payload BLOB NOT NULL,
+    PRIMARY KEY (project_id, migration_id, record_kind, ordinal)
+) STRICT;
+
+CREATE INDEX legacy_migration_records_digest_idx
+ON legacy_migration_records(project_id, migration_id, record_kind, payload_sha256);
+"#;
+
 impl From<AC_Error> for TransactionalStorageError {
     fn from(error: AC_Error) -> Self {
         Self::Database(error.to_string())
@@ -766,6 +782,15 @@ impl ProjectDatabase {
                 AC_params!["storage-v6-provisional-bootstrap"],
             )?;
             transaction.pragma_update(None, "user_version", 6)?;
+            version = 6;
+        }
+        if version == 6 {
+            transaction.execute_batch(STORAGE_SCHEMA_V7)?;
+            transaction.execute(
+                "INSERT INTO schema_migrations(version, applied_at) VALUES (7, ?1)",
+                AC_params!["storage-v7-protected-legacy-migration-records"],
+            )?;
+            transaction.pragma_update(None, "user_version", 7)?;
         }
         transaction.commit()?;
         Ok(())

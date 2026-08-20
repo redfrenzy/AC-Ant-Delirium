@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:legacy-conversion-report-v1",
+  "title": "Protected legacy conversion report v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version", "migration_id", "project_id", "workspace_id",
+    "source_snapshot_sha256", "staging_snapshot_sha256", "normalized_snapshot_sha256",
+    "semantic_snapshot_sha256", "dry_run_report_sha256", "manifest_snapshot_sha256",
+    "identity_bindings_sha256", "current_task_projection_sha256",
+    "governance_errors_projection_sha256", "target_storage_schema_version",
+    "source_counts", "imported_counts", "active_plan_resolved", "current_task_resolved",
+    "task_objectives_from_source", "task_objectives_fallback", "current_task_projection",
+    "governance_errors_projection", "protected_problem_disposition", "comparison",
+    "approval_eligible", "approval_created", "cutover_performed", "manifest_state_before",
+    "manifest_state_after", "state"
+  ],
+  "properties": {
+    "contract_version": { "const": "legacy-conversion-report-v1" },
+    "migration_id": { "type": "string", "pattern": "^mig_[0-9a-hjkmnp-tv-z]{26}$" },
+    "project_id": { "type": "string", "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$" },
+    "workspace_id": { "type": "string", "pattern": "^wsp_[0-9a-hjkmnp-tv-z]{26}$" },
+    "source_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+    "staging_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+    "normalized_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+    "semantic_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+    "dry_run_report_sha256": { "$ref": "#/$defs/sha256" },
+    "manifest_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+    "identity_bindings_sha256": { "$ref": "#/$defs/sha256" },
+    "current_task_projection_sha256": { "$ref": "#/$defs/sha256" },
+    "governance_errors_projection_sha256": { "$ref": "#/$defs/sha256" },
+    "target_storage_schema_version": { "type": "integer", "minimum": 1 },
+    "source_counts": { "$ref": "#/$defs/counts" },
+    "imported_counts": { "$ref": "#/$defs/counts" },
+    "active_plan_resolved": { "type": "boolean" },
+    "current_task_resolved": { "type": "boolean" },
+    "task_objectives_from_source": { "type": "integer", "minimum": 0 },
+    "task_objectives_fallback": { "type": "integer", "minimum": 0 },
+    "current_task_projection": { "const": "validated_private_simulation" },
+    "governance_errors_projection": { "const": "validated_empty_agent_correctable_view" },
+    "protected_problem_disposition": { "const": "retained_for_operator_not_agent_projected" },
+    "comparison": { "const": "equivalent" },
+    "approval_eligible": { "const": false },
+    "approval_created": { "const": false },
+    "cutover_performed": { "const": false },
+    "manifest_state_before": { "const": "staged" },
+    "manifest_state_after": { "const": "staged" },
+    "state": { "const": "candidate_ready_for_independent_attestation" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plans", "tasks", "submissions", "reviews", "history_events", "problems", "transitions"],
+      "properties": {
+        "plans": { "type": "integer", "minimum": 0 },
+        "tasks": { "type": "integer", "minimum": 0 },
+        "submissions": { "type": "integer", "minimum": 0 },
+        "reviews": { "type": "integer", "minimum": 0 },
+        "history_events": { "type": "integer", "minimum": 0 },
+        "problems": { "type": "integer", "minimum": 0 },
+        "transitions": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

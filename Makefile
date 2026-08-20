@@ -91,6 +91,9 @@ ci:
 	jq empty docs/contracts/v1/physical-reference-bindings-v1.schema.json
 	jq empty docs/contracts/v1/legacy-dry-run-request-v1.schema.json
 	jq empty docs/contracts/v1/legacy-dry-run-report-v1.schema.json
+	jq empty docs/contracts/v1/legacy-conversion-request-v1.schema.json
+	jq empty docs/contracts/v1/legacy-identity-bindings-v1.schema.json
+	jq empty docs/contracts/v1/legacy-conversion-report-v1.schema.json
 	jq empty docs/contracts/v1/migration-manifest-v1.schema.json
 	bash packaging/migration/verify-legacy-source-inventory.sh
 	RUSTFLAGS="-D warnings" cargo check --locked --all-targets --target $(HOST_TARGET)

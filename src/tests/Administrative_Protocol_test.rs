@@ -147,6 +147,16 @@ fn migration_request_binds_connection_operation_and_inventory_digest() {
         "d".repeat(64),
     ));
     assert_eq!(validate_request(&request, &nonce), Ok(()));
+    request.operation = "migration.convert".to_string();
+    request.body = AdministrativeBody::Convert(crate::legacy_conversion::conversion_request(
+        "mig_00000000000000000000000000".to_string(),
+        "a".repeat(64),
+        "b".repeat(64),
+        "c".repeat(64),
+        "d".repeat(64),
+        "e".repeat(64),
+    ));
+    assert_eq!(validate_request(&request, &nonce), Ok(()));
     request.operation = "migration.stage".to_string();
     assert_eq!(
         validate_request(&request, &nonce),

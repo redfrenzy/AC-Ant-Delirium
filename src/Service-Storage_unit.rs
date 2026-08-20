@@ -242,6 +242,33 @@ impl ProtectedServiceStorage {
         .map_err(|_| ())
     }
 
+    pub(crate) fn convert_legacy_migration(
+        &self,
+        authority: &VerifiedServiceAuthority,
+        capability: &AuthorizedCapability,
+        request: &crate::legacy_conversion::LegacyConversionRequest,
+    ) -> Result<crate::legacy_conversion::LegacyConversionReport, ()> {
+        let trusted_now_unix = trusted_service_unix_time().map_err(|_| ())?;
+        let authorized = capability.actor() == CapabilityActor::Operator
+            && capability.channel() == CapabilityChannel::Administrative
+            && capability.operation() == CapabilityOperation::StateAdmin
+            && capability.project_id().is_none()
+            && capability.workspace_id().is_none()
+            && capability.task_id().is_none()
+            && self
+                .registry
+                .authorized_capability_is_current(capability, trusted_now_unix)
+                .map_err(|_| ())?;
+        if !authorized {
+            self.audit_rejected_authorized_request_at(capability, trusted_now_unix)?;
+            return Err(());
+        }
+        require_owned_directory(&self.migration_staging_dir, authority.effective_uid())
+            .map_err(|_| ())?;
+        crate::legacy_conversion::convert_legacy_migration(&self.migration_staging_dir, request)
+            .map_err(|_| ())
+    }
+
     pub(crate) fn bootstrap_provisional(
         &self,
         authority: &VerifiedServiceAuthority,

@@ -1056,6 +1056,16 @@ O manifesto ficou byte-idêntico em `staged`, sem approvals. A T8.6 precisa
 resolver essas traduções em staging e repetir a comparação antes de qualquer
 troca de autoridade.
 
+Estado parcial da T8.6: a [conversão candidata do AutoBrowser](./VALIDACAO-CONVERSAO-CANDIDATA-AUTOBROWSER-T8.6.md)
+resolveu os seis domínios em uma cópia canônica privada no schema SQLite 7.
+Planos e tarefas receberam IDs opacos; histórico, problema e transições foram
+retidos em storage protegido; as projeções simuladas passaram sem divulgar
+paths ou estado administrativo. As contagens 16/73/275/1/4 coincidiram e as 73
+metas foram validadas sem fallback. O manifesto continua `staged`, sem
+approval/cutover, e a origem permanece intacta. A T8.6 não está concluída: a
+atestação independente, a aprovação explícita e a troca de autoridade devem
+ocorrer em passos posteriores e separados.
+
 ### Fase 8 — endurecimento contra agentes hostis
 
 Objetivo: transformar detecção local em enforcement confiável.

@@ -19,6 +19,7 @@ use ac_ant_delirium::structs::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::legacy_conversion::{LegacyConversionReport, LegacyConversionRequest};
 use crate::legacy_dry_run::{LegacyDryRunReport, LegacyDryRunRequest};
 use crate::legacy_normalization::{LegacyNormalizationReceipt, LegacyNormalizationRequest};
 use crate::legacy_staging::LegacyStageReceipt;
@@ -46,6 +47,7 @@ const EXPECTED_STAGING_SHA256_ENV: &str = "ANTDELIRIUM_EXPECTED_STAGING_SHA256";
 const EXPECTED_NORMALIZED_SHA256_ENV: &str = "ANTDELIRIUM_EXPECTED_NORMALIZED_SHA256";
 const EXPECTED_SEMANTIC_SHA256_ENV: &str = "ANTDELIRIUM_EXPECTED_SEMANTIC_SHA256";
 const MIGRATION_ID_ENV: &str = "ANTDELIRIUM_MIGRATION_ID";
+const EXPECTED_DRY_RUN_SHA256_ENV: &str = "ANTDELIRIUM_EXPECTED_DRY_RUN_SHA256";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum AdministrativeProtocolError {
@@ -102,6 +104,7 @@ enum AdministrativeBody {
     Stage(MigrationStageBody),
     Normalize(LegacyNormalizationRequest),
     DryRun(LegacyDryRunRequest),
+    Convert(LegacyConversionRequest),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -122,6 +125,7 @@ enum AdministrativeResult {
     Stage(LegacyStageReceipt),
     Normalize(LegacyNormalizationReceipt),
     DryRun(LegacyDryRunReport),
+    Convert(LegacyConversionReport),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -142,13 +146,22 @@ pub(crate) fn run_migration_operator(args: &[OsString]) {
     let dry_run = args.len() == 2
         && args[0] == OsStr::new("migrate-plugin")
         && args[1] == OsStr::new("dry-run");
-    if !(args.len() == 1 && args[0] == OsStr::new("migrate-plugin")) && !normalize && !dry_run {
+    let convert = args.len() == 2
+        && args[0] == OsStr::new("migrate-plugin")
+        && args[1] == OsStr::new("convert");
+    if !(args.len() == 1 && args[0] == OsStr::new("migrate-plugin"))
+        && !normalize
+        && !dry_run
+        && !convert
+    {
         OutputRouter::exit(PublicError::Authorization);
     }
     if cfg!(debug_assertions) {
         OutputRouter::exit(PublicError::Configuration);
     }
-    let result = if dry_run {
+    let result = if convert {
+        run_operator_convert_inner().map(AdministrativeResult::Convert)
+    } else if dry_run {
         run_operator_dry_run_inner().map(AdministrativeResult::DryRun)
     } else if normalize {
         run_operator_normalize_inner().map(AdministrativeResult::Normalize)
@@ -174,6 +187,11 @@ pub(crate) fn run_migration_operator(args: &[OsString]) {
                 report.migration_id,
                 report.project_id,
                 report.differences.len(),
+            )),
+        Ok(AdministrativeResult::Convert(report)) => OutputRouter::write_success(&format!(
+                "antdelirium[AD-MIGRATION-CONVERTED]: migration_id={} project_id={} comparison=equivalent approval_created=false cutover=false state=candidate_ready_for_independent_attestation",
+                report.migration_id,
+                report.project_id,
             )),
         Err(AdministrativeProtocolError::Authorization) => {
             OutputRouter::exit(PublicError::Authorization)
@@ -380,6 +398,70 @@ fn run_operator_dry_run_inner() -> Result<LegacyDryRunReport, AdministrativeProt
     }
 }
 
+#[cfg(unix)]
+fn run_operator_convert_inner() -> Result<LegacyConversionReport, AdministrativeProtocolError> {
+    let endpoint = std::env::var_os(ADMIN_SOCKET_ENV);
+    let migration_id = std::env::var(MIGRATION_ID_ENV).ok();
+    let source = std::env::var(EXPECTED_SOURCE_SHA256_ENV).ok();
+    let staging = std::env::var(EXPECTED_STAGING_SHA256_ENV).ok();
+    let normalized = std::env::var(EXPECTED_NORMALIZED_SHA256_ENV).ok();
+    let semantic = std::env::var(EXPECTED_SEMANTIC_SHA256_ENV).ok();
+    let dry_run = std::env::var(EXPECTED_DRY_RUN_SHA256_ENV).ok();
+    clear_operator_path_environment();
+    let endpoint = required_absolute_path(endpoint)?;
+    let request = crate::legacy_conversion::conversion_request(
+        migration_id.ok_or(AdministrativeProtocolError::Envelope)?,
+        source.ok_or(AdministrativeProtocolError::Envelope)?,
+        staging.ok_or(AdministrativeProtocolError::Envelope)?,
+        normalized.ok_or(AdministrativeProtocolError::Envelope)?,
+        semantic.ok_or(AdministrativeProtocolError::Envelope)?,
+        dry_run.ok_or(AdministrativeProtocolError::Envelope)?,
+    );
+    let capability = read_administrative_capability()?;
+    let mut stream = UnixStream::connect(endpoint)
+        .map_err(|_| AdministrativeProtocolError::Transport("connect"))?;
+    set_descriptor_close_on_exec(stream.as_raw_fd())
+        .map_err(|_| AdministrativeProtocolError::Transport("close-on-exec"))?;
+    let connection_nonce = negotiate_client(&mut stream)?;
+    let request_id = random_request_id().map_err(|_| AdministrativeProtocolError::Envelope)?;
+    write_frame(
+        &mut stream,
+        &AdministrativeRequest {
+            message_type: "request".to_string(),
+            wire_version: ADMIN_WIRE_VERSION.to_string(),
+            request_id: request_id.clone(),
+            connection_nonce,
+            operation: "migration.convert".to_string(),
+            capability: capability.capability,
+            body: AdministrativeBody::Convert(request),
+        },
+    )?;
+    let response: AdministrativeResponse = serde_json::from_slice(&read_frame_with_timeout(
+        &mut stream,
+        MIGRATION_OPERATION_TIMEOUT,
+    )?)
+    .map_err(|_| AdministrativeProtocolError::Envelope)?;
+    if response.message_type != "response"
+        || response.wire_version != ADMIN_WIRE_VERSION
+        || response.request_id != request_id
+        || response.status != "ok"
+        || response.error.is_some()
+    {
+        return Err(AdministrativeProtocolError::Envelope);
+    }
+    match response.result {
+        Some(AdministrativeResult::Convert(report)) => Ok(report),
+        _ => Err(AdministrativeProtocolError::Envelope),
+    }
+}
+
+#[cfg(not(unix))]
+fn run_operator_convert_inner() -> Result<LegacyConversionReport, AdministrativeProtocolError> {
+    Err(AdministrativeProtocolError::Transport(
+        "unsupported-platform",
+    ))
+}
+
 #[cfg(not(unix))]
 fn run_operator_dry_run_inner() -> Result<LegacyDryRunReport, AdministrativeProtocolError> {
     Err(AdministrativeProtocolError::Transport(
@@ -477,6 +559,12 @@ pub(crate) fn serve_administrative_request(
                 .map_err(|_| AdministrativeProtocolError::Staging)?;
             AdministrativeResult::DryRun(report)
         }
+        AdministrativeBody::Convert(body) => {
+            let report = storage
+                .convert_legacy_migration(authority, &capability, &body)
+                .map_err(|_| AdministrativeProtocolError::Staging)?;
+            AdministrativeResult::Convert(report)
+        }
     };
     write_frame(
         stream,
@@ -525,7 +613,7 @@ fn validate_request(
         || request.wire_version != ADMIN_WIRE_VERSION
         || !matches!(
             request.operation.as_str(),
-            "migration.stage" | "migration.normalize" | "migration.dry-run"
+            "migration.stage" | "migration.normalize" | "migration.dry-run" | "migration.convert"
         )
         || !valid_opaque_id(&request.request_id, "req_")
         || decode_base64url(&request.connection_nonce)
@@ -548,6 +636,11 @@ fn validate_request(
         }
         ("migration.dry-run", AdministrativeBody::DryRun(body))
             if body.contract_version == "legacy-dry-run-request-v1" =>
+        {
+            Ok(())
+        }
+        ("migration.convert", AdministrativeBody::Convert(body))
+            if body.contract_version == "legacy-conversion-request-v1" =>
         {
             Ok(())
         }
@@ -835,6 +928,7 @@ fn clear_operator_path_environment() {
         EXPECTED_STAGING_SHA256_ENV,
         EXPECTED_NORMALIZED_SHA256_ENV,
         EXPECTED_SEMANTIC_SHA256_ENV,
+        EXPECTED_DRY_RUN_SHA256_ENV,
         MIGRATION_ID_ENV,
     ] {
         std::env::remove_var(name);

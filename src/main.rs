@@ -55,6 +55,9 @@ mod legacy_normalization;
 #[path = "Legacy-Dry-Run_unit.rs"]
 mod legacy_dry_run;
 
+#[path = "Legacy-Conversion_unit.rs"]
+mod legacy_conversion;
+
 #[path = "Administrative-Protocol_unit.rs"]
 mod administrative_protocol;
 
