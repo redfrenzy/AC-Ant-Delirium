@@ -1077,9 +1077,14 @@ persistiu primeiro um evento de operador e depois publicou por rename atômico u
 manifesto `approved`, com verificador `attested` e operador `approved`. A prova
 real foi idempotente e manteve `cutover_at`, `rollback_deadline` e a primeira
 sequência pós-cutover nulos. A identidade de operador implantada também não foi
-demonstrada. A T8.6 não está concluída: instalação do serviço/wrapper global,
-cutover transacional e troca de autoridade devem ocorrer em passos posteriores
-e separados.
+demonstrada. O [cutover transacional controlado](./VALIDACAO-CUTOVER-TRANSACIONAL-AUTOBROWSER-T8.6.md)
+acrescentou `migration.cutover`: backup consistente do SQLite, primeiro evento
+da nova autoridade, publicação privada, registro atômico de projeto/workspace e
+binding path-free no registry, manifesto `cutover` e janela mínima de rollback
+de 30 dias. A repetição retornou o mesmo recibo sem duplicação. Essa prova usa
+storage controlado; a T8.6 não está concluída porque instalação das identidades,
+serviço/wrapper globais e troca operacional do AutoBrowser real ainda devem
+ocorrer em passos posteriores e separados.
 
 ### Fase 8 — endurecimento contra agentes hostis
 

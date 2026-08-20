@@ -541,10 +541,11 @@ o banco derivado pelo registry. As outras operações limitadas continuam
 fechadas. O listener administrativo aceita somente as operações fechadas
 implementadas de migração: `migration.stage`, `migration.normalize`,
 `migration.dry-run`, `migration.convert`, `migration.attest` e
-`migration.approve`. Todas exceto a atestação exigem
+`migration.approve` e `migration.cutover`. Todas exceto a atestação exigem
 `Operator/Administrative/StateAdmin`; a atestação exige exatamente
 `Ci/Administrative/AttestationCreate`, vinculada ao projeto e workspace.
-Cutover e rollback continuam não representáveis no parser atual. Os journals da T4.6
+O cutover exige manifesto, atestação, aprovação, candidato e rollback point
+exatamente vinculados; rollback ainda não é uma operação representável. Os journals da T4.6
 registram negações e rejeições sem payload ou localização física. O isolamento
 de descriptors da T4.7 já impede sua herança por um futuro `exec`; o serviço
 atual não cria processos filhos. A T4.8 acrescenta um probe adversarial externo
@@ -577,6 +578,21 @@ marca-o `FD_CLOEXEC`, limita a leitura a 4 KiB e o fecha ao terminar o parse. Os
 quatro valores de path/digest são removidos do ambiente antes de abrir a origem.
 Esse mecanismo é para um supervisor fora do sandbox do agente; não se deve
 entregar essas variáveis ou a capability ao wrapper comum.
+
+Os submodos posteriores usam ainda IDs e hashes específicos. Para
+`migrate-plugin cutover`, o supervisor fornece também
+`ANTDELIRIUM_MIGRATION_PROJECT_ID`, `ANTDELIRIUM_MIGRATION_WORKSPACE_ID`,
+`ANTDELIRIUM_EXPECTED_MANIFEST_SHA256`,
+`ANTDELIRIUM_EXPECTED_CONVERSION_REPORT_SHA256`,
+`ANTDELIRIUM_MIGRATION_ATTESTATION_ID`,
+`ANTDELIRIUM_EXPECTED_ATTESTATION_SHA256`,
+`ANTDELIRIUM_MIGRATION_APPROVAL_ID`,
+`ANTDELIRIUM_EXPECTED_APPROVAL_SHA256`,
+`ANTDELIRIUM_EXPECTED_CANDIDATE_LOGICAL_SHA256`,
+`ANTDELIRIUM_ROLLBACK_LEGACY_SHA256` e
+`ANTDELIRIUM_ROLLBACK_WINDOW_SECONDS`. A janela mínima aceita é de 30 dias.
+Todas são removidas do ambiente antes da conexão; nenhuma é disponibilizada ao
+agente.
 
 O cliente revalida todos os entries do inventário e transmite ao daemon apenas
 o documento sem locator físico e os bytes dos arquivos. O serviço, que pode

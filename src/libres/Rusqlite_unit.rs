@@ -1,5 +1,6 @@
 #![allow(non_camel_case_types)]
 
+pub use rusqlite::backup::Backup as AC_Backup;
 pub use rusqlite::params as AC_params;
 pub use rusqlite::{
     Connection as AC_Connection, Error as AC_Error, OpenFlags as AC_OpenFlags,

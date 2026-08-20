@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:migration-cutover-receipt-v1",
+  "title": "Canonical migration cutover receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version", "cutover_id", "migration_id", "project_id", "workspace_id",
+    "service_subject_sha256", "cutover_request_sha256", "approved_manifest_sha256",
+    "manifest_after_sha256", "approval_id", "approval_sha256", "attestation_id",
+    "attestation_sha256", "candidate_logical_state_sha256", "canonical_binding_sha256",
+    "source_snapshot_sha256", "staging_snapshot_sha256", "rollback_legacy_snapshot_sha256",
+    "cutover_at", "rollback_deadline", "post_cutover_first_sequence", "rollback_status",
+    "manifest_state", "origin_preserved", "cutover_performed", "state", "cutover_sha256"
+  ],
+  "properties": {
+    "contract_version": { "const": "migration-cutover-receipt-v1" },
+    "cutover_id": { "type": "string", "pattern": "^cut_[0-9a-hjkmnp-tv-z]{26}$" },
+    "migration_id": { "type": "string", "pattern": "^mig_[0-9a-hjkmnp-tv-z]{26}$" },
+    "project_id": { "type": "string", "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$" },
+    "workspace_id": { "type": "string", "pattern": "^wsp_[0-9a-hjkmnp-tv-z]{26}$" },
+    "service_subject_sha256": { "$ref": "#/$defs/sha256" },
+    "cutover_request_sha256": { "$ref": "#/$defs/sha256" },
+    "approved_manifest_sha256": { "$ref": "#/$defs/sha256" },
+    "manifest_after_sha256": { "$ref": "#/$defs/sha256" },
+    "approval_id": { "type": "string", "pattern": "^apr_[0-9a-hjkmnp-tv-z]{26}$" },
+    "approval_sha256": { "$ref": "#/$defs/sha256" },
+    "attestation_id": { "type": "string", "pattern": "^att_[0-9a-hjkmnp-tv-z]{26}$" },
+    "attestation_sha256": { "$ref": "#/$defs/sha256" },
+    "candidate_logical_state_sha256": { "$ref": "#/$defs/sha256" },
+    "canonical_binding_sha256": { "$ref": "#/$defs/sha256" },
+    "source_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+    "staging_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+    "rollback_legacy_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+    "cutover_at": { "type": "string", "format": "date-time" },
+    "rollback_deadline": { "type": "string", "format": "date-time" },
+    "post_cutover_first_sequence": { "type": "integer", "minimum": 1 },
+    "rollback_status": { "const": "available" },
+    "manifest_state": { "const": "cutover" },
+    "origin_preserved": { "const": true },
+    "cutover_performed": { "const": true },
+    "state": { "const": "cutover_awaiting_verification" },
+    "cutover_sha256": { "$ref": "#/$defs/sha256" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

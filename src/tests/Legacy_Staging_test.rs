@@ -17,8 +17,12 @@ const REQUEST_ID: &str = "req_00000000000000000000000000";
 
 fn unique_root(label: &str) -> PathBuf {
     let sequence = SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system clock")
+        .as_nanos();
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
-        "target/legacy-staging-tests/{label}-{}-{sequence}",
+        "target/legacy-staging-tests/{label}-{}-{nonce}-{sequence}",
         std::process::id(),
     ));
     fs::create_dir_all(&root).expect("staging fixture root");

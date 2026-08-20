@@ -3,6 +3,7 @@ use super::*;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use ac_ant_delirium::structs::{CanonicalStateStore, StorageProject, StorageWorkspace};
 
@@ -22,8 +23,12 @@ fn attestation_request_binds_one_exact_candidate_scope() {
 
 #[test]
 fn logical_candidate_fingerprint_is_stable_and_covers_protected_records() {
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
-        "target/legacy-attestation-tests/logical-{}-{}",
+        "target/legacy-attestation-tests/logical-{}-{nonce}-{}",
         std::process::id(),
         SEQUENCE.fetch_add(1, Ordering::Relaxed)
     ));

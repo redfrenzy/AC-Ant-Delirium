@@ -64,6 +64,9 @@ mod legacy_attestation;
 #[path = "Legacy-Approval_unit.rs"]
 mod legacy_approval;
 
+#[path = "Legacy-Cutover_unit.rs"]
+mod legacy_cutover;
+
 #[path = "Administrative-Protocol_unit.rs"]
 mod administrative_protocol;
 

@@ -58,7 +58,7 @@
         "wire_version": { "const": "ada/1" },
         "request_id": { "$ref": "#/$defs/requestId" },
         "connection_nonce": { "$ref": "#/$defs/nonce" },
-        "operation": { "enum": ["migration.stage", "migration.normalize", "migration.dry-run", "migration.convert", "migration.attest", "migration.approve"] },
+        "operation": { "enum": ["migration.stage", "migration.normalize", "migration.dry-run", "migration.convert", "migration.attest", "migration.approve", "migration.cutover"] },
         "capability": { "$ref": "#/$defs/capability" },
         "body": {
           "oneOf": [
@@ -67,7 +67,8 @@
             { "$ref": "urn:antdelirium:contract:legacy-dry-run-request-v1" },
             { "$ref": "urn:antdelirium:contract:legacy-conversion-request-v1" },
             { "$ref": "urn:antdelirium:contract:migration-attestation-request-v1" },
-            { "$ref": "urn:antdelirium:contract:migration-approval-request-v1" }
+            { "$ref": "urn:antdelirium:contract:migration-approval-request-v1" },
+            { "$ref": "urn:antdelirium:contract:migration-cutover-request-v1" }
           ]
         }
       },
@@ -95,6 +96,10 @@
         {
           "if": { "properties": { "operation": { "const": "migration.approve" } } },
           "then": { "properties": { "body": { "$ref": "urn:antdelirium:contract:migration-approval-request-v1" } } }
+        },
+        {
+          "if": { "properties": { "operation": { "const": "migration.cutover" } } },
+          "then": { "properties": { "body": { "$ref": "urn:antdelirium:contract:migration-cutover-request-v1" } } }
         }
       ]
     },
@@ -124,6 +129,7 @@
             { "$ref": "urn:antdelirium:contract:legacy-conversion-report-v1" },
             { "$ref": "urn:antdelirium:contract:migration-attestation-receipt-v1" },
             { "$ref": "urn:antdelirium:contract:migration-approval-receipt-v1" },
+            { "$ref": "urn:antdelirium:contract:migration-cutover-receipt-v1" },
             { "type": "null" }
           ]
         },
@@ -187,7 +193,11 @@
                 "oneOf": [
                   { "$ref": "urn:antdelirium:contract:legacy-stage-receipt-v1" },
                   { "$ref": "urn:antdelirium:contract:legacy-normalization-receipt-v1" },
-                  { "$ref": "urn:antdelirium:contract:legacy-dry-run-report-v1" }
+                  { "$ref": "urn:antdelirium:contract:legacy-dry-run-report-v1" },
+                  { "$ref": "urn:antdelirium:contract:legacy-conversion-report-v1" },
+                  { "$ref": "urn:antdelirium:contract:migration-attestation-receipt-v1" },
+                  { "$ref": "urn:antdelirium:contract:migration-approval-receipt-v1" },
+                  { "$ref": "urn:antdelirium:contract:migration-cutover-receipt-v1" }
                 ]
               },
               "error": { "type": "null" }

@@ -22,6 +22,7 @@ use serde_json::Value;
 use crate::legacy_approval::{LegacyApprovalReceipt, LegacyApprovalRequest};
 use crate::legacy_attestation::{LegacyAttestationReceipt, LegacyAttestationRequest};
 use crate::legacy_conversion::{LegacyConversionReport, LegacyConversionRequest};
+use crate::legacy_cutover::{LegacyCutoverReceipt, LegacyCutoverRequest};
 use crate::legacy_dry_run::{LegacyDryRunReport, LegacyDryRunRequest};
 use crate::legacy_normalization::{LegacyNormalizationReceipt, LegacyNormalizationRequest};
 use crate::legacy_staging::LegacyStageReceipt;
@@ -58,6 +59,9 @@ const MIGRATION_ATTESTATION_ID_ENV: &str = "ANTDELIRIUM_MIGRATION_ATTESTATION_ID
 const EXPECTED_ATTESTATION_SHA256_ENV: &str = "ANTDELIRIUM_EXPECTED_ATTESTATION_SHA256";
 const EXPECTED_CANDIDATE_LOGICAL_SHA256_ENV: &str = "ANTDELIRIUM_EXPECTED_CANDIDATE_LOGICAL_SHA256";
 const ROLLBACK_LEGACY_SHA256_ENV: &str = "ANTDELIRIUM_ROLLBACK_LEGACY_SHA256";
+const MIGRATION_APPROVAL_ID_ENV: &str = "ANTDELIRIUM_MIGRATION_APPROVAL_ID";
+const EXPECTED_APPROVAL_SHA256_ENV: &str = "ANTDELIRIUM_EXPECTED_APPROVAL_SHA256";
+const ROLLBACK_WINDOW_SECONDS_ENV: &str = "ANTDELIRIUM_ROLLBACK_WINDOW_SECONDS";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum AdministrativeProtocolError {
@@ -117,6 +121,7 @@ enum AdministrativeBody {
     Convert(LegacyConversionRequest),
     Attest(LegacyAttestationRequest),
     Approve(LegacyApprovalRequest),
+    Cutover(LegacyCutoverRequest),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -140,6 +145,7 @@ enum AdministrativeResult {
     Convert(LegacyConversionReport),
     Attest(LegacyAttestationReceipt),
     Approve(LegacyApprovalReceipt),
+    Cutover(LegacyCutoverReceipt),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -169,19 +175,25 @@ pub(crate) fn run_migration_operator(args: &[OsString]) {
     let approve = args.len() == 2
         && args[0] == OsStr::new("migrate-plugin")
         && args[1] == OsStr::new("approve");
+    let cutover = args.len() == 2
+        && args[0] == OsStr::new("migrate-plugin")
+        && args[1] == OsStr::new("cutover");
     if !(args.len() == 1 && args[0] == OsStr::new("migrate-plugin"))
         && !normalize
         && !dry_run
         && !convert
         && !attest
         && !approve
+        && !cutover
     {
         OutputRouter::exit(PublicError::Authorization);
     }
     if cfg!(debug_assertions) {
         OutputRouter::exit(PublicError::Configuration);
     }
-    let result = if approve {
+    let result = if cutover {
+        run_operator_cutover_inner().map(AdministrativeResult::Cutover)
+    } else if approve {
         run_operator_approve_inner().map(AdministrativeResult::Approve)
     } else if attest {
         run_verifier_attest_inner().map(AdministrativeResult::Attest)
@@ -233,6 +245,15 @@ pub(crate) fn run_migration_operator(args: &[OsString]) {
                 receipt.approval_id,
                 receipt.approval_sha256,
                 receipt.manifest_after_sha256,
+            )),
+        Ok(AdministrativeResult::Cutover(receipt)) => OutputRouter::write_success(&format!(
+                "antdelirium[AD-MIGRATION-CUTOVER]: migration_id={} project_id={} cutover_id={} binding_sha256={} manifest_sha256={} first_sequence={} rollback_status=available state=cutover_awaiting_verification",
+                receipt.migration_id,
+                receipt.project_id,
+                receipt.cutover_id,
+                receipt.canonical_binding_sha256,
+                receipt.manifest_after_sha256,
+                receipt.post_cutover_first_sequence,
             )),
         Err(AdministrativeProtocolError::Authorization) => {
             OutputRouter::exit(PublicError::Authorization)
@@ -616,8 +637,90 @@ fn run_operator_approve_inner() -> Result<LegacyApprovalReceipt, AdministrativeP
     }
 }
 
+#[cfg(unix)]
+fn run_operator_cutover_inner() -> Result<LegacyCutoverReceipt, AdministrativeProtocolError> {
+    let endpoint = std::env::var_os(ADMIN_SOCKET_ENV);
+    let migration_id = std::env::var(MIGRATION_ID_ENV).ok();
+    let project_id = std::env::var(MIGRATION_PROJECT_ID_ENV).ok();
+    let workspace_id = std::env::var(MIGRATION_WORKSPACE_ID_ENV).ok();
+    let manifest = std::env::var(EXPECTED_MANIFEST_SHA256_ENV).ok();
+    let source = std::env::var(EXPECTED_SOURCE_SHA256_ENV).ok();
+    let staging = std::env::var(EXPECTED_STAGING_SHA256_ENV).ok();
+    let conversion = std::env::var(EXPECTED_CONVERSION_REPORT_SHA256_ENV).ok();
+    let attestation_id = std::env::var(MIGRATION_ATTESTATION_ID_ENV).ok();
+    let attestation = std::env::var(EXPECTED_ATTESTATION_SHA256_ENV).ok();
+    let approval_id = std::env::var(MIGRATION_APPROVAL_ID_ENV).ok();
+    let approval = std::env::var(EXPECTED_APPROVAL_SHA256_ENV).ok();
+    let logical = std::env::var(EXPECTED_CANDIDATE_LOGICAL_SHA256_ENV).ok();
+    let rollback = std::env::var(ROLLBACK_LEGACY_SHA256_ENV).ok();
+    let rollback_window = std::env::var(ROLLBACK_WINDOW_SECONDS_ENV)
+        .ok()
+        .and_then(|value| value.parse::<i64>().ok());
+    clear_operator_path_environment();
+    let endpoint = required_absolute_path(endpoint)?;
+    let request = crate::legacy_cutover::cutover_request(
+        migration_id.ok_or(AdministrativeProtocolError::Envelope)?,
+        project_id.ok_or(AdministrativeProtocolError::Envelope)?,
+        workspace_id.ok_or(AdministrativeProtocolError::Envelope)?,
+        manifest.ok_or(AdministrativeProtocolError::Envelope)?,
+        source.ok_or(AdministrativeProtocolError::Envelope)?,
+        staging.ok_or(AdministrativeProtocolError::Envelope)?,
+        conversion.ok_or(AdministrativeProtocolError::Envelope)?,
+        attestation_id.ok_or(AdministrativeProtocolError::Envelope)?,
+        attestation.ok_or(AdministrativeProtocolError::Envelope)?,
+        approval_id.ok_or(AdministrativeProtocolError::Envelope)?,
+        approval.ok_or(AdministrativeProtocolError::Envelope)?,
+        logical.ok_or(AdministrativeProtocolError::Envelope)?,
+        rollback.ok_or(AdministrativeProtocolError::Envelope)?,
+        rollback_window.ok_or(AdministrativeProtocolError::Envelope)?,
+    );
+    let capability = read_administrative_capability()?;
+    let mut stream = UnixStream::connect(endpoint)
+        .map_err(|_| AdministrativeProtocolError::Transport("connect"))?;
+    set_descriptor_close_on_exec(stream.as_raw_fd())
+        .map_err(|_| AdministrativeProtocolError::Transport("close-on-exec"))?;
+    let connection_nonce = negotiate_client(&mut stream)?;
+    let request_id = random_request_id().map_err(|_| AdministrativeProtocolError::Envelope)?;
+    write_frame(
+        &mut stream,
+        &AdministrativeRequest {
+            message_type: "request".to_string(),
+            wire_version: ADMIN_WIRE_VERSION.to_string(),
+            request_id: request_id.clone(),
+            connection_nonce,
+            operation: "migration.cutover".to_string(),
+            capability: capability.capability,
+            body: AdministrativeBody::Cutover(request),
+        },
+    )?;
+    let response: AdministrativeResponse = serde_json::from_slice(&read_frame_with_timeout(
+        &mut stream,
+        MIGRATION_OPERATION_TIMEOUT,
+    )?)
+    .map_err(|_| AdministrativeProtocolError::Envelope)?;
+    if response.message_type != "response"
+        || response.wire_version != ADMIN_WIRE_VERSION
+        || response.request_id != request_id
+        || response.status != "ok"
+        || response.error.is_some()
+    {
+        return Err(AdministrativeProtocolError::Envelope);
+    }
+    match response.result {
+        Some(AdministrativeResult::Cutover(receipt)) => Ok(receipt),
+        _ => Err(AdministrativeProtocolError::Envelope),
+    }
+}
+
 #[cfg(not(unix))]
 fn run_operator_approve_inner() -> Result<LegacyApprovalReceipt, AdministrativeProtocolError> {
+    Err(AdministrativeProtocolError::Transport(
+        "unsupported-platform",
+    ))
+}
+
+#[cfg(not(unix))]
+fn run_operator_cutover_inner() -> Result<LegacyCutoverReceipt, AdministrativeProtocolError> {
     Err(AdministrativeProtocolError::Transport(
         "unsupported-platform",
     ))
@@ -751,6 +854,12 @@ pub(crate) fn serve_administrative_request(
                 .map_err(|_| AdministrativeProtocolError::Staging)?;
             AdministrativeResult::Approve(receipt)
         }
+        AdministrativeBody::Cutover(body) => {
+            let receipt = storage
+                .cutover_legacy_migration(authority, &capability, &body)
+                .map_err(|_| AdministrativeProtocolError::Staging)?;
+            AdministrativeResult::Cutover(receipt)
+        }
     };
     write_frame(
         stream,
@@ -837,6 +946,7 @@ fn validate_request(
                 | "migration.convert"
                 | "migration.attest"
                 | "migration.approve"
+                | "migration.cutover"
         )
         || !valid_opaque_id(&request.request_id, "req_")
         || decode_base64url(&request.connection_nonce)
@@ -874,6 +984,11 @@ fn validate_request(
         }
         ("migration.approve", AdministrativeBody::Approve(body))
             if body.contract_version == "migration-approval-request-v1" =>
+        {
+            Ok(())
+        }
+        ("migration.cutover", AdministrativeBody::Cutover(body))
+            if body.contract_version == "migration-cutover-request-v1" =>
         {
             Ok(())
         }
@@ -1168,8 +1283,11 @@ fn clear_operator_path_environment() {
         EXPECTED_MANIFEST_SHA256_ENV,
         MIGRATION_ATTESTATION_ID_ENV,
         EXPECTED_ATTESTATION_SHA256_ENV,
+        MIGRATION_APPROVAL_ID_ENV,
+        EXPECTED_APPROVAL_SHA256_ENV,
         EXPECTED_CANDIDATE_LOGICAL_SHA256_ENV,
         ROLLBACK_LEGACY_SHA256_ENV,
+        ROLLBACK_WINDOW_SECONDS_ENV,
         MIGRATION_ID_ENV,
     ] {
         std::env::remove_var(name);

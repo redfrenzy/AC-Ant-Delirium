@@ -3,6 +3,7 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     use crate::libres::Rusqlite_unit::AC_params;
     use crate::libres::Sha2_unit::sha256;
@@ -21,8 +22,12 @@ mod tests {
 
     fn fixture_root(label: &str) -> PathBuf {
         let sequence = FIXTURE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock")
+            .as_nanos();
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
-            "target/capability-auth-tests/{label}-{}-{sequence}",
+            "target/capability-auth-tests/{label}-{}-{nonce}-{sequence}",
             std::process::id()
         ));
         fs::create_dir_all(&root).expect("project-local capability fixture");

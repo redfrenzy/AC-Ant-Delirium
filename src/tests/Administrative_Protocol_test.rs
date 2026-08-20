@@ -205,6 +205,32 @@ fn migration_request_binds_connection_operation_and_inventory_digest() {
     assert_eq!(authorization.operation, CapabilityOperation::StateAdmin);
     assert!(authorization.project_id.is_none());
     assert!(authorization.workspace_id.is_none());
+    request.operation = "migration.cutover".to_string();
+    request.body = AdministrativeBody::Cutover(crate::legacy_cutover::cutover_request(
+        "mig_00000000000000000000000000".to_string(),
+        "prj_00000000000000000000000000".to_string(),
+        "wsp_00000000000000000000000000".to_string(),
+        "1".repeat(64),
+        "2".repeat(64),
+        "3".repeat(64),
+        "4".repeat(64),
+        "att_00000000000000000000000000".to_string(),
+        "5".repeat(64),
+        "apr_00000000000000000000000000".to_string(),
+        "6".repeat(64),
+        "7".repeat(64),
+        "2".repeat(64),
+        crate::legacy_cutover::MINIMUM_ROLLBACK_WINDOW_SECONDS,
+    ));
+    assert_eq!(validate_request(&request, &nonce), Ok(()));
+    let authorization = capability_request(
+        &ConnectionAuthentication::for_test(1000, [4_u8; 32]),
+        &request,
+    )
+    .unwrap();
+    assert_eq!(authorization.operation, CapabilityOperation::StateAdmin);
+    assert!(authorization.project_id.is_none());
+    assert!(authorization.workspace_id.is_none());
     request.operation = "migration.stage".to_string();
     assert_eq!(
         validate_request(&request, &nonce),
