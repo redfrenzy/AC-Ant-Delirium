@@ -888,6 +888,14 @@ Critério de saída:
 - `cargo check`, `cargo build` e `cargo test` continuam sendo os comandos normais;
 - o instalador não substitui nem renomeia o executável ou proxy `cargo`.
 
+Estado da T7.1: o release já copia a si próprio atomicamente para
+`$CARGO_HOME/bin/antdelirium`, recusa root, symlinks, ownership divergente e
+overwrite de instalação desconhecida, e trata bytes idênticos como no-op. O
+gate descartável comprova que o proxy `cargo` e `config.toml` mantêm bytes e
+inode. Esta etapa ainda não modifica a configuração: ativação do wrapper,
+backup e rollback pertencem às T7.2–T7.5, portanto nenhuma instalação real foi
+feita no Cargo home do usuário.
+
 ### Fase 6 — comandos Cargo existentes e gate externo
 
 Objetivo: manter a integração invisível para o agente e reduzir bypass sem substituir o Cargo.

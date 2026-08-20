@@ -12,6 +12,9 @@ mod agent_cli;
 #[path = "Public-Output_unit.rs"]
 mod public_output;
 
+#[path = "Cargo-Installer_unit.rs"]
+mod cargo_installer;
+
 #[path = "Service-Authority_unit.rs"]
 mod service_authority;
 

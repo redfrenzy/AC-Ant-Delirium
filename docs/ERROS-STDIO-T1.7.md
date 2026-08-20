@@ -78,6 +78,7 @@ O modo wrapper nunca imprime `cargo:warning=`: esse protocolo pertence a build s
 ```text
 antdelirium[AD-TASK]: leia guard/to-do_list.json
 antdelirium[AD-GOV]: leia guard/governance_error.json
+antdelirium[AD-INSTALL]: binário instalado; configuração Cargo ainda não alterada
 antdelirium[AD-CODE-0001]: governança bloqueou a compilação; leia guard/governance_error.json
 antdelirium[AD-CONFIG-0001]: configuração de governança inválida; não altere arquivos externos ao projeto; solicite o operador
 antdelirium[AD-SERVICE-0001]: serviço de governança indisponível; tente novamente
@@ -90,7 +91,9 @@ antdelirium[AD-TOOLCHAIN-0001]: não foi possível executar o compilador configu
 antdelirium[AD-TOOLCHAIN-0002]: compilador configurado não foi encontrado
 ```
 
-`AD-TASK` e `AD-GOV` são notificações, não códigos de falha. Elas não mudam exit status.
+`AD-TASK`, `AD-GOV` e `AD-INSTALL` são notificações, não códigos de falha. Elas
+não mudam exit status. O resultado idempotente de instalação troca apenas
+`binário instalado` por `binário já instalado`.
 
 ## Dados proibidos em erros públicos
 

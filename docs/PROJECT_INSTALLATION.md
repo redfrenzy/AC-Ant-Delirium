@@ -575,4 +575,32 @@ O código-fonte do encaminhador `guard` antigo e a CLI madura permanecem preserv
 
 O `build.rs` deste próprio checkout continua advisory durante a transição. A mensagem sobre a ausência do binário externo legado é esperada e não instala, copia ou descobre automaticamente uma nova integração.
 
-A instalação em `$CARGO_HOME/bin/antdelirium`, a mesclagem segura da configuração do Cargo e a desinstalação pertencem à Onda 7 e só devem ser executadas depois dos gates anteriores.
+## Instalador do binário — T7.1
+
+O release agora implementa a primeira etapa do instalador:
+
+```bash
+cargo build --release --locked --target x86_64-unknown-linux-gnu \
+  --bin antdelirium
+target/x86_64-unknown-linux-gnu/release/antdelirium install
+```
+
+`install` copia atomicamente o próprio release para
+`$CARGO_HOME/bin/antdelirium`. Se `CARGO_HOME` estiver ausente, o destino é
+`$HOME/.cargo`. Ambos precisam resultar em um path absoluto pertencente ao UID
+efetivo não-root. O instalador recusa diretório ou destino symlink, fonte não
+executável, ownership divergente e um `antdelirium` preexistente com bytes ou
+modo diferentes. Uma repetição byte a byte idêntica é no-op.
+
+A instalação usa um arquivo temporário no próprio `bin/`, sincroniza conteúdo e
+diretório e publica o destino por hard link sem overwrite. O resultado final
+tem modo `0755`. O comando não usa `sudo`, não substitui nem renomeia
+`$CARGO_HOME/bin/cargo`, não altera `config.toml` e não cria configuração de
+wrapper. Builds debug recusam a operação; isso evita instalar por engano o
+executável de `cargo test` ou `cargo run` sem `--release`.
+
+O teste da T7.1 foi executado somente com um `CARGO_HOME` descartável dentro de
+`target/`. A instalação real no Cargo home do usuário continua intencionalmente
+adiada até a mesclagem recuperável de T7.2 e a política de conflitos de T7.3.
+O argumento `install` seleciona a operação, mas não concede autoridade: as
+permissões/sandbox externos ainda decidem se o Cargo home real é gravável.

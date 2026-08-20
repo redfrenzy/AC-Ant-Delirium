@@ -49,9 +49,8 @@ pub(crate) fn run_authoritative_binary() {
             crate::rustc_wrapper::run_wrapper(&args, route)
         }
         InternalBinaryMode::WrapperRejected => OutputRouter::exit(PublicError::Configuration),
-        InternalBinaryMode::ReviewerPending | InternalBinaryMode::OperatorPending => {
-            OutputRouter::exit(PublicError::Authorization)
-        }
+        InternalBinaryMode::ReviewerPending => OutputRouter::exit(PublicError::Authorization),
+        InternalBinaryMode::OperatorPending => crate::cargo_installer::run_operator_mode(&args),
         InternalBinaryMode::ServicePending => crate::service_authority::run_service_mode(),
         InternalBinaryMode::LegacyAgentCliRollback => crate::run_legacy_cli_mode(),
         InternalBinaryMode::LegacyGuardRollback => crate::legacy_guard_mode::run_rollback(),
