@@ -1070,8 +1070,15 @@ integridade, fingerprint lógico, bindings, projeções e contagens e persistiu
 evidência mais auditoria atomicamente. A prova real foi idempotente, mas declara
 explicitamente `signature=absent`, `approval_created=false` e
 `cutover_performed=false`; a identidade CI implantada ainda não foi demonstrada.
-A T8.6 não está concluída: aprovação explícita do operador, instalação do
-serviço/wrapper global e troca de autoridade devem ocorrer em passos posteriores
+A [aprovação explícita do operador](./VALIDACAO-APROVACAO-OPERADOR-AUTOBROWSER-T8.6.md)
+acrescentou `migration.approve`, vinculando manifesto anterior, origem, staging,
+conversão, atestação, fingerprint lógico e rollback point exatos. A transição
+persistiu primeiro um evento de operador e depois publicou por rename atômico um
+manifesto `approved`, com verificador `attested` e operador `approved`. A prova
+real foi idempotente e manteve `cutover_at`, `rollback_deadline` e a primeira
+sequência pós-cutover nulos. A identidade de operador implantada também não foi
+demonstrada. A T8.6 não está concluída: instalação do serviço/wrapper global,
+cutover transacional e troca de autoridade devem ocorrer em passos posteriores
 e separados.
 
 ### Fase 8 — endurecimento contra agentes hostis

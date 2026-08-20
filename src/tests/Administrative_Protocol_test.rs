@@ -182,6 +182,29 @@ fn migration_request_binds_connection_operation_and_inventory_digest() {
         authorization.workspace_id.as_deref(),
         Some("wsp_00000000000000000000000000")
     );
+    request.operation = "migration.approve".to_string();
+    request.body = AdministrativeBody::Approve(crate::legacy_approval::approval_request(
+        "mig_00000000000000000000000000".to_string(),
+        "prj_00000000000000000000000000".to_string(),
+        "wsp_00000000000000000000000000".to_string(),
+        "1".repeat(64),
+        "2".repeat(64),
+        "3".repeat(64),
+        "4".repeat(64),
+        "att_00000000000000000000000000".to_string(),
+        "5".repeat(64),
+        "6".repeat(64),
+        "2".repeat(64),
+    ));
+    assert_eq!(validate_request(&request, &nonce), Ok(()));
+    let authorization = capability_request(
+        &ConnectionAuthentication::for_test(1000, [4_u8; 32]),
+        &request,
+    )
+    .unwrap();
+    assert_eq!(authorization.operation, CapabilityOperation::StateAdmin);
+    assert!(authorization.project_id.is_none());
+    assert!(authorization.workspace_id.is_none());
     request.operation = "migration.stage".to_string();
     assert_eq!(
         validate_request(&request, &nonce),

@@ -335,7 +335,7 @@ fn receipt(
     })
 }
 
-fn logical_state_sha256(
+pub(crate) fn logical_state_sha256(
     transaction: &ac_ant_delirium::libres::Rusqlite_unit::AC_Transaction<'_>,
     project_id: &str,
     workspace_id: &str,

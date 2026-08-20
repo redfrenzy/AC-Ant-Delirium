@@ -13,6 +13,8 @@ Os arquivos deste diretório congelam a primeira versão das fronteiras de dados
 - `migration-attestation-request-v1.schema.json`: escopo opaco e digest exato que um CI verificador deve revalidar.
 - `migration-verifier-attestation-v1.schema.json`: evidência privada produzida sob capability independente, sem aprovação implícita.
 - `migration-attestation-receipt-v1.schema.json`: attestation e seu SHA-256 para a futura decisão do operador.
+- `migration-approval-request-v1.schema.json`: decisão do operador vinculada ao candidato, attestation, hashes e rollback point exatos.
+- `migration-approval-receipt-v1.schema.json`: recibo path-free da aprovação, ainda sem cutover ou deadline antecipado.
 - `legacy-source-inventory-v1.schema.json`: ledger read-only de paths relativos,
   hashes, modos, ownership, links, validação JSON e contagens anteriores ao staging.
 - `legacy-stage-receipt-v1.schema.json`: recibo sem paths da cópia publicada no

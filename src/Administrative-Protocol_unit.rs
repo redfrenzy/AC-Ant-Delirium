@@ -19,6 +19,7 @@ use ac_ant_delirium::structs::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::legacy_approval::{LegacyApprovalReceipt, LegacyApprovalRequest};
 use crate::legacy_attestation::{LegacyAttestationReceipt, LegacyAttestationRequest};
 use crate::legacy_conversion::{LegacyConversionReport, LegacyConversionRequest};
 use crate::legacy_dry_run::{LegacyDryRunReport, LegacyDryRunRequest};
@@ -52,6 +53,11 @@ const EXPECTED_DRY_RUN_SHA256_ENV: &str = "ANTDELIRIUM_EXPECTED_DRY_RUN_SHA256";
 const EXPECTED_CONVERSION_REPORT_SHA256_ENV: &str = "ANTDELIRIUM_EXPECTED_CONVERSION_REPORT_SHA256";
 const MIGRATION_PROJECT_ID_ENV: &str = "ANTDELIRIUM_MIGRATION_PROJECT_ID";
 const MIGRATION_WORKSPACE_ID_ENV: &str = "ANTDELIRIUM_MIGRATION_WORKSPACE_ID";
+const EXPECTED_MANIFEST_SHA256_ENV: &str = "ANTDELIRIUM_EXPECTED_MANIFEST_SHA256";
+const MIGRATION_ATTESTATION_ID_ENV: &str = "ANTDELIRIUM_MIGRATION_ATTESTATION_ID";
+const EXPECTED_ATTESTATION_SHA256_ENV: &str = "ANTDELIRIUM_EXPECTED_ATTESTATION_SHA256";
+const EXPECTED_CANDIDATE_LOGICAL_SHA256_ENV: &str = "ANTDELIRIUM_EXPECTED_CANDIDATE_LOGICAL_SHA256";
+const ROLLBACK_LEGACY_SHA256_ENV: &str = "ANTDELIRIUM_ROLLBACK_LEGACY_SHA256";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum AdministrativeProtocolError {
@@ -110,6 +116,7 @@ enum AdministrativeBody {
     DryRun(LegacyDryRunRequest),
     Convert(LegacyConversionRequest),
     Attest(LegacyAttestationRequest),
+    Approve(LegacyApprovalRequest),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -132,6 +139,7 @@ enum AdministrativeResult {
     DryRun(LegacyDryRunReport),
     Convert(LegacyConversionReport),
     Attest(LegacyAttestationReceipt),
+    Approve(LegacyApprovalReceipt),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -158,18 +166,24 @@ pub(crate) fn run_migration_operator(args: &[OsString]) {
     let attest = args.len() == 2
         && args[0] == OsStr::new("migrate-plugin")
         && args[1] == OsStr::new("attest");
+    let approve = args.len() == 2
+        && args[0] == OsStr::new("migrate-plugin")
+        && args[1] == OsStr::new("approve");
     if !(args.len() == 1 && args[0] == OsStr::new("migrate-plugin"))
         && !normalize
         && !dry_run
         && !convert
         && !attest
+        && !approve
     {
         OutputRouter::exit(PublicError::Authorization);
     }
     if cfg!(debug_assertions) {
         OutputRouter::exit(PublicError::Configuration);
     }
-    let result = if attest {
+    let result = if approve {
+        run_operator_approve_inner().map(AdministrativeResult::Approve)
+    } else if attest {
         run_verifier_attest_inner().map(AdministrativeResult::Attest)
     } else if convert {
         run_operator_convert_inner().map(AdministrativeResult::Convert)
@@ -211,6 +225,14 @@ pub(crate) fn run_migration_operator(args: &[OsString]) {
                 receipt.attestation.project_id,
                 receipt.attestation.attestation_id,
                 receipt.attestation_sha256,
+            )),
+        Ok(AdministrativeResult::Approve(receipt)) => OutputRouter::write_success(&format!(
+                "antdelirium[AD-MIGRATION-APPROVED]: migration_id={} project_id={} approval_id={} approval_sha256={} manifest_sha256={} cutover=false state=approved_awaiting_cutover",
+                receipt.migration_id,
+                receipt.project_id,
+                receipt.approval_id,
+                receipt.approval_sha256,
+                receipt.manifest_after_sha256,
             )),
         Err(AdministrativeProtocolError::Authorization) => {
             OutputRouter::exit(PublicError::Authorization)
@@ -527,6 +549,80 @@ fn run_verifier_attest_inner() -> Result<LegacyAttestationReceipt, Administrativ
     }
 }
 
+#[cfg(unix)]
+fn run_operator_approve_inner() -> Result<LegacyApprovalReceipt, AdministrativeProtocolError> {
+    let endpoint = std::env::var_os(ADMIN_SOCKET_ENV);
+    let migration_id = std::env::var(MIGRATION_ID_ENV).ok();
+    let project_id = std::env::var(MIGRATION_PROJECT_ID_ENV).ok();
+    let workspace_id = std::env::var(MIGRATION_WORKSPACE_ID_ENV).ok();
+    let manifest = std::env::var(EXPECTED_MANIFEST_SHA256_ENV).ok();
+    let source = std::env::var(EXPECTED_SOURCE_SHA256_ENV).ok();
+    let staging = std::env::var(EXPECTED_STAGING_SHA256_ENV).ok();
+    let conversion = std::env::var(EXPECTED_CONVERSION_REPORT_SHA256_ENV).ok();
+    let attestation_id = std::env::var(MIGRATION_ATTESTATION_ID_ENV).ok();
+    let attestation = std::env::var(EXPECTED_ATTESTATION_SHA256_ENV).ok();
+    let logical = std::env::var(EXPECTED_CANDIDATE_LOGICAL_SHA256_ENV).ok();
+    let rollback = std::env::var(ROLLBACK_LEGACY_SHA256_ENV).ok();
+    clear_operator_path_environment();
+    let endpoint = required_absolute_path(endpoint)?;
+    let request = crate::legacy_approval::approval_request(
+        migration_id.ok_or(AdministrativeProtocolError::Envelope)?,
+        project_id.ok_or(AdministrativeProtocolError::Envelope)?,
+        workspace_id.ok_or(AdministrativeProtocolError::Envelope)?,
+        manifest.ok_or(AdministrativeProtocolError::Envelope)?,
+        source.ok_or(AdministrativeProtocolError::Envelope)?,
+        staging.ok_or(AdministrativeProtocolError::Envelope)?,
+        conversion.ok_or(AdministrativeProtocolError::Envelope)?,
+        attestation_id.ok_or(AdministrativeProtocolError::Envelope)?,
+        attestation.ok_or(AdministrativeProtocolError::Envelope)?,
+        logical.ok_or(AdministrativeProtocolError::Envelope)?,
+        rollback.ok_or(AdministrativeProtocolError::Envelope)?,
+    );
+    let capability = read_administrative_capability()?;
+    let mut stream = UnixStream::connect(endpoint)
+        .map_err(|_| AdministrativeProtocolError::Transport("connect"))?;
+    set_descriptor_close_on_exec(stream.as_raw_fd())
+        .map_err(|_| AdministrativeProtocolError::Transport("close-on-exec"))?;
+    let connection_nonce = negotiate_client(&mut stream)?;
+    let request_id = random_request_id().map_err(|_| AdministrativeProtocolError::Envelope)?;
+    write_frame(
+        &mut stream,
+        &AdministrativeRequest {
+            message_type: "request".to_string(),
+            wire_version: ADMIN_WIRE_VERSION.to_string(),
+            request_id: request_id.clone(),
+            connection_nonce,
+            operation: "migration.approve".to_string(),
+            capability: capability.capability,
+            body: AdministrativeBody::Approve(request),
+        },
+    )?;
+    let response: AdministrativeResponse = serde_json::from_slice(&read_frame_with_timeout(
+        &mut stream,
+        MIGRATION_OPERATION_TIMEOUT,
+    )?)
+    .map_err(|_| AdministrativeProtocolError::Envelope)?;
+    if response.message_type != "response"
+        || response.wire_version != ADMIN_WIRE_VERSION
+        || response.request_id != request_id
+        || response.status != "ok"
+        || response.error.is_some()
+    {
+        return Err(AdministrativeProtocolError::Envelope);
+    }
+    match response.result {
+        Some(AdministrativeResult::Approve(receipt)) => Ok(receipt),
+        _ => Err(AdministrativeProtocolError::Envelope),
+    }
+}
+
+#[cfg(not(unix))]
+fn run_operator_approve_inner() -> Result<LegacyApprovalReceipt, AdministrativeProtocolError> {
+    Err(AdministrativeProtocolError::Transport(
+        "unsupported-platform",
+    ))
+}
+
 #[cfg(not(unix))]
 fn run_verifier_attest_inner() -> Result<LegacyAttestationReceipt, AdministrativeProtocolError> {
     Err(AdministrativeProtocolError::Transport(
@@ -649,6 +745,12 @@ pub(crate) fn serve_administrative_request(
                 .map_err(|_| AdministrativeProtocolError::Staging)?;
             AdministrativeResult::Attest(receipt)
         }
+        AdministrativeBody::Approve(body) => {
+            let receipt = storage
+                .approve_legacy_migration(authority, &capability, &body)
+                .map_err(|_| AdministrativeProtocolError::Staging)?;
+            AdministrativeResult::Approve(receipt)
+        }
     };
     write_frame(
         stream,
@@ -734,6 +836,7 @@ fn validate_request(
                 | "migration.dry-run"
                 | "migration.convert"
                 | "migration.attest"
+                | "migration.approve"
         )
         || !valid_opaque_id(&request.request_id, "req_")
         || decode_base64url(&request.connection_nonce)
@@ -766,6 +869,11 @@ fn validate_request(
         }
         ("migration.attest", AdministrativeBody::Attest(body))
             if body.contract_version == "migration-attestation-request-v1" =>
+        {
+            Ok(())
+        }
+        ("migration.approve", AdministrativeBody::Approve(body))
+            if body.contract_version == "migration-approval-request-v1" =>
         {
             Ok(())
         }
@@ -1057,6 +1165,11 @@ fn clear_operator_path_environment() {
         EXPECTED_CONVERSION_REPORT_SHA256_ENV,
         MIGRATION_PROJECT_ID_ENV,
         MIGRATION_WORKSPACE_ID_ENV,
+        EXPECTED_MANIFEST_SHA256_ENV,
+        MIGRATION_ATTESTATION_ID_ENV,
+        EXPECTED_ATTESTATION_SHA256_ENV,
+        EXPECTED_CANDIDATE_LOGICAL_SHA256_ENV,
+        ROLLBACK_LEGACY_SHA256_ENV,
         MIGRATION_ID_ENV,
     ] {
         std::env::remove_var(name);

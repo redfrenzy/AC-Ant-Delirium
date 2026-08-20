@@ -61,6 +61,9 @@ mod legacy_conversion;
 #[path = "Legacy-Attestation_unit.rs"]
 mod legacy_attestation;
 
+#[path = "Legacy-Approval_unit.rs"]
+mod legacy_approval;
+
 #[path = "Administrative-Protocol_unit.rs"]
 mod administrative_protocol;
 

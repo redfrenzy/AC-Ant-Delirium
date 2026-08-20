@@ -776,6 +776,14 @@ fn rfc3339_utc_now() -> Result<String, LegacyStagingError> {
         .duration_since(UNIX_EPOCH)
         .map_err(|_| LegacyStagingError::Destination)?
         .as_secs();
+    let seconds = i64::try_from(seconds).map_err(|_| LegacyStagingError::Destination)?;
+    rfc3339_utc_from_unix(seconds)
+}
+
+pub(crate) fn rfc3339_utc_from_unix(seconds: i64) -> Result<String, LegacyStagingError> {
+    if seconds < 0 {
+        return Err(LegacyStagingError::Destination);
+    }
     let timestamp = libc::time_t::try_from(seconds).map_err(|_| LegacyStagingError::Destination)?;
     let mut output = std::mem::MaybeUninit::<libc::tm>::uninit();
     let result = unsafe { libc::gmtime_r(&timestamp, output.as_mut_ptr()) };

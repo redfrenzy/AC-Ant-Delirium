@@ -540,11 +540,11 @@ capability, nonce, request fingerprint, receipt e resolver opaco antes de abrir
 o banco derivado pelo registry. As outras operações limitadas continuam
 fechadas. O listener administrativo aceita somente as operações fechadas
 implementadas de migração: `migration.stage`, `migration.normalize`,
-`migration.dry-run`, `migration.convert` e `migration.attest`. As quatro
-primeiras exigem `Operator/Administrative/StateAdmin`; a atestação exige
-exatamente `Ci/Administrative/AttestationCreate`, vinculada ao projeto e
-workspace. Approval, cutover e rollback continuam não representáveis no parser
-atual. Os journals da T4.6
+`migration.dry-run`, `migration.convert`, `migration.attest` e
+`migration.approve`. Todas exceto a atestação exigem
+`Operator/Administrative/StateAdmin`; a atestação exige exatamente
+`Ci/Administrative/AttestationCreate`, vinculada ao projeto e workspace.
+Cutover e rollback continuam não representáveis no parser atual. Os journals da T4.6
 registram negações e rejeições sem payload ou localização física. O isolamento
 de descriptors da T4.7 já impede sua herança por um futuro `exec`; o serviço
 atual não cria processos filhos. A T4.8 acrescenta um probe adversarial externo
@@ -615,7 +615,7 @@ O [relatório T8.4](./VALIDACAO-NORMALIZACAO-AUTOBROWSER-T8.4.md) prova esse flu
 na cópia T8.3. O manifesto continua `staged`: normalização não significa
 validação final, approval, importação canônica nem cutover.
 
-## Conversão e atestação do candidato — T8.5/T8.6
+## Conversão, atestação e aprovação do candidato — T8.5/T8.6
 
 `migrate-plugin dry-run` compara a geração normalizada em banco sombra sem
 registrar projeto. `migrate-plugin convert` resolve os domínios bloqueados e
@@ -642,8 +642,32 @@ pertencem aos gates posteriores.
 Os relatórios de [dry-run](./VALIDACAO-DRY-RUN-AUTOBROWSER-T8.5.md),
 [conversão](./VALIDACAO-CONVERSAO-CANDIDATA-AUTOBROWSER-T8.6.md) e
 [atestação](./VALIDACAO-ATESTACAO-INDEPENDENTE-AUTOBROWSER-T8.6.md) registram a
-execução real e seus limites. O manifesto continua `staged`, sem approvals ou
-cutover.
+execução real e seus limites.
+
+`migrate-plugin approve` volta à capability global do operador e exige todos os
+bindings abaixo, além do mesmo socket e descriptor administrativo:
+
+```text
+ANTDELIRIUM_MIGRATION_ID
+ANTDELIRIUM_MIGRATION_PROJECT_ID
+ANTDELIRIUM_MIGRATION_WORKSPACE_ID
+ANTDELIRIUM_EXPECTED_MANIFEST_SHA256
+ANTDELIRIUM_EXPECTED_SOURCE_SHA256
+ANTDELIRIUM_EXPECTED_STAGING_SHA256
+ANTDELIRIUM_EXPECTED_CONVERSION_REPORT_SHA256
+ANTDELIRIUM_MIGRATION_ATTESTATION_ID
+ANTDELIRIUM_EXPECTED_ATTESTATION_SHA256
+ANTDELIRIUM_EXPECTED_CANDIDATE_LOGICAL_SHA256
+ANTDELIRIUM_ROLLBACK_LEGACY_SHA256
+```
+
+A operação revalida a atestação e o estado lógico, grava a decisão do operador
+no journal e publica o manifesto por rename atômico recuperável. A entrada do
+verificador é `attested`; somente a entrada do operador é `approved`. O
+`rollback_deadline` permanece nulo até o futuro cutover, quando deverá ser
+calculado com no mínimo 30 dias. A
+[prova de aprovação](./VALIDACAO-APROVACAO-OPERADOR-AUTOBROWSER-T8.6.md)
+terminou em `approved_awaiting_cutover`, sem troca de autoridade.
 
 Os templates não instalados
 [`packaging/systemd/antdelirium.service.in`](../packaging/systemd/antdelirium.service.in)

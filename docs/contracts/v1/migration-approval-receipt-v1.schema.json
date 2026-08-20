@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:migration-approval-receipt-v1",
+  "title": "Operator migration approval receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version", "approval_id", "migration_id", "project_id", "workspace_id",
+    "operator_subject_sha256", "approval_request_sha256", "attestation_id",
+    "attestation_sha256", "candidate_logical_state_sha256", "manifest_before_sha256",
+    "manifest_after_sha256", "source_snapshot_sha256", "staging_snapshot_sha256",
+    "rollback_legacy_snapshot_sha256", "approved_at", "operator_decision",
+    "verifier_decision", "rollback_status", "rollback_deadline", "manifest_state",
+    "cutover_performed", "state", "approval_sha256"
+  ],
+  "properties": {
+    "contract_version": { "const": "migration-approval-receipt-v1" },
+    "approval_id": { "type": "string", "pattern": "^apr_[0-9a-hjkmnp-tv-z]{26}$" },
+    "migration_id": { "type": "string", "pattern": "^mig_[0-9a-hjkmnp-tv-z]{26}$" },
+    "project_id": { "type": "string", "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$" },
+    "workspace_id": { "type": "string", "pattern": "^wsp_[0-9a-hjkmnp-tv-z]{26}$" },
+    "operator_subject_sha256": { "$ref": "#/$defs/sha256" },
+    "approval_request_sha256": { "$ref": "#/$defs/sha256" },
+    "attestation_id": { "type": "string", "pattern": "^att_[0-9a-hjkmnp-tv-z]{26}$" },
+    "attestation_sha256": { "$ref": "#/$defs/sha256" },
+    "candidate_logical_state_sha256": { "$ref": "#/$defs/sha256" },
+    "manifest_before_sha256": { "$ref": "#/$defs/sha256" },
+    "manifest_after_sha256": { "$ref": "#/$defs/sha256" },
+    "source_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+    "staging_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+    "rollback_legacy_snapshot_sha256": { "$ref": "#/$defs/sha256" },
+    "approved_at": { "type": "string", "format": "date-time" },
+    "operator_decision": { "const": "approved" },
+    "verifier_decision": { "const": "attested" },
+    "rollback_status": { "const": "prepared" },
+    "rollback_deadline": { "type": "null" },
+    "manifest_state": { "const": "approved" },
+    "cutover_performed": { "const": false },
+    "state": { "const": "approved_awaiting_cutover" },
+    "approval_sha256": {
+      "allOf": [{ "$ref": "#/$defs/sha256" }],
+      "description": "SHA-256 da serializacao JSON compacta do recibo com approval_sha256 definido como string vazia."
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

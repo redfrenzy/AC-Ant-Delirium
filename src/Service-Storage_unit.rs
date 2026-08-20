@@ -306,6 +306,43 @@ impl ProtectedServiceStorage {
         .map_err(|_| ())
     }
 
+    pub(crate) fn approve_legacy_migration(
+        &self,
+        authority: &VerifiedServiceAuthority,
+        capability: &AuthorizedCapability,
+        request: &crate::legacy_approval::LegacyApprovalRequest,
+    ) -> Result<crate::legacy_approval::LegacyApprovalReceipt, ()> {
+        let trusted_now_unix = trusted_service_unix_time().map_err(|_| ())?;
+        let authorized = capability.actor() == CapabilityActor::Operator
+            && capability.channel() == CapabilityChannel::Administrative
+            && capability.operation() == CapabilityOperation::StateAdmin
+            && capability.project_id().is_none()
+            && capability.workspace_id().is_none()
+            && capability.task_id().is_none()
+            && self
+                .registry
+                .authorized_capability_is_current(capability, trusted_now_unix)
+                .map_err(|_| ())?;
+        if !authorized {
+            self.audit_rejected_authorized_request_at(capability, trusted_now_unix)?;
+            return Err(());
+        }
+        require_owned_directory(&self.migration_staging_dir, authority.effective_uid())
+            .map_err(|_| ())?;
+        let mut subject_material = b"migration-operator-approval-v1\0".to_vec();
+        subject_material.extend_from_slice(&capability.subject_uid().to_be_bytes());
+        subject_material.extend_from_slice(capability.grant_id().as_bytes());
+        let operator_subject_sha256 =
+            crate::legacy_staging::lowercase_hex(&sha256(&subject_material));
+        crate::legacy_approval::approve_legacy_candidate(
+            &self.migration_staging_dir,
+            request,
+            &operator_subject_sha256,
+            trusted_now_unix,
+        )
+        .map_err(|_| ())
+    }
+
     pub(crate) fn bootstrap_provisional(
         &self,
         authority: &VerifiedServiceAuthority,

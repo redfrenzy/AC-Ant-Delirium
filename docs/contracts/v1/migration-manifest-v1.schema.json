@@ -62,7 +62,7 @@
         "properties": {
           "role": { "enum": ["operator", "verifier"] },
           "subject_id": { "type": "string", "minLength": 1, "maxLength": 255 },
-          "decision": { "enum": ["approved", "rejected"] },
+          "decision": { "enum": ["approved", "attested", "rejected"] },
           "evidence_sha256": { "$ref": "#/$defs/sha256" },
           "decided_at": { "type": "string", "format": "date-time" }
         }
@@ -104,20 +104,39 @@
                 "contains": {
                   "type": "object",
                   "required": ["role", "decision"],
-                  "properties": { "role": { "const": "verifier" }, "decision": { "const": "approved" } }
+                  "properties": { "role": { "const": "verifier" }, "decision": { "const": "attested" } }
                 },
                 "minContains": 1
               }
             ]
           },
-          "approved_at": { "type": "string", "format": "date-time" },
-          "rollback_deadline": { "type": "string", "format": "date-time" }
+          "approved_at": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "state": { "const": "approved" } } },
+      "then": {
+        "properties": {
+          "cutover_at": { "type": "null" },
+          "rollback_deadline": { "type": "null" },
+          "rollback": {
+            "properties": {
+              "post_cutover_first_sequence": { "type": "null" },
+              "status": { "const": "prepared" }
+            }
+          }
         }
       }
     },
     {
       "if": { "properties": { "state": { "enum": ["cutover", "verified", "archived"] } } },
-      "then": { "properties": { "cutover_at": { "type": "string", "format": "date-time" } } }
+      "then": {
+        "properties": {
+          "cutover_at": { "type": "string", "format": "date-time" },
+          "rollback_deadline": { "type": "string", "format": "date-time" }
+        }
+      }
     }
   ],
   "$defs": {
@@ -128,4 +147,3 @@
     }
   }
 }
-
