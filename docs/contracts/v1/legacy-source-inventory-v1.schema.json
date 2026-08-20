@@ -1,0 +1,213 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:legacy-source-inventory-v1",
+  "title": "AntDelirium legacy source inventory v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "captured_at",
+    "inventory_sha256",
+    "consistency",
+    "payload"
+  ],
+  "properties": {
+    "contract_version": { "const": "legacy-source-inventory-v1" },
+    "captured_at": { "type": "string", "format": "date-time" },
+    "inventory_sha256": { "$ref": "#/$defs/sha256" },
+    "consistency": { "const": "two-identical-read-only-passes" },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_kind",
+        "source_locator",
+        "root",
+        "validation",
+        "counts",
+        "mode_histogram",
+        "ownership_histogram",
+        "semantic_counts",
+        "git",
+        "entries"
+      ],
+      "properties": {
+        "source_kind": { "const": "legacy-plugin" },
+        "source_locator": { "const": "operator-private" },
+        "root": { "$ref": "#/$defs/root" },
+        "validation": { "$ref": "#/$defs/validation" },
+        "counts": { "$ref": "#/$defs/entryCounts" },
+        "mode_histogram": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/modeCount" }
+        },
+        "ownership_histogram": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ownershipCount" }
+        },
+        "semantic_counts": { "$ref": "#/$defs/semanticCounts" },
+        "git": { "$ref": "#/$defs/git" },
+        "entries": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/entry" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "nullableSha256": {
+      "oneOf": [
+        { "$ref": "#/$defs/sha256" },
+        { "type": "null" }
+      ]
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "mode": {
+      "type": "string",
+      "pattern": "^[0-7]{3,4}$"
+    },
+    "root": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "mode", "uid", "gid"],
+      "properties": {
+        "type": { "const": "directory" },
+        "mode": { "$ref": "#/$defs/mode" },
+        "uid": { "$ref": "#/$defs/count" },
+        "gid": { "$ref": "#/$defs/count" }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["json_files", "valid_json_files", "invalid_json_files"],
+      "properties": {
+        "json_files": { "$ref": "#/$defs/count" },
+        "valid_json_files": { "$ref": "#/$defs/count" },
+        "invalid_json_files": { "const": 0 }
+      }
+    },
+    "entryCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entries", "regular_files", "directories", "symlinks", "other"],
+      "properties": {
+        "entries": { "$ref": "#/$defs/count" },
+        "regular_files": { "$ref": "#/$defs/count" },
+        "directories": { "$ref": "#/$defs/count" },
+        "symlinks": { "$ref": "#/$defs/count" },
+        "other": { "$ref": "#/$defs/count" }
+      }
+    },
+    "modeCount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "count"],
+      "properties": {
+        "mode": { "$ref": "#/$defs/mode" },
+        "count": { "$ref": "#/$defs/count" }
+      }
+    },
+    "ownershipCount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["uid", "gid", "count"],
+      "properties": {
+        "uid": { "$ref": "#/$defs/count" },
+        "gid": { "$ref": "#/$defs/count" },
+        "count": { "$ref": "#/$defs/count" }
+      }
+    },
+    "semanticCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "plans",
+        "tasks",
+        "submissions",
+        "reviews",
+        "history_events",
+        "problems",
+        "transitions",
+        "json_schemas",
+        "generated_artifacts",
+        "task_evidence"
+      ],
+      "properties": {
+        "plans": { "$ref": "#/$defs/count" },
+        "tasks": { "$ref": "#/$defs/count" },
+        "submissions": { "$ref": "#/$defs/count" },
+        "reviews": { "$ref": "#/$defs/count" },
+        "history_events": { "$ref": "#/$defs/count" },
+        "problems": { "$ref": "#/$defs/count" },
+        "transitions": { "$ref": "#/$defs/count" },
+        "json_schemas": { "$ref": "#/$defs/count" },
+        "generated_artifacts": { "$ref": "#/$defs/count" },
+        "task_evidence": { "$ref": "#/$defs/count" }
+      }
+    },
+    "git": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "head", "branch", "worktree_clean", "status"],
+      "properties": {
+        "repository": { "type": "boolean" },
+        "head": {
+          "oneOf": [
+            { "type": "string", "pattern": "^[0-9a-f]{40,64}$" },
+            { "type": "null" }
+          ]
+        },
+        "branch": { "type": ["string", "null"] },
+        "worktree_clean": { "type": ["boolean", "null"] },
+        "status": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "type", "mode", "uid", "gid", "size", "sha256", "link"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+        },
+        "type": {
+          "enum": [
+            "regular",
+            "directory",
+            "symlink",
+            "fifo",
+            "socket",
+            "block-device",
+            "character-device",
+            "other"
+          ]
+        },
+        "mode": { "$ref": "#/$defs/mode" },
+        "uid": { "$ref": "#/$defs/count" },
+        "gid": { "$ref": "#/$defs/count" },
+        "size": { "$ref": "#/$defs/count" },
+        "sha256": { "$ref": "#/$defs/nullableSha256" },
+        "link": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "target", "target_sha256"],
+          "properties": {
+            "kind": { "enum": ["none", "relative", "absolute-redacted"] },
+            "target": { "type": ["string", "null"] },
+            "target_sha256": { "$ref": "#/$defs/nullableSha256" }
+          }
+        }
+      }
+    }
+  }
+}

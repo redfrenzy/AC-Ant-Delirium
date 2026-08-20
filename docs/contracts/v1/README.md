@@ -10,6 +10,8 @@ Os arquivos deste diretório congelam a primeira versão das fronteiras de dados
 - `admin-protocol-v1.schema.json`: envelopes aceitos somente no listener administrativo.
 - `public-error-v1.schema.json`: erro sanitizado, código estável e exit code.
 - `migration-manifest-v1.schema.json`: hashes, contagens, approvals e rollback de uma migração.
+- `legacy-source-inventory-v1.schema.json`: ledger read-only de paths relativos,
+  hashes, modos, ownership, links, validação JSON e contagens anteriores ao staging.
 
 Todos usam JSON Schema Draft 2020-12 e `additionalProperties: false`. Eles são contratos de domínio e API, não autorização, schema SQL nem descrição do transporte.
 

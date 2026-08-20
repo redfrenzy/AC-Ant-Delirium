@@ -1010,6 +1010,17 @@ mudanças no orquestrador. Esse estado foi preservado sem inferir renomes. A T8.
 deve congelar hashes e metadados antes de qualquer cópia; staging e cutover
 continuam proibidos nesta etapa.
 
+Estado da T8.2: o [snapshot validado da origem](./VALIDACAO-INVENTARIO-AUTOBROWSER-T8.2.md)
+registra 3.102 entries por path relativo, tipo, modo, ownership, tamanho, hash e
+link no contrato `legacy-source-inventory-v1`. Duas passagens read-only
+produziram o mesmo digest; 144 JSONs foram analisados sem erro, 24 documentos de
+schema são válidos e as coleções centrais produziram contagens explícitas de
+planos, tarefas, submissões, revisões, histórico, problemas e transições. A
+evidência não contém locator físico. Quatro objetos com UID/GID `65534:65534`
+foram preservados como divergência, sem normalização. Este snapshot não congela
+a origem: T8.3 precisa revalidar o digest antes da cópia e importar somente para
+staging protegido, ainda sem cutover.
+
 ### Fase 8 — endurecimento contra agentes hostis
 
 Objetivo: transformar detecção local em enforcement confiável.
