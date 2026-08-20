@@ -575,9 +575,9 @@ O código-fonte do encaminhador `guard` antigo e a CLI madura permanecem preserv
 
 O `build.rs` deste próprio checkout continua advisory durante a transição. A mensagem sobre a ausência do binário externo legado é esperada e não instala, copia ou descobre automaticamente uma nova integração.
 
-## Instalador do binário — T7.1
+## Primitiva de instalação do binário — T7.1
 
-O release agora implementa a primeira etapa do instalador:
+A T7.1 implementou a primeira etapa interna do instalador:
 
 ```bash
 cargo build --release --locked --target x86_64-unknown-linux-gnu \
@@ -585,25 +585,25 @@ cargo build --release --locked --target x86_64-unknown-linux-gnu \
 target/x86_64-unknown-linux-gnu/release/antdelirium install
 ```
 
-`install` copia atomicamente o próprio release para
+Essa primitiva copia atomicamente o próprio release para
 `$CARGO_HOME/bin/antdelirium`. Se `CARGO_HOME` estiver ausente, o destino é
 `$HOME/.cargo`. Ambos precisam resultar em um path absoluto pertencente ao UID
 efetivo não-root. O instalador recusa diretório ou destino symlink, fonte não
 executável, ownership divergente e um `antdelirium` preexistente com bytes ou
 modo diferentes. Uma repetição byte a byte idêntica é no-op.
 
-A instalação usa um arquivo temporário no próprio `bin/`, sincroniza conteúdo e
+A cópia usa um arquivo temporário no próprio `bin/`, sincroniza conteúdo e
 diretório e publica o destino por hard link sem overwrite. O resultado final
-tem modo `0755`. O comando não usa `sudo`, não substitui nem renomeia
-`$CARGO_HOME/bin/cargo`, não altera `config.toml` e não cria configuração de
-wrapper. Builds debug recusam a operação; isso evita instalar por engano o
-executável de `cargo test` ou `cargo run` sem `--release`.
+tem modo `0755`. A primitiva não usa `sudo`, não substitui nem renomeia
+`$CARGO_HOME/bin/cargo`. Builds debug recusam o comando administrativo; isso
+evita instalar por engano o executável de `cargo test` ou `cargo run` sem
+`--release`.
 
-O teste da T7.1 foi executado somente com um `CARGO_HOME` descartável dentro de
-`target/`. A instalação real no Cargo home do usuário continua intencionalmente
-adiada até a mesclagem recuperável de T7.2 e a política de conflitos de T7.3.
-O argumento `install` seleciona a operação, mas não concede autoridade: as
-permissões/sandbox externos ainda decidem se o Cargo home real é gravável.
+Os testes isolados da T7.1 continuam provando que a cópia do binário, por si só,
+não altera `config.toml`. A T7.3 passou a compor essa primitiva com a transação
+recuperável descrita abaixo. O argumento `install` seleciona a operação, mas não
+concede autoridade: as permissões/sandbox externos ainda decidem se o Cargo home
+real é gravável.
 
 ## Transação recuperável de configuração — T7.2
 
@@ -631,6 +631,45 @@ alteração concorrente ou o arquivo legado `$CARGO_HOME/config` causam recusa s
 sobrescrever configuração ou backup. Uma mutação que não muda bytes preserva o
 inode e não cria backup.
 
-Essa transação ainda não é chamada por `install`: a T7.3 definirá a única chave
-permitida, tratará conflitos de wrapper e então ligará configuração e instalação
-em um fluxo único. Até lá, o Cargo home real continua sem alteração.
+A T7.3 conecta essa transação ao comando `install` através de uma mutação fechada,
+descrita na próxima seção.
+
+## Ativação exclusiva do wrapper de workspace — T7.3
+
+O comando release `antdelirium install` agora executa um único fluxo: resolve o
+Cargo home, faz um preflight somente leitura, instala ou reconhece o binário em
+`bin/antdelirium` e mescla exclusivamente:
+
+```toml
+[build]
+rustc-workspace-wrapper = "<CARGO_HOME>/bin/antdelirium"
+```
+
+O mutador não escreve `build.rustc`, `build.rustc-wrapper`, `target`, `runner` ou
+qualquer outra chave. Um `rustc-workspace-wrapper` já igual ao path esperado é
+um no-op e não cria um backup para reivindicar configuração escrita por outra
+pessoa. Valor diferente, tipo TOML diferente de string, `build` malformado ou a
+presença de qualquer `build.rustc-wrapper` causam conflito antes da instalação.
+Isso inclui caches como `sccache`: composição automática entre wrappers ainda
+não possui política aprovada e não é inferida pelo instalador.
+
+Não existe `--force` nem troca automática do wrapper. A decisão explícita é do
+operador, que deve preservar, remover ou reconfigurar conscientemente a
+integração conflitante e depois repetir `install`. O preflight também recusa
+backup preexistente quando seria necessária uma nova alteração. A transação
+repete toda a validação depois da cópia do binário; se houver uma corrida nesse
+intervalo, a configuração permanece sem overwrite e o binário inativo pode
+permanecer instalado com segurança.
+
+Os testes usam somente Cargo homes descartáveis sob `target/`. Eles cobrem
+ativação, preservação de `rustc`, `jobs`, `runner` e proxy `cargo`, idempotência,
+configuração idêntica não reivindicada, `sccache`, wrapper divergente, tipos
+inválidos e preflight sem cópia do binário em conflito. Nenhum Cargo home real é
+modificado pelos testes.
+
+Um probe adicional do ELF release executou `install` duas vezes no mesmo Cargo
+home descartável, confirmou os modos `0755` do binário, `0600` da configuração,
+`0700` da raiz de backup e `0600` de seus dois arquivos. Em seguida, um projeto
+novo sem dependências passou `cargo check` usando somente essa configuração. O
+mesmo check em target separado com profundidade deliberadamente inválida foi
+rejeitado pelo wrapper, provando que o Cargo carregou a integração instalada.

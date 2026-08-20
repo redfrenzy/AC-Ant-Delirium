@@ -22,6 +22,104 @@ fn insert_fixture_setting(document: &mut DocumentMut) -> Result<(), CargoConfigE
     Ok(())
 }
 
+fn expected_wrapper(cargo_home: &Path) -> String {
+    cargo_home
+        .join("bin")
+        .join(INSTALLED_BINARY_NAME)
+        .to_str()
+        .expect("UTF-8 fixture path")
+        .to_owned()
+}
+
+#[test]
+fn configures_only_the_workspace_wrapper_and_preserves_other_build_settings() {
+    let cargo_home = fixture_cargo_home("workspace-wrapper");
+    let config = cargo_home.join(CONFIG_FILE_NAME);
+    let original = b"# keep heading\n[build]\nrustc = \"custom-rustc\"\njobs = 3\n\n[target.x86_64-unknown-linux-gnu]\nrunner = \"custom-runner\"\n";
+    fs::write(&config, original).expect("write original config");
+
+    assert_eq!(
+        configure_workspace_wrapper(&cargo_home),
+        Ok(CargoConfigMergeOutcome::Updated)
+    );
+    let merged = fs::read_to_string(&config).expect("read configured Cargo file");
+    let parsed = merged
+        .parse::<DocumentMut>()
+        .expect("parse configured Cargo file");
+    assert_eq!(parsed["build"]["rustc"].as_str(), Some("custom-rustc"));
+    assert_eq!(parsed["build"]["jobs"].as_integer(), Some(3));
+    assert_eq!(
+        parsed["target"]["x86_64-unknown-linux-gnu"]["runner"].as_str(),
+        Some("custom-runner")
+    );
+    assert_eq!(
+        parsed["build"]["rustc-workspace-wrapper"].as_str(),
+        Some(expected_wrapper(&cargo_home).as_str())
+    );
+    assert!(parsed["build"].get("rustc-wrapper").is_none());
+    assert_eq!(
+        read_verified_config_backup(&cargo_home)
+            .expect("verified wrapper backup")
+            .original_bytes,
+        original
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn identical_preexisting_workspace_wrapper_is_an_unclaimed_no_op() {
+    let cargo_home = fixture_cargo_home("workspace-wrapper-noop");
+    let config = cargo_home.join(CONFIG_FILE_NAME);
+    let configured = format!(
+        "[build]\nrustc-workspace-wrapper = {:?}\n",
+        expected_wrapper(&cargo_home)
+    );
+    fs::write(&config, configured.as_bytes()).expect("write matching wrapper");
+    let before = fs::metadata(&config).expect("matching wrapper metadata");
+
+    assert_eq!(
+        configure_workspace_wrapper(&cargo_home),
+        Ok(CargoConfigMergeOutcome::Unchanged)
+    );
+    let after = fs::metadata(&config).expect("matching wrapper metadata after no-op");
+    assert_eq!(before.dev(), after.dev());
+    assert_eq!(before.ino(), after.ino());
+    assert_eq!(
+        fs::read_to_string(&config).expect("matching wrapper bytes"),
+        configured
+    );
+    assert!(!cargo_home.join(BACKUP_DIRECTORY_NAME).exists());
+}
+
+#[test]
+fn refuses_cache_divergent_wrapper_and_malformed_build_without_writing() {
+    let cases = [
+        ("cache", "[build]\nrustc-wrapper = \"sccache\"\n"),
+        (
+            "divergent",
+            "[build]\nrustc-workspace-wrapper = \"/opt/other-wrapper\"\n",
+        ),
+        ("wrong-type", "[build]\nrustc-workspace-wrapper = 7\n"),
+        ("malformed-build", "build = \"not-a-table\"\n"),
+    ];
+    for (label, original) in cases {
+        let cargo_home = fixture_cargo_home(label);
+        let config = cargo_home.join(CONFIG_FILE_NAME);
+        fs::write(&config, original.as_bytes()).expect("write conflicting config");
+        assert_eq!(
+            configure_workspace_wrapper(&cargo_home),
+            Err(CargoConfigError::WrapperConflict),
+            "case {label}"
+        );
+        assert_eq!(
+            fs::read_to_string(&config).expect("read preserved conflicting config"),
+            original,
+            "case {label}"
+        );
+        assert!(!cargo_home.join(BACKUP_DIRECTORY_NAME).exists());
+    }
+}
+
 #[test]
 fn merges_without_losing_comments_order_or_existing_keys_and_creates_exact_backup() {
     let cargo_home = fixture_cargo_home("merge");

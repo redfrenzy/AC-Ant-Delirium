@@ -20,6 +20,93 @@ fn executable_source() -> PathBuf {
 }
 
 #[test]
+fn integrated_install_activates_only_the_workspace_wrapper() {
+    let root = fixture_root("integrated");
+    let cargo_home = root.join("cargo-home");
+    let bin = cargo_home.join("bin");
+    fs::create_dir_all(&bin).expect("create Cargo bin");
+    let cargo_proxy = bin.join("cargo");
+    fs::write(&cargo_proxy, b"rustup proxy sentinel\n").expect("write proxy sentinel");
+    fs::write(
+        cargo_home.join("config.toml"),
+        b"# preserve\n[net]\noffline = true\n",
+    )
+    .expect("write existing Cargo config");
+
+    assert_eq!(
+        install_release_and_configure(&executable_source(), &cargo_home),
+        Ok(CargoInstallOutcome {
+            binary: BinaryInstallOutcome::Installed,
+            config: CargoConfigMergeOutcome::Updated,
+        })
+    );
+    let config =
+        fs::read_to_string(cargo_home.join("config.toml")).expect("read integrated Cargo config");
+    let parsed = config
+        .parse::<toml_edit::DocumentMut>()
+        .expect("parse integrated Cargo config");
+    assert_eq!(parsed["net"]["offline"].as_bool(), Some(true));
+    assert_eq!(
+        parsed["build"]["rustc-workspace-wrapper"].as_str(),
+        cargo_home.join("bin").join(INSTALLED_BINARY_NAME).to_str()
+    );
+    assert!(parsed["build"].get("rustc-wrapper").is_none());
+    assert_eq!(
+        fs::read(cargo_proxy).expect("read preserved Cargo proxy"),
+        b"rustup proxy sentinel\n"
+    );
+    assert!(cargo_home
+        .join(".antdelirium-install/config-backup-v1.json")
+        .is_file());
+}
+
+#[test]
+fn integrated_install_is_idempotent_after_owned_configuration() {
+    let root = fixture_root("integrated-idempotent");
+    let cargo_home = root.join("cargo-home");
+    fs::create_dir_all(&cargo_home).expect("create Cargo home");
+    let source = executable_source();
+    assert!(install_release_and_configure(&source, &cargo_home).is_ok());
+    let config = cargo_home.join("config.toml");
+    let before = fs::metadata(&config).expect("configured metadata");
+
+    assert_eq!(
+        install_release_and_configure(&source, &cargo_home),
+        Ok(CargoInstallOutcome {
+            binary: BinaryInstallOutcome::AlreadyInstalled,
+            config: CargoConfigMergeOutcome::Unchanged,
+        })
+    );
+    #[cfg(unix)]
+    {
+        let after = fs::metadata(config).expect("configured metadata after retry");
+        assert_eq!(before.dev(), after.dev());
+        assert_eq!(before.ino(), after.ino());
+    }
+}
+
+#[test]
+fn wrapper_conflict_is_preserved_and_never_activated() {
+    let root = fixture_root("integrated-wrapper-conflict");
+    let cargo_home = root.join("cargo-home");
+    fs::create_dir_all(&cargo_home).expect("create Cargo home");
+    let config = cargo_home.join("config.toml");
+    let conflicting = b"[build]\nrustc-wrapper = \"sccache\"\n";
+    fs::write(&config, conflicting).expect("write cache wrapper conflict");
+
+    assert_eq!(
+        install_release_and_configure(&executable_source(), &cargo_home),
+        Err(CargoInstallError::Config(CargoConfigError::WrapperConflict))
+    );
+    assert_eq!(
+        fs::read(&config).expect("read preserved cache wrapper"),
+        conflicting
+    );
+    assert!(!cargo_home.join(".antdelirium-install").exists());
+    assert!(!cargo_home.join("bin").join(INSTALLED_BINARY_NAME).exists());
+}
+
+#[test]
 fn installs_exact_binary_without_touching_cargo_proxy_or_configuration() {
     let root = fixture_root("install");
     let cargo_home = root.join("cargo-home");

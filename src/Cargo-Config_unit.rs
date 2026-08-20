@@ -8,7 +8,7 @@ use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 
 use ac_ant_delirium::libres::Sha2_unit::sha256;
 use serde::{Deserialize, Serialize};
-use toml_edit::DocumentMut;
+use toml_edit::{value, DocumentMut};
 
 const CONFIG_FILE_NAME: &str = "config.toml";
 const LEGACY_CONFIG_FILE_NAME: &str = "config";
@@ -16,6 +16,7 @@ const BACKUP_DIRECTORY_NAME: &str = ".antdelirium-install";
 const BACKUP_PAYLOAD_NAME: &str = "config.toml.original";
 const BACKUP_RECEIPT_NAME: &str = "config-backup-v1.json";
 const BACKUP_CONTRACT_VERSION: &str = "cargo-config-backup-v1";
+const INSTALLED_BINARY_NAME: &str = "antdelirium";
 const MAXIMUM_CONFIG_BYTES: u64 = 4 * 1024 * 1024;
 static TEMPORARY_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
@@ -32,6 +33,7 @@ pub(crate) enum CargoConfigError {
     LegacyConfigConflict,
     InvalidConfig,
     ConfigTooLarge,
+    WrapperConflict,
     BackupConflict,
     ConcurrentChange,
     Io,
@@ -55,13 +57,85 @@ pub(crate) struct VerifiedCargoConfigBackup {
     pub(crate) installed_sha256: String,
 }
 
+pub(crate) fn configure_workspace_wrapper(
+    cargo_home: &Path,
+) -> Result<CargoConfigMergeOutcome, CargoConfigError> {
+    let wrapper = expected_workspace_wrapper(cargo_home)?;
+    merge_cargo_config(cargo_home, move |document| {
+        configure_workspace_wrapper_document(document, &wrapper)
+    })
+}
+
+pub(crate) fn preflight_workspace_wrapper(cargo_home: &Path) -> Result<(), CargoConfigError> {
+    let owner = effective_uid()?;
+    validate_cargo_home(cargo_home, owner)?;
+    reject_legacy_config(cargo_home)?;
+    let original = read_existing_config(&cargo_home.join(CONFIG_FILE_NAME), owner)?;
+    let original_bytes = original
+        .as_ref()
+        .map(|config| config.bytes.as_slice())
+        .unwrap_or_default();
+    let source =
+        std::str::from_utf8(original_bytes).map_err(|_| CargoConfigError::InvalidConfig)?;
+    let mut document = if original.is_some() {
+        source
+            .parse::<DocumentMut>()
+            .map_err(|_| CargoConfigError::InvalidConfig)?
+    } else {
+        DocumentMut::new()
+    };
+    configure_workspace_wrapper_document(
+        &mut document,
+        expected_workspace_wrapper(cargo_home)?.as_str(),
+    )?;
+    let planned = document.to_string().into_bytes();
+    validate_serialized_config(&planned)?;
+    if planned != original_bytes {
+        match fs::symlink_metadata(cargo_home.join(BACKUP_DIRECTORY_NAME)) {
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Ok(_) => return Err(CargoConfigError::BackupConflict),
+            Err(_) => return Err(CargoConfigError::Io),
+        }
+    }
+    Ok(())
+}
+
+fn expected_workspace_wrapper(cargo_home: &Path) -> Result<String, CargoConfigError> {
+    cargo_home
+        .join("bin")
+        .join(INSTALLED_BINARY_NAME)
+        .to_str()
+        .map(str::to_owned)
+        .ok_or(CargoConfigError::InvalidCargoHome)
+}
+
+fn configure_workspace_wrapper_document(
+    document: &mut DocumentMut,
+    expected_wrapper: &str,
+) -> Result<(), CargoConfigError> {
+    let build = document.entry("build").or_insert(toml_edit::table());
+    let build = build
+        .as_table_like_mut()
+        .ok_or(CargoConfigError::WrapperConflict)?;
+    if build.get("rustc-wrapper").is_some() {
+        return Err(CargoConfigError::WrapperConflict);
+    }
+    match build.get("rustc-workspace-wrapper") {
+        Some(configured) if configured.as_str() == Some(expected_wrapper) => Ok(()),
+        Some(_) => Err(CargoConfigError::WrapperConflict),
+        None => {
+            build.insert("rustc-workspace-wrapper", value(expected_wrapper));
+            Ok(())
+        }
+    }
+}
+
 struct ExistingCargoConfig {
     bytes: Vec<u8>,
     metadata: fs::Metadata,
     mode: u32,
 }
 
-#[allow(dead_code)]
 pub(crate) fn merge_cargo_config(
     cargo_home: &Path,
     mutate: impl FnOnce(&mut DocumentMut) -> Result<(), CargoConfigError>,

@@ -7,6 +7,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(unix)]
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 
+use crate::cargo_config::{
+    configure_workspace_wrapper, preflight_workspace_wrapper, CargoConfigError,
+    CargoConfigMergeOutcome,
+};
 use crate::public_output::{OutputRouter, PublicError};
 
 const INSTALLED_BINARY_NAME: &str = "antdelirium";
@@ -27,6 +31,18 @@ pub(crate) enum BinaryInstallError {
     Io,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct CargoInstallOutcome {
+    pub(crate) binary: BinaryInstallOutcome,
+    pub(crate) config: CargoConfigMergeOutcome,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CargoInstallError {
+    Binary(BinaryInstallError),
+    Config(CargoConfigError),
+}
+
 pub(crate) fn run_operator_mode(args: &[OsString]) {
     if args.len() != 1 || args[0] != OsStr::new("install") {
         OutputRouter::exit(PublicError::Authorization);
@@ -36,29 +52,50 @@ pub(crate) fn run_operator_mode(args: &[OsString]) {
     }
 
     let outcome = install_current_release().unwrap_or_else(|error| match error {
-        BinaryInstallError::InvalidSource
-        | BinaryInstallError::InvalidCargoHome
-        | BinaryInstallError::UnsafeFilesystemEntry
-        | BinaryInstallError::ExistingInstallationConflict => {
+        CargoInstallError::Binary(BinaryInstallError::Io)
+        | CargoInstallError::Config(CargoConfigError::Io) => {
+            OutputRouter::exit(PublicError::Internal)
+        }
+        CargoInstallError::Binary(_) | CargoInstallError::Config(_) => {
             OutputRouter::exit(PublicError::Configuration)
         }
-        BinaryInstallError::Io => OutputRouter::exit(PublicError::Internal),
     });
-    let message = match outcome {
-        BinaryInstallOutcome::Installed => {
-            "antdelirium[AD-INSTALL]: binário instalado; configuração Cargo ainda não alterada"
+    let message = match (outcome.binary, outcome.config) {
+        (BinaryInstallOutcome::Installed, CargoConfigMergeOutcome::Updated) => {
+            "antdelirium[AD-INSTALL]: binário instalado; integração Cargo ativa"
         }
-        BinaryInstallOutcome::AlreadyInstalled => {
-            "antdelirium[AD-INSTALL]: binário já instalado; configuração Cargo ainda não alterada"
+        (BinaryInstallOutcome::Installed, CargoConfigMergeOutcome::Unchanged) => {
+            "antdelirium[AD-INSTALL]: binário instalado; integração Cargo já estava ativa"
+        }
+        (BinaryInstallOutcome::AlreadyInstalled, CargoConfigMergeOutcome::Updated) => {
+            "antdelirium[AD-INSTALL]: binário já instalado; integração Cargo ativada"
+        }
+        (BinaryInstallOutcome::AlreadyInstalled, CargoConfigMergeOutcome::Unchanged) => {
+            "antdelirium[AD-INSTALL]: binário já instalado; integração Cargo ativa"
         }
     };
     OutputRouter::write_success(message);
 }
 
-fn install_current_release() -> Result<BinaryInstallOutcome, BinaryInstallError> {
-    let source = std::env::current_exe().map_err(|_| BinaryInstallError::InvalidSource)?;
-    let cargo_home = cargo_home_from_environment()?;
-    install_release_binary(&source, &cargo_home)
+fn install_current_release() -> Result<CargoInstallOutcome, CargoInstallError> {
+    let source = std::env::current_exe()
+        .map_err(|_| CargoInstallError::Binary(BinaryInstallError::InvalidSource))?;
+    let cargo_home = cargo_home_from_environment().map_err(CargoInstallError::Binary)?;
+    install_release_and_configure(&source, &cargo_home)
+}
+
+pub(crate) fn install_release_and_configure(
+    source: &Path,
+    cargo_home: &Path,
+) -> Result<CargoInstallOutcome, CargoInstallError> {
+    match fs::symlink_metadata(cargo_home) {
+        Ok(_) => preflight_workspace_wrapper(cargo_home).map_err(CargoInstallError::Config)?,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(_) => return Err(CargoInstallError::Config(CargoConfigError::Io)),
+    }
+    let binary = install_release_binary(source, cargo_home).map_err(CargoInstallError::Binary)?;
+    let config = configure_workspace_wrapper(cargo_home).map_err(CargoInstallError::Config)?;
+    Ok(CargoInstallOutcome { binary, config })
 }
 
 fn cargo_home_from_environment() -> Result<PathBuf, BinaryInstallError> {

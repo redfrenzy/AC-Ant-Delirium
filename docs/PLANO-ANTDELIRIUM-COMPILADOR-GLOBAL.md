@@ -904,6 +904,15 @@ e preserva inode quando a mutação é no-op. A transação permanece desligada 
 comando `install` até a T7.3 limitar a mutação exclusivamente ao wrapper de
 workspace e fechar a política de conflitos.
 
+Estado da T7.3: `install` agora compõe a instalação idempotente do release com a
+transação de configuração e escreve somente `build.rustc-workspace-wrapper`
+apontando para o binário daquele Cargo home. Um valor idêntico é no-op sem
+reivindicação de ownership; qualquer `build.rustc-wrapper`, wrapper de workspace
+divergente, tipo inválido ou backup conflitante falha no preflight sem copiar o
+binário nem reescrever configuração. Não há `--force`: composição com `sccache`
+ou outro wrapper permanece uma decisão explícita do operador. A revalidação após
+a cópia preserva fail-closed em caso de corrida.
+
 ### Fase 6 — comandos Cargo existentes e gate externo
 
 Objetivo: manter a integração invisível para o agente e reduzir bypass sem substituir o Cargo.
