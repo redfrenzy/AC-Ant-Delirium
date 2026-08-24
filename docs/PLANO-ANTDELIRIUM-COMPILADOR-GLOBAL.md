@@ -1120,9 +1120,10 @@ audita atomicamente sem token ou path. `storage-v9` preserva grants v8 e remove
 somente a foreign key de projeto que tornava impossível conceder a capability
 CI antes do cutover. O handler recusa amplificação para operador, serviço,
 administração ou diagnóstico. O código e a migração controlada estão validados;
-o bundle v9 com o mesmo ELF release foi renderizado e passou o gate de não
-divulgação, mas ainda precisa ser instalado no serviço real antes da atestação
-e do cutover do AutoBrowser.
+o bundle v9 com o mesmo ELF release passou o gate de não divulgação e foi
+instalado no serviço real. Registry, integridade, foreign keys, grants iniciais,
+tabela de gestão, estabilidade do processo e hashes passaram. A atestação e o
+cutover operacional do AutoBrowser permanecem separados e ainda não ocorreram.
 
 ### Fase 8 — endurecimento contra agentes hostis
 

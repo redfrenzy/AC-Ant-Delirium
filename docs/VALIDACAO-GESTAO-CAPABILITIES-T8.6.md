@@ -60,17 +60,19 @@ UID continuam obrigatórios.
   verde. O bundle local contém o mesmo ELF e registra seu SHA-256 no manifesto
   renderizado.
 
-## Limite operacional restante
+## Implantação real concluída
 
-O bundle `storage-v9` foi renderizado e validado sem instalação sob
-`target/t86-system-installation-bundle/`. O serviço instalado no host ainda
-precisa receber esse bundle por rotina
-`sudo`, migrar o registry real para schema 9 e passar a inspeção pós-restart.
-Essa etapa está preparada em
+O bundle `storage-v9` foi instalado pela rotina
 [`packaging/systemd/upgrade-installed-service.sh`](../packaging/systemd/upgrade-installed-service.sh):
-ela não recompila como root, para os dois sockets antes da substituição, mantém
-backup recuperável de binário e estado, restaura ambos automaticamente em erro e
-grava os diagnósticos sob `target/t86-capability-upgrade-logs/`.
+ela não recompilou como root, parou os dois sockets antes da substituição,
+manteve backup recuperável de binário e estado e gravou os diagnósticos sob
+`target/t86-capability-upgrade-logs/20260824T235551Z/`. O recibo terminou com
+`exit_code=0` e `upgrade_committed=true`. O registry real passou em schema 9,
+`quick_check`, foreign keys, recibo único de provisionamento, dois grants
+iniciais e presença da tabela de gestão. Serviço e os dois sockets permaneceram
+ativos após a segunda validação; o hash do ELF instalado coincide com o release
+e o bundle revisados.
+
 Se esse gate interromper a implantação, a rotina read-only
 [`packaging/systemd/diagnose-capability-upgrade.sh`](../packaging/systemd/diagnose-capability-upgrade.sh)
 inspeciona somente o `failed-state` preservado, copia cada SQLite e seus
@@ -84,9 +86,13 @@ O rollback preservou um `failed-state` já íntegro em schema 9, comprovado pelo
 diagnóstico read-only. A rotina agora espera explicitamente até dez segundos
 por schema, integridade, foreign keys, recibo de provisionamento, grants e tabela
 de gestão; depois exige um segundo passe após um segundo de estabilidade antes
-de confirmar a implantação.
-Depois disso, o supervisor pode emitir a capability CI e executar a atestação
-real com
+de confirmar a implantação. A repetição concluiu a implantação sem acionar
+rollback e preservou o novo backup sob autoridade do operador.
+
+## Limite operacional restante
+
+Com o serviço v9 validado, o supervisor pode emitir a capability CI e executar
+a atestação real com
 [`packaging/systemd/manage-ci-attestation-capability.sh`](../packaging/systemd/manage-ci-attestation-capability.sh).
 Essa rotina descriptografa a authority de instalação apenas em diretório root
 sob `/run`, entrega FDs já abertos a um processo rebaixado ao UID do operador,
