@@ -702,6 +702,13 @@ um staging sob `target/`. O
 manifesto fechado. O renderer não escreve em `/usr`, `/etc`, `/run` ou no Cargo
 home real, e o manifesto declara que instalação e ativação não ocorreram.
 
+O primeiro boot não aceita uma corrida em que o primeiro cliente se torna
+administrador. Antes de atender os sockets, o serviço consome uma credencial
+`initial-capability-provisioning-v1` entregue pelo systemd, exige registry vazio,
+grants administrativos mínimos para operador não-root e grava hash de token mais
+recibo singleton em `storage-v8`. O [relatório de provisionamento](./VALIDACAO-PROVISIONAMENTO-INICIAL-T8.6.md)
+documenta o contrato, os testes sem privilégio e a rotina `sudo` ainda pendente.
+
 O diretório do socket limitado é criado pela unidade `.socket`, não pela unidade
 de serviço; assim uma parada do daemon não tenta remover o pai de um listener
 ainda ativo. O state root continua criado exclusivamente por

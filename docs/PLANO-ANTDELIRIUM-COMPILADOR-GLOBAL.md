@@ -1098,6 +1098,15 @@ também materializa sob `target/` o mesmo ELF release, sysusers e as três unida
 valida-os com systemd 255 e mantém instalação/ativação falsas. Ainda não escolhe
 membros dos grupos nem escreve no host.
 
+O [provisionamento inicial T8.6](./VALIDACAO-PROVISIONAMENTO-INICIAL-T8.6.md)
+fecha no código o ciclo da primeira autoridade: um manifesto curto entregue por
+systemd credentials cria atomicamente os grants iniciais de operador e grava um
+recibo singleton em `storage-v8`. O primeiro cliente nunca recebe privilégio por
+ordem de chegada; credencial ausente no primeiro boot, reaplicada, expirada,
+malformada ou dirigida a root falha fechada. A rotina privilegiada de instalação
+e coleta de logs está preparada no repositório, mas não foi executada; portanto,
+identidades e unidades reais continuam não demonstradas.
+
 ### Fase 8 — endurecimento contra agentes hostis
 
 Objetivo: transformar detecção local em enforcement confiável.

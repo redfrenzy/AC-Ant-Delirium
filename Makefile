@@ -85,6 +85,7 @@ ci:
 	bash -n packaging/sandbox/validate-client-isolation.sh
 	bash -n packaging/sandbox/validate-wrapper-syscalls.sh
 	bash -n packaging/systemd/render-installation-bundle.sh
+	bash -n packaging/systemd/validate-installed-service.sh
 	jq empty docs/contracts/v1/admin-protocol-v1.schema.json
 	jq empty docs/contracts/v1/legacy-stage-receipt-v1.schema.json
 	jq empty docs/contracts/v1/legacy-normalization-request-v1.schema.json
@@ -104,6 +105,7 @@ ci:
 	jq empty docs/contracts/v1/migration-cutover-receipt-v1.schema.json
 	jq empty docs/contracts/v1/migration-manifest-v1.schema.json
 	jq empty docs/contracts/v1/system-installation-bundle-v1.schema.json
+	jq empty docs/contracts/v1/initial-capability-provisioning-v1.schema.json
 	bash packaging/migration/verify-legacy-source-inventory.sh
 	RUSTFLAGS="-D warnings" cargo check --locked --all-targets --target $(HOST_TARGET)
 	RUSTFLAGS="-D warnings" cargo test --locked --all-targets --target $(HOST_TARGET) --no-fail-fast

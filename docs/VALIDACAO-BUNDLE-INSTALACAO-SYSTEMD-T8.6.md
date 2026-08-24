@@ -19,13 +19,15 @@ e `target/t86-systemd-unit-validation/` para as cópias examinadas pelo systemd.
 
 ## Artefatos staged
 
-O contrato `system-installation-bundle-v1` contém exatamente cinco artefatos:
+O contrato `system-installation-bundle-v1` contém exatamente seis artefatos:
 
 1. o mesmo ELF release `antdelirium`, destinado ao diretório libexec root-owned;
 2. a unidade de serviço de sistema sob a identidade `antdelirium`;
 3. o socket limitado, grupo `antdelirium-client`, modo `0660`;
 4. o socket administrativo separado, grupo `antdelirium-admin`, modo `0660`;
 5. a declaração `sysusers.d` para a conta de serviço e os dois grupos.
+6. a declaração `tmpfiles.d` que cria o diretório administrativo como
+   `root:antdelirium-admin` em modo `0750` antes da unidade socket.
 
 O SHA-256 do ELF staged foi comparado ao release e coincidiu. Não há segundo
 programa `guard`, daemon auxiliar ou implementação administrativa separada.
@@ -43,7 +45,8 @@ protegido não entram nele.
 - placeholders de template residuais: zero;
 - `systemd-analyze verify` nas três unidades renderizadas: aprovado;
 - `systemd-sysusers --dry-run` na declaração de identidades: exit `0`;
-- manifesto: cinco hashes SHA-256 minúsculos e flags de instalação falsas;
+- `systemd-tmpfiles --cat-config` e contrato exato `tmpfiles.d`: aprovados;
+- manifesto: seis hashes SHA-256 minúsculos e flags de instalação falsas;
 - release e cópia libexec staged: bytes/hash idênticos.
 
 As cópias usadas por `systemd-analyze` trocam apenas `ExecStart` pelo caminho do
@@ -58,6 +61,11 @@ socket limitado pertence ao lifecycle da unidade `.socket`, que já o cria com
 parada do daemon removesse o diretório enquanto o socket continuasse ativo. O
 state root continua sob `StateDirectory=antdelirium` com modo `0700`.
 
+O socket administrativo exige travessia restrita pelo grupo administrativo.
+`SocketGroup=` controla o node do socket, mas não promete o ownership do pai;
+por isso `tmpfiles.d` cria e reajusta explicitamente `/run/antdelirium-admin`
+como `root:antdelirium-admin`/`0750` antes da ativação.
+
 ## Limites e próximo gate
 
 O bundle não escolhe quais usuários humanos ou sandboxes entram nos grupos. Essa
@@ -69,4 +77,3 @@ Também não executa `systemd-sysusers`, `systemctl daemon-reload`, `enable` ou
 A T8.6 continua aberta até que um operador revise o bundle, implante as
 identidades/unidades como root, adicione as identidades corretas aos grupos,
 instale a integração Cargo real e valide a mudança operacional separadamente.
-

@@ -1,10 +1,13 @@
+use std::collections::HashSet;
+
 use crate::libres::Rusqlite_unit::{AC_OptionalExtension, AC_Transaction, AC_params};
 use crate::libres::Sha2_unit::{constant_time_equal, sha256};
 use crate::libres::System_Random_unit::random_crockford_id;
 
 use super::{
     AuthorizedCapability, CapabilityActor, CapabilityAuthorizationOutcome,
-    CapabilityAuthorizationRequest, CapabilityChannel, CapabilityOperation, NewCapabilityGrant,
+    CapabilityAuthorizationRequest, CapabilityChannel, CapabilityOperation,
+    InitialCapabilityProvisioning, InitialCapabilityProvisioningReceipt, NewCapabilityGrant,
     NewCapabilityRevocation, NewServiceSecurityEvent, ProjectDatabase, ServiceSecurityAuditReceipt,
     ServiceSecurityEventKind, TransactionalStorageError, TransactionalStorageResult,
 };
@@ -29,41 +32,95 @@ impl ProjectDatabase {
         grant: &NewCapabilityGrant,
     ) -> TransactionalStorageResult<()> {
         validate_grant(grant)?;
-        let subject_uid = i64::from(grant.subject_uid);
-        let epoch = i64::try_from(grant.revocation_epoch).map_err(|_| invalid_grant())?;
         self.with_immediate_transaction(|transaction| {
-            transaction.execute(
-                "INSERT INTO capability_subject_epochs(subject_uid, actor_kind, epoch) VALUES (?1, ?2, ?3) ON CONFLICT(subject_uid, actor_kind) DO NOTHING",
-                AC_params![subject_uid, grant.actor.storage_value(), epoch],
-            )?;
-            let persisted_epoch: i64 = transaction.query_row(
-                "SELECT epoch FROM capability_subject_epochs WHERE subject_uid = ?1 AND actor_kind = ?2",
-                AC_params![subject_uid, grant.actor.storage_value()],
-                |row| row.get(0),
-            )?;
-            if persisted_epoch != epoch {
-                return Err(invalid_grant());
-            }
-            transaction.execute(
-                "INSERT INTO capability_grants(grant_id, secret_hash, subject_uid, actor_kind, channel_kind, operation, project_id, workspace_id, task_id, not_before_unix, expires_at_unix, revocation_epoch, granted_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
-                AC_params![
-                    grant.grant_id,
-                    grant.secret_hash.as_slice(),
-                    subject_uid,
-                    grant.actor.storage_value(),
-                    grant.channel.storage_value(),
-                    grant.operation.storage_value(),
-                    grant.project_id,
-                    grant.workspace_id,
-                    grant.task_id,
-                    grant.not_before_unix,
-                    grant.expires_at_unix,
-                    epoch,
-                    grant.granted_at,
-                ],
-            )?;
+            insert_grant_in_transaction(transaction, grant)?;
             Ok(())
         })
+    }
+
+    pub fn provision_initial_capabilities(
+        &self,
+        provisioning: &InitialCapabilityProvisioning,
+    ) -> TransactionalStorageResult<InitialCapabilityProvisioningReceipt> {
+        validate_initial_provisioning(provisioning)?;
+        self.with_immediate_transaction(|transaction| {
+            let existing_receipts: i64 = transaction.query_row(
+                "SELECT count(*) FROM initial_capability_provisioning",
+                [],
+                |row| row.get(0),
+            )?;
+            let existing_grants: i64 = transaction.query_row(
+                "SELECT count(*) FROM capability_grants",
+                [],
+                |row| row.get(0),
+            )?;
+            let existing_authoritative_state: i64 = transaction.query_row(
+                "SELECT (SELECT count(*) FROM projects) + (SELECT count(*) FROM service_security_events) + (SELECT count(*) FROM capability_subject_epochs) + (SELECT count(*) FROM revocations) + (SELECT count(*) FROM capability_request_receipts) + (SELECT count(*) FROM provisional_project_registrations) + (SELECT count(*) FROM legacy_migration_records)",
+                [],
+                |row| row.get(0),
+            )?;
+            if existing_receipts != 0 || existing_grants != 0 || existing_authoritative_state != 0 {
+                return Err(TransactionalStorageError::Integrity(
+                    "initial capability provisioning is no longer available".to_string(),
+                ));
+            }
+            for grant in &provisioning.grants {
+                insert_grant_in_transaction(transaction, grant)?;
+            }
+            let grant_count = i64::try_from(provisioning.grants.len())
+                .map_err(|_| invalid_provisioning())?;
+            transaction.execute(
+                "INSERT INTO initial_capability_provisioning(singleton, provisioning_id, manifest_sha256, applied_at_unix, grant_count) VALUES (1, ?1, ?2, ?3, ?4)",
+                AC_params![
+                    provisioning.provisioning_id,
+                    provisioning.manifest_sha256.as_slice(),
+                    provisioning.applied_at_unix,
+                    grant_count,
+                ],
+            )?;
+            Ok(InitialCapabilityProvisioningReceipt {
+                provisioning_id: provisioning.provisioning_id.clone(),
+                manifest_sha256: provisioning.manifest_sha256,
+                applied_at_unix: provisioning.applied_at_unix,
+                grant_count: provisioning.grants.len(),
+            })
+        })
+    }
+
+    pub fn initial_capability_provisioning_receipt(
+        &self,
+    ) -> TransactionalStorageResult<Option<InitialCapabilityProvisioningReceipt>> {
+        let connection = self.open_connection(false)?;
+        connection
+            .query_row(
+                "SELECT provisioning_id, manifest_sha256, applied_at_unix, grant_count FROM initial_capability_provisioning WHERE singleton = 1",
+                [],
+                |row| {
+                    let manifest_sha256: Vec<u8> = row.get(1)?;
+                    let grant_count: i64 = row.get(3)?;
+                    Ok((row.get::<_, String>(0)?, manifest_sha256, row.get::<_, i64>(2)?, grant_count))
+                },
+            )
+            .optional()?
+            .map(|(provisioning_id, digest, applied_at_unix, grant_count)| {
+                let manifest_sha256: [u8; 32] = digest.try_into().map_err(|_| {
+                    TransactionalStorageError::Integrity(
+                        "initial provisioning digest is invalid".to_string(),
+                    )
+                })?;
+                let grant_count = usize::try_from(grant_count).map_err(|_| {
+                    TransactionalStorageError::Integrity(
+                        "initial provisioning grant count is invalid".to_string(),
+                    )
+                })?;
+                Ok(InitialCapabilityProvisioningReceipt {
+                    provisioning_id,
+                    manifest_sha256,
+                    applied_at_unix,
+                    grant_count,
+                })
+            })
+            .transpose()
     }
 
     pub fn revoke_capability(
@@ -517,6 +574,94 @@ fn validate_grant(grant: &NewCapabilityGrant) -> TransactionalStorageResult<()> 
     Ok(())
 }
 
+fn validate_initial_provisioning(
+    provisioning: &InitialCapabilityProvisioning,
+) -> TransactionalStorageResult<()> {
+    validate_opaque_id(&provisioning.provisioning_id, "prv_")
+        .map_err(|_| invalid_provisioning())?;
+    if provisioning.applied_at_unix < 0
+        || provisioning.manifest_sha256.iter().all(|byte| *byte == 0)
+        || !(2..=16).contains(&provisioning.grants.len())
+    {
+        return Err(invalid_provisioning());
+    }
+
+    let mut grant_ids = HashSet::new();
+    let mut secret_hashes = HashSet::new();
+    let mut has_state_admin = false;
+    let mut has_installation_admin = false;
+    for grant in &provisioning.grants {
+        validate_grant(grant).map_err(|_| invalid_provisioning())?;
+        if !grant_ids.insert(grant.grant_id.as_str())
+            || !secret_hashes.insert(grant.secret_hash)
+            || grant.subject_uid == 0
+            || grant.not_before_unix > provisioning.applied_at_unix
+            || grant.expires_at_unix <= provisioning.applied_at_unix
+            || !matches!(
+                grant.actor,
+                CapabilityActor::Operator | CapabilityActor::Ci | CapabilityActor::Reviewer
+            )
+        {
+            return Err(invalid_provisioning());
+        }
+        has_state_admin |= grant.actor == CapabilityActor::Operator
+            && grant.channel == CapabilityChannel::Administrative
+            && grant.operation == CapabilityOperation::StateAdmin
+            && grant.project_id.is_none()
+            && grant.workspace_id.is_none()
+            && grant.task_id.is_none();
+        has_installation_admin |= grant.actor == CapabilityActor::Operator
+            && grant.channel == CapabilityChannel::Administrative
+            && grant.operation == CapabilityOperation::InstallationAdmin
+            && grant.project_id.is_none()
+            && grant.workspace_id.is_none()
+            && grant.task_id.is_none();
+    }
+    if !has_state_admin || !has_installation_admin {
+        return Err(invalid_provisioning());
+    }
+    Ok(())
+}
+
+fn insert_grant_in_transaction(
+    transaction: &AC_Transaction<'_>,
+    grant: &NewCapabilityGrant,
+) -> TransactionalStorageResult<()> {
+    let subject_uid = i64::from(grant.subject_uid);
+    let epoch = i64::try_from(grant.revocation_epoch).map_err(|_| invalid_grant())?;
+    transaction.execute(
+        "INSERT INTO capability_subject_epochs(subject_uid, actor_kind, epoch) VALUES (?1, ?2, ?3) ON CONFLICT(subject_uid, actor_kind) DO NOTHING",
+        AC_params![subject_uid, grant.actor.storage_value(), epoch],
+    )?;
+    let persisted_epoch: i64 = transaction.query_row(
+        "SELECT epoch FROM capability_subject_epochs WHERE subject_uid = ?1 AND actor_kind = ?2",
+        AC_params![subject_uid, grant.actor.storage_value()],
+        |row| row.get(0),
+    )?;
+    if persisted_epoch != epoch {
+        return Err(invalid_grant());
+    }
+    transaction.execute(
+        "INSERT INTO capability_grants(grant_id, secret_hash, subject_uid, actor_kind, channel_kind, operation, project_id, workspace_id, task_id, not_before_unix, expires_at_unix, revocation_epoch, granted_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+        AC_params![
+            grant.grant_id,
+            grant.secret_hash.as_slice(),
+            subject_uid,
+            grant.actor.storage_value(),
+            grant.channel.storage_value(),
+            grant.operation.storage_value(),
+            grant.project_id,
+            grant.workspace_id,
+            grant.task_id,
+            grant.not_before_unix,
+            grant.expires_at_unix,
+            epoch,
+            grant.granted_at,
+        ],
+    )?;
+    Ok(())
+}
+
 fn valid_authorization_request(request: &CapabilityAuthorizationRequest) -> bool {
     validate_opaque_id(&request.grant_id, "cap_").is_ok()
         && validate_opaque_id(&request.request_id, "req_").is_ok()
@@ -665,4 +810,10 @@ fn validate_nonempty(value: &str) -> TransactionalStorageResult<()> {
 
 fn invalid_grant() -> TransactionalStorageError {
     TransactionalStorageError::InvalidInput("invalid capability authorization contract".to_string())
+}
+
+fn invalid_provisioning() -> TransactionalStorageError {
+    TransactionalStorageError::InvalidInput(
+        "invalid initial capability provisioning contract".to_string(),
+    )
 }

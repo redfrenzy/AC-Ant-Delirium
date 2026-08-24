@@ -302,6 +302,16 @@ CREATE INDEX legacy_migration_records_digest_idx
 ON legacy_migration_records(project_id, migration_id, record_kind, payload_sha256);
 "#;
 
+const STORAGE_SCHEMA_V8: &str = r#"
+CREATE TABLE initial_capability_provisioning (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    provisioning_id TEXT NOT NULL UNIQUE,
+    manifest_sha256 BLOB NOT NULL CHECK (length(manifest_sha256) = 32),
+    applied_at_unix INTEGER NOT NULL CHECK (applied_at_unix >= 0),
+    grant_count INTEGER NOT NULL CHECK (grant_count >= 1 AND grant_count <= 16)
+) STRICT;
+"#;
+
 impl From<AC_Error> for TransactionalStorageError {
     fn from(error: AC_Error) -> Self {
         Self::Database(error.to_string())
@@ -791,6 +801,15 @@ impl ProjectDatabase {
                 AC_params!["storage-v7-protected-legacy-migration-records"],
             )?;
             transaction.pragma_update(None, "user_version", 7)?;
+            version = 7;
+        }
+        if version == 7 {
+            transaction.execute_batch(STORAGE_SCHEMA_V8)?;
+            transaction.execute(
+                "INSERT INTO schema_migrations(version, applied_at) VALUES (8, ?1)",
+                AC_params!["storage-v8-initial-capability-provisioning"],
+            )?;
+            transaction.pragma_update(None, "user_version", 8)?;
         }
         transaction.commit()?;
         Ok(())

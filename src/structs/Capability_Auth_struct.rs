@@ -128,6 +128,22 @@ pub struct NewCapabilityGrant {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InitialCapabilityProvisioning {
+    pub provisioning_id: String,
+    pub manifest_sha256: [u8; 32],
+    pub applied_at_unix: i64,
+    pub grants: Vec<NewCapabilityGrant>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InitialCapabilityProvisioningReceipt {
+    pub provisioning_id: String,
+    pub manifest_sha256: [u8; 32],
+    pub applied_at_unix: i64,
+    pub grant_count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NewCapabilityRevocation {
     pub revocation_id: String,
     pub grant_id: String,

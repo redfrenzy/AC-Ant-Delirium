@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:initial-capability-provisioning-v1",
+  "title": "AntDelirium initial capability provisioning",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "provisioning_id",
+    "issued_at_unix",
+    "expires_at_unix",
+    "grants"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "initial-capability-provisioning-v1"
+    },
+    "provisioning_id": {
+      "type": "string",
+      "pattern": "^prv_[0-9a-hjkmnp-tv-z]{26}$"
+    },
+    "issued_at_unix": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "expires_at_unix": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "grants": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 16,
+      "items": {
+        "$ref": "#/$defs/grant"
+      }
+    }
+  },
+  "$defs": {
+    "opaqueProjectId": {
+      "type": ["string", "null"],
+      "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$"
+    },
+    "opaqueWorkspaceId": {
+      "type": ["string", "null"],
+      "pattern": "^wsp_[0-9a-hjkmnp-tv-z]{26}$"
+    },
+    "opaqueTaskId": {
+      "type": ["string", "null"],
+      "pattern": "^tsk_[0-9a-hjkmnp-tv-z]{26}$"
+    },
+    "grant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability_id",
+        "token",
+        "subject_uid",
+        "actor",
+        "channel",
+        "operation",
+        "project_id",
+        "workspace_id",
+        "task_id",
+        "expires_at_unix",
+        "revocation_epoch"
+      ],
+      "properties": {
+        "capability_id": {
+          "type": "string",
+          "pattern": "^cap_[0-9a-hjkmnp-tv-z]{26}$"
+        },
+        "token": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "subject_uid": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "actor": {
+          "enum": ["operator", "ci", "reviewer"]
+        },
+        "channel": {
+          "enum": ["limited", "administrative"]
+        },
+        "operation": {
+          "enum": [
+            "compile.observe",
+            "task.current.read",
+            "submission.read.assigned",
+            "review.decide.assigned",
+            "attestation.create",
+            "state.admin",
+            "installation.admin",
+            "diagnostic.private"
+          ]
+        },
+        "project_id": {
+          "$ref": "#/$defs/opaqueProjectId"
+        },
+        "workspace_id": {
+          "$ref": "#/$defs/opaqueWorkspaceId"
+        },
+        "task_id": {
+          "$ref": "#/$defs/opaqueTaskId"
+        },
+        "expires_at_unix": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "revocation_epoch": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

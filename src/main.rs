@@ -28,6 +28,9 @@ mod service_authority;
 #[path = "Service-Storage_unit.rs"]
 mod service_storage;
 
+#[path = "Service-Provisioning_unit.rs"]
+mod service_provisioning;
+
 #[path = "Service-Channel_unit.rs"]
 mod service_channel;
 
