@@ -71,6 +71,13 @@ Essa etapa está preparada em
 ela não recompila como root, para os dois sockets antes da substituição, mantém
 backup recuperável de binário e estado, restaura ambos automaticamente em erro e
 grava os diagnósticos sob `target/t86-capability-upgrade-logs/`.
+Se esse gate interromper a implantação, a rotina read-only
+[`packaging/systemd/diagnose-capability-upgrade.sh`](../packaging/systemd/diagnose-capability-upgrade.sh)
+inspeciona somente o `failed-state` preservado, copia cada SQLite e seus
+sidecars para um diretório privado efêmero sob `/run` e registra no projeto
+apenas rótulos lógicos, versões, contagens e invariantes. Ela não reinicia o
+serviço, não abre os bancos protegidos para escrita e não publica bytes do
+storage.
 Depois disso, o supervisor pode emitir a capability CI e executar a atestação
 real com
 [`packaging/systemd/manage-ci-attestation-capability.sh`](../packaging/systemd/manage-ci-attestation-capability.sh).

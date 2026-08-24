@@ -87,6 +87,7 @@ ci:
 	bash -n packaging/systemd/render-installation-bundle.sh
 	bash -n packaging/systemd/validate-installed-service.sh
 	bash -n packaging/systemd/upgrade-installed-service.sh
+	bash -n packaging/systemd/diagnose-capability-upgrade.sh
 	bash -n packaging/systemd/manage-ci-attestation-capability.sh
 	jq empty docs/contracts/v1/admin-protocol-v1.schema.json
 	jq empty docs/contracts/v1/capability-grant-request-v1.schema.json
