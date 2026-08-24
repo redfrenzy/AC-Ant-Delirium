@@ -36,15 +36,22 @@ fn expected_wrapper(cargo_home: &Path) -> String {
         .to_owned()
 }
 
+fn expected_limited_endpoint(cargo_home: &Path) -> PathBuf {
+    cargo_home
+        .parent()
+        .expect("fixture Cargo home parent")
+        .join("service/agent.sock")
+}
+
 #[test]
-fn configures_only_the_workspace_wrapper_and_preserves_other_build_settings() {
+fn configures_wrapper_and_limited_endpoint_while_preserving_other_settings() {
     let cargo_home = fixture_cargo_home("workspace-wrapper");
     let config = cargo_home.join(CONFIG_FILE_NAME);
     let original = b"# keep heading\n[build]\nrustc = \"custom-rustc\"\njobs = 3\n\n[target.x86_64-unknown-linux-gnu]\nrunner = \"custom-runner\"\n";
     fs::write(&config, original).expect("write original config");
 
     assert_eq!(
-        configure_workspace_wrapper(&cargo_home),
+        configure_workspace_wrapper(&cargo_home, &expected_limited_endpoint(&cargo_home)),
         Ok(CargoConfigMergeOutcome::Updated)
     );
     let merged = fs::read_to_string(&config).expect("read configured Cargo file");
@@ -62,6 +69,18 @@ fn configures_only_the_workspace_wrapper_and_preserves_other_build_settings() {
         Some(expected_wrapper(&cargo_home).as_str())
     );
     assert!(parsed["build"].get("rustc-wrapper").is_none());
+    assert_eq!(
+        parsed["env"][LIMITED_SOCKET_ENV]["value"].as_str(),
+        expected_limited_endpoint(&cargo_home).to_str()
+    );
+    assert_eq!(
+        parsed["env"][LIMITED_SOCKET_ENV]["force"].as_bool(),
+        Some(true)
+    );
+    assert_eq!(
+        configured_limited_endpoint(&cargo_home),
+        Ok(Some(expected_limited_endpoint(&cargo_home)))
+    );
     assert_eq!(
         read_verified_config_backup(&cargo_home)
             .expect("verified wrapper backup")
@@ -85,18 +104,19 @@ fn configures_only_the_workspace_wrapper_and_preserves_other_build_settings() {
 
 #[cfg(unix)]
 #[test]
-fn identical_preexisting_workspace_wrapper_is_an_unclaimed_no_op() {
+fn identical_preexisting_cargo_integration_is_an_unclaimed_no_op() {
     let cargo_home = fixture_cargo_home("workspace-wrapper-noop");
     let config = cargo_home.join(CONFIG_FILE_NAME);
     let configured = format!(
-        "[build]\nrustc-workspace-wrapper = {:?}\n",
-        expected_wrapper(&cargo_home)
+        "[build]\nrustc-workspace-wrapper = {:?}\n\n[env]\n{LIMITED_SOCKET_ENV} = {{ value = {:?}, force = true }}\n",
+        expected_wrapper(&cargo_home),
+        expected_limited_endpoint(&cargo_home)
     );
     fs::write(&config, configured.as_bytes()).expect("write matching wrapper");
     let before = fs::metadata(&config).expect("matching wrapper metadata");
 
     assert_eq!(
-        configure_workspace_wrapper(&cargo_home),
+        configure_workspace_wrapper(&cargo_home, &expected_limited_endpoint(&cargo_home)),
         Ok(CargoConfigMergeOutcome::Unchanged)
     );
     let after = fs::metadata(&config).expect("matching wrapper metadata after no-op");
@@ -129,7 +149,7 @@ fn refuses_cache_divergent_wrapper_and_malformed_build_without_writing() {
         let config = cargo_home.join(CONFIG_FILE_NAME);
         fs::write(&config, original.as_bytes()).expect("write conflicting config");
         assert_eq!(
-            configure_workspace_wrapper(&cargo_home),
+            configure_workspace_wrapper(&cargo_home, &expected_limited_endpoint(&cargo_home)),
             Err(CargoConfigError::WrapperConflict),
             "case {label}"
         );
@@ -157,6 +177,64 @@ fn inspection_distinguishes_missing_workspace_wrapper() {
     .expect("write config without wrapper");
     assert_eq!(
         inspect_workspace_wrapper(&cargo_home),
+        Ok(WorkspaceWrapperStatus::Missing)
+    );
+}
+
+#[test]
+fn refuses_missing_relative_or_conflicting_limited_endpoint_without_writing() {
+    let relative_home = fixture_cargo_home("relative-limited-endpoint");
+    assert_eq!(
+        configure_workspace_wrapper(&relative_home, Path::new("service/agent.sock")),
+        Err(CargoConfigError::InvalidConfig)
+    );
+    assert!(!relative_home.join(CONFIG_FILE_NAME).exists());
+    for endpoint in [
+        "/",
+        "/service/./agent.sock",
+        "/service/../agent.sock",
+        "/service//agent.sock",
+        "/service/agent.sock/",
+    ] {
+        assert_eq!(
+            validate_limited_endpoint(Path::new(endpoint)),
+            Err(CargoConfigError::InvalidConfig),
+            "endpoint {endpoint}"
+        );
+    }
+
+    let conflict_home = fixture_cargo_home("conflicting-limited-endpoint");
+    let config = conflict_home.join(CONFIG_FILE_NAME);
+    let original = format!(
+        "[build]\nrustc-workspace-wrapper = {:?}\n\n[env]\n{LIMITED_SOCKET_ENV} = {{ value = \"/different/agent.sock\", force = true }}\n",
+        expected_wrapper(&conflict_home)
+    );
+    fs::write(&config, original.as_bytes()).expect("write endpoint conflict");
+    assert_eq!(
+        configure_workspace_wrapper(&conflict_home, &expected_limited_endpoint(&conflict_home),),
+        Err(CargoConfigError::WrapperConflict)
+    );
+    assert_eq!(
+        fs::read_to_string(&config).expect("read preserved endpoint conflict"),
+        original
+    );
+    assert!(!conflict_home.join(BACKUP_DIRECTORY_NAME).exists());
+    assert_eq!(
+        inspect_workspace_wrapper(&conflict_home),
+        Ok(WorkspaceWrapperStatus::ActiveUnclaimed)
+    );
+
+    let missing_home = fixture_cargo_home("missing-limited-endpoint");
+    fs::write(
+        missing_home.join(CONFIG_FILE_NAME),
+        format!(
+            "[build]\nrustc-workspace-wrapper = {:?}\n",
+            expected_wrapper(&missing_home)
+        ),
+    )
+    .expect("write wrapper without endpoint");
+    assert_eq!(
+        inspect_workspace_wrapper(&missing_home),
         Ok(WorkspaceWrapperStatus::Missing)
     );
 }
@@ -373,7 +451,7 @@ fn rollback_restores_exact_original_bytes_mode_and_is_resumable() {
     #[cfg(unix)]
     fs::set_permissions(&config, fs::Permissions::from_mode(0o640)).expect("set original mode");
     assert_eq!(
-        configure_workspace_wrapper(&cargo_home),
+        configure_workspace_wrapper(&cargo_home, &expected_limited_endpoint(&cargo_home)),
         Ok(CargoConfigMergeOutcome::Updated)
     );
 
@@ -409,7 +487,7 @@ fn rollback_restores_exact_original_bytes_mode_and_is_resumable() {
 fn rollback_removes_only_a_config_created_by_the_owned_installation() {
     let cargo_home = fixture_cargo_home("rollback-absence");
     assert_eq!(
-        configure_workspace_wrapper(&cargo_home),
+        configure_workspace_wrapper(&cargo_home, &expected_limited_endpoint(&cargo_home)),
         Ok(CargoConfigMergeOutcome::Updated)
     );
     assert!(cargo_home.join(CONFIG_FILE_NAME).is_file());
@@ -444,7 +522,8 @@ fn rollback_refuses_unclaimed_changed_or_ambiguous_configuration() {
     let changed_home = fixture_cargo_home("rollback-changed");
     let changed_config = changed_home.join(CONFIG_FILE_NAME);
     fs::write(&changed_config, b"[net]\nretry = 1\n").expect("write original config");
-    configure_workspace_wrapper(&changed_home).expect("configure owned wrapper");
+    configure_workspace_wrapper(&changed_home, &expected_limited_endpoint(&changed_home))
+        .expect("configure owned wrapper");
     fs::write(&changed_config, b"[net]\nretry = 99\n").expect("change installed config");
     assert_eq!(
         rollback_owned_workspace_wrapper(&changed_home),
@@ -460,7 +539,8 @@ fn rollback_refuses_unclaimed_changed_or_ambiguous_configuration() {
         .exists());
 
     let ambiguous_home = fixture_cargo_home("rollback-ambiguous");
-    configure_workspace_wrapper(&ambiguous_home).expect("configure ambiguous fixture");
+    configure_workspace_wrapper(&ambiguous_home, &expected_limited_endpoint(&ambiguous_home))
+        .expect("configure ambiguous fixture");
     fs::write(
         ambiguous_home.join(BACKUP_DIRECTORY_NAME).join("unknown"),
         b"sentinel",
@@ -473,7 +553,8 @@ fn rollback_refuses_unclaimed_changed_or_ambiguous_configuration() {
     assert!(ambiguous_home.join(CONFIG_FILE_NAME).is_file());
 
     let forged_home = fixture_cargo_home("rollback-forged-marker");
-    configure_workspace_wrapper(&forged_home).expect("configure forged marker fixture");
+    configure_workspace_wrapper(&forged_home, &expected_limited_endpoint(&forged_home))
+        .expect("configure forged marker fixture");
     let forged_marker = CargoConfigRollbackMarker {
         contract_version: ROLLBACK_CONTRACT_VERSION.to_string(),
         original_present: true,

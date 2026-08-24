@@ -8,7 +8,7 @@ use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 
 use ac_ant_delirium::libres::Sha2_unit::sha256;
 use serde::{Deserialize, Serialize};
-use toml_edit::{value, DocumentMut};
+use toml_edit::{value, DocumentMut, InlineTable, Item, Value};
 
 const CONFIG_FILE_NAME: &str = "config.toml";
 const LEGACY_CONFIG_FILE_NAME: &str = "config";
@@ -19,6 +19,7 @@ const BACKUP_CONTRACT_VERSION: &str = "cargo-config-backup-v1";
 const ROLLBACK_MARKER_NAME: &str = "rollback-complete-v1.json";
 const ROLLBACK_CONTRACT_VERSION: &str = "cargo-config-rollback-v1";
 const INSTALLED_BINARY_NAME: &str = "antdelirium";
+pub(crate) const LIMITED_SOCKET_ENV: &str = "ANTDELIRIUM_LIMITED_SOCKET";
 const MAXIMUM_CONFIG_BYTES: u64 = 4 * 1024 * 1024;
 static TEMPORARY_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
@@ -93,10 +94,12 @@ pub(crate) struct VerifiedCargoConfigBackup {
 
 pub(crate) fn configure_workspace_wrapper(
     cargo_home: &Path,
+    limited_endpoint: &Path,
 ) -> Result<CargoConfigMergeOutcome, CargoConfigError> {
     let wrapper = expected_workspace_wrapper(cargo_home)?;
+    let limited_endpoint = validate_limited_endpoint(limited_endpoint)?;
     merge_cargo_config(cargo_home, move |document| {
-        configure_workspace_wrapper_document(document, &wrapper)
+        configure_cargo_integration_document(document, &wrapper, &limited_endpoint)
     })
 }
 
@@ -130,6 +133,11 @@ pub(crate) fn inspect_workspace_wrapper(
         Some(configured) if configured.as_str() == Some(expected.as_str()) => {}
         Some(_) => return Ok(WorkspaceWrapperStatus::Conflict),
     }
+    match configured_limited_endpoint_document(&document) {
+        Ok(Some(_)) => {}
+        Ok(None) => return Ok(WorkspaceWrapperStatus::Missing),
+        Err(_) => return Ok(WorkspaceWrapperStatus::Conflict),
+    }
     match fs::symlink_metadata(cargo_home.join(BACKUP_DIRECTORY_NAME)) {
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
             Ok(WorkspaceWrapperStatus::ActiveUnclaimed)
@@ -149,7 +157,10 @@ pub(crate) fn inspect_workspace_wrapper(
     }
 }
 
-pub(crate) fn preflight_workspace_wrapper(cargo_home: &Path) -> Result<(), CargoConfigError> {
+pub(crate) fn preflight_workspace_wrapper(
+    cargo_home: &Path,
+    limited_endpoint: &Path,
+) -> Result<(), CargoConfigError> {
     let owner = effective_uid()?;
     validate_cargo_home(cargo_home, owner)?;
     reject_legacy_config(cargo_home)?;
@@ -167,9 +178,10 @@ pub(crate) fn preflight_workspace_wrapper(cargo_home: &Path) -> Result<(), Cargo
     } else {
         DocumentMut::new()
     };
-    configure_workspace_wrapper_document(
+    configure_cargo_integration_document(
         &mut document,
         expected_workspace_wrapper(cargo_home)?.as_str(),
+        &validate_limited_endpoint(limited_endpoint)?,
     )?;
     let planned = document.to_string().into_bytes();
     validate_serialized_config(&planned)?;
@@ -296,9 +308,10 @@ fn expected_workspace_wrapper(cargo_home: &Path) -> Result<String, CargoConfigEr
         .ok_or(CargoConfigError::InvalidCargoHome)
 }
 
-fn configure_workspace_wrapper_document(
+fn configure_cargo_integration_document(
     document: &mut DocumentMut,
     expected_wrapper: &str,
+    limited_endpoint: &str,
 ) -> Result<(), CargoConfigError> {
     let build = document.entry("build").or_insert(toml_edit::table());
     let build = build
@@ -308,13 +321,99 @@ fn configure_workspace_wrapper_document(
         return Err(CargoConfigError::WrapperConflict);
     }
     match build.get("rustc-workspace-wrapper") {
-        Some(configured) if configured.as_str() == Some(expected_wrapper) => Ok(()),
-        Some(_) => Err(CargoConfigError::WrapperConflict),
+        Some(configured) if configured.as_str() == Some(expected_wrapper) => {}
+        Some(_) => return Err(CargoConfigError::WrapperConflict),
         None => {
             build.insert("rustc-workspace-wrapper", value(expected_wrapper));
+        }
+    }
+
+    let environment = document.entry("env").or_insert(toml_edit::table());
+    let environment = environment
+        .as_table_like_mut()
+        .ok_or(CargoConfigError::WrapperConflict)?;
+    match environment.get(LIMITED_SOCKET_ENV) {
+        Some(configured) if limited_endpoint_item_matches(configured, limited_endpoint) => Ok(()),
+        Some(_) => Err(CargoConfigError::WrapperConflict),
+        None => {
+            let mut setting = InlineTable::new();
+            setting.insert("value", Value::from(limited_endpoint));
+            setting.insert("force", Value::from(true));
+            environment.insert(LIMITED_SOCKET_ENV, Item::Value(Value::InlineTable(setting)));
             Ok(())
         }
     }
+}
+
+pub(crate) fn configured_limited_endpoint(
+    cargo_home: &Path,
+) -> Result<Option<PathBuf>, CargoConfigError> {
+    let owner = effective_uid()?;
+    validate_cargo_home(cargo_home, owner)?;
+    reject_legacy_config(cargo_home)?;
+    let Some(config) = read_existing_config(&cargo_home.join(CONFIG_FILE_NAME), owner)? else {
+        return Ok(None);
+    };
+    let source = std::str::from_utf8(&config.bytes).map_err(|_| CargoConfigError::InvalidConfig)?;
+    let document = source
+        .parse::<DocumentMut>()
+        .map_err(|_| CargoConfigError::InvalidConfig)?;
+    configured_limited_endpoint_document(&document)
+}
+
+fn configured_limited_endpoint_document(
+    document: &DocumentMut,
+) -> Result<Option<PathBuf>, CargoConfigError> {
+    let Some(environment) = document.get("env") else {
+        return Ok(None);
+    };
+    let environment = environment
+        .as_table_like()
+        .ok_or(CargoConfigError::InvalidConfig)?;
+    let Some(item) = environment.get(LIMITED_SOCKET_ENV) else {
+        return Ok(None);
+    };
+    let table = item
+        .as_inline_table()
+        .ok_or(CargoConfigError::InvalidConfig)?;
+    if table.len() != 2 || table.get("force").and_then(Value::as_bool) != Some(true) {
+        return Err(CargoConfigError::InvalidConfig);
+    }
+    let value = table
+        .get("value")
+        .and_then(Value::as_str)
+        .ok_or(CargoConfigError::InvalidConfig)?;
+    let endpoint = PathBuf::from(value);
+    validate_limited_endpoint(&endpoint)?;
+    Ok(Some(endpoint))
+}
+
+fn limited_endpoint_item_matches(item: &Item, expected: &str) -> bool {
+    let Some(table) = item.as_inline_table() else {
+        return false;
+    };
+    table.len() == 2
+        && table.get("value").and_then(Value::as_str) == Some(expected)
+        && table.get("force").and_then(Value::as_bool) == Some(true)
+}
+
+fn validate_limited_endpoint(endpoint: &Path) -> Result<String, CargoConfigError> {
+    let value = endpoint
+        .to_str()
+        .filter(|value| !value.is_empty())
+        .ok_or(CargoConfigError::InvalidConfig)?;
+    if !endpoint.is_absolute()
+        || value
+            .bytes()
+            .any(|byte| byte == 0 || byte.is_ascii_control())
+        || value
+            .split('/')
+            .skip(1)
+            .any(|segment| segment.is_empty() || matches!(segment, "." | ".."))
+    {
+        return Err(CargoConfigError::InvalidConfig);
+    }
+    Ok(value.to_owned())
 }
 
 struct ExistingCargoConfig {

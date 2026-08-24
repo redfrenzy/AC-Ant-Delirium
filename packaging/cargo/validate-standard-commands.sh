@@ -9,6 +9,7 @@ probe_id="${BASHPID:-$$}-${RANDOM}"
 probe_root="$project_root/target/t76-command-matrix/$probe_id"
 cargo_home="$probe_root/cargo-home"
 workspace="$probe_root/workspace"
+limited_endpoint="$probe_root/service/agent.sock"
 cargo_bin=$(command -v cargo || true)
 
 fail() {
@@ -42,7 +43,9 @@ umask 077
 mkdir -p "$cargo_home" "$workspace"
 cp -R "$fixture_source/." "$workspace/"
 
-CARGO_HOME="$cargo_home" "$release_binary" install \
+ANTDELIRIUM_LIMITED_SOCKET="$limited_endpoint" \
+    CARGO_HOME="$cargo_home" \
+    "$release_binary" install \
     >"$probe_root/install.stdout" \
     2>"$probe_root/install.stderr" || fail 'release installation failed.'
 
@@ -53,6 +56,8 @@ config="$cargo_home/config.toml"
 [[ ! -e "$cargo_home/bin/cargo" ]] || fail 'the rustup cargo proxy was replaced.'
 rg -F -q -- "rustc-workspace-wrapper = \"$installed_binary\"" "$config" \
     || fail 'the installed configuration does not select the wrapper.'
+rg -F -q -- "ANTDELIRIUM_LIMITED_SOCKET = { value = \"$limited_endpoint\", force = true }" "$config" \
+    || fail 'the installed configuration does not inject the limited endpoint.'
 
 run_standard_command() {
     local command_name=$1

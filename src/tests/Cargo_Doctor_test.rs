@@ -88,6 +88,19 @@ fn local_hierarchy_distinguishes_irrelevant_config_from_compiler_override() {
             count: inherited.count + 1,
         }
     );
+
+    fs::write(
+        &config,
+        b"[env]\nANTDELIRIUM_LIMITED_SOCKET = { value = \"/different/agent.sock\", force = true }\n",
+    )
+    .expect("write local endpoint override");
+    assert_eq!(
+        inspect_local_configs(&nested, Some(&cargo_home)),
+        LocalConfigStatus {
+            kind: LocalConfigKind::Override,
+            count: inherited.count + 1,
+        }
+    );
 }
 
 #[test]

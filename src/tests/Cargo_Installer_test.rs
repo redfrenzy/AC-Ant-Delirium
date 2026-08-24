@@ -24,8 +24,12 @@ fn executable_source() -> PathBuf {
     std::env::current_exe().expect("current test executable")
 }
 
+fn limited_endpoint(root: &Path) -> PathBuf {
+    root.join("service/agent.sock")
+}
+
 #[test]
-fn integrated_install_activates_only_the_workspace_wrapper() {
+fn integrated_install_activates_wrapper_and_limited_endpoint() {
     let root = fixture_root("integrated");
     let cargo_home = root.join("cargo-home");
     let bin = cargo_home.join("bin");
@@ -39,7 +43,7 @@ fn integrated_install_activates_only_the_workspace_wrapper() {
     .expect("write existing Cargo config");
 
     assert_eq!(
-        install_release_and_configure(&executable_source(), &cargo_home),
+        install_release_and_configure(&executable_source(), &cargo_home, &limited_endpoint(&root)),
         Ok(CargoInstallOutcome {
             binary: BinaryInstallOutcome::Installed,
             config: CargoConfigMergeOutcome::Updated,
@@ -56,6 +60,14 @@ fn integrated_install_activates_only_the_workspace_wrapper() {
         cargo_home.join("bin").join(INSTALLED_BINARY_NAME).to_str()
     );
     assert!(parsed["build"].get("rustc-wrapper").is_none());
+    assert_eq!(
+        parsed["env"][LIMITED_SOCKET_ENV]["value"].as_str(),
+        limited_endpoint(&root).to_str()
+    );
+    assert_eq!(
+        parsed["env"][LIMITED_SOCKET_ENV]["force"].as_bool(),
+        Some(true)
+    );
     assert_eq!(
         fs::read(cargo_proxy).expect("read preserved Cargo proxy"),
         b"rustup proxy sentinel\n"
@@ -75,12 +87,12 @@ fn integrated_install_is_idempotent_after_owned_configuration() {
     let cargo_home = root.join("cargo-home");
     fs::create_dir_all(&cargo_home).expect("create Cargo home");
     let source = executable_source();
-    assert!(install_release_and_configure(&source, &cargo_home).is_ok());
+    assert!(install_release_and_configure(&source, &cargo_home, &limited_endpoint(&root)).is_ok());
     let config = cargo_home.join("config.toml");
     let before = fs::metadata(&config).expect("configured metadata");
 
     assert_eq!(
-        install_release_and_configure(&source, &cargo_home),
+        install_release_and_configure(&source, &cargo_home, &limited_endpoint(&root)),
         Ok(CargoInstallOutcome {
             binary: BinaryInstallOutcome::AlreadyInstalled,
             config: CargoConfigMergeOutcome::Unchanged,
@@ -108,7 +120,8 @@ fn integrated_uninstall_restores_config_and_preserves_cargo_proxy() {
     #[cfg(unix)]
     fs::set_permissions(&config, fs::Permissions::from_mode(0o640)).expect("set original mode");
     let source = executable_source();
-    install_release_and_configure(&source, &cargo_home).expect("install fixture");
+    install_release_and_configure(&source, &cargo_home, &limited_endpoint(&root))
+        .expect("install fixture");
 
     assert_eq!(
         uninstall_release_and_configure(&source, &cargo_home),
@@ -141,7 +154,8 @@ fn integrated_uninstall_restores_original_absence() {
     let cargo_home = root.join("cargo-home");
     fs::create_dir_all(&cargo_home).expect("create Cargo home");
     let source = executable_source();
-    install_release_and_configure(&source, &cargo_home).expect("install fixture");
+    install_release_and_configure(&source, &cargo_home, &limited_endpoint(&root))
+        .expect("install fixture");
 
     assert!(uninstall_release_and_configure(&source, &cargo_home).is_ok());
     assert!(!cargo_home.join("config.toml").exists());
@@ -155,7 +169,8 @@ fn integrated_uninstall_resumes_after_config_and_binary_were_already_reverted() 
     let cargo_home = root.join("cargo-home");
     fs::create_dir_all(&cargo_home).expect("create Cargo home");
     let source = executable_source();
-    install_release_and_configure(&source, &cargo_home).expect("install fixture");
+    install_release_and_configure(&source, &cargo_home, &limited_endpoint(&root))
+        .expect("install fixture");
     assert_eq!(
         rollback_owned_workspace_wrapper(&cargo_home),
         Ok(CargoConfigRollbackOutcome::Restored)
@@ -182,7 +197,12 @@ fn integrated_uninstall_refuses_changed_config_or_binary_without_deleting_them()
     let changed_config_home = changed_config_root.join("cargo-home");
     fs::create_dir_all(&changed_config_home).expect("create changed config Cargo home");
     let source = executable_source();
-    install_release_and_configure(&source, &changed_config_home).expect("install config fixture");
+    install_release_and_configure(
+        &source,
+        &changed_config_home,
+        &limited_endpoint(&changed_config_root),
+    )
+    .expect("install config fixture");
     let config = changed_config_home.join("config.toml");
     fs::write(&config, b"[net]\nretry = 42\n").expect("change installed config");
     assert_eq!(
@@ -203,7 +223,12 @@ fn integrated_uninstall_refuses_changed_config_or_binary_without_deleting_them()
     let changed_binary_root = fixture_root("uninstall-changed-binary");
     let changed_binary_home = changed_binary_root.join("cargo-home");
     fs::create_dir_all(&changed_binary_home).expect("create changed binary Cargo home");
-    install_release_and_configure(&source, &changed_binary_home).expect("install binary fixture");
+    install_release_and_configure(
+        &source,
+        &changed_binary_home,
+        &limited_endpoint(&changed_binary_root),
+    )
+    .expect("install binary fixture");
     let installed = changed_binary_home.join("bin").join(INSTALLED_BINARY_NAME);
     fs::write(&installed, b"changed binary\n").expect("change installed binary");
     let config_before = fs::read(changed_binary_home.join("config.toml"))
@@ -234,7 +259,7 @@ fn wrapper_conflict_is_preserved_and_never_activated() {
     fs::write(&config, conflicting).expect("write cache wrapper conflict");
 
     assert_eq!(
-        install_release_and_configure(&executable_source(), &cargo_home),
+        install_release_and_configure(&executable_source(), &cargo_home, &limited_endpoint(&root)),
         Err(CargoInstallError::Config(CargoConfigError::WrapperConflict))
     );
     assert_eq!(

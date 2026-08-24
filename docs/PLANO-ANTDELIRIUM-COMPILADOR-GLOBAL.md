@@ -871,7 +871,7 @@ Tarefas:
 
 1. instalar em `$CARGO_HOME/bin/antdelirium`;
 2. ler e mesclar `$CARGO_HOME/config.toml`;
-3. escrever `build.rustc-workspace-wrapper` somente na configuração do Cargo, nunca no `Cargo.toml` de um projeto;
+3. escrever `build.rustc-workspace-wrapper` e o endpoint público limitado em `[env]` somente na configuração do Cargo, nunca no `Cargo.toml` de um projeto;
 4. preservar todas as chaves existentes;
 5. detectar wrapper já configurado;
 6. recusar conflito sem uma decisão explícita;
@@ -905,14 +905,18 @@ e preserva inode quando a mutação é no-op. A transação permanece desligada 
 comando `install` até a T7.3 limitar a mutação exclusivamente ao wrapper de
 workspace e fechar a política de conflitos.
 
-Estado da T7.3: `install` agora compõe a instalação idempotente do release com a
-transação de configuração e escreve somente `build.rustc-workspace-wrapper`
-apontando para o binário daquele Cargo home. Um valor idêntico é no-op sem
-reivindicação de ownership; qualquer `build.rustc-wrapper`, wrapper de workspace
-divergente, tipo inválido ou backup conflitante falha no preflight sem copiar o
-binário nem reescrever configuração. Não há `--force`: composição com `sccache`
-ou outro wrapper permanece uma decisão explícita do operador. A revalidação após
-a cópia preserva fail-closed em caso de corrida.
+Estado da T7.3/T8.6: `install` compõe a instalação idempotente do release com a
+transação de configuração. Além de `build.rustc-workspace-wrapper`, a extensão
+de implantação T8.6 persiste `env.ANTDELIRIUM_LIMITED_SOCKET` com valor absoluto
+fornecido pelo operador e `force=true`. Esse endpoint é público e sem autoridade;
+o socket administrativo, o storage e os planos protegidos não entram no Cargo.
+Assim, os comandos Cargo existentes entregam o canal ao wrapper sem exigir uma
+nova sintaxe nem variável no shell depois da instalação. Integração idêntica é
+no-op sem reivindicação de ownership; endpoint ausente/relativo/divergente,
+qualquer `build.rustc-wrapper`, wrapper de workspace divergente, tipo inválido ou
+backup conflitante falha no preflight sem copiar o binário nem reescrever a
+configuração. Não há troca forçada ou composição implícita com `sccache`. A
+revalidação após a cópia preserva fail-closed em caso de corrida.
 
 Estado da T7.4: o diagnóstico administrativo `doctor v1` verifica os pisos Cargo
 1.50 e rustc/MSRV 1.88, identidade da instalação, ownership registrado e modo
@@ -1084,7 +1088,11 @@ binding path-free no registry, manifesto `cutover` e janela mínima de rollback
 de 30 dias. A repetição retornou o mesmo recibo sem duplicação. Essa prova usa
 storage controlado; a T8.6 não está concluída porque instalação das identidades,
 serviço/wrapper globais e troca operacional do AutoBrowser real ainda devem
-ocorrer em passos posteriores e separados.
+ocorrer em passos posteriores e separados. A integração Cargo automática já foi
+preparada no instalador: o endpoint limitado fornecido no ato de instalação é
+persistido com `force=true` ao lado do wrapper, enquanto endpoint administrativo
+e paths protegidos permanecem ausentes. A prova usa somente Cargo home
+descartável; nenhuma configuração global real foi alterada.
 
 ### Fase 8 — endurecimento contra agentes hostis
 

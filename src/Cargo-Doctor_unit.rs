@@ -9,7 +9,10 @@ use std::os::unix::fs::{FileTypeExt, OpenOptionsExt};
 
 use toml_edit::DocumentMut;
 
-use crate::cargo_config::{inspect_workspace_wrapper, WorkspaceWrapperStatus};
+use crate::cargo_config::{
+    configured_limited_endpoint, inspect_workspace_wrapper, WorkspaceWrapperStatus,
+    LIMITED_SOCKET_ENV,
+};
 use crate::cargo_installer::{
     cargo_home_from_environment, inspect_release_binary, BinaryInstallationStatus,
 };
@@ -26,7 +29,6 @@ const COMPILER_OVERRIDE_VARIABLES: [&str; 6] = [
     "CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER",
     "RUSTC_WORKSPACE_WRAPPER",
 ];
-const LIMITED_ENDPOINT_VARIABLE: &str = "ANTDELIRIUM_LIMITED_SOCKET";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct ToolVersion {
@@ -190,7 +192,13 @@ fn collect_report() -> DoctorReport {
             kind: LocalConfigKind::Invalid,
             count: 0,
         });
-    let endpoint = inspect_limited_endpoint(std::env::var_os(LIMITED_ENDPOINT_VARIABLE));
+    let configured_endpoint = cargo_home
+        .as_deref()
+        .and_then(|home| configured_limited_endpoint(home).ok().flatten())
+        .map(PathBuf::into_os_string);
+    let endpoint = inspect_limited_endpoint(
+        configured_endpoint.or_else(|| std::env::var_os(LIMITED_SOCKET_ENV)),
+    );
     let service = classify_service(
         system_unit_active("antdelirium.service"),
         system_unit_active("antdelirium-agent.socket"),
@@ -401,13 +409,24 @@ fn local_config_has_compiler_override(document: &DocumentMut) -> Result<bool, ()
     if document.get("include").is_some() {
         return Ok(true);
     }
-    let Some(build_item) = document.get("build") else {
-        return Ok(false);
+    let build_override = match document.get("build") {
+        Some(build_item) => {
+            let build = build_item.as_table_like().ok_or(())?;
+            ["rustc", "rustc-wrapper", "rustc-workspace-wrapper"]
+                .iter()
+                .any(|key| build.get(key).is_some())
+        }
+        None => false,
     };
-    let build = build_item.as_table_like().ok_or(())?;
-    Ok(["rustc", "rustc-wrapper", "rustc-workspace-wrapper"]
-        .iter()
-        .any(|key| build.get(key).is_some()))
+    let endpoint_override = match document.get("env") {
+        Some(environment) => environment
+            .as_table_like()
+            .ok_or(())?
+            .get(LIMITED_SOCKET_ENV)
+            .is_some(),
+        None => false,
+    };
+    Ok(build_override || endpoint_override)
 }
 
 fn inspect_limited_endpoint(value: Option<OsString>) -> EndpointStatus {

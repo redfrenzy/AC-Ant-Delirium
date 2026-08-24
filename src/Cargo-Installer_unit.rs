@@ -10,7 +10,7 @@ use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 use crate::cargo_config::{
     configure_workspace_wrapper, finalize_owned_workspace_wrapper_rollback,
     preflight_workspace_wrapper, rollback_owned_workspace_wrapper, CargoConfigError,
-    CargoConfigMergeOutcome, CargoConfigRollbackOutcome,
+    CargoConfigMergeOutcome, CargoConfigRollbackOutcome, LIMITED_SOCKET_ENV,
 };
 use crate::public_output::{OutputRouter, PublicError};
 
@@ -179,20 +179,27 @@ fn install_current_release() -> Result<CargoInstallOutcome, CargoInstallError> {
     let source = std::env::current_exe()
         .map_err(|_| CargoInstallError::Binary(BinaryInstallError::InvalidSource))?;
     let cargo_home = cargo_home_from_environment().map_err(CargoInstallError::Binary)?;
-    install_release_and_configure(&source, &cargo_home)
+    let limited_endpoint = std::env::var_os(LIMITED_SOCKET_ENV)
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .ok_or(CargoInstallError::Config(CargoConfigError::InvalidConfig))?;
+    install_release_and_configure(&source, &cargo_home, &limited_endpoint)
 }
 
 pub(crate) fn install_release_and_configure(
     source: &Path,
     cargo_home: &Path,
+    limited_endpoint: &Path,
 ) -> Result<CargoInstallOutcome, CargoInstallError> {
     match fs::symlink_metadata(cargo_home) {
-        Ok(_) => preflight_workspace_wrapper(cargo_home).map_err(CargoInstallError::Config)?,
+        Ok(_) => preflight_workspace_wrapper(cargo_home, limited_endpoint)
+            .map_err(CargoInstallError::Config)?,
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
         Err(_) => return Err(CargoInstallError::Config(CargoConfigError::Io)),
     }
     let binary = install_release_binary(source, cargo_home).map_err(CargoInstallError::Binary)?;
-    let config = configure_workspace_wrapper(cargo_home).map_err(CargoInstallError::Config)?;
+    let config = configure_workspace_wrapper(cargo_home, limited_endpoint)
+        .map_err(CargoInstallError::Config)?;
     Ok(CargoInstallOutcome { binary, config })
 }
 

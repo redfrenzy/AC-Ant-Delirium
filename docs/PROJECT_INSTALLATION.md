@@ -772,26 +772,35 @@ inode e não cria backup.
 A T7.3 conecta essa transação ao comando `install` através de uma mutação fechada,
 descrita na próxima seção.
 
-## Ativação exclusiva do wrapper de workspace — T7.3
+## Ativação Cargo automática — T7.3/T8.6
 
 O comando release `antdelirium install` agora executa um único fluxo: resolve o
-Cargo home, faz um preflight somente leitura, instala ou reconhece o binário em
-`bin/antdelirium` e mescla exclusivamente:
+Cargo home, exige que o operador forneça `ANTDELIRIUM_LIMITED_SOCKET` como
+pathname absoluto, faz um preflight somente leitura, instala ou reconhece o
+binário em `bin/antdelirium` e mescla exclusivamente os dois campos da
+integração:
 
 ```toml
 [build]
 rustc-workspace-wrapper = "<CARGO_HOME>/bin/antdelirium"
+
+[env]
+ANTDELIRIUM_LIMITED_SOCKET = { value = "<ENDPOINT_LIMITADO>", force = true }
 ```
 
 O mutador não escreve `build.rustc`, `build.rustc-wrapper`, `target`, `runner` ou
-qualquer outra chave. Um `rustc-workspace-wrapper` já igual ao path esperado é
-um no-op e não cria um backup para reivindicar configuração escrita por outra
-pessoa. Valor diferente, tipo TOML diferente de string, `build` malformado ou a
-presença de qualquer `build.rustc-wrapper` causam conflito antes da instalação.
-Isso inclui caches como `sccache`: composição automática entre wrappers ainda
-não possui política aprovada e não é inferida pelo instalador.
+qualquer outra chave fora desses dois campos. O endpoint limitado é público,
+não concede capability e não revela o socket administrativo nem o storage. Ele
+é escrito com `force = true` para que os comandos Cargo normais o entreguem ao
+wrapper mesmo quando o shell não exporta a variável; não existe endpoint padrão
+compilado no executável. Endpoint ausente, relativo, malformado ou divergente já
+presente causa recusa. Uma integração completa já idêntica é um no-op e não cria
+backup para reivindicar configuração escrita por outra pessoa. Wrapper diferente,
+tipo TOML inválido, `build`/`env` malformado ou qualquer `build.rustc-wrapper`
+também causa conflito antes da instalação. Isso inclui caches como `sccache`:
+composição automática entre wrappers continua exigindo decisão explícita.
 
-Não existe `--force` nem troca automática do wrapper. A decisão explícita é do
+Não existe flag de instalador `--force` nem troca automática do wrapper. A decisão explícita é do
 operador, que deve preservar, remover ou reconfigurar conscientemente a
 integração conflitante e depois repetir `install`. O preflight também recusa
 backup preexistente quando seria necessária uma nova alteração. A transação
@@ -800,10 +809,10 @@ intervalo, a configuração permanece sem overwrite e o binário inativo pode
 permanecer instalado com segurança.
 
 Os testes usam somente Cargo homes descartáveis sob `target/`. Eles cobrem
-ativação, preservação de `rustc`, `jobs`, `runner` e proxy `cargo`, idempotência,
-configuração idêntica não reivindicada, `sccache`, wrapper divergente, tipos
-inválidos e preflight sem cópia do binário em conflito. Nenhum Cargo home real é
-modificado pelos testes.
+ativação, preservação de `rustc`, `jobs`, `runner` e proxy `cargo`, endpoint
+forçado, idempotência, configuração idêntica não reivindicada, endpoint relativo
+ou divergente, `sccache`, wrapper divergente, tipos inválidos e preflight sem
+cópia do binário em conflito. Nenhum Cargo home real é modificado pelos testes.
 
 Um probe adicional do ELF release executou `install` duas vezes no mesmo Cargo
 home descartável, confirmou os modos `0755` do binário, `0600` da configuração,
@@ -825,7 +834,8 @@ O diagnóstico verifica:
 - Cargo 1.50 ou posterior, piso do protocolo `rustc-workspace-wrapper`;
 - rustc 1.88 ou posterior, MSRV declarado pelo pacote;
 - bytes e modo do binário instalado em relação ao executável em execução;
-- wrapper global ativo, backup íntegro, hash atual e modo pertencente à instalação;
+- wrapper global e endpoint limitado configurados, backup íntegro, hash atual e
+  modo pertencente à instalação;
 - presença dos seis overrides `RUSTC*`/`CARGO_BUILD_RUSTC*`, inclusive valor vazio;
 - `.cargo/config` e `.cargo/config.toml` desde o cwd até a raiz, sem seguir
   symlinks e distinguindo configuração comum de override do compilador;
@@ -839,8 +849,9 @@ bytes ou modo do arquivo registrado aparece como conflito.
 
 O `doctor` consulta `systemctl is-active` sem ativar unidades e apenas verifica o
 tipo do endpoint configurado; não conecta ao socket. Configuração local comum é
-informativa, enquanto `include`, `build.rustc`, `build.rustc-wrapper` ou
-`build.rustc-workspace-wrapper` local produz `override-detected`. Arquivos
+informativa, enquanto `include`, `build.rustc`, `build.rustc-wrapper`,
+`build.rustc-workspace-wrapper` ou `env.ANTDELIRIUM_LIMITED_SOCKET` local produz
+`override-detected`. Arquivos
 ambíguos, TOML inválido, entrada symlink ou mudança concorrente produzem
 `invalid`, sempre sem revelar onde foram encontrados.
 
