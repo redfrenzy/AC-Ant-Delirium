@@ -1,9 +1,13 @@
 use std::ffi::OsStr;
-use std::fs::{self, OpenOptions};
+use std::fs::File;
+#[cfg(target_os = "linux")]
+use std::fs::{Metadata, OpenOptions};
 use std::io::Read;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
+use std::os::fd::{AsRawFd, FromRawFd};
+#[cfg(target_os = "linux")]
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use ac_ant_delirium::libres::Sha2_unit::sha256;
@@ -18,11 +22,32 @@ use crate::service_authority::VerifiedServiceAuthority;
 use crate::service_storage::ProtectedServiceStorage;
 
 const CREDENTIALS_DIRECTORY_ENV: &str = "CREDENTIALS_DIRECTORY";
-const INITIAL_CREDENTIAL_NAME: &str = "antdelirium-bootstrap-v1";
 const INITIAL_CONTRACT_VERSION: &str = "initial-capability-provisioning-v1";
 const MAX_CREDENTIAL_BYTES: u64 = 64 * 1024;
 const MAX_MANIFEST_LIFETIME_SECONDS: i64 = 15 * 60;
 const MAX_GRANT_LIFETIME_SECONDS: i64 = 366 * 24 * 60 * 60;
+#[cfg(target_os = "linux")]
+const POSIX_ACL_XATTR_NAME: &[u8] = b"system.posix_acl_access\0";
+#[cfg(target_os = "linux")]
+const POSIX_ACL_XATTR_VERSION: u32 = 2;
+#[cfg(target_os = "linux")]
+const POSIX_ACL_MAX_BYTES: usize = 4 + 32 * 8;
+#[cfg(target_os = "linux")]
+const ACL_USER_OBJ: u16 = 0x01;
+#[cfg(target_os = "linux")]
+const ACL_USER: u16 = 0x02;
+#[cfg(target_os = "linux")]
+const ACL_GROUP_OBJ: u16 = 0x04;
+#[cfg(target_os = "linux")]
+const ACL_MASK: u16 = 0x10;
+#[cfg(target_os = "linux")]
+const ACL_OTHER: u16 = 0x20;
+#[cfg(target_os = "linux")]
+const ACL_READ: u16 = 0x04;
+#[cfg(target_os = "linux")]
+const ACL_EXECUTE: u16 = 0x01;
+#[cfg(target_os = "linux")]
+const ACL_UNDEFINED_ID: u32 = u32::MAX;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum InitialProvisioningError {
@@ -33,6 +58,28 @@ pub(crate) enum InitialProvisioningError {
     MissingInitialCredential,
     Storage,
     Clock,
+}
+
+impl InitialProvisioningError {
+    pub(crate) fn diagnostic_code(self) -> &'static str {
+        match self {
+            Self::CredentialContract => "AD-PROVISION-CREDENTIAL-CONTRACT",
+            Self::CredentialAccess => "AD-PROVISION-CREDENTIAL-ACCESS",
+            Self::Manifest => "AD-PROVISION-MANIFEST",
+            Self::AlreadyProvisioned => "AD-PROVISION-REPLAY",
+            Self::MissingInitialCredential => "AD-PROVISION-MISSING",
+            Self::Storage => "AD-PROVISION-STORAGE",
+            Self::Clock => "AD-PROVISION-CLOCK",
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PosixAclEntry {
+    tag: u16,
+    permissions: u16,
+    id: u32,
 }
 
 #[derive(Deserialize)]
@@ -92,19 +139,11 @@ fn read_systemd_credential(
     if !directory.is_absolute() {
         return Err(InitialProvisioningError::CredentialContract);
     }
-    require_private_metadata(&directory, service_uid, true)?;
-    let credential_path = directory.join(INITIAL_CREDENTIAL_NAME);
-    let mut options = OpenOptions::new();
-    options.read(true);
-    #[cfg(unix)]
-    options.custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC);
-    let credential = options
-        .open(&credential_path)
-        .map_err(|_| InitialProvisioningError::CredentialAccess)?;
+    let directory = open_systemd_credential_directory(&directory, service_uid)?;
+    let credential = open_systemd_credential(&directory, service_uid)?;
     let metadata = credential
         .metadata()
         .map_err(|_| InitialProvisioningError::CredentialAccess)?;
-    require_private_file_metadata(&metadata, service_uid)?;
     if metadata.len() > MAX_CREDENTIAL_BYTES {
         return Err(InitialProvisioningError::CredentialContract);
     }
@@ -252,56 +291,206 @@ fn trusted_unix_time() -> Result<i64, InitialProvisioningError> {
     i64::try_from(seconds).map_err(|_| InitialProvisioningError::Clock)
 }
 
-#[cfg(unix)]
-fn require_private_metadata(
-    path: &Path,
+#[cfg(target_os = "linux")]
+fn open_systemd_credential_directory(
+    path: &std::path::Path,
+    service_uid: u32,
+) -> Result<File, InitialProvisioningError> {
+    let mut options = OpenOptions::new();
+    options
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC);
+    let directory = options
+        .open(path)
+        .map_err(|_| InitialProvisioningError::CredentialAccess)?;
+    let metadata = directory
+        .metadata()
+        .map_err(|_| InitialProvisioningError::CredentialAccess)?;
+    require_systemd_credential_metadata(&directory, &metadata, service_uid, true)?;
+    Ok(directory)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn open_systemd_credential_directory(
+    _path: &std::path::Path,
+    _service_uid: u32,
+) -> Result<File, InitialProvisioningError> {
+    Err(InitialProvisioningError::CredentialContract)
+}
+
+#[cfg(target_os = "linux")]
+fn open_systemd_credential(
+    directory: &File,
+    service_uid: u32,
+) -> Result<File, InitialProvisioningError> {
+    let name = b"antdelirium-bootstrap-v1\0";
+    // SAFETY: `directory` is an open directory descriptor, `name` is a fixed
+    // NUL-terminated byte string, and a successful descriptor is immediately
+    // owned by `File`. O_NOFOLLOW prevents replacing the credential with a
+    // symlink between validation and open.
+    let descriptor = unsafe {
+        libc::openat(
+            directory.as_raw_fd(),
+            name.as_ptr().cast(),
+            libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+        )
+    };
+    if descriptor < 0 {
+        return Err(InitialProvisioningError::CredentialAccess);
+    }
+    // SAFETY: `openat` returned a new owned descriptor.
+    let credential = unsafe { File::from_raw_fd(descriptor) };
+    let metadata = credential
+        .metadata()
+        .map_err(|_| InitialProvisioningError::CredentialAccess)?;
+    require_systemd_credential_metadata(&credential, &metadata, service_uid, false)?;
+    Ok(credential)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn open_systemd_credential(
+    _directory: &File,
+    _service_uid: u32,
+) -> Result<File, InitialProvisioningError> {
+    Err(InitialProvisioningError::CredentialContract)
+}
+
+#[cfg(target_os = "linux")]
+fn require_systemd_credential_metadata(
+    file: &File,
+    metadata: &Metadata,
     service_uid: u32,
     directory: bool,
 ) -> Result<(), InitialProvisioningError> {
-    let metadata =
-        fs::symlink_metadata(path).map_err(|_| InitialProvisioningError::CredentialAccess)?;
-    let owner_uid = metadata.uid();
-    if metadata.file_type().is_symlink()
-        || (directory && !metadata.is_dir())
-        || (!directory && !metadata.is_file())
-        || (owner_uid != 0 && owner_uid != service_uid)
-        || metadata.mode() & 0o077 != 0
-    {
+    if (directory && !metadata.is_dir()) || (!directory && !metadata.is_file()) {
         return Err(InitialProvisioningError::CredentialContract);
+    }
+
+    let private_mode = if directory { 0o500 } else { 0o400 };
+    let acl_mode = if directory { 0o550 } else { 0o440 };
+    match metadata.uid() {
+        owner if owner == service_uid => {
+            if metadata.mode() & 0o777 != private_mode || read_posix_acl(file)?.is_some() {
+                return Err(InitialProvisioningError::CredentialContract);
+            }
+        }
+        0 => {
+            if metadata.mode() & 0o777 != acl_mode {
+                return Err(InitialProvisioningError::CredentialContract);
+            }
+            let acl = read_posix_acl(file)?.ok_or(InitialProvisioningError::CredentialContract)?;
+            require_exact_systemd_acl(&acl, service_uid, directory)?;
+        }
+        _ => return Err(InitialProvisioningError::CredentialContract),
     }
     Ok(())
 }
 
-#[cfg(not(unix))]
-fn require_private_metadata(
-    _path: &Path,
-    _service_uid: u32,
-    _directory: bool,
-) -> Result<(), InitialProvisioningError> {
-    Err(InitialProvisioningError::CredentialContract)
+#[cfg(target_os = "linux")]
+fn read_posix_acl(file: &File) -> Result<Option<Vec<PosixAclEntry>>, InitialProvisioningError> {
+    let name = POSIX_ACL_XATTR_NAME.as_ptr().cast();
+    // SAFETY: the descriptor is valid, the attribute name is NUL-terminated,
+    // and a null value with length zero asks Linux only for the required size.
+    let required = unsafe { libc::fgetxattr(file.as_raw_fd(), name, std::ptr::null_mut(), 0) };
+    if required < 0 {
+        return match std::io::Error::last_os_error().raw_os_error() {
+            Some(code) if code == libc::ENODATA || code == libc::EOPNOTSUPP => Ok(None),
+            _ => Err(InitialProvisioningError::CredentialAccess),
+        };
+    }
+    let required =
+        usize::try_from(required).map_err(|_| InitialProvisioningError::CredentialContract)?;
+    if required < 4 || required > POSIX_ACL_MAX_BYTES {
+        return Err(InitialProvisioningError::CredentialContract);
+    }
+    let mut bytes = vec![0_u8; required];
+    // SAFETY: `bytes` owns `required` writable bytes and the descriptor/name
+    // remain valid for the duration of the call.
+    let read = unsafe {
+        libc::fgetxattr(
+            file.as_raw_fd(),
+            name,
+            bytes.as_mut_ptr().cast(),
+            bytes.len(),
+        )
+    };
+    if read < 0 || usize::try_from(read).ok() != Some(required) {
+        return Err(InitialProvisioningError::CredentialAccess);
+    }
+    parse_posix_acl(&bytes).map(Some)
 }
 
-#[cfg(unix)]
-fn require_private_file_metadata(
-    metadata: &fs::Metadata,
+#[cfg(target_os = "linux")]
+fn parse_posix_acl(bytes: &[u8]) -> Result<Vec<PosixAclEntry>, InitialProvisioningError> {
+    if bytes.len() < 4 || (bytes.len() - 4) % 8 != 0 {
+        return Err(InitialProvisioningError::CredentialContract);
+    }
+    let version = u32::from_le_bytes(
+        bytes[0..4]
+            .try_into()
+            .map_err(|_| InitialProvisioningError::CredentialContract)?,
+    );
+    if version != POSIX_ACL_XATTR_VERSION {
+        return Err(InitialProvisioningError::CredentialContract);
+    }
+    bytes[4..]
+        .chunks_exact(8)
+        .map(|entry| {
+            let tag = u16::from_le_bytes([entry[0], entry[1]]);
+            let permissions = u16::from_le_bytes([entry[2], entry[3]]);
+            let id = u32::from_le_bytes([entry[4], entry[5], entry[6], entry[7]]);
+            if permissions & !0o7 != 0 {
+                return Err(InitialProvisioningError::CredentialContract);
+            }
+            Ok(PosixAclEntry {
+                tag,
+                permissions,
+                id,
+            })
+        })
+        .collect()
+}
+
+#[cfg(target_os = "linux")]
+fn require_exact_systemd_acl(
+    entries: &[PosixAclEntry],
     service_uid: u32,
+    directory: bool,
 ) -> Result<(), InitialProvisioningError> {
-    let owner_uid = metadata.uid();
-    if !metadata.is_file()
-        || (owner_uid != 0 && owner_uid != service_uid)
-        || metadata.mode() & 0o077 != 0
+    let allowed = ACL_READ | if directory { ACL_EXECUTE } else { 0 };
+    let required = [
+        PosixAclEntry {
+            tag: ACL_USER_OBJ,
+            permissions: allowed,
+            id: ACL_UNDEFINED_ID,
+        },
+        PosixAclEntry {
+            tag: ACL_USER,
+            permissions: allowed,
+            id: service_uid,
+        },
+        PosixAclEntry {
+            tag: ACL_GROUP_OBJ,
+            permissions: 0,
+            id: ACL_UNDEFINED_ID,
+        },
+        PosixAclEntry {
+            tag: ACL_MASK,
+            permissions: allowed,
+            id: ACL_UNDEFINED_ID,
+        },
+        PosixAclEntry {
+            tag: ACL_OTHER,
+            permissions: 0,
+            id: ACL_UNDEFINED_ID,
+        },
+    ];
+    if entries.len() != required.len()
+        || required.iter().any(|expected| !entries.contains(expected))
     {
         return Err(InitialProvisioningError::CredentialContract);
     }
     Ok(())
-}
-
-#[cfg(not(unix))]
-fn require_private_file_metadata(
-    _metadata: &fs::Metadata,
-    _service_uid: u32,
-) -> Result<(), InitialProvisioningError> {
-    Err(InitialProvisioningError::CredentialContract)
 }
 
 #[cfg(test)]

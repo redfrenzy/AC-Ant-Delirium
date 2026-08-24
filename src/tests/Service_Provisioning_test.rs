@@ -11,6 +11,12 @@ use ac_ant_delirium::structs::{
 use serde_json::json;
 
 use super::{apply_manifest, InitialProvisioningError};
+#[cfg(target_os = "linux")]
+use super::{
+    parse_posix_acl, require_exact_systemd_acl, PosixAclEntry, ACL_EXECUTE, ACL_GROUP_OBJ,
+    ACL_MASK, ACL_OTHER, ACL_READ, ACL_UNDEFINED_ID, ACL_USER, ACL_USER_OBJ,
+    POSIX_ACL_XATTR_VERSION,
+};
 use crate::limited_protocol::encode_base64url;
 
 static FIXTURE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -186,5 +192,135 @@ fn rejects_an_expired_or_overlong_bootstrap_envelope() {
     assert_eq!(
         apply_manifest(&overlong, serde_json::to_vec(&value).unwrap(), 1_100),
         Err(InitialProvisioningError::Manifest)
+    );
+}
+
+#[test]
+fn provisioning_errors_have_nonsecret_operator_codes() {
+    let cases = [
+        (
+            InitialProvisioningError::CredentialContract,
+            "AD-PROVISION-CREDENTIAL-CONTRACT",
+        ),
+        (
+            InitialProvisioningError::CredentialAccess,
+            "AD-PROVISION-CREDENTIAL-ACCESS",
+        ),
+        (InitialProvisioningError::Manifest, "AD-PROVISION-MANIFEST"),
+        (
+            InitialProvisioningError::AlreadyProvisioned,
+            "AD-PROVISION-REPLAY",
+        ),
+        (
+            InitialProvisioningError::MissingInitialCredential,
+            "AD-PROVISION-MISSING",
+        ),
+        (InitialProvisioningError::Storage, "AD-PROVISION-STORAGE"),
+        (InitialProvisioningError::Clock, "AD-PROVISION-CLOCK"),
+    ];
+    for (error, expected) in cases {
+        assert_eq!(error.diagnostic_code(), expected);
+        assert!(!expected.contains('/'));
+        assert!(!expected.contains("token"));
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn acl_bytes(entries: &[(u16, u16, u32)]) -> Vec<u8> {
+    let mut bytes = POSIX_ACL_XATTR_VERSION.to_le_bytes().to_vec();
+    for (tag, permissions, id) in entries {
+        bytes.extend_from_slice(&tag.to_le_bytes());
+        bytes.extend_from_slice(&permissions.to_le_bytes());
+        bytes.extend_from_slice(&id.to_le_bytes());
+    }
+    bytes
+}
+
+#[cfg(target_os = "linux")]
+fn systemd_acl(service_uid: u32, directory: bool) -> Vec<PosixAclEntry> {
+    let allowed = ACL_READ | if directory { ACL_EXECUTE } else { 0 };
+    vec![
+        PosixAclEntry {
+            tag: ACL_USER_OBJ,
+            permissions: allowed,
+            id: ACL_UNDEFINED_ID,
+        },
+        PosixAclEntry {
+            tag: ACL_USER,
+            permissions: allowed,
+            id: service_uid,
+        },
+        PosixAclEntry {
+            tag: ACL_GROUP_OBJ,
+            permissions: 0,
+            id: ACL_UNDEFINED_ID,
+        },
+        PosixAclEntry {
+            tag: ACL_MASK,
+            permissions: allowed,
+            id: ACL_UNDEFINED_ID,
+        },
+        PosixAclEntry {
+            tag: ACL_OTHER,
+            permissions: 0,
+            id: ACL_UNDEFINED_ID,
+        },
+    ]
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn accepts_only_the_exact_systemd_named_user_acl() {
+    let service_uid = 982;
+    let mut directory_acl = systemd_acl(service_uid, true);
+    directory_acl.reverse();
+    require_exact_systemd_acl(&directory_acl, service_uid, true).expect("systemd directory ACL");
+    require_exact_systemd_acl(&systemd_acl(service_uid, false), service_uid, false)
+        .expect("systemd file ACL");
+
+    let mut extra_user = systemd_acl(service_uid, false);
+    extra_user.push(PosixAclEntry {
+        tag: ACL_USER,
+        permissions: ACL_READ,
+        id: 1000,
+    });
+    assert_eq!(
+        require_exact_systemd_acl(&extra_user, service_uid, false),
+        Err(InitialProvisioningError::CredentialContract)
+    );
+
+    let mut writable_mask = systemd_acl(service_uid, false);
+    writable_mask
+        .iter_mut()
+        .find(|entry| entry.tag == ACL_MASK)
+        .expect("ACL mask")
+        .permissions |= 0o2;
+    assert_eq!(
+        require_exact_systemd_acl(&writable_mask, service_uid, false),
+        Err(InitialProvisioningError::CredentialContract)
+    );
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn parses_linux_acl_xattrs_and_rejects_malformed_contracts() {
+    let expected = systemd_acl(982, false);
+    let wire = acl_bytes(
+        &expected
+            .iter()
+            .map(|entry| (entry.tag, entry.permissions, entry.id))
+            .collect::<Vec<_>>(),
+    );
+    assert_eq!(parse_posix_acl(&wire).unwrap(), expected);
+
+    let mut wrong_version = wire.clone();
+    wrong_version[0..4].copy_from_slice(&3_u32.to_le_bytes());
+    assert_eq!(
+        parse_posix_acl(&wrong_version),
+        Err(InitialProvisioningError::CredentialContract)
+    );
+    assert_eq!(
+        parse_posix_acl(&wire[..wire.len() - 1]),
+        Err(InitialProvisioningError::CredentialContract)
     );
 }

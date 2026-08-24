@@ -1103,9 +1103,14 @@ fecha no código o ciclo da primeira autoridade: um manifesto curto entregue por
 systemd credentials cria atomicamente os grants iniciais de operador e grava um
 recibo singleton em `storage-v8`. O primeiro cliente nunca recebe privilégio por
 ordem de chegada; credencial ausente no primeiro boot, reaplicada, expirada,
-malformada ou dirigida a root falha fechada. A rotina privilegiada de instalação
-e coleta de logs está preparada no repositório, mas não foi executada; portanto,
-identidades e unidades reais continuam não demonstradas.
+malformada ou dirigida a root falha fechada. A primeira execução privilegiada
+instalou identidades/unidades e ativou sockets, mas expôs uma incompatibilidade
+entre a máscara de ACL POSIX do systemd e a antiga validação por bits de grupo;
+o serviço recusou o bootstrap antes de inserir grants. A correção valida a ACL
+semântica exata, registra somente códigos internos não secretos, espera o recibo
+em vez da existência imediata do banco e oferece `--resume` restrito ao estado
+virgem preservado. A implantação continua não demonstrada até essa retomada
+terminar com exit zero e seus logs serem revisados.
 
 ### Fase 8 — endurecimento contra agentes hostis
 

@@ -120,7 +120,13 @@ pub(crate) fn run_service_channels(
     let storage = crate::service_storage::initialize_configured_service_storage(&authority)
         .unwrap_or_else(|_| OutputRouter::exit(PublicError::Configuration));
     crate::service_provisioning::apply_configured_initial_provisioning(&authority, &storage)
-        .unwrap_or_else(|_| OutputRouter::exit(PublicError::Configuration));
+        .unwrap_or_else(|error| {
+            eprintln!(
+                "antdelirium[{}]: provisionamento inicial recusado",
+                error.diagnostic_code()
+            );
+            OutputRouter::exit(PublicError::Configuration)
+        });
     channels.serve_connections(storage, authority)
 }
 
