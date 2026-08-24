@@ -171,7 +171,7 @@ storage_summary() {
 }
 
 pristine_storage_summary() {
-    python3 -c 'import sqlite3,sys; c=sqlite3.connect("file:"+sys.argv[1]+"?mode=ro",uri=True); print(*c.execute("select (select count(*) from initial_capability_provisioning),(select count(*) from capability_grants),(select count(*) from projects)+(select count(*) from service_security_events)+(select count(*) from capability_subject_epochs)+(select count(*) from revocations)+(select count(*) from capability_request_receipts)+(select count(*) from provisional_project_registrations)+(select count(*) from legacy_migration_records),(select user_version from pragma_user_version)").fetchone())' "$database_path"
+    python3 -c 'import sqlite3,sys; c=sqlite3.connect("file:"+sys.argv[1]+"?mode=ro",uri=True); has_management=c.execute("select count(*) from sqlite_schema where type=\"table\" and name=\"capability_management_events\"").fetchone()[0]; managed=c.execute("select count(*) from capability_management_events").fetchone()[0] if has_management else 0; row=c.execute("select (select count(*) from initial_capability_provisioning),(select count(*) from capability_grants),(select count(*) from projects)+(select count(*) from service_security_events)+(select count(*) from capability_subject_epochs)+(select count(*) from revocations)+(select count(*) from capability_request_receipts)+(select count(*) from provisional_project_registrations)+(select count(*) from legacy_migration_records),(select user_version from pragma_user_version)").fetchone(); print(row[0],row[1],row[2]+managed,row[3])' "$database_path"
 }
 
 wait_for_initial_provisioning() {
@@ -179,7 +179,7 @@ wait_for_initial_provisioning() {
     for attempt in $(seq 1 100); do
         if [[ -f "$database_path" ]] \
             && summary=$(storage_summary 2>/dev/null) \
-            && [[ "$summary" == '1 2 8' ]]
+            && [[ "$summary" == '1 2 9' ]]
         then
             return 0
         fi

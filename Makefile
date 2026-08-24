@@ -86,7 +86,13 @@ ci:
 	bash -n packaging/sandbox/validate-wrapper-syscalls.sh
 	bash -n packaging/systemd/render-installation-bundle.sh
 	bash -n packaging/systemd/validate-installed-service.sh
+	bash -n packaging/systemd/upgrade-installed-service.sh
+	bash -n packaging/systemd/manage-ci-attestation-capability.sh
 	jq empty docs/contracts/v1/admin-protocol-v1.schema.json
+	jq empty docs/contracts/v1/capability-grant-request-v1.schema.json
+	jq empty docs/contracts/v1/capability-grant-receipt-v1.schema.json
+	jq empty docs/contracts/v1/capability-revoke-request-v1.schema.json
+	jq empty docs/contracts/v1/capability-revoke-receipt-v1.schema.json
 	jq empty docs/contracts/v1/legacy-stage-receipt-v1.schema.json
 	jq empty docs/contracts/v1/legacy-normalization-request-v1.schema.json
 	jq empty docs/contracts/v1/legacy-normalization-receipt-v1.schema.json

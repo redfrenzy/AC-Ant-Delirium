@@ -143,7 +143,9 @@ O schema administrativo não é empacotado nas projeções nem na ajuda do agent
 
 ## Revisores e CI
 
-Revisor e CI usam o canal limitado porque suas operações também são estreitas, mas recebem capabilities próprias:
+Revisor usa o canal limitado. CI usa canal limitado para compilação e canal
+administrativo exclusivamente para atestação de migração; ambos recebem
+capabilities próprias:
 
 - revisor só pode decidir submissão atribuída e não muda plano diretamente;
 - CI só pode criar attestation no escopo do input verificado;

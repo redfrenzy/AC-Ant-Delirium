@@ -354,7 +354,7 @@ mod tests {
                     [],
                     |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
                 )?;
-                assert_eq!(result, (8, i64::from(STORAGE_SCHEMA_VERSION)));
+                assert_eq!(result, (9, i64::from(STORAGE_SCHEMA_VERSION)));
                 Ok(())
             })
             .unwrap();

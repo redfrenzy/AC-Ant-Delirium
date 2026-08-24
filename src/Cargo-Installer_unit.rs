@@ -72,6 +72,13 @@ pub(crate) enum CargoUninstallError {
 pub(crate) fn run_operator_mode(args: &[OsString]) {
     if args
         .first()
+        .is_some_and(|arg| arg == OsStr::new("capability"))
+    {
+        crate::administrative_protocol::run_capability_operator(args);
+        return;
+    }
+    if args
+        .first()
         .is_some_and(|arg| arg == OsStr::new("migrate-plugin"))
     {
         crate::administrative_protocol::run_migration_operator(args);

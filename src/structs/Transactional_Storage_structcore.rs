@@ -312,6 +312,90 @@ CREATE TABLE initial_capability_provisioning (
 ) STRICT;
 "#;
 
+// Migration-scoped capabilities must exist before a project cutover can register
+// the canonical project row. Keeping the opaque scope on the grant, but removing
+// the premature project foreign key, breaks that attestation/cutover cycle without
+// weakening resource resolution: handlers still resolve projects only after a
+// freshly authorized capability reaches the protected service boundary.
+const STORAGE_SCHEMA_V9: &str = r#"
+DROP INDEX capability_scope_idx;
+DROP INDEX capability_subject_idx;
+
+ALTER TABLE capability_request_receipts RENAME TO capability_request_receipts_v8;
+ALTER TABLE revocations RENAME TO revocations_v8;
+ALTER TABLE capability_grants RENAME TO capability_grants_v8;
+
+CREATE TABLE capability_grants (
+    grant_id TEXT PRIMARY KEY,
+    secret_hash BLOB NOT NULL CHECK (length(secret_hash) = 32),
+    subject_uid INTEGER NOT NULL CHECK (subject_uid >= 0),
+    actor_kind TEXT NOT NULL CHECK (actor_kind IN ('wrapper', 'agent', 'reviewer', 'operator', 'service', 'ci')),
+    channel_kind TEXT NOT NULL CHECK (channel_kind IN ('limited', 'administrative')),
+    operation TEXT NOT NULL CHECK (operation IN ('compile.observe', 'projection.refresh', 'task.current.read', 'submission.create', 'submission.read.assigned', 'review.decide.assigned', 'attestation.create', 'state.transition', 'state.admin', 'installation.admin', 'diagnostic.private')),
+    project_id TEXT,
+    workspace_id TEXT,
+    task_id TEXT,
+    not_before_unix INTEGER NOT NULL,
+    expires_at_unix INTEGER NOT NULL CHECK (expires_at_unix > not_before_unix),
+    revocation_epoch INTEGER NOT NULL CHECK (revocation_epoch >= 0),
+    granted_at TEXT NOT NULL,
+    FOREIGN KEY (subject_uid, actor_kind) REFERENCES capability_subject_epochs(subject_uid, actor_kind) ON DELETE RESTRICT,
+    CHECK (workspace_id IS NULL OR project_id IS NOT NULL),
+    CHECK (task_id IS NULL OR (project_id IS NOT NULL AND workspace_id IS NOT NULL))
+) STRICT;
+
+CREATE TABLE revocations (
+    revocation_id TEXT PRIMARY KEY,
+    grant_id TEXT NOT NULL UNIQUE REFERENCES capability_grants(grant_id) ON DELETE RESTRICT,
+    revocation_epoch INTEGER NOT NULL CHECK (revocation_epoch >= 0),
+    revoked_at TEXT NOT NULL,
+    reason TEXT NOT NULL
+) STRICT;
+
+CREATE TABLE capability_request_receipts (
+    grant_id TEXT NOT NULL REFERENCES capability_grants(grant_id) ON DELETE RESTRICT,
+    request_id TEXT NOT NULL,
+    request_fingerprint BLOB NOT NULL CHECK (length(request_fingerprint) = 32),
+    authorized_at_unix INTEGER NOT NULL,
+    PRIMARY KEY (grant_id, request_id)
+) STRICT;
+
+INSERT INTO capability_grants SELECT * FROM capability_grants_v8;
+INSERT INTO revocations SELECT * FROM revocations_v8;
+INSERT INTO capability_request_receipts SELECT * FROM capability_request_receipts_v8;
+
+DROP TABLE capability_request_receipts_v8;
+DROP TABLE revocations_v8;
+DROP TABLE capability_grants_v8;
+
+CREATE INDEX capability_scope_idx ON capability_grants(project_id, workspace_id, task_id);
+CREATE INDEX capability_subject_idx ON capability_grants(subject_uid, actor_kind, revocation_epoch);
+
+CREATE TABLE capability_management_events (
+    sequence INTEGER PRIMARY KEY CHECK (sequence >= 1),
+    event_id TEXT NOT NULL UNIQUE,
+    correlation_id TEXT NOT NULL UNIQUE,
+    action_kind TEXT NOT NULL CHECK (action_kind IN ('grant', 'revoke')),
+    operator_uid INTEGER NOT NULL CHECK (operator_uid >= 1),
+    grant_id TEXT NOT NULL REFERENCES capability_grants(grant_id) ON DELETE RESTRICT,
+    subject_uid INTEGER NOT NULL CHECK (subject_uid >= 1),
+    actor_kind TEXT NOT NULL CHECK (actor_kind IN ('wrapper', 'agent', 'reviewer', 'ci')),
+    channel_kind TEXT NOT NULL CHECK (channel_kind IN ('limited', 'administrative')),
+    operation TEXT NOT NULL CHECK (operation IN ('compile.observe', 'projection.refresh', 'task.current.read', 'submission.create', 'submission.read.assigned', 'review.decide.assigned', 'attestation.create')),
+    project_id TEXT,
+    workspace_id TEXT,
+    task_id TEXT,
+    occurred_at_unix INTEGER NOT NULL CHECK (occurred_at_unix >= 0),
+    CHECK (workspace_id IS NULL OR project_id IS NOT NULL),
+    CHECK (task_id IS NULL OR (project_id IS NOT NULL AND workspace_id IS NOT NULL))
+) STRICT;
+
+CREATE INDEX capability_management_time_idx
+ON capability_management_events(occurred_at_unix, sequence);
+CREATE INDEX capability_management_scope_idx
+ON capability_management_events(project_id, workspace_id, task_id);
+"#;
+
 impl From<AC_Error> for TransactionalStorageError {
     fn from(error: AC_Error) -> Self {
         Self::Database(error.to_string())
@@ -810,6 +894,15 @@ impl ProjectDatabase {
                 AC_params!["storage-v8-initial-capability-provisioning"],
             )?;
             transaction.pragma_update(None, "user_version", 8)?;
+            version = 8;
+        }
+        if version == 8 {
+            transaction.execute_batch(STORAGE_SCHEMA_V9)?;
+            transaction.execute(
+                "INSERT INTO schema_migrations(version, applied_at) VALUES (9, ?1)",
+                AC_params!["storage-v9-pre-cutover-capability-management"],
+            )?;
+            transaction.pragma_update(None, "user_version", 9)?;
         }
         transaction.commit()?;
         Ok(())

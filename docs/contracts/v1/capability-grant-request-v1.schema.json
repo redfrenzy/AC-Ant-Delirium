@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:capability-grant-request-v1",
+  "title": "AntDelirium managed capability grant request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version", "capability_id", "token", "subject_uid", "actor",
+    "channel", "capability_operation", "project_id", "workspace_id", "task_id",
+    "lifetime_seconds", "revocation_epoch"
+  ],
+  "properties": {
+    "contract_version": { "const": "capability-grant-request-v1" },
+    "capability_id": { "type": "string", "pattern": "^cap_[0-9a-hjkmnp-tv-z]{26}$" },
+    "token": { "type": "string", "pattern": "^[A-Za-z0-9_-]{43}$" },
+    "subject_uid": { "type": "integer", "minimum": 1, "maximum": 4294967295 },
+    "actor": { "enum": ["wrapper", "agent", "reviewer", "ci"] },
+    "channel": { "enum": ["limited", "administrative"] },
+    "capability_operation": {
+      "enum": [
+        "compile.observe", "projection.refresh", "task.current.read",
+        "submission.create", "submission.read.assigned",
+        "review.decide.assigned", "attestation.create"
+      ]
+    },
+    "project_id": {
+      "oneOf": [
+        { "type": "string", "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$" },
+        { "type": "null" }
+      ]
+    },
+    "workspace_id": {
+      "oneOf": [
+        { "type": "string", "pattern": "^wsp_[0-9a-hjkmnp-tv-z]{26}$" },
+        { "type": "null" }
+      ]
+    },
+    "task_id": {
+      "oneOf": [
+        { "type": "string", "pattern": "^tsk_[0-9a-hjkmnp-tv-z]{26}$" },
+        { "type": "null" }
+      ]
+    },
+    "lifetime_seconds": { "type": "integer", "minimum": 60, "maximum": 86400 },
+    "revocation_epoch": { "type": "integer", "minimum": 0 }
+  }
+}

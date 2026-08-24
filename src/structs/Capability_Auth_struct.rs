@@ -152,6 +152,23 @@ pub struct NewCapabilityRevocation {
     pub reason: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CapabilityGrantAuditReceipt {
+    pub grant_id: String,
+    pub audit_sequence: i64,
+    pub event_id: String,
+    pub correlation_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CapabilityRevocationAuditReceipt {
+    pub grant_id: String,
+    pub revocation_id: String,
+    pub audit_sequence: i64,
+    pub event_id: String,
+    pub correlation_id: String,
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub struct CapabilityAuthorizationRequest {
     pub grant_id: String,

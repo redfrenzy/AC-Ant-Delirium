@@ -51,6 +51,15 @@ mod tests {
         database
     }
 
+    fn unregistered_database(root: &PathBuf) -> ProjectDatabase {
+        ProjectDatabase::initialize(&ProjectStateRoot::with_default_config(
+            root.join("protected"),
+            root.join("project"),
+            root.join("workspace"),
+        ))
+        .expect("capability database")
+    }
+
     fn grant(secret: &[u8; 32]) -> NewCapabilityGrant {
         NewCapabilityGrant {
             grant_id: GRANT_ID.to_string(),
@@ -379,6 +388,270 @@ mod tests {
         invalid.channel = CapabilityChannel::Administrative;
         invalid.operation = CapabilityOperation::StateAdmin;
         assert!(database.store_capability_grant(&invalid).is_err());
+        fs::remove_dir_all(root).expect("fixture cleanup");
+    }
+
+    #[test]
+    fn audited_ci_grant_can_authorize_a_pre_cutover_scope_and_be_revoked() {
+        let root = fixture_root("managed-pre-cutover-ci");
+        let database = unregistered_database(&root);
+        let secret = [21; 32];
+        let managed = NewCapabilityGrant {
+            grant_id: GRANT_ID.to_string(),
+            secret_hash: sha256(&secret),
+            subject_uid: 1000,
+            actor: CapabilityActor::Ci,
+            channel: CapabilityChannel::Administrative,
+            operation: CapabilityOperation::AttestationCreate,
+            project_id: Some(PROJECT_ID.to_string()),
+            workspace_id: Some(WORKSPACE_ID.to_string()),
+            task_id: None,
+            not_before_unix: 100,
+            expires_at_unix: 200,
+            revocation_epoch: 0,
+            granted_at: "unix:100".to_string(),
+        };
+
+        let grant_receipt = database
+            .grant_managed_capability(1000, &managed, 100)
+            .expect("audited pre-cutover grant");
+        assert_eq!(grant_receipt.grant_id, GRANT_ID);
+        assert_eq!(grant_receipt.audit_sequence, 1);
+        assert_eq!(database.capability_management_event_count().unwrap(), 1);
+
+        let request = CapabilityAuthorizationRequest {
+            grant_id: GRANT_ID.to_string(),
+            presented_secret: secret,
+            operation: CapabilityOperation::AttestationCreate,
+            project_id: Some(PROJECT_ID.to_string()),
+            workspace_id: Some(WORKSPACE_ID.to_string()),
+            task_id: None,
+            presented_connection_nonce: [9; 32],
+            request_id: REQUEST_ID.to_string(),
+            request_fingerprint: [22; 32],
+        };
+        assert!(matches!(
+            authorize(
+                &database,
+                1000,
+                CapabilityChannel::Administrative,
+                &[9; 32],
+                150,
+                &request,
+            ),
+            CapabilityAuthorizationOutcome::Fresh(_)
+        ));
+
+        let revocation = database
+            .revoke_managed_capability(1000, GRANT_ID, 0, 160)
+            .expect("audited revocation");
+        assert_eq!(revocation.grant_id, GRANT_ID);
+        assert_eq!(revocation.audit_sequence, 2);
+        assert_eq!(database.capability_management_event_count().unwrap(), 2);
+        let mut second_request = request;
+        second_request.request_id = "req_11111111111111111111111111".to_string();
+        second_request.request_fingerprint = [23; 32];
+        assert_eq!(
+            authorize(
+                &database,
+                1000,
+                CapabilityChannel::Administrative,
+                &[9; 32],
+                170,
+                &second_request,
+            ),
+            CapabilityAuthorizationOutcome::Denied
+        );
+
+        database
+            .with_immediate_transaction(|transaction| {
+                let events = transaction.query_row(
+                    "SELECT count(*), min(sequence), max(sequence), group_concat(action_kind, ','), min(operator_uid), min(subject_uid), min(actor_kind), min(channel_kind), min(operation), min(project_id), min(workspace_id), sum(task_id IS NOT NULL) FROM capability_management_events",
+                    [],
+                    |row| {
+                        Ok((
+                            row.get::<_, i64>(0)?, row.get::<_, i64>(1)?,
+                            row.get::<_, i64>(2)?, row.get::<_, String>(3)?,
+                            row.get::<_, i64>(4)?, row.get::<_, i64>(5)?,
+                            row.get::<_, String>(6)?, row.get::<_, String>(7)?,
+                            row.get::<_, String>(8)?, row.get::<_, String>(9)?,
+                            row.get::<_, String>(10)?, row.get::<_, i64>(11)?,
+                        ))
+                    },
+                )?;
+                assert_eq!(events.0, 2);
+                assert_eq!((events.1, events.2), (1, 2));
+                assert_eq!(events.3, "grant,revoke");
+                assert_eq!((events.4, events.5), (1000, 1000));
+                assert_eq!(events.6, "ci");
+                assert_eq!(events.7, "administrative");
+                assert_eq!(events.8, "attestation.create");
+                assert_eq!(events.9, PROJECT_ID);
+                assert_eq!(events.10, WORKSPACE_ID);
+                assert_eq!(events.11, 0);
+
+                let stored: Vec<u8> = transaction.query_row(
+                    "SELECT secret_hash FROM capability_grants WHERE grant_id = ?1",
+                    AC_params![GRANT_ID],
+                    |row| row.get(0),
+                )?;
+                assert_eq!(stored, sha256(&secret));
+                assert_ne!(stored, secret);
+
+                let mut statement =
+                    transaction.prepare("PRAGMA table_info(capability_management_events)")?;
+                let columns = statement
+                    .query_map([], |row| row.get::<_, String>(1))?
+                    .collect::<Result<Vec<_>, _>>()?;
+                for forbidden in ["path", "cwd", "project_key", "secret", "token", "nonce", "payload"] {
+                    assert!(!columns.iter().any(|column| column.contains(forbidden)));
+                }
+                Ok(())
+            })
+            .unwrap();
+        fs::remove_dir_all(root).expect("fixture cleanup");
+    }
+
+    #[test]
+    fn managed_grant_refuses_administrative_privilege_amplification_atomically() {
+        let root = fixture_root("managed-no-privilege-amplification");
+        let database = unregistered_database(&root);
+        let mut privileged = NewCapabilityGrant {
+            grant_id: GRANT_ID.to_string(),
+            secret_hash: sha256(&[24; 32]),
+            subject_uid: 1000,
+            actor: CapabilityActor::Operator,
+            channel: CapabilityChannel::Administrative,
+            operation: CapabilityOperation::InstallationAdmin,
+            project_id: None,
+            workspace_id: None,
+            task_id: None,
+            not_before_unix: 100,
+            expires_at_unix: 200,
+            revocation_epoch: 0,
+            granted_at: "unix:100".to_string(),
+        };
+        assert!(database
+            .grant_managed_capability(1000, &privileged, 100)
+            .is_err());
+        privileged.actor = CapabilityActor::Ci;
+        assert!(database
+            .grant_managed_capability(1000, &privileged, 100)
+            .is_err());
+        database
+            .with_immediate_transaction(|transaction| {
+                let grants: i64 =
+                    transaction.query_row("SELECT count(*) FROM capability_grants", [], |row| {
+                        row.get(0)
+                    })?;
+                assert_eq!(grants, 0);
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(database.capability_management_event_count().unwrap(), 0);
+        fs::remove_dir_all(root).expect("fixture cleanup");
+    }
+
+    #[test]
+    fn storage_v9_upgrade_preserves_v8_grants_and_removes_only_the_scope_foreign_key() {
+        let root = fixture_root("upgrade-v8-grants");
+        let state_root = ProjectStateRoot::with_default_config(
+            root.join("protected"),
+            root.join("project"),
+            root.join("workspace"),
+        );
+        let database = database(&root);
+        let secret = [25; 32];
+        database.store_capability_grant(&grant(&secret)).unwrap();
+        database
+            .with_immediate_transaction(|transaction| {
+                transaction.execute_batch(
+                    r#"
+                    DROP TABLE capability_management_events;
+                    DROP INDEX capability_scope_idx;
+                    DROP INDEX capability_subject_idx;
+
+                    ALTER TABLE capability_request_receipts RENAME TO capability_request_receipts_v9;
+                    ALTER TABLE revocations RENAME TO revocations_v9;
+                    ALTER TABLE capability_grants RENAME TO capability_grants_v9;
+
+                    CREATE TABLE capability_grants (
+                        grant_id TEXT PRIMARY KEY,
+                        secret_hash BLOB NOT NULL CHECK (length(secret_hash) = 32),
+                        subject_uid INTEGER NOT NULL CHECK (subject_uid >= 0),
+                        actor_kind TEXT NOT NULL CHECK (actor_kind IN ('wrapper', 'agent', 'reviewer', 'operator', 'service', 'ci')),
+                        channel_kind TEXT NOT NULL CHECK (channel_kind IN ('limited', 'administrative')),
+                        operation TEXT NOT NULL CHECK (operation IN ('compile.observe', 'projection.refresh', 'task.current.read', 'submission.create', 'submission.read.assigned', 'review.decide.assigned', 'attestation.create', 'state.transition', 'state.admin', 'installation.admin', 'diagnostic.private')),
+                        project_id TEXT REFERENCES projects(project_id) ON DELETE RESTRICT,
+                        workspace_id TEXT,
+                        task_id TEXT,
+                        not_before_unix INTEGER NOT NULL,
+                        expires_at_unix INTEGER NOT NULL CHECK (expires_at_unix > not_before_unix),
+                        revocation_epoch INTEGER NOT NULL CHECK (revocation_epoch >= 0),
+                        granted_at TEXT NOT NULL,
+                        FOREIGN KEY (subject_uid, actor_kind) REFERENCES capability_subject_epochs(subject_uid, actor_kind) ON DELETE RESTRICT
+                    ) STRICT;
+                    CREATE TABLE revocations (
+                        revocation_id TEXT PRIMARY KEY,
+                        grant_id TEXT NOT NULL UNIQUE REFERENCES capability_grants(grant_id) ON DELETE RESTRICT,
+                        revocation_epoch INTEGER NOT NULL CHECK (revocation_epoch >= 0),
+                        revoked_at TEXT NOT NULL,
+                        reason TEXT NOT NULL
+                    ) STRICT;
+                    CREATE TABLE capability_request_receipts (
+                        grant_id TEXT NOT NULL REFERENCES capability_grants(grant_id) ON DELETE RESTRICT,
+                        request_id TEXT NOT NULL,
+                        request_fingerprint BLOB NOT NULL CHECK (length(request_fingerprint) = 32),
+                        authorized_at_unix INTEGER NOT NULL,
+                        PRIMARY KEY (grant_id, request_id)
+                    ) STRICT;
+                    INSERT INTO capability_grants SELECT * FROM capability_grants_v9;
+                    INSERT INTO revocations SELECT * FROM revocations_v9;
+                    INSERT INTO capability_request_receipts SELECT * FROM capability_request_receipts_v9;
+                    DROP TABLE capability_request_receipts_v9;
+                    DROP TABLE revocations_v9;
+                    DROP TABLE capability_grants_v9;
+                    CREATE INDEX capability_scope_idx ON capability_grants(project_id, workspace_id, task_id);
+                    CREATE INDEX capability_subject_idx ON capability_grants(subject_uid, actor_kind, revocation_epoch);
+                    DELETE FROM schema_migrations WHERE version = 9;
+                    PRAGMA user_version = 8;
+                    "#,
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        drop(database);
+
+        let upgraded = ProjectDatabase::open_existing_at(state_root.root()).unwrap();
+        assert_eq!(upgraded.health().unwrap().schema_version, 9);
+        assert!(matches!(
+            authorize(
+                &upgraded,
+                1000,
+                CapabilityChannel::Limited,
+                &[9; 32],
+                150,
+                &request(secret),
+            ),
+            CapabilityAuthorizationOutcome::Fresh(_)
+        ));
+        upgraded
+            .with_immediate_transaction(|transaction| {
+                let project_foreign_keys: i64 = transaction.query_row(
+                    "SELECT count(*) FROM pragma_foreign_key_list('capability_grants') WHERE \"table\" = 'projects'",
+                    [],
+                    |row| row.get(0),
+                )?;
+                let subject_foreign_keys: i64 = transaction.query_row(
+                    "SELECT count(*) FROM pragma_foreign_key_list('capability_grants') WHERE \"table\" = 'capability_subject_epochs'",
+                    [],
+                    |row| row.get(0),
+                )?;
+                assert_eq!(project_foreign_keys, 0);
+                assert_eq!(subject_foreign_keys, 2);
+                Ok(())
+            })
+            .unwrap();
         fs::remove_dir_all(root).expect("fixture cleanup");
     }
 }

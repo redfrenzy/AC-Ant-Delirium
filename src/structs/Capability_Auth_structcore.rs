@@ -6,9 +6,10 @@ use crate::libres::System_Random_unit::random_crockford_id;
 
 use super::{
     AuthorizedCapability, CapabilityActor, CapabilityAuthorizationOutcome,
-    CapabilityAuthorizationRequest, CapabilityChannel, CapabilityOperation,
-    InitialCapabilityProvisioning, InitialCapabilityProvisioningReceipt, NewCapabilityGrant,
-    NewCapabilityRevocation, NewServiceSecurityEvent, ProjectDatabase, ServiceSecurityAuditReceipt,
+    CapabilityAuthorizationRequest, CapabilityChannel, CapabilityGrantAuditReceipt,
+    CapabilityOperation, CapabilityRevocationAuditReceipt, InitialCapabilityProvisioning,
+    InitialCapabilityProvisioningReceipt, NewCapabilityGrant, NewCapabilityRevocation,
+    NewServiceSecurityEvent, ProjectDatabase, ServiceSecurityAuditReceipt,
     ServiceSecurityEventKind, TransactionalStorageError, TransactionalStorageResult,
 };
 
@@ -55,7 +56,7 @@ impl ProjectDatabase {
                 |row| row.get(0),
             )?;
             let existing_authoritative_state: i64 = transaction.query_row(
-                "SELECT (SELECT count(*) FROM projects) + (SELECT count(*) FROM service_security_events) + (SELECT count(*) FROM capability_subject_epochs) + (SELECT count(*) FROM revocations) + (SELECT count(*) FROM capability_request_receipts) + (SELECT count(*) FROM provisional_project_registrations) + (SELECT count(*) FROM legacy_migration_records)",
+                "SELECT (SELECT count(*) FROM projects) + (SELECT count(*) FROM service_security_events) + (SELECT count(*) FROM capability_management_events) + (SELECT count(*) FROM capability_subject_epochs) + (SELECT count(*) FROM revocations) + (SELECT count(*) FROM capability_request_receipts) + (SELECT count(*) FROM provisional_project_registrations) + (SELECT count(*) FROM legacy_migration_records)",
                 [],
                 |row| row.get(0),
             )?;
@@ -153,6 +154,96 @@ impl ProjectDatabase {
             )?;
             Ok(())
         })
+    }
+
+    pub fn grant_managed_capability(
+        &self,
+        operator_uid: u32,
+        grant: &NewCapabilityGrant,
+        trusted_now_unix: i64,
+    ) -> TransactionalStorageResult<CapabilityGrantAuditReceipt> {
+        validate_managed_grant(operator_uid, grant, trusted_now_unix)?;
+        self.with_immediate_transaction(|transaction| {
+            insert_grant_in_transaction(transaction, grant)?;
+            let audit = append_capability_management_event(
+                transaction,
+                "grant",
+                operator_uid,
+                grant,
+                trusted_now_unix,
+            )?;
+            Ok(CapabilityGrantAuditReceipt {
+                grant_id: grant.grant_id.clone(),
+                audit_sequence: audit.sequence,
+                event_id: audit.event_id,
+                correlation_id: audit.correlation_id,
+            })
+        })
+    }
+
+    pub fn revoke_managed_capability(
+        &self,
+        operator_uid: u32,
+        grant_id: &str,
+        revocation_epoch: u64,
+        trusted_now_unix: i64,
+    ) -> TransactionalStorageResult<CapabilityRevocationAuditReceipt> {
+        validate_opaque_id(grant_id, "cap_")?;
+        if operator_uid == 0 || trusted_now_unix < 0 {
+            return Err(invalid_grant());
+        }
+        let epoch = i64::try_from(revocation_epoch).map_err(|_| invalid_grant())?;
+        self.with_immediate_transaction(|transaction| {
+            let persisted: PersistedGrant = transaction.query_row(
+                "SELECT secret_hash, subject_uid, actor_kind, channel_kind, operation, project_id, workspace_id, task_id, not_before_unix, expires_at_unix, revocation_epoch FROM capability_grants WHERE grant_id = ?1",
+                AC_params![grant_id],
+                |row| {
+                    Ok((
+                        row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?,
+                        row.get(5)?, row.get(6)?, row.get(7)?, row.get(8)?, row.get(9)?,
+                        row.get(10)?,
+                    ))
+                },
+            )?;
+            let grant = managed_grant_from_persisted(grant_id, &persisted)?;
+            validate_managed_grant_policy(operator_uid, &grant)?;
+            if persisted.10 != epoch {
+                return Err(invalid_grant());
+            }
+            let revocation_id = random_security_id("rev_")?;
+            transaction.execute(
+                "INSERT INTO revocations(revocation_id, grant_id, revocation_epoch, revoked_at, reason) VALUES (?1, ?2, ?3, ?4, 'operator-request')",
+                AC_params![
+                    revocation_id,
+                    grant_id,
+                    epoch,
+                    format!("unix:{trusted_now_unix}"),
+                ],
+            )?;
+            let audit = append_capability_management_event(
+                transaction,
+                "revoke",
+                operator_uid,
+                &grant,
+                trusted_now_unix,
+            )?;
+            Ok(CapabilityRevocationAuditReceipt {
+                grant_id: grant_id.to_string(),
+                revocation_id,
+                audit_sequence: audit.sequence,
+                event_id: audit.event_id,
+                correlation_id: audit.correlation_id,
+            })
+        })
+    }
+
+    pub fn capability_management_event_count(&self) -> TransactionalStorageResult<i64> {
+        let connection = self.open_connection(false)?;
+        Ok(connection.query_row(
+            "SELECT count(*) FROM capability_management_events",
+            [],
+            |row| row.get(0),
+        )?)
     }
 
     pub fn advance_capability_epoch(
@@ -660,6 +751,133 @@ fn insert_grant_in_transaction(
         ],
     )?;
     Ok(())
+}
+
+fn validate_managed_grant(
+    operator_uid: u32,
+    grant: &NewCapabilityGrant,
+    trusted_now_unix: i64,
+) -> TransactionalStorageResult<()> {
+    validate_managed_grant_policy(operator_uid, grant)?;
+    if trusted_now_unix < 0
+        || grant.not_before_unix != trusted_now_unix
+        || grant.granted_at != format!("unix:{trusted_now_unix}")
+    {
+        return Err(invalid_grant());
+    }
+    Ok(())
+}
+
+fn validate_managed_grant_policy(
+    operator_uid: u32,
+    grant: &NewCapabilityGrant,
+) -> TransactionalStorageResult<()> {
+    validate_grant(grant)?;
+    if operator_uid == 0
+        || grant.subject_uid == 0
+        || !matches!(
+            grant.actor,
+            CapabilityActor::Wrapper
+                | CapabilityActor::Agent
+                | CapabilityActor::Reviewer
+                | CapabilityActor::Ci
+        )
+        || !matches!(
+            grant.operation,
+            CapabilityOperation::CompileObserve
+                | CapabilityOperation::ProjectionRefresh
+                | CapabilityOperation::TaskCurrentRead
+                | CapabilityOperation::SubmissionCreate
+                | CapabilityOperation::SubmissionReadAssigned
+                | CapabilityOperation::ReviewDecideAssigned
+                | CapabilityOperation::AttestationCreate
+        )
+    {
+        return Err(invalid_grant());
+    }
+    Ok(())
+}
+
+fn managed_grant_from_persisted(
+    grant_id: &str,
+    persisted: &PersistedGrant,
+) -> TransactionalStorageResult<NewCapabilityGrant> {
+    let secret_hash: [u8; 32] = persisted
+        .0
+        .clone()
+        .try_into()
+        .map_err(|_| invalid_grant())?;
+    let subject_uid = u32::try_from(persisted.1).map_err(|_| invalid_grant())?;
+    let actor = CapabilityActor::from_storage(&persisted.2).ok_or_else(invalid_grant)?;
+    let channel = CapabilityChannel::from_storage(&persisted.3).ok_or_else(invalid_grant)?;
+    let operation = CapabilityOperation::from_storage(&persisted.4).ok_or_else(invalid_grant)?;
+    let revocation_epoch = u64::try_from(persisted.10).map_err(|_| invalid_grant())?;
+    Ok(NewCapabilityGrant {
+        grant_id: grant_id.to_string(),
+        secret_hash,
+        subject_uid,
+        actor,
+        channel,
+        operation,
+        project_id: persisted.5.clone(),
+        workspace_id: persisted.6.clone(),
+        task_id: persisted.7.clone(),
+        not_before_unix: persisted.8,
+        expires_at_unix: persisted.9,
+        revocation_epoch,
+        granted_at: "persisted".to_string(),
+    })
+}
+
+fn append_capability_management_event(
+    transaction: &AC_Transaction<'_>,
+    action: &str,
+    operator_uid: u32,
+    grant: &NewCapabilityGrant,
+    occurred_at_unix: i64,
+) -> TransactionalStorageResult<ServiceSecurityAuditReceipt> {
+    if !matches!(action, "grant" | "revoke") {
+        return Err(invalid_grant());
+    }
+    let last_sequence: i64 = transaction.query_row(
+        "SELECT last_sequence FROM service_security_state WHERE singleton = 1",
+        [],
+        |row| row.get(0),
+    )?;
+    let sequence = last_sequence.checked_add(1).ok_or_else(invalid_grant)?;
+    let event_id = random_security_id("evt_")?;
+    let correlation_id = random_security_id("ref_")?;
+    transaction.execute(
+        "INSERT INTO capability_management_events(sequence, event_id, correlation_id, action_kind, operator_uid, grant_id, subject_uid, actor_kind, channel_kind, operation, project_id, workspace_id, task_id, occurred_at_unix) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+        AC_params![
+            sequence,
+            event_id,
+            correlation_id,
+            action,
+            i64::from(operator_uid),
+            grant.grant_id,
+            i64::from(grant.subject_uid),
+            grant.actor.storage_value(),
+            grant.channel.storage_value(),
+            grant.operation.storage_value(),
+            grant.project_id,
+            grant.workspace_id,
+            grant.task_id,
+            occurred_at_unix,
+        ],
+    )?;
+    let updated = transaction.execute(
+        "UPDATE service_security_state SET last_sequence = ?1 WHERE singleton = 1 AND last_sequence = ?2",
+        AC_params![sequence, last_sequence],
+    )?;
+    if updated != 1 {
+        return Err(invalid_grant());
+    }
+    Ok(ServiceSecurityAuditReceipt {
+        sequence,
+        event_id,
+        correlation_id,
+    })
 }
 
 fn valid_authorization_request(request: &CapabilityAuthorizationRequest) -> bool {

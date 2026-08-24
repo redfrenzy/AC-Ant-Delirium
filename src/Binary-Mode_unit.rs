@@ -90,10 +90,12 @@ pub(crate) fn classify_invocation(
             profile: InvocationProfile::Reviewer,
             mode: InternalBinaryMode::ReviewerPending,
         },
-        Some("operator" | "install" | "uninstall" | "migrate-plugin" | "doctor") => DispatchPlan {
-            profile: InvocationProfile::Operator,
-            mode: InternalBinaryMode::OperatorPending,
-        },
+        Some("operator" | "install" | "uninstall" | "migrate-plugin" | "capability" | "doctor") => {
+            DispatchPlan {
+                profile: InvocationProfile::Operator,
+                mode: InternalBinaryMode::OperatorPending,
+            }
+        }
         _ => DispatchPlan {
             profile: InvocationProfile::Agent,
             mode: InternalBinaryMode::AgentCli,
@@ -202,6 +204,7 @@ mod tests {
             "install",
             "uninstall",
             "migrate-plugin",
+            "capability",
             "doctor",
         ] {
             let plan = classify_invocation(&args(&[command]), None);

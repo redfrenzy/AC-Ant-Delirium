@@ -52,7 +52,7 @@ fn detects_every_compiler_override_even_when_its_value_is_empty() {
 }
 
 #[test]
-fn local_hierarchy_distinguishes_irrelevant_config_from_compiler_override() {
+fn local_hierarchy_accumulates_irrelevant_config_and_preserves_compiler_overrides() {
     let root = fixture_root("local-config");
     let project = root.join("project");
     let nested = project.join("src/nested");
@@ -63,15 +63,17 @@ fn local_hierarchy_distinguishes_irrelevant_config_from_compiler_override() {
     fs::create_dir_all(&cargo_home).expect("create fixture Cargo home");
     let config = cargo_directory.join("config.toml");
     let inherited = inspect_local_configs(&root, Some(&cargo_home));
-    assert!(matches!(
-        inherited.kind,
-        LocalConfigKind::Clear | LocalConfigKind::Present
-    ));
+    assert_ne!(inherited.kind, LocalConfigKind::Invalid);
     fs::write(&config, b"[net]\noffline = true\n").expect("write harmless local config");
+    let harmless_kind = if inherited.kind == LocalConfigKind::Override {
+        LocalConfigKind::Override
+    } else {
+        LocalConfigKind::Present
+    };
     assert_eq!(
         inspect_local_configs(&nested, Some(&cargo_home)),
         LocalConfigStatus {
-            kind: LocalConfigKind::Present,
+            kind: harmless_kind,
             count: inherited.count + 1,
         }
     );

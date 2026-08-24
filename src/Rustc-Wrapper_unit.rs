@@ -437,6 +437,7 @@ fn begins_with_antdelirium_command(args: &[OsString]) -> bool {
                 | "install"
                 | "uninstall"
                 | "migrate-plugin"
+                | "capability"
                 | "doctor"
                 | "init"
                 | "check"
@@ -553,6 +554,7 @@ mod tests {
             "install",
             "uninstall",
             "migrate-plugin",
+            "capability",
             "doctor",
             "init",
             "check",

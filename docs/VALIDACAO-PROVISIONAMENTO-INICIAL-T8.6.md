@@ -1,4 +1,4 @@
-# Provisionamento inicial e teste privilegiado — T8.6 parcial
+# Provisionamento inicial e teste privilegiado — T8.6
 
 ## Resultado implementado
 
@@ -75,7 +75,8 @@ gera duas capabilities com OpenSSL, sela os descritores com
 `systemd-creds --with-key=host` e entrega o manifesto ao primeiro boot por um
 drop-in transitório em `/run`.
 
-Depois do primeiro start, o script exige schema 8, um recibo e dois grants,
+Depois do primeiro start, o script exige o schema suportado pelo bundle (9 no
+fonte atual), um recibo e dois grants,
 procura os tokens brutos no SQLite, remove o canal de bootstrap e prova um
 segundo start sem credencial. Os descritores do operador permanecem somente em
 forma cifrada e root-controlled; tokens em claro existem apenas sob um diretório
@@ -129,7 +130,15 @@ alterar unidade, grupo, credential ou state root:
 sudo bash packaging/systemd/validate-installed-service.sh --inspect
 ```
 
-Esta etapa continua parcial até `--resume` terminar com exit zero e os novos
-logs serem revisados. A associação a grupos também só aparece em processos
-abertos depois de novo login; a própria rotina usa `runuser` para testar uma
-sessão nova.
+## Retomada concluída
+
+O `--resume` executado em 24 de agosto de 2026 terminou com exit zero. Ele
+reutilizou os descritores cifrados preservados, criou um recibo e dois grants,
+removeu o canal de bootstrap de uso único e comprovou restart posterior sem
+credencial. Os logs revisados estão em
+`target/t86-root-validation-logs/20260824T220637Z/`. Esse run ocorreu ainda com
+o bundle `storage-v8`; a atualização transacional posterior para `storage-v9`
+pertence à gestão de capabilities e usa uma rotina separada com backup.
+
+A associação a grupos só aparece em processos abertos depois de novo login; a
+própria rotina usa `runuser` para testar uma sessão nova.

@@ -1086,17 +1086,18 @@ acrescentou `migration.cutover`: backup consistente do SQLite, primeiro evento
 da nova autoridade, publicação privada, registro atômico de projeto/workspace e
 binding path-free no registry, manifesto `cutover` e janela mínima de rollback
 de 30 dias. A repetição retornou o mesmo recibo sem duplicação. Essa prova usa
-storage controlado; a T8.6 não está concluída porque instalação das identidades,
-serviço/wrapper globais e troca operacional do AutoBrowser real ainda devem
-ocorrer em passos posteriores e separados. A integração Cargo automática já foi
-preparada no instalador: o endpoint limitado fornecido no ato de instalação é
+storage controlado; a T8.6 não está concluída porque a troca operacional do
+AutoBrowser real ainda deve ocorrer em passo posterior e separado. A integração
+Cargo automática já foi ativada no Cargo home real: o endpoint limitado
+fornecido no ato de instalação é
 persistido com `force=true` ao lado do wrapper, enquanto endpoint administrativo
 e paths protegidos permanecem ausentes. A prova usa somente Cargo home
-descartável; nenhuma configuração global real foi alterada. O bundle
+descartável e a instalação real terminou com `doctor result=ready`. O bundle
 [`system-installation-bundle-v1`](./VALIDACAO-BUNDLE-INSTALACAO-SYSTEMD-T8.6.md)
 também materializa sob `target/` o mesmo ELF release, sysusers e as três unidades,
-valida-os com systemd 255 e mantém instalação/ativação falsas. Ainda não escolhe
-membros dos grupos nem escreve no host.
+valida-os com systemd 255 e mantém o renderer isolado do host. A rotina
+privilegiada posterior instalou as identidades/unidades e validou restart sem
+credencial.
 
 O [provisionamento inicial T8.6](./VALIDACAO-PROVISIONAMENTO-INICIAL-T8.6.md)
 fecha no código o ciclo da primeira autoridade: um manifesto curto entregue por
@@ -1109,8 +1110,19 @@ entre a máscara de ACL POSIX do systemd e a antiga validação por bits de grup
 o serviço recusou o bootstrap antes de inserir grants. A correção valida a ACL
 semântica exata, registra somente códigos internos não secretos, espera o recibo
 em vez da existência imediata do banco e oferece `--resume` restrito ao estado
-virgem preservado. A implantação continua não demonstrada até essa retomada
-terminar com exit zero e seus logs serem revisados.
+virgem preservado. A retomada terminou com exit zero, dois grants e restart sem
+credencial.
+
+A [gestão administrativa de capabilities T8.6](./VALIDACAO-GESTAO-CAPABILITIES-T8.6.md)
+fecha o próximo ciclo operacional. `capability.grant/revoke` exige o grant
+inicial `InstallationAdmin`, entrega o novo segredo apenas por descriptor e
+audita atomicamente sem token ou path. `storage-v9` preserva grants v8 e remove
+somente a foreign key de projeto que tornava impossível conceder a capability
+CI antes do cutover. O handler recusa amplificação para operador, serviço,
+administração ou diagnóstico. O código e a migração controlada estão validados;
+o bundle v9 com o mesmo ELF release foi renderizado e passou o gate de não
+divulgação, mas ainda precisa ser instalado no serviço real antes da atestação
+e do cutover do AutoBrowser.
 
 ### Fase 8 — endurecimento contra agentes hostis
 

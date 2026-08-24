@@ -11,7 +11,8 @@ use ac_ant_delirium::libres::Sha2_unit::sha256;
 use ac_ant_delirium::libres::System_Random_unit::{fill_system_random, random_crockford_id};
 use ac_ant_delirium::structs::{
     AuthorizedCapability, CanonicalStateStore, CapabilityActor, CapabilityChannel,
-    CapabilityOperation, NewCapabilityGrant, ProjectDatabase, ProvisionalProjectRegistration,
+    CapabilityGrantAuditReceipt, CapabilityOperation, CapabilityRevocationAuditReceipt,
+    NewCapabilityGrant, ProjectDatabase, ProvisionalProjectRegistration,
     ServiceSecurityAuditReceipt, StorageProject, StorageWorkspace, TransactionalStorageError,
     STORAGE_SCHEMA_VERSION,
 };
@@ -24,6 +25,8 @@ const PROJECTS_DIR_NAME: &str = "projects";
 const MIGRATION_STAGING_DIR_NAME: &str = "migration-staging";
 const MAX_PROVISIONAL_PROJECTS_PER_UID: i64 = 64;
 const BOOTSTRAP_CAPABILITY_LIFETIME_SECONDS: i64 = 300;
+const MIN_MANAGED_CAPABILITY_LIFETIME_SECONDS: i64 = 60;
+const MAX_MANAGED_CAPABILITY_LIFETIME_SECONDS: i64 = 24 * 60 * 60;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ProtectedStorageError {
@@ -57,6 +60,20 @@ pub(crate) struct ProvisionalBootstrapResult {
     pub(crate) workspace_id: String,
     pub(crate) compile: IssuedLimitedCapability,
     pub(crate) projection: IssuedLimitedCapability,
+}
+
+pub(crate) struct ManagedCapabilityGrantRequest {
+    pub(crate) grant_id: String,
+    pub(crate) secret_hash: [u8; 32],
+    pub(crate) subject_uid: u32,
+    pub(crate) actor: CapabilityActor,
+    pub(crate) channel: CapabilityChannel,
+    pub(crate) operation: CapabilityOperation,
+    pub(crate) project_id: Option<String>,
+    pub(crate) workspace_id: Option<String>,
+    pub(crate) task_id: Option<String>,
+    pub(crate) lifetime_seconds: i64,
+    pub(crate) revocation_epoch: u64,
 }
 
 // This service-only handle deliberately exposes neither project-key nor path.
@@ -381,6 +398,96 @@ impl ProtectedServiceStorage {
             trusted_now_unix,
         )
         .map_err(|_| ())
+    }
+
+    pub(crate) fn grant_managed_capability(
+        &self,
+        capability: &AuthorizedCapability,
+        request: ManagedCapabilityGrantRequest,
+    ) -> Result<CapabilityGrantAuditReceipt, ()> {
+        let trusted_now_unix = trusted_service_unix_time().map_err(|_| ())?;
+        if !self.installation_admin_is_current(capability, trusted_now_unix)
+            || !(MIN_MANAGED_CAPABILITY_LIFETIME_SECONDS..=MAX_MANAGED_CAPABILITY_LIFETIME_SECONDS)
+                .contains(&request.lifetime_seconds)
+        {
+            self.audit_rejected_authorized_request_at(capability, trusted_now_unix)?;
+            return Err(());
+        }
+        let Some(expires_at_unix) = trusted_now_unix.checked_add(request.lifetime_seconds) else {
+            self.audit_rejected_authorized_request_at(capability, trusted_now_unix)?;
+            return Err(());
+        };
+        let _guard = self.bootstrap_lock.lock().map_err(|_| ())?;
+        let result = self.registry.grant_managed_capability(
+            capability.subject_uid(),
+            &NewCapabilityGrant {
+                grant_id: request.grant_id,
+                secret_hash: request.secret_hash,
+                subject_uid: request.subject_uid,
+                actor: request.actor,
+                channel: request.channel,
+                operation: request.operation,
+                project_id: request.project_id,
+                workspace_id: request.workspace_id,
+                task_id: request.task_id,
+                not_before_unix: trusted_now_unix,
+                expires_at_unix,
+                revocation_epoch: request.revocation_epoch,
+                granted_at: format!("unix:{trusted_now_unix}"),
+            },
+            trusted_now_unix,
+        );
+        match result {
+            Ok(receipt) => Ok(receipt),
+            Err(_) => {
+                self.audit_rejected_authorized_request_at(capability, trusted_now_unix)?;
+                Err(())
+            }
+        }
+    }
+
+    pub(crate) fn revoke_managed_capability(
+        &self,
+        capability: &AuthorizedCapability,
+        grant_id: &str,
+        revocation_epoch: u64,
+    ) -> Result<CapabilityRevocationAuditReceipt, ()> {
+        let trusted_now_unix = trusted_service_unix_time().map_err(|_| ())?;
+        if !self.installation_admin_is_current(capability, trusted_now_unix) {
+            self.audit_rejected_authorized_request_at(capability, trusted_now_unix)?;
+            return Err(());
+        }
+        let _guard = self.bootstrap_lock.lock().map_err(|_| ())?;
+        let result = self.registry.revoke_managed_capability(
+            capability.subject_uid(),
+            grant_id,
+            revocation_epoch,
+            trusted_now_unix,
+        );
+        match result {
+            Ok(receipt) => Ok(receipt),
+            Err(_) => {
+                self.audit_rejected_authorized_request_at(capability, trusted_now_unix)?;
+                Err(())
+            }
+        }
+    }
+
+    fn installation_admin_is_current(
+        &self,
+        capability: &AuthorizedCapability,
+        trusted_now_unix: i64,
+    ) -> bool {
+        capability.actor() == CapabilityActor::Operator
+            && capability.channel() == CapabilityChannel::Administrative
+            && capability.operation() == CapabilityOperation::InstallationAdmin
+            && capability.project_id().is_none()
+            && capability.workspace_id().is_none()
+            && capability.task_id().is_none()
+            && self
+                .registry
+                .authorized_capability_is_current(capability, trusted_now_unix)
+                .unwrap_or(false)
     }
 
     pub(crate) fn bootstrap_provisional(

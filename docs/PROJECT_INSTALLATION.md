@@ -539,10 +539,12 @@ estado provisório vazio; compilação e projeção precisam passar por peer,
 capability, nonce, request fingerprint, receipt e resolver opaco antes de abrir
 o banco derivado pelo registry. As outras operações limitadas continuam
 fechadas. O listener administrativo aceita somente as operações fechadas
-implementadas de migração: `migration.stage`, `migration.normalize`,
+implementadas de gestão e migração: `capability.grant`, `capability.revoke`,
+`migration.stage`, `migration.normalize`,
 `migration.dry-run`, `migration.convert`, `migration.attest` e
 `migration.approve` e `migration.cutover`. Todas exceto a atestação exigem
-`Operator/Administrative/StateAdmin`; a atestação exige exatamente
+`Operator/Administrative/StateAdmin`; grant/revogação exigem
+`Operator/Administrative/InstallationAdmin`; a atestação exige exatamente
 `Ci/Administrative/AttestationCreate`, vinculada ao projeto e workspace.
 O cutover exige manifesto, atestação, aprovação, candidato e rollback point
 exatamente vinculados; rollback ainda não é uma operação representável. Os journals da T4.6
@@ -553,6 +555,54 @@ que executa o cliente sem capabilities em namespaces descartáveis, mantém apen
 o projeto visível e comprova falha de resolução, `stat`, `access`, `readlink`,
 enumeração e abertura dos roots protegidos conhecidos. A repetição contra a
 unidade e o serviço realmente instalados permanece na T9.4.
+
+## Gestão administrativa de capabilities — T8.6
+
+O release reconhece internamente `capability grant` e `capability revoke`, sem
+publicá-los em `--help` ou `--api`. Ambos usam o socket administrativo e uma
+capability global `Operator/Administrative/InstallationAdmin` entregue pelo
+supervisor em `ANTDELIRIUM_ADMIN_CAPABILITY_FD`.
+
+No grant, os metadados tipados chegam pelas variáveis
+`ANTDELIRIUM_CAPABILITY_SUBJECT_UID`, `ANTDELIRIUM_CAPABILITY_ACTOR`,
+`ANTDELIRIUM_CAPABILITY_CHANNEL`, `ANTDELIRIUM_CAPABILITY_OPERATION`, escopos
+opacos opcionais, `ANTDELIRIUM_CAPABILITY_LIFETIME_SECONDS` e
+`ANTDELIRIUM_CAPABILITY_REVOCATION_EPOCH`. O novo descritor é escrito no FD
+indicado por `ANTDELIRIUM_CAPABILITY_OUTPUT_FD`. Esse FD precisa apontar para
+arquivo regular vazio, link único, modo `0600`, owner do processo e aberto para
+escrita. O token nunca vai para stdout/stderr. Na revogação, o descriptor-alvo
+chega por `ANTDELIRIUM_CAPABILITY_TARGET_FD`.
+
+`storage-v9` permite que o grant use um projeto/workspace opaco ainda não
+registrado, necessário para atestar um candidato antes do cutover. Isso não
+abre resolução antecipada de storage: handlers operacionais continuam exigindo
+registro canônico. A gestão aceita somente capabilities operacionais para
+wrapper, agente, revisor e CI; não pode criar ou revogar autoridade de operador,
+serviço, instalação ou diagnóstico. Validade é calculada pelo relógio do serviço
+e limitada a 24 horas. Grant/revogação e auditoria são atômicos e o registry
+persiste somente o hash do segredo. A
+[validação T8.6](./VALIDACAO-GESTAO-CAPABILITIES-T8.6.md) registra os testes e o
+limite de implantação ainda pendente.
+
+Depois que o bundle v9 estiver instalado, o supervisor emite uma capability CI
+de curta duração sem materializar plaintext no projeto:
+
+```bash
+sudo bash packaging/systemd/manage-ci-attestation-capability.sh \
+  --grant <prj_id> <wsp_id> 3600
+```
+
+Depois da atestação, a revogação usa o descriptor cifrado preservado pelo
+supervisor e não exige repetir IDs:
+
+```bash
+sudo bash packaging/systemd/manage-ci-attestation-capability.sh --revoke
+```
+
+O processo AntDelirium é rebaixado para o UID do operador antes de alcançar o
+socket, portanto `SO_PEERCRED` continua correspondendo ao subject do grant
+inicial. A rotina root apenas decifra/cifra e entrega FDs; ela não chama o
+handler como UID 0.
 
 ## Staging administrativo de legado — T8.3
 
@@ -707,7 +757,8 @@ administrador. Antes de atender os sockets, o serviço consome uma credencial
 `initial-capability-provisioning-v1` entregue pelo systemd, exige registry vazio,
 grants administrativos mínimos para operador não-root e grava hash de token mais
 recibo singleton em `storage-v8`. O [relatório de provisionamento](./VALIDACAO-PROVISIONAMENTO-INICIAL-T8.6.md)
-documenta o contrato, os testes sem privilégio e a rotina `sudo` ainda pendente.
+documenta o contrato, os testes sem privilégio e a retomada `sudo` concluída com
+restart sem credencial. `storage-v9` preserva esse recibo e os dois grants.
 
 O diretório do socket limitado é criado pela unidade `.socket`, não pela unidade
 de serviço; assim uma parada do daemon não tenta remover o pai de um listener

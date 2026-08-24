@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:capability-revoke-request-v1",
+  "title": "AntDelirium managed capability revoke request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "capability_id", "revocation_epoch"],
+  "properties": {
+    "contract_version": { "const": "capability-revoke-request-v1" },
+    "capability_id": { "type": "string", "pattern": "^cap_[0-9a-hjkmnp-tv-z]{26}$" },
+    "revocation_epoch": { "type": "integer", "minimum": 0 }
+  }
+}

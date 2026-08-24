@@ -10,11 +10,16 @@ use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[cfg(unix)]
+use std::os::fd::IntoRawFd;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+#[cfg(unix)]
 use std::os::unix::net::UnixStream;
 
 #[cfg(unix)]
 use ac_ant_delirium::structs::{
-    CapabilityActor, CapabilityChannel, CapabilityOperation, NewCapabilityGrant,
+    CapabilityActor, CapabilityAuthorizationOutcome, CapabilityAuthorizationRequest,
+    CapabilityChannel, CapabilityOperation, NewCapabilityGrant,
 };
 
 #[cfg(unix)]
@@ -236,6 +241,247 @@ fn migration_request_binds_connection_operation_and_inventory_digest() {
         validate_request(&request, &nonce),
         Err(AdministrativeProtocolError::Envelope)
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn installation_admin_grants_and_revokes_pre_cutover_ci_authority_over_ada1() {
+    if !enter_isolated_socket_test(
+        "capability-management",
+        "administrative_protocol::administrative_protocol_tests::installation_admin_grants_and_revokes_pre_cutover_ci_authority_over_ada1",
+    ) {
+        return;
+    }
+    let authority = VerifiedServiceAuthority::for_current_test_process().unwrap();
+    let clock = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+    let now = clock.as_secs() as i64;
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
+        "target/admin-protocol-tests/capability-management-{}-{}",
+        std::process::id(),
+        clock.as_nanos()
+    ));
+    fs::create_dir_all(&root).unwrap();
+    let storage = ProtectedServiceStorage::initialize(&authority, &root).unwrap();
+    let admin_secret = [31_u8; 32];
+    let admin_id = "cap_aaaaaaaaaaaaaaaaaaaaaaaaaa";
+    storage
+        .registry()
+        .store_capability_grant(&NewCapabilityGrant {
+            grant_id: admin_id.to_string(),
+            secret_hash: sha256(&admin_secret),
+            subject_uid: authority.effective_uid(),
+            actor: CapabilityActor::Operator,
+            channel: CapabilityChannel::Administrative,
+            operation: CapabilityOperation::InstallationAdmin,
+            project_id: None,
+            workspace_id: None,
+            task_id: None,
+            not_before_unix: now - 60,
+            expires_at_unix: now + 600,
+            revocation_epoch: 0,
+            granted_at: format!("unix:{}", now - 60),
+        })
+        .unwrap();
+
+    let target_id = "cap_bbbbbbbbbbbbbbbbbbbbbbbbbb";
+    let target_secret = [32_u8; 32];
+    let grant_nonce = [33_u8; 32];
+    let grant_authentication =
+        ConnectionAuthentication::for_test(authority.effective_uid(), grant_nonce);
+    let (mut grant_client, mut grant_server) = UnixStream::pair().unwrap();
+    let grant_response_bytes = std::thread::scope(|scope| {
+        scope.spawn(|| {
+            answer_administrative_hello(&mut grant_server, &grant_nonce).unwrap();
+            serve_administrative_request(
+                &mut grant_server,
+                &grant_authentication,
+                &authority,
+                &storage,
+            )
+            .unwrap();
+        });
+        let connection_nonce = negotiate_client(&mut grant_client).unwrap();
+        write_frame(
+            &mut grant_client,
+            &AdministrativeRequest {
+                message_type: "request".to_string(),
+                wire_version: ADMIN_WIRE_VERSION.to_string(),
+                request_id: "req_aaaaaaaaaaaaaaaaaaaaaaaaaa".to_string(),
+                connection_nonce,
+                operation: "capability.grant".to_string(),
+                capability: WireCapability {
+                    capability_id: admin_id.to_string(),
+                    token: encode_base64url(&admin_secret),
+                },
+                body: AdministrativeBody::Grant(CapabilityGrantBody {
+                    contract_version: "capability-grant-request-v1".to_string(),
+                    capability_id: target_id.to_string(),
+                    token: encode_base64url(&target_secret),
+                    subject_uid: authority.effective_uid(),
+                    actor: "ci".to_string(),
+                    channel: "administrative".to_string(),
+                    capability_operation: "attestation.create".to_string(),
+                    project_id: Some("prj_bbbbbbbbbbbbbbbbbbbbbbbbbb".to_string()),
+                    workspace_id: Some("wsp_bbbbbbbbbbbbbbbbbbbbbbbbbb".to_string()),
+                    task_id: None,
+                    lifetime_seconds: 300,
+                    revocation_epoch: 0,
+                }),
+            },
+        )
+        .unwrap();
+        read_frame(&mut grant_client).unwrap()
+    });
+    assert!(
+        !String::from_utf8_lossy(&grant_response_bytes).contains(&encode_base64url(&target_secret))
+    );
+    let grant_response: AdministrativeResponse =
+        serde_json::from_slice(&grant_response_bytes).unwrap();
+    let AdministrativeResult::Grant(grant_receipt) = grant_response.result.unwrap() else {
+        panic!("grant receipt expected");
+    };
+    assert_eq!(grant_receipt.capability_id, target_id);
+    assert_eq!(grant_receipt.state, "active");
+
+    let target_nonce = [34_u8; 32];
+    let target_request = CapabilityAuthorizationRequest {
+        grant_id: target_id.to_string(),
+        presented_secret: target_secret,
+        operation: CapabilityOperation::AttestationCreate,
+        project_id: Some("prj_bbbbbbbbbbbbbbbbbbbbbbbbbb".to_string()),
+        workspace_id: Some("wsp_bbbbbbbbbbbbbbbbbbbbbbbbbb".to_string()),
+        task_id: None,
+        presented_connection_nonce: target_nonce,
+        request_id: "req_bbbbbbbbbbbbbbbbbbbbbbbbbb".to_string(),
+        request_fingerprint: [35_u8; 32],
+    };
+    let authorization_now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+    assert!(matches!(
+        storage.registry().authorize_capability(
+            authority.effective_uid(),
+            CapabilityChannel::Administrative,
+            &target_nonce,
+            authorization_now,
+            &target_request,
+        ),
+        Ok(CapabilityAuthorizationOutcome::Fresh(_))
+    ));
+
+    let revoke_nonce = [36_u8; 32];
+    let revoke_authentication =
+        ConnectionAuthentication::for_test(authority.effective_uid(), revoke_nonce);
+    let (mut revoke_client, mut revoke_server) = UnixStream::pair().unwrap();
+    let revoke_response_bytes = std::thread::scope(|scope| {
+        scope.spawn(|| {
+            answer_administrative_hello(&mut revoke_server, &revoke_nonce).unwrap();
+            serve_administrative_request(
+                &mut revoke_server,
+                &revoke_authentication,
+                &authority,
+                &storage,
+            )
+            .unwrap();
+        });
+        let connection_nonce = negotiate_client(&mut revoke_client).unwrap();
+        write_frame(
+            &mut revoke_client,
+            &AdministrativeRequest {
+                message_type: "request".to_string(),
+                wire_version: ADMIN_WIRE_VERSION.to_string(),
+                request_id: "req_cccccccccccccccccccccccccc".to_string(),
+                connection_nonce,
+                operation: "capability.revoke".to_string(),
+                capability: WireCapability {
+                    capability_id: admin_id.to_string(),
+                    token: encode_base64url(&admin_secret),
+                },
+                body: AdministrativeBody::Revoke(CapabilityRevokeBody {
+                    contract_version: "capability-revoke-request-v1".to_string(),
+                    capability_id: target_id.to_string(),
+                    revocation_epoch: 0,
+                }),
+            },
+        )
+        .unwrap();
+        read_frame(&mut revoke_client).unwrap()
+    });
+    let revoke_response: AdministrativeResponse =
+        serde_json::from_slice(&revoke_response_bytes).unwrap();
+    let AdministrativeResult::Revoke(revoke_receipt) = revoke_response.result.unwrap() else {
+        panic!("revoke receipt expected");
+    };
+    assert_eq!(revoke_receipt.capability_id, target_id);
+    assert_eq!(revoke_receipt.state, "revoked");
+    assert_eq!(
+        storage
+            .registry()
+            .capability_management_event_count()
+            .unwrap(),
+        2
+    );
+
+    let mut after_revoke = target_request;
+    after_revoke.request_id = "req_dddddddddddddddddddddddddd".to_string();
+    after_revoke.request_fingerprint = [37_u8; 32];
+    assert_eq!(
+        storage.registry().authorize_capability(
+            authority.effective_uid(),
+            CapabilityChannel::Administrative,
+            &target_nonce,
+            now + 2,
+            &after_revoke,
+        ),
+        Ok(CapabilityAuthorizationOutcome::Denied)
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn capability_descriptor_writer_requires_a_private_empty_regular_file() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
+        "target/admin-protocol-tests/capability-descriptor-{}",
+        std::process::id()
+    ));
+    fs::create_dir_all(&root).unwrap();
+    let bundle = AdministrativeCapabilityBundle {
+        contract_version: "admin-capability-v1".to_string(),
+        capability: WireCapability {
+            capability_id: "cap_cccccccccccccccccccccccccc".to_string(),
+            token: encode_base64url(&[41_u8; 32]),
+        },
+    };
+    let private_path = root.join("private.json");
+    let private = fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&private_path)
+        .unwrap();
+    fs::set_permissions(&private_path, fs::Permissions::from_mode(0o600)).unwrap();
+    write_capability_bundle_to_fd(private.into_raw_fd().to_string().into(), &bundle).unwrap();
+    let persisted: AdministrativeCapabilityBundle =
+        serde_json::from_slice(&fs::read(&private_path).unwrap()).unwrap();
+    assert_eq!(
+        persisted.capability.capability_id,
+        bundle.capability.capability_id
+    );
+
+    let public_path = root.join("public.json");
+    let public = fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&public_path)
+        .unwrap();
+    fs::set_permissions(&public_path, fs::Permissions::from_mode(0o644)).unwrap();
+    assert_eq!(
+        write_capability_bundle_to_fd(public.into_raw_fd().to_string().into(), &bundle),
+        Err(AdministrativeProtocolError::Authorization)
+    );
+    assert_eq!(fs::metadata(&public_path).unwrap().len(), 0);
+    fs::remove_dir_all(root).unwrap();
 }
 
 #[cfg(unix)]

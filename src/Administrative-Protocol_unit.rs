@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use ac_ant_delirium::libres::Sha2_unit::sha256;
-use ac_ant_delirium::libres::System_Random_unit::fill_system_random;
+use ac_ant_delirium::libres::System_Random_unit::{fill_system_random, random_crockford_id};
 use ac_ant_delirium::structs::{
     CapabilityActor, CapabilityAuthorizationOutcome, CapabilityAuthorizationRequest,
     CapabilityChannel, CapabilityOperation,
@@ -33,6 +33,7 @@ use crate::public_output::{OutputRouter, PublicError};
 use crate::service_authentication::ConnectionAuthentication;
 use crate::service_authority::VerifiedServiceAuthority;
 use crate::service_hardening::set_descriptor_close_on_exec;
+use crate::service_storage::ManagedCapabilityGrantRequest;
 use crate::service_storage::ProtectedServiceStorage;
 
 const ADMIN_MAGIC: [u8; 4] = *b"ADA1";
@@ -43,6 +44,17 @@ const ADMIN_TIMEOUT: Duration = Duration::from_secs(120);
 const MIGRATION_OPERATION_TIMEOUT: Duration = Duration::from_secs(600);
 const ADMIN_SOCKET_ENV: &str = "ANTDELIRIUM_ADMIN_SOCKET";
 const ADMIN_CAPABILITY_FD_ENV: &str = "ANTDELIRIUM_ADMIN_CAPABILITY_FD";
+const CAPABILITY_OUTPUT_FD_ENV: &str = "ANTDELIRIUM_CAPABILITY_OUTPUT_FD";
+const CAPABILITY_TARGET_FD_ENV: &str = "ANTDELIRIUM_CAPABILITY_TARGET_FD";
+const CAPABILITY_SUBJECT_UID_ENV: &str = "ANTDELIRIUM_CAPABILITY_SUBJECT_UID";
+const CAPABILITY_ACTOR_ENV: &str = "ANTDELIRIUM_CAPABILITY_ACTOR";
+const CAPABILITY_CHANNEL_ENV: &str = "ANTDELIRIUM_CAPABILITY_CHANNEL";
+const CAPABILITY_OPERATION_ENV: &str = "ANTDELIRIUM_CAPABILITY_OPERATION";
+const CAPABILITY_PROJECT_ID_ENV: &str = "ANTDELIRIUM_CAPABILITY_PROJECT_ID";
+const CAPABILITY_WORKSPACE_ID_ENV: &str = "ANTDELIRIUM_CAPABILITY_WORKSPACE_ID";
+const CAPABILITY_TASK_ID_ENV: &str = "ANTDELIRIUM_CAPABILITY_TASK_ID";
+const CAPABILITY_LIFETIME_SECONDS_ENV: &str = "ANTDELIRIUM_CAPABILITY_LIFETIME_SECONDS";
+const CAPABILITY_REVOCATION_EPOCH_ENV: &str = "ANTDELIRIUM_CAPABILITY_REVOCATION_EPOCH";
 const MIGRATION_SOURCE_ENV: &str = "ANTDELIRIUM_MIGRATION_SOURCE";
 const MIGRATION_INVENTORY_ENV: &str = "ANTDELIRIUM_MIGRATION_INVENTORY";
 const EXPECTED_SOURCE_SHA256_ENV: &str = "ANTDELIRIUM_EXPECTED_SOURCE_SHA256";
@@ -98,6 +110,12 @@ struct WireCapability {
     token: String,
 }
 
+impl Drop for WireCapability {
+    fn drop(&mut self) {
+        erase_string(&mut self.token);
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct AdministrativeCapabilityBundle {
@@ -113,8 +131,58 @@ struct MigrationStageBody {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CapabilityGrantBody {
+    contract_version: String,
+    capability_id: String,
+    token: String,
+    subject_uid: u32,
+    actor: String,
+    channel: String,
+    capability_operation: String,
+    project_id: Option<String>,
+    workspace_id: Option<String>,
+    task_id: Option<String>,
+    lifetime_seconds: i64,
+    revocation_epoch: u64,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CapabilityRevokeBody {
+    contract_version: String,
+    capability_id: String,
+    revocation_epoch: u64,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CapabilityGrantReceipt {
+    contract_version: String,
+    capability_id: String,
+    audit_sequence: i64,
+    event_id: String,
+    correlation_id: String,
+    state: String,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CapabilityRevokeReceipt {
+    contract_version: String,
+    capability_id: String,
+    revocation_id: String,
+    audit_sequence: i64,
+    event_id: String,
+    correlation_id: String,
+    state: String,
+}
+
+#[derive(Serialize, Deserialize)]
 #[serde(untagged)]
 enum AdministrativeBody {
+    Grant(CapabilityGrantBody),
+    Revoke(CapabilityRevokeBody),
     Stage(MigrationStageBody),
     Normalize(LegacyNormalizationRequest),
     DryRun(LegacyDryRunRequest),
@@ -139,6 +207,8 @@ struct AdministrativeRequest {
 #[derive(Serialize, Deserialize)]
 #[serde(untagged)]
 enum AdministrativeResult {
+    Grant(CapabilityGrantReceipt),
+    Revoke(CapabilityRevokeReceipt),
     Stage(LegacyStageReceipt),
     Normalize(LegacyNormalizationReceipt),
     DryRun(LegacyDryRunReport),
@@ -207,6 +277,14 @@ pub(crate) fn run_migration_operator(args: &[OsString]) {
         run_operator_stage_inner().map(AdministrativeResult::Stage)
     };
     match result {
+        Ok(AdministrativeResult::Grant(receipt)) => OutputRouter::write_success(&format!(
+            "antdelirium[AD-CAPABILITY-GRANTED]: capability_id={} audit_sequence={} state=active",
+            receipt.capability_id, receipt.audit_sequence,
+        )),
+        Ok(AdministrativeResult::Revoke(receipt)) => OutputRouter::write_success(&format!(
+            "antdelirium[AD-CAPABILITY-REVOKED]: capability_id={} revocation_id={} audit_sequence={} state=revoked",
+            receipt.capability_id, receipt.revocation_id, receipt.audit_sequence,
+        )),
         Ok(AdministrativeResult::Stage(receipt)) => OutputRouter::write_success(&format!(
                 "antdelirium[AD-MIGRATION-STAGED]: migration_id={} project_id={} source_sha256={} staging_sha256={} state=staged",
                 receipt.migration_id,
@@ -268,6 +346,171 @@ pub(crate) fn run_migration_operator(args: &[OsString]) {
             OutputRouter::exit(PublicError::Configuration)
         }
     }
+}
+
+pub(crate) fn run_capability_operator(args: &[OsString]) {
+    let grant =
+        args.len() == 2 && args[0] == OsStr::new("capability") && args[1] == OsStr::new("grant");
+    let revoke =
+        args.len() == 2 && args[0] == OsStr::new("capability") && args[1] == OsStr::new("revoke");
+    if !grant && !revoke {
+        OutputRouter::exit(PublicError::Authorization);
+    }
+    if cfg!(debug_assertions) {
+        OutputRouter::exit(PublicError::Configuration);
+    }
+    let result = if grant {
+        run_capability_grant_inner().map(AdministrativeResult::Grant)
+    } else {
+        run_capability_revoke_inner().map(AdministrativeResult::Revoke)
+    };
+    match result {
+        Ok(AdministrativeResult::Grant(receipt)) => OutputRouter::write_success(&format!(
+            "antdelirium[AD-CAPABILITY-GRANTED]: capability_id={} audit_sequence={} state=active",
+            receipt.capability_id, receipt.audit_sequence,
+        )),
+        Ok(AdministrativeResult::Revoke(receipt)) => OutputRouter::write_success(&format!(
+            "antdelirium[AD-CAPABILITY-REVOKED]: capability_id={} revocation_id={} audit_sequence={} state=revoked",
+            receipt.capability_id, receipt.revocation_id, receipt.audit_sequence,
+        )),
+        Ok(_) => OutputRouter::exit(PublicError::Protocol),
+        Err(AdministrativeProtocolError::Authorization) => {
+            OutputRouter::exit(PublicError::Authorization)
+        }
+        Err(AdministrativeProtocolError::Endpoint | AdministrativeProtocolError::Transport(_)) => {
+            OutputRouter::exit(PublicError::ServiceUnavailable)
+        }
+        Err(AdministrativeProtocolError::Framing | AdministrativeProtocolError::Envelope) => {
+            OutputRouter::exit(PublicError::Protocol)
+        }
+        Err(AdministrativeProtocolError::Staging) => {
+            OutputRouter::exit(PublicError::Configuration)
+        }
+    }
+}
+
+#[cfg(unix)]
+fn run_capability_grant_inner() -> Result<CapabilityGrantReceipt, AdministrativeProtocolError> {
+    let endpoint = std::env::var_os(ADMIN_SOCKET_ENV);
+    let output_fd = std::env::var_os(CAPABILITY_OUTPUT_FD_ENV);
+    let subject_uid = std::env::var(CAPABILITY_SUBJECT_UID_ENV).ok();
+    let actor = std::env::var(CAPABILITY_ACTOR_ENV).ok();
+    let channel = std::env::var(CAPABILITY_CHANNEL_ENV).ok();
+    let operation = std::env::var(CAPABILITY_OPERATION_ENV).ok();
+    let project_id = std::env::var(CAPABILITY_PROJECT_ID_ENV).ok();
+    let workspace_id = std::env::var(CAPABILITY_WORKSPACE_ID_ENV).ok();
+    let task_id = std::env::var(CAPABILITY_TASK_ID_ENV).ok();
+    let lifetime_seconds = std::env::var(CAPABILITY_LIFETIME_SECONDS_ENV).ok();
+    let revocation_epoch = std::env::var(CAPABILITY_REVOCATION_EPOCH_ENV).ok();
+    clear_capability_environment();
+
+    let endpoint = required_absolute_path(endpoint)?;
+    let subject_uid = parse_decimal::<u32>(subject_uid)?;
+    let actor = actor.ok_or(AdministrativeProtocolError::Envelope)?;
+    let channel = channel.ok_or(AdministrativeProtocolError::Envelope)?;
+    let operation = operation.ok_or(AdministrativeProtocolError::Envelope)?;
+    let lifetime_seconds = parse_decimal::<i64>(lifetime_seconds)?;
+    let revocation_epoch = parse_decimal::<u64>(revocation_epoch)?;
+    let capability = read_administrative_capability()?;
+
+    let capability_id =
+        random_crockford_id("cap_").map_err(|_| AdministrativeProtocolError::Envelope)?;
+    let mut token = [0_u8; 32];
+    fill_system_random(&mut token)
+        .map_err(|_| AdministrativeProtocolError::Transport("capability-entropy"))?;
+    if token.iter().all(|byte| *byte == 0) {
+        return Err(AdministrativeProtocolError::Transport(
+            "capability-entropy-zero",
+        ));
+    }
+    let mut issued = AdministrativeCapabilityBundle {
+        contract_version: "admin-capability-v1".to_string(),
+        capability: WireCapability {
+            capability_id: capability_id.clone(),
+            token: encode_base64url(&token),
+        },
+    };
+    let write_result = match output_fd {
+        Some(output_fd) => write_capability_bundle_to_fd(output_fd, &issued),
+        None => Err(AdministrativeProtocolError::Authorization),
+    };
+    token.fill(0);
+    if let Err(error) = write_result {
+        erase_string(&mut issued.capability.token);
+        return Err(error);
+    }
+
+    let result = exchange_administrative_request(
+        &endpoint,
+        capability.capability,
+        "capability.grant",
+        AdministrativeBody::Grant(CapabilityGrantBody {
+            contract_version: "capability-grant-request-v1".to_string(),
+            capability_id: capability_id.clone(),
+            token: issued.capability.token.clone(),
+            subject_uid,
+            actor,
+            channel,
+            capability_operation: operation,
+            project_id,
+            workspace_id,
+            task_id,
+            lifetime_seconds,
+            revocation_epoch,
+        }),
+    );
+    erase_string(&mut issued.capability.token);
+    match result? {
+        AdministrativeResult::Grant(receipt) if receipt.capability_id == capability_id => {
+            Ok(receipt)
+        }
+        _ => Err(AdministrativeProtocolError::Envelope),
+    }
+}
+
+#[cfg(not(unix))]
+fn run_capability_grant_inner() -> Result<CapabilityGrantReceipt, AdministrativeProtocolError> {
+    Err(AdministrativeProtocolError::Transport(
+        "unsupported-platform",
+    ))
+}
+
+#[cfg(unix)]
+fn run_capability_revoke_inner() -> Result<CapabilityRevokeReceipt, AdministrativeProtocolError> {
+    let endpoint = std::env::var_os(ADMIN_SOCKET_ENV);
+    let target_fd = std::env::var_os(CAPABILITY_TARGET_FD_ENV);
+    let revocation_epoch = std::env::var(CAPABILITY_REVOCATION_EPOCH_ENV).ok();
+    clear_capability_environment();
+    let endpoint = required_absolute_path(endpoint)?;
+    let revocation_epoch = parse_decimal::<u64>(revocation_epoch)?;
+    let capability = read_administrative_capability()?;
+    let mut target = read_capability_bundle_from_raw_fd(
+        target_fd.ok_or(AdministrativeProtocolError::Authorization)?,
+    )?;
+    let capability_id = target.capability.capability_id.clone();
+    erase_string(&mut target.capability.token);
+    match exchange_administrative_request(
+        &endpoint,
+        capability.capability,
+        "capability.revoke",
+        AdministrativeBody::Revoke(CapabilityRevokeBody {
+            contract_version: "capability-revoke-request-v1".to_string(),
+            capability_id: capability_id.clone(),
+            revocation_epoch,
+        }),
+    )? {
+        AdministrativeResult::Revoke(receipt) if receipt.capability_id == capability_id => {
+            Ok(receipt)
+        }
+        _ => Err(AdministrativeProtocolError::Envelope),
+    }
+}
+
+#[cfg(not(unix))]
+fn run_capability_revoke_inner() -> Result<CapabilityRevokeReceipt, AdministrativeProtocolError> {
+    Err(AdministrativeProtocolError::Transport(
+        "unsupported-platform",
+    ))
 }
 
 #[cfg(unix)]
@@ -788,9 +1031,11 @@ pub(crate) fn serve_administrative_request(
     authority: &VerifiedServiceAuthority,
     storage: &ProtectedServiceStorage,
 ) -> Result<(), AdministrativeProtocolError> {
-    let payload = read_frame(stream)?;
+    let mut payload = read_frame(stream)?;
+    let parsed = serde_json::from_slice(&payload);
+    payload.fill(0);
     let request: AdministrativeRequest =
-        serde_json::from_slice(&payload).map_err(|_| AdministrativeProtocolError::Envelope)?;
+        parsed.map_err(|_| AdministrativeProtocolError::Envelope)?;
     validate_request(&request, authentication.connection_nonce())?;
     let authorization = capability_request(authentication, &request)?;
     let outcome = authentication
@@ -809,6 +1054,54 @@ pub(crate) fn serve_administrative_request(
         _ => return Err(AdministrativeProtocolError::Authorization),
     };
     let result = match request.body {
+        AdministrativeBody::Grant(mut body) => {
+            let actor = parse_managed_actor(&body.actor)?;
+            let channel = parse_capability_channel(&body.channel)?;
+            let operation = parse_managed_operation(&body.capability_operation)?;
+            let decoded_token = decode_base64url(&body.token);
+            erase_string(&mut body.token);
+            let mut token = decoded_token.map_err(|_| AdministrativeProtocolError::Envelope)?;
+            let grant_result = storage.grant_managed_capability(
+                &capability,
+                ManagedCapabilityGrantRequest {
+                    grant_id: body.capability_id,
+                    secret_hash: sha256(&token),
+                    subject_uid: body.subject_uid,
+                    actor,
+                    channel,
+                    operation,
+                    project_id: body.project_id,
+                    workspace_id: body.workspace_id,
+                    task_id: body.task_id,
+                    lifetime_seconds: body.lifetime_seconds,
+                    revocation_epoch: body.revocation_epoch,
+                },
+            );
+            token.fill(0);
+            let receipt = grant_result.map_err(|_| AdministrativeProtocolError::Authorization)?;
+            AdministrativeResult::Grant(CapabilityGrantReceipt {
+                contract_version: "capability-grant-receipt-v1".to_string(),
+                capability_id: receipt.grant_id,
+                audit_sequence: receipt.audit_sequence,
+                event_id: receipt.event_id,
+                correlation_id: receipt.correlation_id,
+                state: "active".to_string(),
+            })
+        }
+        AdministrativeBody::Revoke(body) => {
+            let receipt = storage
+                .revoke_managed_capability(&capability, &body.capability_id, body.revocation_epoch)
+                .map_err(|_| AdministrativeProtocolError::Authorization)?;
+            AdministrativeResult::Revoke(CapabilityRevokeReceipt {
+                contract_version: "capability-revoke-receipt-v1".to_string(),
+                capability_id: receipt.grant_id,
+                revocation_id: receipt.revocation_id,
+                audit_sequence: receipt.audit_sequence,
+                event_id: receipt.event_id,
+                correlation_id: receipt.correlation_id,
+                state: "revoked".to_string(),
+            })
+        }
         AdministrativeBody::Stage(body) => {
             let inventory_document = serde_json::to_vec_pretty(&body.inventory)
                 .map_err(|_| AdministrativeProtocolError::Envelope)?;
@@ -887,6 +1180,9 @@ fn capability_request(
         &serde_json::to_vec(&request.body).map_err(|_| AdministrativeProtocolError::Envelope)?,
     );
     let (operation, project_id, workspace_id) = match &request.body {
+        AdministrativeBody::Grant(_) | AdministrativeBody::Revoke(_) => {
+            (CapabilityOperation::InstallationAdmin, None, None)
+        }
         AdministrativeBody::Attest(body) => (
             CapabilityOperation::AttestationCreate,
             Some(body.project_id.clone()),
@@ -913,6 +1209,14 @@ fn request_authority_matches(
     capability: &ac_ant_delirium::structs::AuthorizedCapability,
 ) -> bool {
     match &request.body {
+        AdministrativeBody::Grant(_) | AdministrativeBody::Revoke(_) => {
+            capability.actor() == CapabilityActor::Operator
+                && capability.channel() == CapabilityChannel::Administrative
+                && capability.operation() == CapabilityOperation::InstallationAdmin
+                && capability.project_id().is_none()
+                && capability.workspace_id().is_none()
+                && capability.task_id().is_none()
+        }
         AdministrativeBody::Attest(body) => {
             capability.actor() == CapabilityActor::Ci
                 && capability.channel() == CapabilityChannel::Administrative
@@ -940,7 +1244,9 @@ fn validate_request(
         || request.wire_version != ADMIN_WIRE_VERSION
         || !matches!(
             request.operation.as_str(),
-            "migration.stage"
+            "capability.grant"
+                | "capability.revoke"
+                | "migration.stage"
                 | "migration.normalize"
                 | "migration.dry-run"
                 | "migration.convert"
@@ -956,6 +1262,19 @@ fn validate_request(
         return Err(AdministrativeProtocolError::Envelope);
     }
     match (&request.operation[..], &request.body) {
+        ("capability.grant", AdministrativeBody::Grant(body))
+            if body.contract_version == "capability-grant-request-v1"
+                && valid_opaque_id(&body.capability_id, "cap_")
+                && is_encoded_nonce(&body.token) =>
+        {
+            Ok(())
+        }
+        ("capability.revoke", AdministrativeBody::Revoke(body))
+            if body.contract_version == "capability-revoke-request-v1"
+                && valid_opaque_id(&body.capability_id, "cap_") =>
+        {
+            Ok(())
+        }
         ("migration.stage", AdministrativeBody::Stage(body))
             if body.inventory["inventory_sha256"].as_str()
                 == Some(&body.expected_source_snapshot_sha256) =>
@@ -996,6 +1315,44 @@ fn validate_request(
     }
 }
 
+fn parse_managed_actor(value: &str) -> Result<CapabilityActor, AdministrativeProtocolError> {
+    match value {
+        "wrapper" => Ok(CapabilityActor::Wrapper),
+        "agent" => Ok(CapabilityActor::Agent),
+        "reviewer" => Ok(CapabilityActor::Reviewer),
+        "ci" => Ok(CapabilityActor::Ci),
+        _ => Err(AdministrativeProtocolError::Envelope),
+    }
+}
+
+fn parse_capability_channel(value: &str) -> Result<CapabilityChannel, AdministrativeProtocolError> {
+    match value {
+        "limited" => Ok(CapabilityChannel::Limited),
+        "administrative" => Ok(CapabilityChannel::Administrative),
+        _ => Err(AdministrativeProtocolError::Envelope),
+    }
+}
+
+fn parse_managed_operation(
+    value: &str,
+) -> Result<CapabilityOperation, AdministrativeProtocolError> {
+    match value {
+        "compile.observe" => Ok(CapabilityOperation::CompileObserve),
+        "projection.refresh" => Ok(CapabilityOperation::ProjectionRefresh),
+        "task.current.read" => Ok(CapabilityOperation::TaskCurrentRead),
+        "submission.create" => Ok(CapabilityOperation::SubmissionCreate),
+        "submission.read.assigned" => Ok(CapabilityOperation::SubmissionReadAssigned),
+        "review.decide.assigned" => Ok(CapabilityOperation::ReviewDecideAssigned),
+        "attestation.create" => Ok(CapabilityOperation::AttestationCreate),
+        _ => Err(AdministrativeProtocolError::Envelope),
+    }
+}
+
+fn erase_string(value: &mut String) {
+    // SAFETY: zero bytes remain valid UTF-8. The token is never parsed again.
+    unsafe { value.as_mut_vec().fill(0) };
+}
+
 #[cfg(unix)]
 fn negotiate_client(stream: &mut UnixStream) -> Result<String, AdministrativeProtocolError> {
     configure_nonblocking(stream)?;
@@ -1033,7 +1390,8 @@ fn write_frame<T: Serialize>(
     stream: &mut UnixStream,
     value: &T,
 ) -> Result<(), AdministrativeProtocolError> {
-    let payload = serde_json::to_vec(value).map_err(|_| AdministrativeProtocolError::Envelope)?;
+    let mut payload =
+        serde_json::to_vec(value).map_err(|_| AdministrativeProtocolError::Envelope)?;
     if payload.is_empty() || payload.len() > MAX_FRAME_BYTES {
         return Err(AdministrativeProtocolError::Framing);
     }
@@ -1042,7 +1400,10 @@ fn write_frame<T: Serialize>(
     frame.extend_from_slice(&ADMIN_MAGIC);
     frame.extend_from_slice(&length.to_be_bytes());
     frame.extend_from_slice(&payload);
-    write_all_before(stream, &frame, Instant::now() + ADMIN_TIMEOUT)
+    let result = write_all_before(stream, &frame, Instant::now() + ADMIN_TIMEOUT);
+    payload.fill(0);
+    frame.fill(0);
+    result
 }
 
 #[cfg(unix)]
@@ -1294,6 +1655,147 @@ fn clear_operator_path_environment() {
     }
 }
 
+fn clear_capability_environment() {
+    for name in [
+        ADMIN_SOCKET_ENV,
+        CAPABILITY_OUTPUT_FD_ENV,
+        CAPABILITY_TARGET_FD_ENV,
+        CAPABILITY_SUBJECT_UID_ENV,
+        CAPABILITY_ACTOR_ENV,
+        CAPABILITY_CHANNEL_ENV,
+        CAPABILITY_OPERATION_ENV,
+        CAPABILITY_PROJECT_ID_ENV,
+        CAPABILITY_WORKSPACE_ID_ENV,
+        CAPABILITY_TASK_ID_ENV,
+        CAPABILITY_LIFETIME_SECONDS_ENV,
+        CAPABILITY_REVOCATION_EPOCH_ENV,
+    ] {
+        std::env::remove_var(name);
+    }
+}
+
+fn parse_decimal<T: std::str::FromStr>(
+    value: Option<String>,
+) -> Result<T, AdministrativeProtocolError> {
+    value
+        .and_then(|value| value.parse::<T>().ok())
+        .ok_or(AdministrativeProtocolError::Envelope)
+}
+
+#[cfg(unix)]
+fn exchange_administrative_request(
+    endpoint: &Path,
+    mut capability: WireCapability,
+    operation: &str,
+    mut body: AdministrativeBody,
+) -> Result<AdministrativeResult, AdministrativeProtocolError> {
+    let mut stream = match UnixStream::connect(endpoint) {
+        Ok(stream) => stream,
+        Err(_) => {
+            erase_request_secrets(&mut capability, &mut body);
+            return Err(AdministrativeProtocolError::Transport("connect"));
+        }
+    };
+    if set_descriptor_close_on_exec(stream.as_raw_fd()).is_err() {
+        erase_request_secrets(&mut capability, &mut body);
+        return Err(AdministrativeProtocolError::Transport("close-on-exec"));
+    }
+    let connection_nonce = match negotiate_client(&mut stream) {
+        Ok(nonce) => nonce,
+        Err(error) => {
+            erase_request_secrets(&mut capability, &mut body);
+            return Err(error);
+        }
+    };
+    let request_id = match random_request_id() {
+        Ok(request_id) => request_id,
+        Err(_) => {
+            erase_request_secrets(&mut capability, &mut body);
+            return Err(AdministrativeProtocolError::Envelope);
+        }
+    };
+    let mut request = AdministrativeRequest {
+        message_type: "request".to_string(),
+        wire_version: ADMIN_WIRE_VERSION.to_string(),
+        request_id: request_id.clone(),
+        connection_nonce,
+        operation: operation.to_string(),
+        capability,
+        body,
+    };
+    let write_result = write_frame(&mut stream, &request);
+    erase_string(&mut request.capability.token);
+    if let AdministrativeBody::Grant(body) = &mut request.body {
+        erase_string(&mut body.token);
+    }
+    write_result?;
+    let response: AdministrativeResponse =
+        serde_json::from_slice(&read_frame_with_timeout(&mut stream, ADMIN_TIMEOUT)?)
+            .map_err(|_| AdministrativeProtocolError::Envelope)?;
+    if response.message_type != "response"
+        || response.wire_version != ADMIN_WIRE_VERSION
+        || response.request_id != request_id
+        || response.status != "ok"
+        || response.error.is_some()
+    {
+        return Err(AdministrativeProtocolError::Envelope);
+    }
+    response.result.ok_or(AdministrativeProtocolError::Envelope)
+}
+
+fn erase_request_secrets(capability: &mut WireCapability, body: &mut AdministrativeBody) {
+    erase_string(&mut capability.token);
+    if let AdministrativeBody::Grant(body) = body {
+        erase_string(&mut body.token);
+    }
+}
+
+#[cfg(unix)]
+fn write_capability_bundle_to_fd(
+    raw: OsString,
+    capability: &AdministrativeCapabilityBundle,
+) -> Result<(), AdministrativeProtocolError> {
+    let raw_fd = parse_open_descriptor(&raw)?;
+    let mut file = unsafe { std::fs::File::from_raw_fd(raw_fd) };
+    set_descriptor_close_on_exec(file.as_raw_fd())
+        .map_err(|_| AdministrativeProtocolError::Authorization)?;
+    let mut status: libc::stat = unsafe { std::mem::zeroed() };
+    if unsafe { libc::fstat(file.as_raw_fd(), &mut status) } != 0
+        || (status.st_mode & libc::S_IFMT) != libc::S_IFREG
+        || (status.st_mode & 0o777) != 0o600
+        || status.st_uid != unsafe { libc::geteuid() }
+        || status.st_nlink != 1
+        || status.st_size != 0
+    {
+        return Err(AdministrativeProtocolError::Authorization);
+    }
+    let flags = unsafe { libc::fcntl(file.as_raw_fd(), libc::F_GETFL) };
+    if flags < 0 || (flags & libc::O_ACCMODE) == libc::O_RDONLY {
+        return Err(AdministrativeProtocolError::Authorization);
+    }
+    let mut bytes =
+        serde_json::to_vec(capability).map_err(|_| AdministrativeProtocolError::Envelope)?;
+    bytes.push(b'\n');
+    if bytes.len() > 4096 {
+        bytes.fill(0);
+        return Err(AdministrativeProtocolError::Envelope);
+    }
+    let result = file
+        .write_all(&bytes)
+        .and_then(|_| file.sync_all())
+        .map_err(|_| AdministrativeProtocolError::Transport("capability-descriptor-write"));
+    bytes.fill(0);
+    result
+}
+
+#[cfg(unix)]
+fn parse_open_descriptor(raw: &OsStr) -> Result<i32, AdministrativeProtocolError> {
+    raw.to_str()
+        .and_then(|value| value.parse::<i32>().ok())
+        .filter(|fd| *fd >= 3 && unsafe { libc::fcntl(*fd, libc::F_GETFD) } >= 0)
+        .ok_or(AdministrativeProtocolError::Authorization)
+}
+
 fn read_bounded_regular_file(
     path: &Path,
     maximum: u64,
@@ -1322,30 +1824,41 @@ fn read_bounded_regular_file(
 #[cfg(unix)]
 fn read_administrative_capability(
 ) -> Result<AdministrativeCapabilityBundle, AdministrativeProtocolError> {
-    let raw = std::env::var(ADMIN_CAPABILITY_FD_ENV)
-        .map_err(|_| AdministrativeProtocolError::Authorization)?;
-    std::env::remove_var(ADMIN_CAPABILITY_FD_ENV);
-    let raw_fd = raw
-        .parse::<i32>()
-        .ok()
-        .filter(|fd| *fd >= 3 && unsafe { libc::fcntl(*fd, libc::F_GETFD) } >= 0)
+    let raw = std::env::var_os(ADMIN_CAPABILITY_FD_ENV)
         .ok_or(AdministrativeProtocolError::Authorization)?;
-    set_descriptor_close_on_exec(raw_fd).map_err(|_| AdministrativeProtocolError::Authorization)?;
+    std::env::remove_var(ADMIN_CAPABILITY_FD_ENV);
+    read_capability_bundle_from_raw_fd(raw)
+}
+
+#[cfg(unix)]
+fn read_capability_bundle_from_raw_fd(
+    raw: OsString,
+) -> Result<AdministrativeCapabilityBundle, AdministrativeProtocolError> {
+    let raw_fd = parse_open_descriptor(&raw)?;
     let mut file = unsafe { std::fs::File::from_raw_fd(raw_fd) };
-    let mut bytes = Vec::with_capacity(512);
-    std::io::Read::by_ref(&mut file)
-        .take(4097)
-        .read_to_end(&mut bytes)
+    set_descriptor_close_on_exec(file.as_raw_fd())
         .map_err(|_| AdministrativeProtocolError::Authorization)?;
-    if bytes.is_empty() || bytes.len() > 4096 {
+    let mut bytes = Vec::with_capacity(512);
+    let read_result = std::io::Read::by_ref(&mut file)
+        .take(4097)
+        .read_to_end(&mut bytes);
+    if read_result.is_err() {
+        bytes.fill(0);
         return Err(AdministrativeProtocolError::Authorization);
     }
-    let capability: AdministrativeCapabilityBundle =
-        serde_json::from_slice(&bytes).map_err(|_| AdministrativeProtocolError::Authorization)?;
+    if bytes.is_empty() || bytes.len() > 4096 {
+        bytes.fill(0);
+        return Err(AdministrativeProtocolError::Authorization);
+    }
+    let parsed = serde_json::from_slice(&bytes);
+    bytes.fill(0);
+    let mut capability: AdministrativeCapabilityBundle =
+        parsed.map_err(|_| AdministrativeProtocolError::Authorization)?;
     if capability.contract_version != "admin-capability-v1"
         || !valid_opaque_id(&capability.capability.capability_id, "cap_")
         || !is_encoded_nonce(&capability.capability.token)
     {
+        erase_string(&mut capability.capability.token);
         return Err(AdministrativeProtocolError::Authorization);
     }
     Ok(capability)

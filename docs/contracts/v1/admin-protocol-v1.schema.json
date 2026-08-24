@@ -58,10 +58,12 @@
         "wire_version": { "const": "ada/1" },
         "request_id": { "$ref": "#/$defs/requestId" },
         "connection_nonce": { "$ref": "#/$defs/nonce" },
-        "operation": { "enum": ["migration.stage", "migration.normalize", "migration.dry-run", "migration.convert", "migration.attest", "migration.approve", "migration.cutover"] },
+        "operation": { "enum": ["capability.grant", "capability.revoke", "migration.stage", "migration.normalize", "migration.dry-run", "migration.convert", "migration.attest", "migration.approve", "migration.cutover"] },
         "capability": { "$ref": "#/$defs/capability" },
         "body": {
           "oneOf": [
+            { "$ref": "urn:antdelirium:contract:capability-grant-request-v1" },
+            { "$ref": "urn:antdelirium:contract:capability-revoke-request-v1" },
             { "$ref": "#/$defs/migrationStageBody" },
             { "$ref": "urn:antdelirium:contract:legacy-normalization-request-v1" },
             { "$ref": "urn:antdelirium:contract:legacy-dry-run-request-v1" },
@@ -73,6 +75,14 @@
         }
       },
       "allOf": [
+        {
+          "if": { "properties": { "operation": { "const": "capability.grant" } } },
+          "then": { "properties": { "body": { "$ref": "urn:antdelirium:contract:capability-grant-request-v1" } } }
+        },
+        {
+          "if": { "properties": { "operation": { "const": "capability.revoke" } } },
+          "then": { "properties": { "body": { "$ref": "urn:antdelirium:contract:capability-revoke-request-v1" } } }
+        },
         {
           "if": { "properties": { "operation": { "const": "migration.stage" } } },
           "then": { "properties": { "body": { "$ref": "#/$defs/migrationStageBody" } } }
@@ -123,6 +133,8 @@
         "status": { "enum": ["ok", "error"] },
         "result": {
           "oneOf": [
+            { "$ref": "urn:antdelirium:contract:capability-grant-receipt-v1" },
+            { "$ref": "urn:antdelirium:contract:capability-revoke-receipt-v1" },
             { "$ref": "urn:antdelirium:contract:legacy-stage-receipt-v1" },
             { "$ref": "urn:antdelirium:contract:legacy-normalization-receipt-v1" },
             { "$ref": "urn:antdelirium:contract:legacy-dry-run-report-v1" },
@@ -191,6 +203,8 @@
             "properties": {
               "result": {
                 "oneOf": [
+                  { "$ref": "urn:antdelirium:contract:capability-grant-receipt-v1" },
+                  { "$ref": "urn:antdelirium:contract:capability-revoke-receipt-v1" },
                   { "$ref": "urn:antdelirium:contract:legacy-stage-receipt-v1" },
                   { "$ref": "urn:antdelirium:contract:legacy-normalization-receipt-v1" },
                   { "$ref": "urn:antdelirium:contract:legacy-dry-run-report-v1" },
