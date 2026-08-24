@@ -1,6 +1,5 @@
 [Unit]
 Description=AntDelirium limited local protocol socket
-Documentation=man:antdelirium(1)
 
 [Socket]
 ListenStream=@RUNDIR@/agent.sock

@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://antdelirium.invalid/contracts/v1/system-installation-bundle-v1.schema.json",
+  "title": "AntDelirium staged system installation bundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "limited_endpoint",
+    "service_identity",
+    "client_group",
+    "administrative_group",
+    "files",
+    "activation_performed",
+    "global_installation_performed"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "system-installation-bundle-v1"
+    },
+    "limited_endpoint": {
+      "const": "/run/antdelirium/agent.sock"
+    },
+    "service_identity": {
+      "const": "antdelirium"
+    },
+    "client_group": {
+      "const": "antdelirium-client"
+    },
+    "administrative_group": {
+      "const": "antdelirium-admin"
+    },
+    "files": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["artifact", "destination", "mode", "owner", "group", "sha256"],
+        "properties": {
+          "artifact": {
+            "enum": [
+              "service-binary",
+              "service-unit",
+              "limited-socket-unit",
+              "administrative-socket-unit",
+              "system-identities"
+            ]
+          },
+          "destination": {
+            "enum": [
+              "/usr/libexec/antdelirium/antdelirium",
+              "/usr/lib/systemd/system/antdelirium.service",
+              "/usr/lib/systemd/system/antdelirium-agent.socket",
+              "/usr/lib/systemd/system/antdelirium-admin.socket",
+              "/usr/lib/sysusers.d/antdelirium.conf"
+            ]
+          },
+          "mode": {
+            "enum": ["0644", "0755"]
+          },
+          "owner": {
+            "const": "root"
+          },
+          "group": {
+            "const": "root"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    },
+    "activation_performed": {
+      "const": false
+    },
+    "global_installation_performed": {
+      "const": false
+    }
+  }
+}
+

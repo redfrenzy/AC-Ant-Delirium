@@ -685,16 +685,29 @@ calculado com no mínimo 30 dias. A
 [prova de aprovação](./VALIDACAO-APROVACAO-OPERADOR-AUTOBROWSER-T8.6.md)
 terminou em `approved_awaiting_cutover`, sem troca de autoridade.
 
-Os templates não instalados
+Os templates
 [`packaging/systemd/antdelirium.service.in`](../packaging/systemd/antdelirium.service.in)
 [`packaging/systemd/antdelirium-agent.socket.in`](../packaging/systemd/antdelirium-agent.socket.in)
 e
 [`packaging/systemd/antdelirium-admin.socket.in`](../packaging/systemd/antdelirium-admin.socket.in)
-usam unidade de sistema, o mesmo binário físico, `Accept=no` e dois diretórios
-de runtime independentes. O serviço exige as duas unidades socket e inclui o
-baseline de hardening de `authority-v1`. Esta implementação não criou conta,
-grupo, diretório protegido, socket ou unidade ativa e não deve ser iniciada
-como serviço `systemd --user`.
+usam unidade de sistema, a mesma implementação binária, `Accept=no` e dois
+diretórios de runtime independentes. O serviço exige as duas unidades socket e
+inclui o baseline de hardening de `authority-v1`.
+
+O alvo `make system-installation-bundle` renderiza esses arquivos, a declaração
+[`sysusers.d`](../packaging/systemd/antdelirium.sysusers) e o mesmo ELF release em
+um staging sob `target/`. O
+[relatório T8.6](./VALIDACAO-BUNDLE-INSTALACAO-SYSTEMD-T8.6.md) registra
+`systemd-analyze verify`, `systemd-sysusers --dry-run`, hashes, modos e o
+manifesto fechado. O renderer não escreve em `/usr`, `/etc`, `/run` ou no Cargo
+home real, e o manifesto declara que instalação e ativação não ocorreram.
+
+O diretório do socket limitado é criado pela unidade `.socket`, não pela unidade
+de serviço; assim uma parada do daemon não tenta remover o pai de um listener
+ainda ativo. O state root continua criado exclusivamente por
+`StateDirectory=antdelirium` com modo `0700`. Esta implementação não criou conta,
+grupo, diretório protegido, socket ou unidade ativa e não deve ser iniciada como
+serviço `systemd --user`.
 
 Definir `STATE_DIRECTORY` manualmente como usuário do agente não cria storage:
 o gate de UID ocorre antes da leitura dessa variável. O path físico não é
@@ -720,7 +733,8 @@ A T7.1 implementou a primeira etapa interna do instalador:
 ```bash
 cargo build --release --locked --target x86_64-unknown-linux-gnu \
   --bin antdelirium
-target/x86_64-unknown-linux-gnu/release/antdelirium install
+ANTDELIRIUM_LIMITED_SOCKET=/run/antdelirium/agent.sock \
+  target/x86_64-unknown-linux-gnu/release/antdelirium install
 ```
 
 Essa primitiva copia atomicamente o próprio release para

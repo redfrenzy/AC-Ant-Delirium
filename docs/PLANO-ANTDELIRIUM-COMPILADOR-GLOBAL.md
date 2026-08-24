@@ -1092,7 +1092,11 @@ ocorrer em passos posteriores e separados. A integração Cargo automática já 
 preparada no instalador: o endpoint limitado fornecido no ato de instalação é
 persistido com `force=true` ao lado do wrapper, enquanto endpoint administrativo
 e paths protegidos permanecem ausentes. A prova usa somente Cargo home
-descartável; nenhuma configuração global real foi alterada.
+descartável; nenhuma configuração global real foi alterada. O bundle
+[`system-installation-bundle-v1`](./VALIDACAO-BUNDLE-INSTALACAO-SYSTEMD-T8.6.md)
+também materializa sob `target/` o mesmo ELF release, sysusers e as três unidades,
+valida-os com systemd 255 e mantém instalação/ativação falsas. Ainda não escolhe
+membros dos grupos nem escreve no host.
 
 ### Fase 8 — endurecimento contra agentes hostis
 

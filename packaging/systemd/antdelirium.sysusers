@@ -1,0 +1,5 @@
+# Type Name                  ID GECOS                                         Home                    Shell
+u      antdelirium           -  "AntDelirium protected governance service"  /var/lib/antdelirium    -
+g      antdelirium-client    -  -
+g      antdelirium-admin     -  -
+

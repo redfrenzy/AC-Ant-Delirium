@@ -1,6 +1,5 @@
 [Unit]
 Description=AntDelirium protected governance service
-Documentation=man:antdelirium(1)
 Requires=antdelirium-agent.socket antdelirium-admin.socket
 After=antdelirium-agent.socket antdelirium-admin.socket
 After=local-fs.target
@@ -38,8 +37,6 @@ AmbientCapabilities=
 SystemCallArchitectures=native
 StateDirectory=antdelirium
 StateDirectoryMode=0700
-RuntimeDirectory=antdelirium
-RuntimeDirectoryMode=0755
 
 [Install]
 WantedBy=multi-user.target

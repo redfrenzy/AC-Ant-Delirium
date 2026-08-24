@@ -1,6 +1,5 @@
 [Unit]
 Description=AntDelirium administrative local protocol socket
-Documentation=man:antdelirium(1)
 
 [Socket]
 ListenStream=@ADMIN_RUNDIR@/admin.sock
