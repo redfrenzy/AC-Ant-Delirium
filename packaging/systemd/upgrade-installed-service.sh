@@ -62,7 +62,7 @@ finish() {
 }
 trap finish EXIT
 
-for command in systemctl journalctl jq sha256sum install cp mv python3 cmp tee; do
+for command in systemctl journalctl jq sha256sum install cp mv python3 cmp sleep tee; do
     command -v "$command" >/dev/null 2>&1 \
         || fail "required command is unavailable: $command"
 done
@@ -109,7 +109,8 @@ systemctl is-active --quiet antdelirium.service
 systemctl is-active --quiet antdelirium-agent.socket
 systemctl is-active --quiet antdelirium-admin.socket
 
-python3 - "$state_root" >"$log_root/storage-validation.txt" <<'PY'
+validate_storage_v9_once() {
+python3 - "$state_root" <<'PY'
 import glob
 import sqlite3
 import sys
@@ -117,29 +118,65 @@ import sys
 root = sys.argv[1]
 databases = [root + "/registry/state/state.db"]
 databases.extend(sorted(glob.glob(root + "/projects/*/state/state.db")))
-if not databases:
-    raise SystemExit("no protected databases found")
 versions = []
-for path in databases:
-    connection = sqlite3.connect("file:" + path + "?mode=ro", uri=True)
-    version = connection.execute("pragma user_version").fetchone()[0]
-    foreign_key_errors = connection.execute("pragma foreign_key_check").fetchall()
-    quick_check = connection.execute("pragma quick_check").fetchone()[0]
-    if version != 9 or foreign_key_errors or quick_check != "ok":
-        raise SystemExit("protected database validation failed")
-    versions.append(version)
-registry = sqlite3.connect("file:" + databases[0] + "?mode=ro", uri=True)
-receipt_count = registry.execute("select count(*) from initial_capability_provisioning").fetchone()[0]
-grant_count = registry.execute("select count(*) from capability_grants").fetchone()[0]
-management_table = registry.execute("select count(*) from sqlite_schema where type='table' and name='capability_management_events'").fetchone()[0]
-if receipt_count != 1 or grant_count < 2 or management_table != 1:
-    raise SystemExit("registry capability state validation failed")
+failures = []
+try:
+    for ordinal, path in enumerate(databases):
+        connection = sqlite3.connect("file:" + path + "?mode=ro", uri=True)
+        version = connection.execute("pragma user_version").fetchone()[0]
+        foreign_key_errors = connection.execute("pragma foreign_key_check").fetchall()
+        quick_check = connection.execute("pragma quick_check").fetchone()[0]
+        if version != 9:
+            failures.append("database-" + str(ordinal) + ":schema-version")
+        if foreign_key_errors:
+            failures.append("database-" + str(ordinal) + ":foreign-key-check")
+        if quick_check != "ok":
+            failures.append("database-" + str(ordinal) + ":quick-check")
+        versions.append(version)
+    registry = sqlite3.connect("file:" + databases[0] + "?mode=ro", uri=True)
+    receipt_count = registry.execute("select count(*) from initial_capability_provisioning").fetchone()[0]
+    grant_count = registry.execute("select count(*) from capability_grants").fetchone()[0]
+    management_table = registry.execute("select count(*) from sqlite_schema where type='table' and name='capability_management_events'").fetchone()[0]
+    if receipt_count != 1:
+        failures.append("registry:provisioning-receipt-count")
+    if grant_count < 2:
+        failures.append("registry:bootstrap-grant-count")
+    if management_table != 1:
+        failures.append("registry:management-table")
+except (OSError, sqlite3.Error):
+    print("validation=waiting")
+    print("failure_reasons=database-busy-or-unavailable")
+    raise SystemExit(2)
 print("database_count=" + str(len(databases)))
 print("schema_versions=" + ",".join(str(value) for value in versions))
 print("provisioning_receipts=" + str(receipt_count))
 print("capability_grants=" + str(grant_count))
-print("capability_management_table=ready")
+print("capability_management_table=" + ("ready" if management_table == 1 else "unavailable"))
+print("validation=" + ("ready" if not failures else "waiting"))
+print("failure_reasons=" + (",".join(failures) if failures else "none"))
+raise SystemExit(0 if not failures else 2)
 PY
+}
+
+storage_ready=false
+for ((attempt = 1; attempt <= 100; attempt++)); do
+    if validate_storage_v9_once >"$log_root/storage-validation.txt" 2>&1; then
+        storage_ready=true
+        break
+    fi
+    if systemctl is-failed --quiet antdelirium.service; then
+        fail 'the upgraded service failed while migrating protected storage.'
+    fi
+    sleep 0.1
+done
+[[ "$storage_ready" == true ]] \
+    || fail 'timed out waiting for the protected storage-v9 migration.'
+
+sleep 1
+systemctl is-active --quiet antdelirium.service \
+    || fail 'the upgraded service did not remain active after migration.'
+validate_storage_v9_once >"$log_root/storage-validation.txt" 2>&1 \
+    || fail 'protected storage did not remain valid after service stabilization.'
 
 upgrade_committed=true
 printf '%s\n' "AD-T86-UPGRADE: service upgraded to storage-v9; rollback backup retained under $backup_root"

@@ -78,6 +78,13 @@ sidecars para um diretório privado efêmero sob `/run` e registra no projeto
 apenas rótulos lógicos, versões, contagens e invariantes. Ela não reinicia o
 serviço, não abre os bancos protegidos para escrita e não publica bytes do
 storage.
+O primeiro upgrade real revelou uma corrida no gate: `systemctl is-active`
+retornou em 35 ms, enquanto a transação de migração ainda estava em andamento.
+O rollback preservou um `failed-state` já íntegro em schema 9, comprovado pelo
+diagnóstico read-only. A rotina agora espera explicitamente até dez segundos
+por schema, integridade, foreign keys, recibo de provisionamento, grants e tabela
+de gestão; depois exige um segundo passe após um segundo de estabilidade antes
+de confirmar a implantação.
 Depois disso, o supervisor pode emitir a capability CI e executar a atestação
 real com
 [`packaging/systemd/manage-ci-attestation-capability.sh`](../packaging/systemd/manage-ci-attestation-capability.sh).
