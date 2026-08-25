@@ -352,9 +352,15 @@ fn stages_the_real_t82_snapshot_through_protected_storage() {
     let inventory = fs::read(inventory_path).expect("inventory bytes");
     let document: Value = serde_json::from_slice(&inventory).expect("inventory JSON");
     let digest = document["inventory_sha256"].as_str().unwrap().to_string();
+    let source_directory = File::open(&source).expect("source directory descriptor");
     let mut stream = Vec::new();
-    write_validated_source_stream(&source, &inventory, &digest, &mut stream)
-        .expect("source still matches T8.2");
+    write_validated_source_stream_from_directory(
+        &source_directory,
+        &inventory,
+        &digest,
+        &mut stream,
+    )
+    .expect("descriptor-bound source still matches T8.2");
 
     let root = unique_root("real-autobrowser-copy");
     let authority = authority();

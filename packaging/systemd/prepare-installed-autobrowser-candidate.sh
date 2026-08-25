@@ -29,15 +29,107 @@ fail() {
     exit 1
 }
 
+[[ $EUID -eq 0 ]] || fail 'execute this supervisor routine with sudo.'
+invoking_user=${SUDO_USER:-}
+[[ -n "$invoking_user" && "$invoking_user" != root ]] \
+    || fail 'SUDO_USER must identify the non-root operator.'
+
 if [[ ${1:-} == '--source-root' ]]; then
-    [[ $EUID -eq 0 ]] || fail 'execute this supervisor routine with sudo.'
     [[ $# -eq 2 ]] || fail '--source-root requires exactly one absolute directory.'
     source_locator=$2
     [[ "$source_locator" == /* && -d "$source_locator" && ! -L "$source_locator" ]] \
         || fail 'the private source must be an absolute, existing, non-symlink directory.'
-    exec {preopened_source_fd}<"$source_locator"
-    unset source_locator
-    exec bash "$0" --source-fd "$preopened_source_fd"
+    command -v python3 >/dev/null 2>&1 \
+        || fail 'required command is unavailable: python3'
+    script_path="$script_dir/prepare-installed-autobrowser-candidate.sh"
+    bash_path=$(command -v bash)
+    exec python3 - "$script_path" "$source_locator" "$invoking_user" "$bash_path" <<'PY'
+import array
+import os
+import pwd
+import socket
+import stat
+import sys
+
+script_path, source_locator, invoking_user, bash_path = sys.argv[1:]
+
+def fail():
+    print(
+        "AD-T86-CANDIDATE: the private source descriptor could not be opened by the operator.",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+
+try:
+    account = pwd.getpwnam(invoking_user)
+    parent_socket, child_socket = socket.socketpair(socket.AF_UNIX, socket.SOCK_DGRAM)
+    child_pid = os.fork()
+except Exception:
+    fail()
+
+if child_pid == 0:
+    try:
+        parent_socket.close()
+        os.initgroups(account.pw_name, account.pw_gid)
+        os.setgid(account.pw_gid)
+        os.setuid(account.pw_uid)
+        flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        source_fd = os.open(source_locator, flags)
+        metadata = os.fstat(source_fd)
+        if not stat.S_ISDIR(metadata.st_mode):
+            raise RuntimeError("source-is-not-directory")
+        descriptors = array.array("i", [source_fd])
+        child_socket.sendmsg(
+            [b"D"],
+            [(socket.SOL_SOCKET, socket.SCM_RIGHTS, descriptors)],
+        )
+        os.close(source_fd)
+        child_socket.close()
+        os._exit(0)
+    except Exception:
+        try:
+            child_socket.send(b"E")
+            child_socket.close()
+        except Exception:
+            pass
+        os._exit(2)
+
+child_socket.close()
+received_fd = None
+try:
+    message, ancillary, _flags, _address = parent_socket.recvmsg(
+        1, socket.CMSG_SPACE(array.array("i").itemsize)
+    )
+    for level, kind, data in ancillary:
+        if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:
+            descriptors = array.array("i")
+            descriptors.frombytes(data[: descriptors.itemsize])
+            if len(descriptors) == 1:
+                received_fd = descriptors[0]
+                break
+    _pid, status = os.waitpid(child_pid, 0)
+    parent_socket.close()
+    if (
+        message != b"D"
+        or received_fd is None
+        or not os.WIFEXITED(status)
+        or os.WEXITSTATUS(status) != 0
+    ):
+        fail()
+    os.set_inheritable(received_fd, True)
+    os.execv(
+        bash_path,
+        [bash_path, script_path, "--source-fd", str(received_fd)],
+    )
+except Exception:
+    if received_fd is not None:
+        os.close(received_fd)
+    try:
+        os.waitpid(child_pid, 0)
+    except Exception:
+        pass
+    fail()
+PY
 fi
 
 close_descriptors() {
@@ -125,7 +217,6 @@ run_state_operation() {
     printf '%s\n' "$output"
 }
 
-[[ $EUID -eq 0 ]] || fail 'execute this supervisor routine with sudo.'
 if [[ ${1:-} == '--source-fd' ]]; then
     inherited_source_fd=${2:-}
     [[ $# -eq 2 && "$inherited_source_fd" =~ ^[0-9]+$ \
@@ -137,9 +228,6 @@ if [[ ${1:-} == '--source-fd' ]]; then
     shift 2
 fi
 [[ $# -eq 0 ]] || fail 'use either no argument or --source-root with one directory.'
-invoking_user=${SUDO_USER:-}
-[[ -n "$invoking_user" && "$invoking_user" != root ]] \
-    || fail 'SUDO_USER must identify the non-root operator.'
 invoking_uid=$(id -u "$invoking_user")
 invoking_gid=$(id -g "$invoking_user")
 
@@ -148,7 +236,7 @@ chmod 0755 "$(dirname "$log_root")" "$log_root"
 exec > >(tee -a "$log_root/candidate-preparation.log") 2>&1
 trap cleanup EXIT
 
-for command in systemd-creds setpriv jq id tee stat; do
+for command in systemd-creds setpriv jq id python3 tee stat; do
     command -v "$command" >/dev/null 2>&1 \
         || fail "required command is unavailable: $command"
 done
