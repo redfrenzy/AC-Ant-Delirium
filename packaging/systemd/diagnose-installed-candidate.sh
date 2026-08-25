@@ -7,6 +7,7 @@ operator_credential=/var/lib/antdelirium-operator/state.cred
 registry_database=/var/lib/antdelirium/registry/state/state.db
 service_state=/var/lib/antdelirium
 migration_staging=/var/lib/antdelirium/migration-staging
+inventory_path="$project_root/docs/evidence/autobrowser-legacy-source-inventory-v1.json"
 run_id=$(date -u +%Y%m%dT%H%M%SZ)
 log_root="$project_root/target/t86-installed-candidate-diagnostics/$run_id"
 secret_root=
@@ -53,6 +54,8 @@ done
     || fail 'the protected service state is unavailable.'
 [[ -d "$migration_staging" && ! -L "$migration_staging" ]] \
     || fail 'the protected migration staging is unavailable.'
+[[ -f "$inventory_path" && ! -L "$inventory_path" ]] \
+    || fail 'the reviewed project-local inventory is unavailable.'
 
 mkdir -p "$log_root"
 chmod 0755 "$(dirname -- "$log_root")" "$log_root"
@@ -76,6 +79,7 @@ python3 - \
     "$registry_database" \
     "$service_state" \
     "$migration_staging" \
+    "$inventory_path" \
     "$invoking_uid" \
     "$service_uid" <<'PY'
 import base64
@@ -87,7 +91,15 @@ import stat
 import sys
 import time
 
-descriptor_path, database_path, state_path, staging_path, invoking_uid, service_uid = sys.argv[1:]
+(
+    descriptor_path,
+    database_path,
+    state_path,
+    staging_path,
+    inventory_path,
+    invoking_uid,
+    service_uid,
+) = sys.argv[1:]
 invoking_uid = int(invoking_uid)
 service_uid = int(service_uid)
 reasons = []
@@ -204,11 +216,13 @@ if not staging_ok:
 partial_count = 0
 complete_count = 0
 unexpected_count = 0
+partial_directories = []
 for entry in os.scandir(staging_path):
     if not entry.is_dir(follow_symlinks=False):
         unexpected_count += 1
     elif entry.name.endswith(".partial"):
         partial_count += 1
+        partial_directories.append(entry.path)
     elif entry.name.startswith("mig_"):
         complete_count += 1
     else:
@@ -218,6 +232,91 @@ print("complete_migration_count=" + str(complete_count))
 print("unexpected_staging_entry_count=" + str(unexpected_count))
 if unexpected_count:
     reasons.append("unexpected-staging-entry")
+
+with open(inventory_path, "rb") as handle:
+    inventory = json.load(handle)
+inventory_entries = inventory.get("payload", {}).get("entries", [])
+if not isinstance(inventory_entries, list):
+    inventory_entries = []
+    reasons.append("inventory-entries")
+print("reviewed_inventory_entry_count=" + str(len(inventory_entries)))
+
+for partial_index, partial_path in enumerate(
+    sorted(partial_directories, key=os.path.getmtime), start=1
+):
+    source_copy = os.path.join(partial_path, "source")
+    contiguous_entries = 0
+    contiguous_files = 0
+    contiguous_bytes = 0
+    incomplete_ordinal = len(inventory_entries) + 1
+    incomplete_type = "none"
+    incomplete_state = "none"
+    for ordinal, entry in enumerate(inventory_entries, start=1):
+        entry_type = entry.get("type")
+        relative = entry.get("path")
+        components = relative.split("/") if isinstance(relative, str) else []
+        if (
+            not isinstance(relative, str)
+            or not relative
+            or relative.startswith("/")
+            or any(component in ("", ".", "..") for component in components)
+        ):
+            incomplete_ordinal = ordinal
+            incomplete_type = "inventory"
+            incomplete_state = "invalid"
+            break
+        candidate = os.path.join(source_copy, *components)
+        try:
+            metadata = os.lstat(candidate)
+        except FileNotFoundError:
+            incomplete_ordinal = ordinal
+            incomplete_type = str(entry_type)
+            incomplete_state = "missing"
+            break
+        if entry_type == "directory":
+            if not stat.S_ISDIR(metadata.st_mode) or stat.S_ISLNK(metadata.st_mode):
+                incomplete_ordinal = ordinal
+                incomplete_type = "directory"
+                incomplete_state = "type"
+                break
+        elif entry_type == "regular":
+            if not stat.S_ISREG(metadata.st_mode):
+                incomplete_ordinal = ordinal
+                incomplete_type = "regular"
+                incomplete_state = "type"
+                break
+            if metadata.st_size != entry.get("size"):
+                incomplete_ordinal = ordinal
+                incomplete_type = "regular"
+                incomplete_state = "size"
+                break
+            digest = hashlib.sha256()
+            with open(candidate, "rb") as handle:
+                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                    digest.update(chunk)
+            if digest.hexdigest() != entry.get("sha256"):
+                incomplete_ordinal = ordinal
+                incomplete_type = "regular"
+                incomplete_state = "digest"
+                break
+            contiguous_files += 1
+            contiguous_bytes += metadata.st_size
+        else:
+            incomplete_ordinal = ordinal
+            incomplete_type = "inventory"
+            incomplete_state = "invalid"
+            break
+        contiguous_entries += 1
+    print(f"partial_{partial_index}_contiguous_entry_count={contiguous_entries}")
+    print(f"partial_{partial_index}_contiguous_file_count={contiguous_files}")
+    print(f"partial_{partial_index}_contiguous_byte_count={contiguous_bytes}")
+    print(f"partial_{partial_index}_first_incomplete_ordinal={incomplete_ordinal}")
+    print(f"partial_{partial_index}_first_incomplete_type={incomplete_type}")
+    print(f"partial_{partial_index}_first_incomplete_state={incomplete_state}")
+    print(
+        f"partial_{partial_index}_source_copy_complete="
+        + ("yes" if contiguous_entries == len(inventory_entries) else "no")
+    )
 
 connection.close()
 print("validation=" + ("pass" if not reasons else "fail"))
