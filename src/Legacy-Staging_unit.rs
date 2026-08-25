@@ -1,4 +1,6 @@
 use std::collections::{BTreeMap, HashSet};
+#[cfg(target_os = "linux")]
+use std::ffi::CStr;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Component, Path, PathBuf};
@@ -7,7 +9,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[cfg(unix)]
 use std::os::fd::{AsRawFd, FromRawFd};
 #[cfg(unix)]
-use std::os::unix::ffi::OsStrExt;
+use std::os::unix::ffi::{OsStrExt, OsStringExt};
 #[cfg(unix)]
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 
@@ -395,8 +397,7 @@ pub(crate) fn write_validated_source_stream_from_directory<W: Write>(
         return Err(LegacyStagingError::SourceMismatch);
     }
     let root_signature = metadata_signature(&opened_root_metadata);
-    let source_view = PathBuf::from(format!("/proc/self/fd/{}", root_directory.as_raw_fd()));
-    let observed_paths = collect_source_paths(&source_view)?;
+    let observed_paths = collect_source_paths_from_directory(root_directory)?;
     let expected_paths = payload
         .entries
         .iter()
@@ -412,7 +413,6 @@ pub(crate) fn write_validated_source_stream_from_directory<W: Write>(
 
     for entry in &payload.entries {
         let relative = validated_relative_path(&entry.path)?;
-        let path = source_view.join(&relative);
         let mut file =
             open_source_entry_beneath(&root_directory, &relative, entry.r#type == "directory")?;
         let opened = file
@@ -452,14 +452,16 @@ pub(crate) fn write_validated_source_stream_from_directory<W: Write>(
             }
             _ => return Err(LegacyStagingError::SourceMismatch),
         }
-        let after = fs::symlink_metadata(&path).map_err(|_| LegacyStagingError::SourceMismatch)?;
-        if after.file_type().is_symlink()
-            || metadata_signature(&after) != metadata_signature(&opened)
-        {
+        let after_file =
+            open_source_entry_beneath(root_directory, &relative, entry.r#type == "directory")?;
+        let after = after_file
+            .metadata()
+            .map_err(|_| LegacyStagingError::SourceMismatch)?;
+        if metadata_signature(&after) != metadata_signature(&opened) {
             return Err(LegacyStagingError::SourceMismatch);
         }
     }
-    let final_paths = collect_source_paths(&source_view)?;
+    let final_paths = collect_source_paths_from_directory(root_directory)?;
     let final_root = root_directory
         .metadata()
         .map_err(|_| LegacyStagingError::SourceMismatch)?;
@@ -472,6 +474,94 @@ pub(crate) fn write_validated_source_stream_from_directory<W: Write>(
         return Err(LegacyStagingError::SourceMismatch);
     }
     Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn collect_source_paths_from_directory(root: &File) -> Result<Vec<String>, LegacyStagingError> {
+    let mut paths = Vec::new();
+    collect_directory_paths(root, Path::new(""), &mut paths)?;
+    paths.sort();
+    Ok(paths)
+}
+
+#[cfg(target_os = "linux")]
+fn collect_directory_paths(
+    directory: &File,
+    prefix: &Path,
+    paths: &mut Vec<String>,
+) -> Result<(), LegacyStagingError> {
+    let duplicate = unsafe {
+        libc::openat(
+            directory.as_raw_fd(),
+            c".".as_ptr(),
+            libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+        )
+    };
+    if duplicate < 0 {
+        return Err(LegacyStagingError::SourceMismatch);
+    }
+    let stream = unsafe { libc::fdopendir(duplicate) };
+    if stream.is_null() {
+        unsafe {
+            libc::close(duplicate);
+        }
+        return Err(LegacyStagingError::SourceMismatch);
+    }
+    let result = (|| loop {
+        unsafe {
+            *libc::__errno_location() = 0;
+        }
+        let entry = unsafe { libc::readdir(stream) };
+        if entry.is_null() {
+            return if unsafe { *libc::__errno_location() } == 0 {
+                Ok(())
+            } else {
+                Err(LegacyStagingError::SourceMismatch)
+            };
+        }
+        let name = unsafe { CStr::from_ptr((*entry).d_name.as_ptr()) }.to_bytes();
+        if name == b"." || name == b".." {
+            continue;
+        }
+        let name = std::ffi::OsString::from_vec(name.to_vec());
+        let relative = prefix.join(&name);
+        let relative_text = relative
+            .to_str()
+            .ok_or(LegacyStagingError::SourceMismatch)?
+            .to_string();
+        validated_relative_path(&relative_text)?;
+        let name = std::ffi::CString::new(name.as_bytes())
+            .map_err(|_| LegacyStagingError::SourceMismatch)?;
+        let descriptor = unsafe {
+            libc::openat(
+                directory.as_raw_fd(),
+                name.as_ptr(),
+                libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+            )
+        };
+        if descriptor < 0 {
+            return Err(LegacyStagingError::SourceMismatch);
+        }
+        let child = unsafe { File::from_raw_fd(descriptor) };
+        let metadata = child
+            .metadata()
+            .map_err(|_| LegacyStagingError::SourceMismatch)?;
+        paths.push(relative_text);
+        if metadata.is_dir() {
+            collect_directory_paths(&child, &relative, paths)?;
+        } else if !metadata.is_file() {
+            return Err(LegacyStagingError::SourceMismatch);
+        }
+    })();
+    unsafe {
+        libc::closedir(stream);
+    }
+    result
+}
+
+#[cfg(all(unix, not(target_os = "linux")))]
+fn collect_source_paths_from_directory(_root: &File) -> Result<Vec<String>, LegacyStagingError> {
+    Err(LegacyStagingError::SourceMismatch)
 }
 
 #[cfg(unix)]
