@@ -29,6 +29,17 @@ fail() {
     exit 1
 }
 
+if [[ ${1:-} == '--source-root' ]]; then
+    [[ $EUID -eq 0 ]] || fail 'execute this supervisor routine with sudo.'
+    [[ $# -eq 2 ]] || fail '--source-root requires exactly one absolute directory.'
+    source_locator=$2
+    [[ "$source_locator" == /* && -d "$source_locator" && ! -L "$source_locator" ]] \
+        || fail 'the private source must be an absolute, existing, non-symlink directory.'
+    exec {preopened_source_fd}<"$source_locator"
+    unset source_locator
+    exec bash "$0" --source-fd "$preopened_source_fd"
+fi
+
 close_descriptors() {
     set +e
     [[ -z "$admin_fd" ]] || eval "exec ${admin_fd}<&-"
@@ -115,7 +126,17 @@ run_state_operation() {
 }
 
 [[ $EUID -eq 0 ]] || fail 'execute this supervisor routine with sudo.'
-[[ $# -eq 0 ]] || fail 'this routine accepts no locator in command arguments.'
+if [[ ${1:-} == '--source-fd' ]]; then
+    inherited_source_fd=${2:-}
+    [[ $# -eq 2 && "$inherited_source_fd" =~ ^[0-9]+$ \
+        && "$inherited_source_fd" -ge 3 \
+        && -d "/proc/$$/fd/$inherited_source_fd" ]] \
+        || fail 'the inherited source descriptor is invalid.'
+    source_fd=$inherited_source_fd
+    unset inherited_source_fd
+    shift 2
+fi
+[[ $# -eq 0 ]] || fail 'use either no argument or --source-root with one directory.'
 invoking_user=${SUDO_USER:-}
 [[ -n "$invoking_user" && "$invoking_user" != root ]] \
     || fail 'SUDO_USER must identify the non-root operator.'
@@ -158,13 +179,14 @@ jq -e '
 ' "$secret_root/state.json" >/dev/null \
     || fail 'the decrypted StateAdmin descriptor is invalid.'
 
-printf '%s' 'Caminho da origem legada (entrada oculta; não será registrado): ' >/dev/tty
-IFS= read -r -s source_locator </dev/tty
-printf '\n' >/dev/tty
-[[ "$source_locator" == /* && -d "$source_locator" && ! -L "$source_locator" ]] \
-    || fail 'the private source must be an absolute, existing, non-symlink directory.'
-exec {source_fd}<"$source_locator"
-unset source_locator
+if [[ -z "$source_fd" ]]; then
+    printf '%s' 'Caminho da origem legada (digitação visível; não será registrada): ' >/dev/tty
+    IFS= read -r source_locator </dev/tty
+    [[ "$source_locator" == /* && -d "$source_locator" && ! -L "$source_locator" ]] \
+        || fail 'the private source must be an absolute, existing, non-symlink directory.'
+    exec {source_fd}<"$source_locator"
+    unset source_locator
+fi
 [[ -d "/proc/$$/fd/$source_fd" ]] \
     || fail 'the inherited source descriptor is not a directory.'
 exec {inventory_fd}<"$inventory_path"
