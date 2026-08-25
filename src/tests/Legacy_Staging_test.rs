@@ -297,6 +297,51 @@ fn source_descriptor_walk_rejects_a_symlinked_ancestor() {
     ));
 }
 
+#[cfg(unix)]
+#[test]
+fn inherited_source_descriptor_survives_locator_removal() {
+    let root = unique_root("descriptor-only-source");
+    let source = root.join("source-locator-not-shared");
+    fs::create_dir(&source).unwrap();
+    fs::set_permissions(&source, fs::Permissions::from_mode(0o700)).unwrap();
+    fs::create_dir(source.join("plan")).unwrap();
+    fs::set_permissions(source.join("plan"), fs::Permissions::from_mode(0o700)).unwrap();
+    fs::write(source.join("governance_history.json"), br#"{"entries":[]}"#).unwrap();
+    fs::write(source.join("plan/[0.0]_Fixture.json"), br#"{"tasks":[]}"#).unwrap();
+    fs::set_permissions(
+        source.join("governance_history.json"),
+        fs::Permissions::from_mode(0o600),
+    )
+    .unwrap();
+    fs::set_permissions(
+        source.join("plan/[0.0]_Fixture.json"),
+        fs::Permissions::from_mode(0o600),
+    )
+    .unwrap();
+
+    let directory = File::open(&source).unwrap();
+    fs::rename(&source, root.join("operator-private-source")).unwrap();
+    let uid = directory.metadata().unwrap().uid();
+    let gid = directory.metadata().unwrap().gid();
+    let (inventory, _, expected_stream) = fixture_inventory(uid, gid);
+    let mut inventory_document: Value = serde_json::from_slice(&inventory).unwrap();
+    inventory_document["payload"]["entries"][1]["size"] = Value::from(
+        root.join("operator-private-source/plan")
+            .metadata()
+            .unwrap()
+            .len(),
+    );
+    let mut canonical_payload = serde_json::to_vec(&inventory_document["payload"]).unwrap();
+    canonical_payload.push(b'\n');
+    let digest = lowercase_hex(&sha256(&canonical_payload));
+    inventory_document["inventory_sha256"] = Value::from(digest.clone());
+    let inventory = serde_json::to_vec_pretty(&inventory_document).unwrap();
+    let mut stream = Vec::new();
+    write_validated_source_stream_from_directory(&directory, &inventory, &digest, &mut stream)
+        .unwrap();
+    assert_eq!(stream, expected_stream);
+}
+
 #[test]
 #[ignore = "requires operator-provided T8.2 source and inventory locators"]
 fn stages_the_real_t82_snapshot_through_protected_storage() {

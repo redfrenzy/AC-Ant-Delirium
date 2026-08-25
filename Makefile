@@ -89,6 +89,7 @@ ci:
 	bash -n packaging/systemd/upgrade-installed-service.sh
 	bash -n packaging/systemd/diagnose-capability-upgrade.sh
 	bash -n packaging/systemd/manage-ci-attestation-capability.sh
+	bash -n packaging/systemd/prepare-installed-autobrowser-candidate.sh
 	jq empty docs/contracts/v1/admin-protocol-v1.schema.json
 	jq empty docs/contracts/v1/capability-grant-request-v1.schema.json
 	jq empty docs/contracts/v1/capability-grant-receipt-v1.schema.json

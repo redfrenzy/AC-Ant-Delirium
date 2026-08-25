@@ -1,10 +1,8 @@
 use std::ffi::{OsStr, OsString};
-use std::fs::OpenOptions;
 use std::io::{Read, Write};
 #[cfg(unix)]
 use std::os::fd::{AsRawFd, FromRawFd};
 #[cfg(unix)]
-use std::os::unix::fs::OpenOptionsExt;
 #[cfg(unix)]
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
@@ -55,8 +53,8 @@ const CAPABILITY_WORKSPACE_ID_ENV: &str = "ANTDELIRIUM_CAPABILITY_WORKSPACE_ID";
 const CAPABILITY_TASK_ID_ENV: &str = "ANTDELIRIUM_CAPABILITY_TASK_ID";
 const CAPABILITY_LIFETIME_SECONDS_ENV: &str = "ANTDELIRIUM_CAPABILITY_LIFETIME_SECONDS";
 const CAPABILITY_REVOCATION_EPOCH_ENV: &str = "ANTDELIRIUM_CAPABILITY_REVOCATION_EPOCH";
-const MIGRATION_SOURCE_ENV: &str = "ANTDELIRIUM_MIGRATION_SOURCE";
-const MIGRATION_INVENTORY_ENV: &str = "ANTDELIRIUM_MIGRATION_INVENTORY";
+const MIGRATION_SOURCE_FD_ENV: &str = "ANTDELIRIUM_MIGRATION_SOURCE_FD";
+const MIGRATION_INVENTORY_FD_ENV: &str = "ANTDELIRIUM_MIGRATION_INVENTORY_FD";
 const EXPECTED_SOURCE_SHA256_ENV: &str = "ANTDELIRIUM_EXPECTED_SOURCE_SHA256";
 const EXPECTED_STAGING_SHA256_ENV: &str = "ANTDELIRIUM_EXPECTED_STAGING_SHA256";
 const EXPECTED_NORMALIZED_SHA256_ENV: &str = "ANTDELIRIUM_EXPECTED_NORMALIZED_SHA256";
@@ -261,6 +259,9 @@ pub(crate) fn run_migration_operator(args: &[OsString]) {
     if cfg!(debug_assertions) {
         OutputRouter::exit(PublicError::Configuration);
     }
+    if crate::service_hardening::harden_operator_process().is_err() {
+        OutputRouter::exit(PublicError::Authorization);
+    }
     let result = if cutover {
         run_operator_cutover_inner().map(AdministrativeResult::Cutover)
     } else if approve {
@@ -293,28 +294,51 @@ pub(crate) fn run_migration_operator(args: &[OsString]) {
                 receipt.staging_snapshot_sha256,
             )),
         Ok(AdministrativeResult::Normalize(receipt)) => OutputRouter::write_success(&format!(
-                "antdelirium[AD-MIGRATION-NORMALIZED]: migration_id={} project_id={} semantic_sha256={} comparison=equivalent state=normalized",
+                "antdelirium[AD-MIGRATION-NORMALIZED]: migration_id={} project_id={} source_sha256={} staging_sha256={} normalized_sha256={} semantic_sha256={} comparison=equivalent state=normalized",
                 receipt.migration_id,
                 receipt.project_id,
+                receipt.source_snapshot_sha256,
+                receipt.staging_snapshot_sha256,
+                receipt.normalized_snapshot_sha256,
                 receipt.semantic_snapshot_sha256,
             )),
-        Ok(AdministrativeResult::DryRun(report)) => OutputRouter::write_success(&format!(
-                "antdelirium[AD-MIGRATION-DRY-RUN]: migration_id={} project_id={} differences={} readiness=blocked approval_created=false cutover=false state=dry_run_completed",
+        Ok(AdministrativeResult::DryRun(report)) => {
+            let report_sha256 = canonical_json_sha256(&report)
+                .unwrap_or_else(|_| OutputRouter::exit(PublicError::Internal));
+            OutputRouter::write_success(&format!(
+                "antdelirium[AD-MIGRATION-DRY-RUN]: migration_id={} project_id={} report_sha256={} manifest_sha256={} differences={} comparison={} readiness={} approval_created=false cutover=false state=dry_run_completed",
                 report.migration_id,
                 report.project_id,
+                report_sha256,
+                report.manifest_snapshot_sha256,
                 report.differences.len(),
-            )),
-        Ok(AdministrativeResult::Convert(report)) => OutputRouter::write_success(&format!(
-                "antdelirium[AD-MIGRATION-CONVERTED]: migration_id={} project_id={} comparison=equivalent approval_created=false cutover=false state=candidate_ready_for_independent_attestation",
+                report.comparison,
+                report.cutover_readiness,
+            ))
+        }
+        Ok(AdministrativeResult::Convert(report)) => {
+            let report_sha256 = canonical_json_sha256(&report)
+                .unwrap_or_else(|_| OutputRouter::exit(PublicError::Internal));
+            OutputRouter::write_success(&format!(
+                "antdelirium[AD-MIGRATION-CONVERTED]: migration_id={} project_id={} workspace_id={} report_sha256={} manifest_sha256={} identity_bindings_sha256={} task_projection_sha256={} errors_projection_sha256={} comparison=equivalent approval_created=false cutover=false state=candidate_ready_for_independent_attestation",
                 report.migration_id,
                 report.project_id,
-            )),
+                report.workspace_id,
+                report_sha256,
+                report.manifest_snapshot_sha256,
+                report.identity_bindings_sha256,
+                report.current_task_projection_sha256,
+                report.governance_errors_projection_sha256,
+            ))
+        }
         Ok(AdministrativeResult::Attest(receipt)) => OutputRouter::write_success(&format!(
-                "antdelirium[AD-MIGRATION-ATTESTED]: migration_id={} project_id={} attestation_id={} evidence_sha256={} approval_created=false cutover=false state=verifier_attested",
+                "antdelirium[AD-MIGRATION-ATTESTED]: migration_id={} project_id={} workspace_id={} attestation_id={} evidence_sha256={} candidate_logical_sha256={} approval_created=false cutover=false state=verifier_attested",
                 receipt.attestation.migration_id,
                 receipt.attestation.project_id,
+                receipt.attestation.workspace_id,
                 receipt.attestation.attestation_id,
                 receipt.attestation_sha256,
+                receipt.attestation.candidate_logical_state_sha256,
             )),
         Ok(AdministrativeResult::Approve(receipt)) => OutputRouter::write_success(&format!(
                 "antdelirium[AD-MIGRATION-APPROVED]: migration_id={} project_id={} approval_id={} approval_sha256={} manifest_sha256={} cutover=false state=approved_awaiting_cutover",
@@ -358,6 +382,9 @@ pub(crate) fn run_capability_operator(args: &[OsString]) {
     }
     if cfg!(debug_assertions) {
         OutputRouter::exit(PublicError::Configuration);
+    }
+    if crate::service_hardening::harden_operator_process().is_err() {
+        OutputRouter::exit(PublicError::Authorization);
     }
     let result = if grant {
         run_capability_grant_inner().map(AdministrativeResult::Grant)
@@ -516,16 +543,17 @@ fn run_capability_revoke_inner() -> Result<CapabilityRevokeReceipt, Administrati
 #[cfg(unix)]
 fn run_operator_stage_inner() -> Result<LegacyStageReceipt, AdministrativeProtocolError> {
     let endpoint = std::env::var_os(ADMIN_SOCKET_ENV);
-    let source = std::env::var_os(MIGRATION_SOURCE_ENV);
-    let inventory_path = std::env::var_os(MIGRATION_INVENTORY_ENV);
+    let source_fd = std::env::var_os(MIGRATION_SOURCE_FD_ENV);
+    let inventory_fd = std::env::var_os(MIGRATION_INVENTORY_FD_ENV);
     let expected = std::env::var(EXPECTED_SOURCE_SHA256_ENV).ok();
     clear_operator_path_environment();
     let endpoint = required_absolute_path(endpoint)?;
-    let source = required_absolute_path(source)?;
-    let inventory_path = required_absolute_path(inventory_path)?;
     let expected = expected.ok_or(AdministrativeProtocolError::Envelope)?;
     let capability = read_administrative_capability()?;
-    let inventory = read_bounded_regular_file(&inventory_path, MAX_INVENTORY_BYTES)?;
+    let (source, inventory) = read_migration_source_inputs(
+        source_fd.ok_or(AdministrativeProtocolError::Authorization)?,
+        inventory_fd.ok_or(AdministrativeProtocolError::Authorization)?,
+    )?;
     let inventory_value: Value =
         serde_json::from_slice(&inventory).map_err(|_| AdministrativeProtocolError::Envelope)?;
 
@@ -550,7 +578,7 @@ fn run_operator_stage_inner() -> Result<LegacyStageReceipt, AdministrativeProtoc
     write_frame(&mut stream, &request)?;
     {
         let mut writer = DeadlineWriter::new(&mut stream, MIGRATION_OPERATION_TIMEOUT);
-        crate::legacy_staging::write_validated_source_stream(
+        crate::legacy_staging::write_validated_source_stream_from_directory(
             &source,
             &inventory,
             &expected,
@@ -591,19 +619,20 @@ fn run_operator_stage_inner() -> Result<LegacyStageReceipt, AdministrativeProtoc
 fn run_operator_normalize_inner() -> Result<LegacyNormalizationReceipt, AdministrativeProtocolError>
 {
     let endpoint = std::env::var_os(ADMIN_SOCKET_ENV);
-    let source = std::env::var_os(MIGRATION_SOURCE_ENV);
-    let inventory_path = std::env::var_os(MIGRATION_INVENTORY_ENV);
+    let source_fd = std::env::var_os(MIGRATION_SOURCE_FD_ENV);
+    let inventory_fd = std::env::var_os(MIGRATION_INVENTORY_FD_ENV);
     let expected = std::env::var(EXPECTED_SOURCE_SHA256_ENV).ok();
     let migration_id = std::env::var(MIGRATION_ID_ENV).ok();
     clear_operator_path_environment();
     let endpoint = required_absolute_path(endpoint)?;
-    let source = required_absolute_path(source)?;
-    let inventory_path = required_absolute_path(inventory_path)?;
     let expected = expected.ok_or(AdministrativeProtocolError::Envelope)?;
     let migration_id = migration_id.ok_or(AdministrativeProtocolError::Envelope)?;
     let capability = read_administrative_capability()?;
-    let inventory = read_bounded_regular_file(&inventory_path, MAX_INVENTORY_BYTES)?;
-    let normalization = crate::legacy_normalization::prepare_source_normalization(
+    let (source, inventory) = read_migration_source_inputs(
+        source_fd.ok_or(AdministrativeProtocolError::Authorization)?,
+        inventory_fd.ok_or(AdministrativeProtocolError::Authorization)?,
+    )?;
+    let normalization = crate::legacy_normalization::prepare_source_normalization_from_directory(
         &source,
         &inventory,
         &expected,
@@ -1631,8 +1660,8 @@ fn required_absolute_path(value: Option<OsString>) -> Result<PathBuf, Administra
 fn clear_operator_path_environment() {
     for name in [
         ADMIN_SOCKET_ENV,
-        MIGRATION_SOURCE_ENV,
-        MIGRATION_INVENTORY_ENV,
+        MIGRATION_SOURCE_FD_ENV,
+        MIGRATION_INVENTORY_FD_ENV,
         EXPECTED_SOURCE_SHA256_ENV,
         EXPECTED_STAGING_SHA256_ENV,
         EXPECTED_NORMALIZED_SHA256_ENV,
@@ -1750,6 +1779,12 @@ fn erase_request_secrets(capability: &mut WireCapability, body: &mut Administrat
     }
 }
 
+fn canonical_json_sha256<T: Serialize>(value: &T) -> Result<String, AdministrativeProtocolError> {
+    let bytes =
+        serde_json::to_vec_pretty(value).map_err(|_| AdministrativeProtocolError::Envelope)?;
+    Ok(crate::legacy_staging::lowercase_hex(&sha256(&bytes)))
+}
+
 #[cfg(unix)]
 fn write_capability_bundle_to_fd(
     raw: OsString,
@@ -1796,29 +1831,55 @@ fn parse_open_descriptor(raw: &OsStr) -> Result<i32, AdministrativeProtocolError
         .ok_or(AdministrativeProtocolError::Authorization)
 }
 
-fn read_bounded_regular_file(
-    path: &Path,
-    maximum: u64,
-) -> Result<Vec<u8>, AdministrativeProtocolError> {
-    let metadata =
-        std::fs::symlink_metadata(path).map_err(|_| AdministrativeProtocolError::Envelope)?;
-    if metadata.file_type().is_symlink() || !metadata.is_file() || metadata.len() > maximum {
+#[cfg(unix)]
+fn read_migration_source_inputs(
+    source_raw: OsString,
+    inventory_raw: OsString,
+) -> Result<(std::fs::File, Vec<u8>), AdministrativeProtocolError> {
+    let source_fd = parse_open_descriptor(&source_raw)?;
+    let inventory_fd = parse_open_descriptor(&inventory_raw)?;
+    if source_fd == inventory_fd {
+        return Err(AdministrativeProtocolError::Authorization);
+    }
+
+    let source = unsafe { std::fs::File::from_raw_fd(source_fd) };
+    set_descriptor_close_on_exec(source.as_raw_fd())
+        .map_err(|_| AdministrativeProtocolError::Authorization)?;
+    let mut source_status: libc::stat = unsafe { std::mem::zeroed() };
+    let source_flags = unsafe { libc::fcntl(source.as_raw_fd(), libc::F_GETFL) };
+    if unsafe { libc::fstat(source.as_raw_fd(), &mut source_status) } != 0
+        || (source_status.st_mode & libc::S_IFMT) != libc::S_IFDIR
+        || source_flags < 0
+        || (source_flags & libc::O_ACCMODE) != libc::O_RDONLY
+    {
+        return Err(AdministrativeProtocolError::Authorization);
+    }
+
+    let mut inventory = unsafe { std::fs::File::from_raw_fd(inventory_fd) };
+    set_descriptor_close_on_exec(inventory.as_raw_fd())
+        .map_err(|_| AdministrativeProtocolError::Authorization)?;
+    let mut inventory_status: libc::stat = unsafe { std::mem::zeroed() };
+    let inventory_flags = unsafe { libc::fcntl(inventory.as_raw_fd(), libc::F_GETFL) };
+    let inventory_offset = unsafe { libc::lseek(inventory.as_raw_fd(), 0, libc::SEEK_CUR) };
+    if unsafe { libc::fstat(inventory.as_raw_fd(), &mut inventory_status) } != 0
+        || (inventory_status.st_mode & libc::S_IFMT) != libc::S_IFREG
+        || inventory_status.st_size < 0
+        || inventory_status.st_size as u64 > MAX_INVENTORY_BYTES
+        || inventory_flags < 0
+        || (inventory_flags & libc::O_ACCMODE) != libc::O_RDONLY
+        || inventory_offset != 0
+    {
+        return Err(AdministrativeProtocolError::Authorization);
+    }
+    let expected_size = inventory_status.st_size as usize;
+    let mut bytes = Vec::with_capacity(expected_size);
+    inventory
+        .read_to_end(&mut bytes)
+        .map_err(|_| AdministrativeProtocolError::Envelope)?;
+    if bytes.len() != expected_size {
         return Err(AdministrativeProtocolError::Envelope);
     }
-    let mut options = OpenOptions::new();
-    options.read(true);
-    #[cfg(unix)]
-    options.custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC);
-    let mut file = options
-        .open(path)
-        .map_err(|_| AdministrativeProtocolError::Envelope)?;
-    let mut bytes = Vec::with_capacity(metadata.len() as usize);
-    file.read_to_end(&mut bytes)
-        .map_err(|_| AdministrativeProtocolError::Envelope)?;
-    if bytes.len() as u64 != metadata.len() {
-        return Err(AdministrativeProtocolError::Envelope);
-    }
-    Ok(bytes)
+    Ok((source, bytes))
 }
 
 #[cfg(unix)]

@@ -3,6 +3,8 @@ use super::*;
 #[cfg(unix)]
 use std::fs;
 #[cfg(unix)]
+use std::fs::OpenOptions;
+#[cfg(unix)]
 use std::path::PathBuf;
 #[cfg(unix)]
 use std::process::Command;
@@ -61,6 +63,48 @@ fn lowercase_hex(bytes: &[u8]) -> String {
         output.push(HEX[(byte & 0x0f) as usize] as char);
     }
     output
+}
+
+#[cfg(unix)]
+#[test]
+fn migration_source_inputs_require_readonly_inherited_descriptors() {
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
+        "target/administrative-descriptor-tests/{}-{nonce}",
+        std::process::id()
+    ));
+    let source = root.join("operator-private-source");
+    let inventory_path = root.join("inventory.json");
+    fs::create_dir_all(&source).unwrap();
+    fs::write(&inventory_path, b"{\"contract\":\"fixture\"}\n").unwrap();
+
+    let source_fd = fs::File::open(&source).unwrap().into_raw_fd();
+    let inventory_fd = fs::File::open(&inventory_path).unwrap().into_raw_fd();
+    let (directory, inventory) = read_migration_source_inputs(
+        OsString::from(source_fd.to_string()),
+        OsString::from(inventory_fd.to_string()),
+    )
+    .unwrap();
+    assert!(directory.metadata().unwrap().is_dir());
+    assert_eq!(inventory, b"{\"contract\":\"fixture\"}\n");
+
+    let source_fd = fs::File::open(&source).unwrap().into_raw_fd();
+    let inventory_fd = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&inventory_path)
+        .unwrap()
+        .into_raw_fd();
+    assert!(matches!(
+        read_migration_source_inputs(
+            OsString::from(source_fd.to_string()),
+            OsString::from(inventory_fd.to_string()),
+        ),
+        Err(AdministrativeProtocolError::Authorization)
+    ));
 }
 
 #[cfg(unix)]

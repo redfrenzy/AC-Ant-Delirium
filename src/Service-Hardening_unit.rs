@@ -26,6 +26,29 @@ pub(crate) fn harden_service_process(
     Ok(VerifiedServiceHardening { _private: () })
 }
 
+pub(crate) fn harden_operator_process() -> Result<(), ServiceHardeningError> {
+    harden_linux_operator_process()
+}
+
+#[cfg(target_os = "linux")]
+fn harden_linux_operator_process() -> Result<(), ServiceHardeningError> {
+    require_untraced_process()?;
+    set_no_new_privileges()?;
+    disable_process_dumping()?;
+    disable_core_dumps()?;
+    unsafe {
+        libc::umask(0o077);
+    }
+    mark_inherited_descriptors_close_on_exec()?;
+    verify_process_policy()?;
+    require_untraced_process()
+}
+
+#[cfg(not(target_os = "linux"))]
+fn harden_linux_operator_process() -> Result<(), ServiceHardeningError> {
+    Err(ServiceHardeningError::UnsupportedPlatform)
+}
+
 #[cfg(target_os = "linux")]
 fn harden_linux_service_process() -> Result<(), ServiceHardeningError> {
     require_untraced_process()?;

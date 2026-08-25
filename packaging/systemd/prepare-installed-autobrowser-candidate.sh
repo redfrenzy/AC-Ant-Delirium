@@ -1,0 +1,242 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+project_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
+installed_binary=/usr/libexec/antdelirium/antdelirium
+operator_credential=/var/lib/antdelirium-operator/state.cred
+admin_socket=/run/antdelirium-admin/admin.sock
+inventory_path="$project_root/docs/evidence/autobrowser-legacy-source-inventory-v1.json"
+run_id=$(date -u +%Y%m%dT%H%M%SZ)
+secret_root="/run/antdelirium-candidate-$run_id-$$"
+log_root="$project_root/target/t86-installed-candidate-logs/$run_id"
+admin_fd=
+source_fd=
+inventory_fd=
+migration_id=
+project_id=
+workspace_id=
+source_sha256=
+staging_sha256=
+normalized_sha256=
+semantic_sha256=
+dry_run_sha256=
+conversion_sha256=
+manifest_sha256=
+
+fail() {
+    printf '%s\n' "AD-T86-CANDIDATE: $1" >&2
+    exit 1
+}
+
+close_descriptors() {
+    set +e
+    [[ -z "$admin_fd" ]] || eval "exec ${admin_fd}<&-"
+    [[ -z "$source_fd" ]] || eval "exec ${source_fd}<&-"
+    [[ -z "$inventory_fd" ]] || eval "exec ${inventory_fd}<&-"
+    admin_fd=
+    source_fd=
+    inventory_fd=
+}
+
+cleanup() {
+    local exit_code=$?
+    close_descriptors
+    rm -rf "$secret_root"
+    {
+        printf 'contract=antdelirium-installed-candidate-preparation-v1\n'
+        printf 'run_id=%s\nexit_code=%s\n' "$run_id" "$exit_code"
+        printf 'migration_id=%s\nproject_id=%s\nworkspace_id=%s\n' \
+            "$migration_id" "$project_id" "$workspace_id"
+        printf 'source_sha256=%s\nstaging_sha256=%s\n' "$source_sha256" "$staging_sha256"
+        printf 'normalized_sha256=%s\nsemantic_sha256=%s\n' \
+            "$normalized_sha256" "$semantic_sha256"
+        printf 'dry_run_sha256=%s\nconversion_sha256=%s\nmanifest_sha256=%s\n' \
+            "$dry_run_sha256" "$conversion_sha256" "$manifest_sha256"
+        printf 'source_mutation=forbidden\nphysical_locators=redacted\n'
+        printf 'completed_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    } >"$log_root/result.env"
+    chmod -R a+rX "$log_root"
+    printf '%s\n' "AD-T86-CANDIDATE: logs=$log_root"
+    exit "$exit_code"
+}
+
+extract_field() {
+    local output=$1
+    local key=$2
+    local token
+    for token in $output; do
+        case "$token" in
+            "$key="*) printf '%s\n' "${token#*=}"; return 0 ;;
+        esac
+    done
+    return 1
+}
+
+require_id() {
+    local value=$1
+    local prefix=$2
+    [[ "$value" =~ ^${prefix}_[0-9a-hjkmnp-tv-z]{26}$ ]] \
+        || fail "the $prefix identifier returned by the service is invalid."
+}
+
+require_sha256() {
+    [[ "$1" =~ ^[0-9a-f]{64}$ ]] \
+        || fail 'the service returned an invalid digest.'
+}
+
+open_admin_descriptor() {
+    exec {admin_fd}<"$secret_root/state.json"
+}
+
+run_state_operation() {
+    local submode=$1
+    shift
+    open_admin_descriptor
+    local output
+    output=$(setpriv --reuid="$invoking_uid" --regid="$invoking_gid" --init-groups \
+        --no-new-privs --inh-caps=-all --ambient-caps=-all --bounding-set=-all \
+        --reset-env env \
+        ANTDELIRIUM_ADMIN_SOCKET="$admin_socket" \
+        ANTDELIRIUM_ADMIN_CAPABILITY_FD="$admin_fd" \
+        "$@" "$installed_binary" migrate-plugin "$submode")
+    eval "exec ${admin_fd}<&-"
+    admin_fd=
+    printf '%s\n' "$output"
+}
+
+[[ $EUID -eq 0 ]] || fail 'execute this supervisor routine with sudo.'
+[[ $# -eq 0 ]] || fail 'this routine accepts no locator in command arguments.'
+invoking_user=${SUDO_USER:-}
+[[ -n "$invoking_user" && "$invoking_user" != root ]] \
+    || fail 'SUDO_USER must identify the non-root operator.'
+invoking_uid=$(id -u "$invoking_user")
+invoking_gid=$(id -g "$invoking_user")
+
+mkdir -p "$log_root"
+chmod 0755 "$(dirname "$log_root")" "$log_root"
+exec > >(tee -a "$log_root/candidate-preparation.log") 2>&1
+trap cleanup EXIT
+
+for command in systemd-creds setpriv jq id tee stat; do
+    command -v "$command" >/dev/null 2>&1 \
+        || fail "required command is unavailable: $command"
+done
+[[ -x "$installed_binary" && ! -L "$installed_binary" ]] \
+    || fail 'the installed AntDelirium binary is unavailable.'
+[[ -S "$admin_socket" ]] || fail 'the administrative socket is unavailable.'
+[[ -f "$operator_credential" && ! -L "$operator_credential" ]] \
+    || fail 'the encrypted StateAdmin descriptor is unavailable.'
+[[ -f "$inventory_path" && ! -L "$inventory_path" ]] \
+    || fail 'the reviewed project-local inventory is unavailable.'
+
+source_sha256=$(jq -er '
+    select(.contract_version == "legacy-source-inventory-v1") |
+    .inventory_sha256 |
+    select(test("^[0-9a-f]{64}$"))
+' "$inventory_path") || fail 'the reviewed inventory contract is invalid.'
+
+install -d -m 0700 "$secret_root"
+systemd-creds --name=antdelirium-operator-state-v1 decrypt \
+    "$operator_credential" "$secret_root/state.json" >/dev/null
+chmod 0600 "$secret_root/state.json"
+jq -e '
+    .contract_version == "admin-capability-v1" and
+    (keys | sort) == ["capability", "contract_version"] and
+    (.capability | keys | sort) == ["capability_id", "token"] and
+    (.capability.capability_id | test("^cap_[0-9a-hjkmnp-tv-z]{26}$")) and
+    (.capability.token | test("^[A-Za-z0-9_-]{43}$"))
+' "$secret_root/state.json" >/dev/null \
+    || fail 'the decrypted StateAdmin descriptor is invalid.'
+
+printf '%s' 'Caminho da origem legada (entrada oculta; não será registrado): ' >/dev/tty
+IFS= read -r -s source_locator </dev/tty
+printf '\n' >/dev/tty
+[[ "$source_locator" == /* && -d "$source_locator" && ! -L "$source_locator" ]] \
+    || fail 'the private source must be an absolute, existing, non-symlink directory.'
+exec {source_fd}<"$source_locator"
+unset source_locator
+[[ -d "/proc/$$/fd/$source_fd" ]] \
+    || fail 'the inherited source descriptor is not a directory.'
+exec {inventory_fd}<"$inventory_path"
+open_admin_descriptor
+printf '%s\n' 'AD-T86-CANDIDATE: staging the reviewed source through descriptor-only input.'
+stage_output=$(setpriv --reuid="$invoking_uid" --regid="$invoking_gid" --init-groups \
+    --no-new-privs --inh-caps=-all --ambient-caps=-all --bounding-set=-all \
+    --reset-env env \
+    ANTDELIRIUM_ADMIN_SOCKET="$admin_socket" \
+    ANTDELIRIUM_ADMIN_CAPABILITY_FD="$admin_fd" \
+    ANTDELIRIUM_MIGRATION_SOURCE_FD="$source_fd" \
+    ANTDELIRIUM_MIGRATION_INVENTORY_FD="$inventory_fd" \
+    ANTDELIRIUM_EXPECTED_SOURCE_SHA256="$source_sha256" \
+    "$installed_binary" migrate-plugin)
+close_descriptors
+printf '%s\n' "$stage_output"
+migration_id=$(extract_field "$stage_output" migration_id) || fail 'staging returned no migration ID.'
+project_id=$(extract_field "$stage_output" project_id) || fail 'staging returned no project ID.'
+staging_sha256=$(extract_field "$stage_output" staging_sha256) || fail 'staging returned no digest.'
+require_id "$migration_id" mig
+require_id "$project_id" prj
+require_sha256 "$staging_sha256"
+
+printf '%s' 'Repita o caminho da mesma origem para normalização (entrada oculta): ' >/dev/tty
+IFS= read -r -s source_locator </dev/tty
+printf '\n' >/dev/tty
+[[ "$source_locator" == /* && -d "$source_locator" && ! -L "$source_locator" ]] \
+    || fail 'the private source must remain an absolute, existing, non-symlink directory.'
+exec {source_fd}<"$source_locator"
+unset source_locator
+exec {inventory_fd}<"$inventory_path"
+open_admin_descriptor
+printf '%s\n' 'AD-T86-CANDIDATE: normalizing the same descriptor-bound generation.'
+normalize_output=$(setpriv --reuid="$invoking_uid" --regid="$invoking_gid" --init-groups \
+    --no-new-privs --inh-caps=-all --ambient-caps=-all --bounding-set=-all \
+    --reset-env env \
+    ANTDELIRIUM_ADMIN_SOCKET="$admin_socket" \
+    ANTDELIRIUM_ADMIN_CAPABILITY_FD="$admin_fd" \
+    ANTDELIRIUM_MIGRATION_SOURCE_FD="$source_fd" \
+    ANTDELIRIUM_MIGRATION_INVENTORY_FD="$inventory_fd" \
+    ANTDELIRIUM_EXPECTED_SOURCE_SHA256="$source_sha256" \
+    ANTDELIRIUM_MIGRATION_ID="$migration_id" \
+    "$installed_binary" migrate-plugin normalize)
+close_descriptors
+printf '%s\n' "$normalize_output"
+normalized_sha256=$(extract_field "$normalize_output" normalized_sha256) \
+    || fail 'normalization returned no normalized digest.'
+semantic_sha256=$(extract_field "$normalize_output" semantic_sha256) \
+    || fail 'normalization returned no semantic digest.'
+require_sha256 "$normalized_sha256"
+require_sha256 "$semantic_sha256"
+
+printf '%s\n' 'AD-T86-CANDIDATE: creating the installed dry-run report.'
+dry_run_output=$(run_state_operation dry-run \
+    ANTDELIRIUM_MIGRATION_ID="$migration_id" \
+    ANTDELIRIUM_EXPECTED_SOURCE_SHA256="$source_sha256" \
+    ANTDELIRIUM_EXPECTED_STAGING_SHA256="$staging_sha256" \
+    ANTDELIRIUM_EXPECTED_NORMALIZED_SHA256="$normalized_sha256" \
+    ANTDELIRIUM_EXPECTED_SEMANTIC_SHA256="$semantic_sha256")
+printf '%s\n' "$dry_run_output"
+dry_run_sha256=$(extract_field "$dry_run_output" report_sha256) \
+    || fail 'dry-run returned no report digest.'
+manifest_sha256=$(extract_field "$dry_run_output" manifest_sha256) \
+    || fail 'dry-run returned no manifest digest.'
+require_sha256 "$dry_run_sha256"
+require_sha256 "$manifest_sha256"
+
+printf '%s\n' 'AD-T86-CANDIDATE: materializing the converted candidate without cutover.'
+convert_output=$(run_state_operation convert \
+    ANTDELIRIUM_MIGRATION_ID="$migration_id" \
+    ANTDELIRIUM_EXPECTED_SOURCE_SHA256="$source_sha256" \
+    ANTDELIRIUM_EXPECTED_STAGING_SHA256="$staging_sha256" \
+    ANTDELIRIUM_EXPECTED_NORMALIZED_SHA256="$normalized_sha256" \
+    ANTDELIRIUM_EXPECTED_SEMANTIC_SHA256="$semantic_sha256" \
+    ANTDELIRIUM_EXPECTED_DRY_RUN_SHA256="$dry_run_sha256")
+printf '%s\n' "$convert_output"
+workspace_id=$(extract_field "$convert_output" workspace_id) \
+    || fail 'conversion returned no workspace ID.'
+conversion_sha256=$(extract_field "$convert_output" report_sha256) \
+    || fail 'conversion returned no report digest.'
+require_id "$workspace_id" wsp
+require_sha256 "$conversion_sha256"
+
+printf '%s\n' 'AD-T86-CANDIDATE: installed candidate prepared; no capability, approval or cutover was created.'

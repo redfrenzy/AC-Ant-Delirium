@@ -340,21 +340,18 @@ fn stage_validated_stream<R: Read>(
     Ok(receipt)
 }
 
+#[cfg(test)]
 pub(crate) fn write_validated_source_stream<W: Write>(
     source_root: &Path,
     inventory_document: &[u8],
     expected_inventory_sha256: &str,
     writer: &mut W,
 ) -> Result<(), LegacyStagingError> {
-    let payload = validated_inventory_document(inventory_document, expected_inventory_sha256)?;
     let root_metadata =
         fs::symlink_metadata(source_root).map_err(|_| LegacyStagingError::SourceMismatch)?;
     if !source_root.is_absolute()
         || root_metadata.file_type().is_symlink()
         || !root_metadata.is_dir()
-        || unix_mode(&root_metadata) != payload.root.mode
-        || root_metadata.uid() != payload.root.uid
-        || root_metadata.gid() != payload.root.gid
     {
         return Err(LegacyStagingError::SourceMismatch);
     }
@@ -371,8 +368,35 @@ pub(crate) fn write_validated_source_stream<W: Write>(
     if metadata_signature(&opened_root_metadata) != metadata_signature(&root_metadata) {
         return Err(LegacyStagingError::SourceMismatch);
     }
+    write_validated_source_stream_from_directory(
+        &root_directory,
+        inventory_document,
+        expected_inventory_sha256,
+        writer,
+    )
+}
+
+#[cfg(unix)]
+pub(crate) fn write_validated_source_stream_from_directory<W: Write>(
+    root_directory: &File,
+    inventory_document: &[u8],
+    expected_inventory_sha256: &str,
+    writer: &mut W,
+) -> Result<(), LegacyStagingError> {
+    let payload = validated_inventory_document(inventory_document, expected_inventory_sha256)?;
+    let opened_root_metadata = root_directory
+        .metadata()
+        .map_err(|_| LegacyStagingError::SourceMismatch)?;
+    if !opened_root_metadata.is_dir()
+        || unix_mode(&opened_root_metadata) != payload.root.mode
+        || opened_root_metadata.uid() != payload.root.uid
+        || opened_root_metadata.gid() != payload.root.gid
+    {
+        return Err(LegacyStagingError::SourceMismatch);
+    }
     let root_signature = metadata_signature(&opened_root_metadata);
-    let observed_paths = collect_source_paths(source_root)?;
+    let source_view = PathBuf::from(format!("/proc/self/fd/{}", root_directory.as_raw_fd()));
+    let observed_paths = collect_source_paths(&source_view)?;
     let expected_paths = payload
         .entries
         .iter()
@@ -388,7 +412,7 @@ pub(crate) fn write_validated_source_stream<W: Write>(
 
     for entry in &payload.entries {
         let relative = validated_relative_path(&entry.path)?;
-        let path = source_root.join(&relative);
+        let path = source_view.join(&relative);
         let mut file =
             open_source_entry_beneath(&root_directory, &relative, entry.r#type == "directory")?;
         let opened = file
@@ -435,14 +459,14 @@ pub(crate) fn write_validated_source_stream<W: Write>(
             return Err(LegacyStagingError::SourceMismatch);
         }
     }
-    let final_paths = collect_source_paths(source_root)?;
-    let final_root =
-        fs::symlink_metadata(source_root).map_err(|_| LegacyStagingError::SourceMismatch)?;
+    let final_paths = collect_source_paths(&source_view)?;
+    let final_root = root_directory
+        .metadata()
+        .map_err(|_| LegacyStagingError::SourceMismatch)?;
     if final_paths
         .iter()
         .map(String::as_str)
         .ne(expected_paths.iter().copied())
-        || final_root.file_type().is_symlink()
         || metadata_signature(&final_root) != root_signature
     {
         return Err(LegacyStagingError::SourceMismatch);

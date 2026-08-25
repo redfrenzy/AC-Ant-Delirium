@@ -1,5 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs::{self, OpenOptions};
+use std::fs::{self, File, OpenOptions};
 use std::io::Read;
 use std::path::Path;
 
@@ -11,12 +11,14 @@ use ac_ant_delirium::libres::System_Random_unit::random_crockford_id;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+#[cfg(test)]
+use crate::legacy_staging::write_validated_source_stream;
 use crate::legacy_staging::{
     collect_source_paths, lowercase_hex, open_source_entry_beneath, require_private_directory,
     staged_content_digest, sync_directory, valid_sha256, validated_inventory_document,
     validated_relative_path, write_private_bytes, write_private_json,
-    write_validated_source_stream, InventoryEntry, LegacyStageReceipt, LegacyStagingError,
-    SemanticCounts,
+    write_validated_source_stream_from_directory, InventoryEntry, LegacyStageReceipt,
+    LegacyStagingError, SemanticCounts,
 };
 use crate::limited_protocol::valid_opaque_id;
 
@@ -124,16 +126,13 @@ struct SnapshotEntry<'a> {
     content_sha256: Option<String>,
 }
 
+#[cfg(test)]
 pub(crate) fn prepare_source_normalization(
     source_root: &Path,
     inventory_document: &[u8],
     expected_inventory_sha256: &str,
     migration_id: &str,
 ) -> Result<LegacyNormalizationRequest, LegacyNormalizationError> {
-    if !valid_opaque_id(migration_id, "mig_") {
-        return Err(LegacyNormalizationError::Inventory);
-    }
-    let payload = validated_inventory_document(inventory_document, expected_inventory_sha256)?;
     let mut stream = Vec::new();
     write_validated_source_stream(
         source_root,
@@ -141,6 +140,46 @@ pub(crate) fn prepare_source_normalization(
         expected_inventory_sha256,
         &mut stream,
     )?;
+    prepare_source_normalization_from_stream(
+        inventory_document,
+        expected_inventory_sha256,
+        migration_id,
+        stream,
+    )
+}
+
+#[cfg(unix)]
+pub(crate) fn prepare_source_normalization_from_directory(
+    source_root: &File,
+    inventory_document: &[u8],
+    expected_inventory_sha256: &str,
+    migration_id: &str,
+) -> Result<LegacyNormalizationRequest, LegacyNormalizationError> {
+    let mut stream = Vec::new();
+    write_validated_source_stream_from_directory(
+        source_root,
+        inventory_document,
+        expected_inventory_sha256,
+        &mut stream,
+    )?;
+    prepare_source_normalization_from_stream(
+        inventory_document,
+        expected_inventory_sha256,
+        migration_id,
+        stream,
+    )
+}
+
+fn prepare_source_normalization_from_stream(
+    inventory_document: &[u8],
+    expected_inventory_sha256: &str,
+    migration_id: &str,
+    stream: Vec<u8>,
+) -> Result<LegacyNormalizationRequest, LegacyNormalizationError> {
+    if !valid_opaque_id(migration_id, "mig_") {
+        return Err(LegacyNormalizationError::Inventory);
+    }
+    let payload = validated_inventory_document(inventory_document, expected_inventory_sha256)?;
     let entries = split_inventory_stream(&payload.entries, &stream)?;
     let physical_values = collect_physical_values(&entries)?;
     let mut physical_references = Vec::with_capacity(physical_values.len());

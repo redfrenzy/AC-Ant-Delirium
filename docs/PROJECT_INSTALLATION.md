@@ -609,13 +609,14 @@ handler como UID 0.
 O release possui uma rota interna `migrate-plugin`, separada da gramática do
 agente e recusada em builds debug. Ela não é descoberta por `--help`/`--api` e
 não concede autoridade por nome de comando. Um supervisor operador precisa
-entregar o socket, origem, inventário e digest por ambiente e uma capability
-administrativa por descriptor herdado:
+abrir a origem e o inventário antes de rebaixar privilégios. O binário recebe
+somente os números dos descriptors herdados, o socket lógico, o digest e uma
+capability administrativa também por descriptor:
 
 ```text
 ANTDELIRIUM_ADMIN_SOCKET
-ANTDELIRIUM_MIGRATION_SOURCE
-ANTDELIRIUM_MIGRATION_INVENTORY
+ANTDELIRIUM_MIGRATION_SOURCE_FD
+ANTDELIRIUM_MIGRATION_INVENTORY_FD
 ANTDELIRIUM_EXPECTED_SOURCE_SHA256
 ANTDELIRIUM_MIGRATION_ID
 ANTDELIRIUM_ADMIN_CAPABILITY_FD
@@ -623,11 +624,19 @@ ANTDELIRIUM_ADMIN_CAPABILITY_FD
 
 `ANTDELIRIUM_MIGRATION_ID` só é exigido pela segunda chamada interna,
 `migrate-plugin normalize`; o staging inicial continua sem ID escolhido pelo
-cliente. O descriptor contém somente `admin-capability-v1` com ID e token. O processo
-marca-o `FD_CLOEXEC`, limita a leitura a 4 KiB e o fecha ao terminar o parse. Os
-quatro valores de path/digest são removidos do ambiente antes de abrir a origem.
-Esse mecanismo é para um supervisor fora do sandbox do agente; não se deve
-entregar essas variáveis ou a capability ao wrapper comum.
+cliente. O descriptor de capability contém somente `admin-capability-v1` com ID
+e token. Antes de ler qualquer entrada, o processo operador desabilita
+inspeção/dumps, core dumps e ganho posterior de privilégios; todos os
+descriptors herdados recebem `FD_CLOEXEC`. A origem deve ser um diretório aberto
+somente para leitura e o inventário deve ser um arquivo regular aberto somente
+para leitura, posicionado no byte zero e limitado a 8 MiB. As variantes antigas
+que recebiam caminhos físicos não fazem parte da rota release.
+
+O supervisor root mantém o locator físico fora de argumentos, ambiente, logs e
+arquivos do projeto. Depois de abrir a origem com proteção contra symlink, ele
+entrega apenas o descriptor ao processo rebaixado para o UID operador. Esse
+mecanismo é exclusivo de um supervisor fora do sandbox do agente; as variáveis
+de descriptor e a capability nunca são entregues ao wrapper comum.
 
 Os submodos posteriores usam ainda IDs e hashes específicos. Para
 `migrate-plugin cutover`, o supervisor fornece também
