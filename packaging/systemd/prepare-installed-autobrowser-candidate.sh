@@ -39,6 +39,15 @@ close_descriptors() {
     inventory_fd=
 }
 
+close_admin_and_inventory() {
+    set +e
+    [[ -z "$admin_fd" ]] || eval "exec ${admin_fd}<&-"
+    [[ -z "$inventory_fd" ]] || eval "exec ${inventory_fd}<&-"
+    admin_fd=
+    inventory_fd=
+    set -e
+}
+
 cleanup() {
     local exit_code=$?
     close_descriptors
@@ -170,7 +179,7 @@ stage_output=$(setpriv --reuid="$invoking_uid" --regid="$invoking_gid" --init-gr
     ANTDELIRIUM_MIGRATION_INVENTORY_FD="$inventory_fd" \
     ANTDELIRIUM_EXPECTED_SOURCE_SHA256="$source_sha256" \
     "$installed_binary" migrate-plugin)
-close_descriptors
+close_admin_and_inventory
 printf '%s\n' "$stage_output"
 migration_id=$(extract_field "$stage_output" migration_id) || fail 'staging returned no migration ID.'
 project_id=$(extract_field "$stage_output" project_id) || fail 'staging returned no project ID.'
@@ -179,13 +188,6 @@ require_id "$migration_id" mig
 require_id "$project_id" prj
 require_sha256 "$staging_sha256"
 
-printf '%s' 'Repita o caminho da mesma origem para normalização (entrada oculta): ' >/dev/tty
-IFS= read -r -s source_locator </dev/tty
-printf '\n' >/dev/tty
-[[ "$source_locator" == /* && -d "$source_locator" && ! -L "$source_locator" ]] \
-    || fail 'the private source must remain an absolute, existing, non-symlink directory.'
-exec {source_fd}<"$source_locator"
-unset source_locator
 exec {inventory_fd}<"$inventory_path"
 open_admin_descriptor
 printf '%s\n' 'AD-T86-CANDIDATE: normalizing the same descriptor-bound generation.'
