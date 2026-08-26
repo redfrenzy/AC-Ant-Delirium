@@ -158,7 +158,7 @@ cleanup() {
     rm -rf "$secret_root"
     journalctl -u antdelirium.service --since "@$run_started_unix" \
         --no-pager --output=cat 2>/dev/null \
-        | rg -F 'antdelirium-service[AD-MIGRATION-STAGE-DETAIL]:' \
+        | sed -n '/antdelirium-service\[AD-MIGRATION-STAGE-DETAIL\]:/p' \
         >"$log_root/service-stage-diagnostic.log"
     if [[ -s "$log_root/service-stage-diagnostic.log" ]]; then
         printf '%s\n' 'AD-T86-CANDIDATE: protected service diagnostic:'
@@ -245,7 +245,7 @@ chmod 0755 "$(dirname "$log_root")" "$log_root"
 exec > >(tee -a "$log_root/candidate-preparation.log") 2>&1
 trap cleanup EXIT
 
-for command in systemd-creds setpriv journalctl jq id python3 rg sed tee stat; do
+for command in systemd-creds setpriv journalctl jq id python3 sed tee stat; do
     command -v "$command" >/dev/null 2>&1 \
         || fail "required command is unavailable: $command"
 done
