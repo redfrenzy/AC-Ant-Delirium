@@ -4,9 +4,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use ac_ant_delirium::libres::Rusqlite_unit::AC_params;
 use ac_ant_delirium::libres::Sha2_unit::sha256;
 use ac_ant_delirium::structs::{
-    AuditStore, CanonicalStateStore, CapabilityActor, CapabilityAuthorizationOutcome,
-    CapabilityAuthorizationRequest, CapabilityChannel, CapabilityOperation, NewCapabilityGrant,
-    NewCapabilityRevocation, StorageWorkspace,
+    AuditStore, CanonicalStateStore, CanonicalTaskPackage, CanonicalTaskPackageTask,
+    CapabilityActor, CapabilityAuthorizationOutcome, CapabilityAuthorizationRequest,
+    CapabilityChannel, CapabilityOperation, NewCapabilityGrant, NewCapabilityRevocation,
+    StorageWorkspace, GOVERNANCE_TASK_PACKAGE_CONTRACT_VERSION,
 };
 
 #[cfg(unix)]
@@ -176,6 +177,97 @@ fn initializes_private_registry_and_idempotent_canonical_project_storage() {
 
     drop(storage);
     ProtectedServiceStorage::initialize(&authority, &root).expect("restart recovery");
+    fs::remove_dir_all(root).expect("fixture cleanup");
+}
+
+#[test]
+fn state_admin_installs_a_generic_task_package_without_a_physical_locator() {
+    let root = unique_root("generic-task-package");
+    let authority = authority();
+    let storage = ProtectedServiceStorage::initialize(&authority, &root).unwrap();
+    let registration = storage
+        .create_provisional_registration(&authority, 1000, &[42_u8; 32], "synthetic-project")
+        .unwrap();
+    let capability = authorize_capability(
+        storage.registry(),
+        CapabilityActor::Operator,
+        CapabilityChannel::Administrative,
+        CapabilityOperation::StateAdmin,
+        None,
+        None,
+        None,
+    );
+    let package = CanonicalTaskPackage {
+        contract_version: GOVERNANCE_TASK_PACKAGE_CONTRACT_VERSION.to_string(),
+        project_id: registration.project_id.clone(),
+        workspace_id: registration.workspace_id.clone(),
+        plan_id: PLAN_ID.to_string(),
+        expected_state_revision: 0,
+        tasks: vec![CanonicalTaskPackageTask {
+            task_id: TASK_ID.to_string(),
+            task_revision: 1,
+            objective: "Implement the synthetic service task.".to_string(),
+            acceptance_criteria: vec!["The protected service test passes.".to_string()],
+            relevant_paths: vec!["src/lib.rs".to_string()],
+        }],
+    };
+
+    let installed = storage
+        .install_generic_task_package(&authority, &capability, &package)
+        .unwrap();
+    assert_eq!(installed.state.state_revision, 1);
+    assert_eq!(installed.state.current_task_id.as_deref(), Some(TASK_ID));
+    assert_eq!(installed.state.tasks.len(), 1);
+
+    let replay = storage
+        .install_generic_task_package(&authority, &capability, &package)
+        .unwrap();
+    assert!(!replay.audit.inserted());
+    assert_eq!(replay.state, installed.state);
+
+    fs::remove_dir_all(root).expect("fixture cleanup");
+}
+
+#[test]
+fn generic_task_package_rejects_a_non_admin_capability() {
+    let root = unique_root("generic-task-package-auth");
+    let authority = authority();
+    let storage = ProtectedServiceStorage::initialize(&authority, &root).unwrap();
+    let registration = storage
+        .create_provisional_registration(&authority, 1000, &[43_u8; 32], "synthetic-project")
+        .unwrap();
+    let capability = authorize_capability(
+        storage.registry(),
+        CapabilityActor::Wrapper,
+        CapabilityChannel::Limited,
+        CapabilityOperation::ProjectionRefresh,
+        Some(&registration.project_id),
+        Some(&registration.workspace_id),
+        None,
+    );
+    let package = CanonicalTaskPackage {
+        contract_version: GOVERNANCE_TASK_PACKAGE_CONTRACT_VERSION.to_string(),
+        project_id: registration.project_id,
+        workspace_id: registration.workspace_id,
+        plan_id: PLAN_ID.to_string(),
+        expected_state_revision: 0,
+        tasks: vec![CanonicalTaskPackageTask {
+            task_id: TASK_ID.to_string(),
+            task_revision: 1,
+            objective: "Unauthorized task.".to_string(),
+            acceptance_criteria: Vec::new(),
+            relevant_paths: vec!["src/lib.rs".to_string()],
+        }],
+    };
+
+    assert!(storage
+        .install_generic_task_package(&authority, &capability, &package)
+        .is_err());
+    assert_eq!(
+        storage.registry().service_security_event_count().unwrap(),
+        1
+    );
+
     fs::remove_dir_all(root).expect("fixture cleanup");
 }
 

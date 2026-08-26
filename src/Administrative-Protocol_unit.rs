@@ -11,8 +11,9 @@ use std::time::{Duration, Instant};
 use ac_ant_delirium::libres::Sha2_unit::sha256;
 use ac_ant_delirium::libres::System_Random_unit::{fill_system_random, random_crockford_id};
 use ac_ant_delirium::structs::{
-    CapabilityActor, CapabilityAuthorizationOutcome, CapabilityAuthorizationRequest,
-    CapabilityChannel, CapabilityOperation,
+    CanonicalTaskPackage, CanonicalTaskPackageTask, CapabilityActor,
+    CapabilityAuthorizationOutcome, CapabilityAuthorizationRequest, CapabilityChannel,
+    CapabilityOperation,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -177,10 +178,69 @@ struct CapabilityRevokeReceipt {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TaskPackageTaskBody {
+    task_id: String,
+    task_revision: i64,
+    objective: String,
+    acceptance_criteria: Vec<String>,
+    relevant_paths: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TaskPackageBody {
+    contract_version: String,
+    project_id: String,
+    workspace_id: String,
+    plan_id: String,
+    expected_state_revision: i64,
+    tasks: Vec<TaskPackageTaskBody>,
+}
+
+impl From<TaskPackageBody> for CanonicalTaskPackage {
+    fn from(body: TaskPackageBody) -> Self {
+        Self {
+            contract_version: body.contract_version,
+            project_id: body.project_id,
+            workspace_id: body.workspace_id,
+            plan_id: body.plan_id,
+            expected_state_revision: body.expected_state_revision,
+            tasks: body
+                .tasks
+                .into_iter()
+                .map(|task| CanonicalTaskPackageTask {
+                    task_id: task.task_id,
+                    task_revision: task.task_revision,
+                    objective: task.objective,
+                    acceptance_criteria: task.acceptance_criteria,
+                    relevant_paths: task.relevant_paths,
+                })
+                .collect(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TaskPackageReceipt {
+    contract_version: String,
+    project_id: String,
+    workspace_id: String,
+    plan_id: String,
+    current_task_id: String,
+    state_revision: i64,
+    task_count: usize,
+    audit_sequence: i64,
+    state: String,
+}
+
+#[derive(Serialize, Deserialize)]
 #[serde(untagged)]
 enum AdministrativeBody {
     Grant(CapabilityGrantBody),
     Revoke(CapabilityRevokeBody),
+    TaskPackage(TaskPackageBody),
     Stage(MigrationStageBody),
     Normalize(LegacyNormalizationRequest),
     DryRun(LegacyDryRunRequest),
@@ -207,6 +267,7 @@ struct AdministrativeRequest {
 enum AdministrativeResult {
     Grant(CapabilityGrantReceipt),
     Revoke(CapabilityRevokeReceipt),
+    TaskPackage(TaskPackageReceipt),
     Stage(LegacyStageReceipt),
     Normalize(LegacyNormalizationReceipt),
     DryRun(LegacyDryRunReport),
@@ -357,6 +418,9 @@ pub(crate) fn run_migration_operator(args: &[OsString]) {
                 receipt.manifest_after_sha256,
                 receipt.post_cutover_first_sequence,
             )),
+        Ok(AdministrativeResult::TaskPackage(_)) => {
+            OutputRouter::exit(PublicError::Authorization)
+        }
         Err(AdministrativeProtocolError::Authorization) => {
             OutputRouter::exit(PublicError::Authorization)
         }
@@ -1131,6 +1195,30 @@ pub(crate) fn serve_administrative_request(
                 state: "revoked".to_string(),
             })
         }
+        AdministrativeBody::TaskPackage(body) => {
+            let package = CanonicalTaskPackage::from(body);
+            let outcome = storage
+                .install_generic_task_package(authority, &capability, &package)
+                .map_err(|_| AdministrativeProtocolError::Authorization)?;
+            AdministrativeResult::TaskPackage(TaskPackageReceipt {
+                contract_version: "governance-task-package-receipt-v1".to_string(),
+                project_id: package.project_id,
+                workspace_id: package.workspace_id,
+                plan_id: package.plan_id,
+                current_task_id: outcome
+                    .state
+                    .current_task_id
+                    .ok_or(AdministrativeProtocolError::Envelope)?,
+                state_revision: outcome.state.state_revision,
+                task_count: outcome.state.tasks.len(),
+                audit_sequence: outcome.audit.sequence(),
+                state: if outcome.audit.inserted() {
+                    "installed".to_string()
+                } else {
+                    "already-installed".to_string()
+                },
+            })
+        }
         AdministrativeBody::Stage(body) => {
             let inventory_document = serde_json::to_vec_pretty(&body.inventory)
                 .map_err(|_| AdministrativeProtocolError::Envelope)?;
@@ -1275,6 +1363,7 @@ fn validate_request(
             request.operation.as_str(),
             "capability.grant"
                 | "capability.revoke"
+                | "governance.task-package.install"
                 | "migration.stage"
                 | "migration.normalize"
                 | "migration.dry-run"
@@ -1301,6 +1390,14 @@ fn validate_request(
         ("capability.revoke", AdministrativeBody::Revoke(body))
             if body.contract_version == "capability-revoke-request-v1"
                 && valid_opaque_id(&body.capability_id, "cap_") =>
+        {
+            Ok(())
+        }
+        ("governance.task-package.install", AdministrativeBody::TaskPackage(body))
+            if body.contract_version == "governance-task-package-v1"
+                && valid_opaque_id(&body.project_id, "prj_")
+                && valid_opaque_id(&body.workspace_id, "wsp_")
+                && valid_opaque_id(&body.plan_id, "pln_") =>
         {
             Ok(())
         }

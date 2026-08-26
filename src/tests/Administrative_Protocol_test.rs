@@ -287,6 +287,50 @@ fn migration_request_binds_connection_operation_and_inventory_digest() {
     );
 }
 
+#[test]
+fn generic_task_package_request_is_closed_and_requires_state_admin() {
+    let nonce = [5_u8; 32];
+    let request = AdministrativeRequest {
+        message_type: "request".to_string(),
+        wire_version: ADMIN_WIRE_VERSION.to_string(),
+        request_id: "req_00000000000000000000000000".to_string(),
+        connection_nonce: encode_base64url(&nonce),
+        operation: "governance.task-package.install".to_string(),
+        capability: WireCapability {
+            capability_id: "cap_00000000000000000000000000".to_string(),
+            token: encode_base64url(&[7_u8; 32]),
+        },
+        body: AdministrativeBody::TaskPackage(TaskPackageBody {
+            contract_version: "governance-task-package-v1".to_string(),
+            project_id: "prj_00000000000000000000000000".to_string(),
+            workspace_id: "wsp_00000000000000000000000000".to_string(),
+            plan_id: "pln_00000000000000000000000000".to_string(),
+            expected_state_revision: 0,
+            tasks: vec![TaskPackageTaskBody {
+                task_id: "tsk_00000000000000000000000000".to_string(),
+                task_revision: 1,
+                objective: "Implement the synthetic protocol task.".to_string(),
+                acceptance_criteria: vec!["The protocol test passes.".to_string()],
+                relevant_paths: vec!["src/lib.rs".to_string()],
+            }],
+        }),
+    };
+
+    assert_eq!(validate_request(&request, &nonce), Ok(()));
+    let authentication = ConnectionAuthentication::for_test(1000, nonce);
+    let authorization = capability_request(&authentication, &request).unwrap();
+    assert_eq!(authorization.operation, CapabilityOperation::StateAdmin);
+    assert_eq!(authorization.project_id, None);
+    assert_eq!(authorization.workspace_id, None);
+
+    let mut wrong_operation = request;
+    wrong_operation.operation = "migration.convert".to_string();
+    assert_eq!(
+        validate_request(&wrong_operation, &nonce),
+        Err(AdministrativeProtocolError::Envelope)
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn installation_admin_grants_and_revokes_pre_cutover_ci_authority_over_ada1() {

@@ -10,11 +10,11 @@ use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use ac_ant_delirium::libres::Sha2_unit::sha256;
 use ac_ant_delirium::libres::System_Random_unit::{fill_system_random, random_crockford_id};
 use ac_ant_delirium::structs::{
-    AuthorizedCapability, CanonicalStateStore, CapabilityActor, CapabilityChannel,
-    CapabilityGrantAuditReceipt, CapabilityOperation, CapabilityRevocationAuditReceipt,
-    NewCapabilityGrant, ProjectDatabase, ProvisionalProjectRegistration,
-    ServiceSecurityAuditReceipt, StorageProject, StorageWorkspace, TransactionalStorageError,
-    STORAGE_SCHEMA_VERSION,
+    AuthorizedCapability, CanonicalMutationOutcome, CanonicalStateStore, CanonicalTaskPackage,
+    CapabilityActor, CapabilityChannel, CapabilityGrantAuditReceipt, CapabilityOperation,
+    CapabilityRevocationAuditReceipt, NewAuditEvent, NewCapabilityGrant, ProjectDatabase,
+    ProvisionalProjectRegistration, ServiceSecurityAuditReceipt, StorageProject, StorageWorkspace,
+    TransactionalStorageError, AUDIT_EVENT_CONTRACT_VERSION, STORAGE_SCHEMA_VERSION,
 };
 
 use crate::service_authority::VerifiedServiceAuthority;
@@ -108,6 +108,98 @@ impl ResolvedAuthorizedResource {
 impl ProtectedServiceStorage {
     pub(crate) fn registry(&self) -> &ProjectDatabase {
         &self.registry
+    }
+
+    pub(crate) fn install_generic_task_package(
+        &self,
+        authority: &VerifiedServiceAuthority,
+        capability: &AuthorizedCapability,
+        package: &CanonicalTaskPackage,
+    ) -> Result<CanonicalMutationOutcome, ()> {
+        let now = trusted_service_unix_time().map_err(|_| ())?;
+        let authorized = capability.actor() == CapabilityActor::Operator
+            && capability.channel() == CapabilityChannel::Administrative
+            && capability.operation() == CapabilityOperation::StateAdmin
+            && capability.project_id().is_none()
+            && capability.workspace_id().is_none()
+            && capability.task_id().is_none()
+            && self
+                .registry
+                .authorized_capability_is_current(capability, now)
+                .map_err(|_| ())?;
+        if !authorized {
+            self.audit_rejected_authorized_request_at(capability, now)?;
+            return Err(());
+        }
+
+        let database = self.open_registered_project(authority, &package.project_id)?;
+        let mut fingerprint_material = Vec::new();
+        fingerprint_material.extend_from_slice(package.contract_version.as_bytes());
+        fingerprint_material.push(0);
+        fingerprint_material.extend_from_slice(package.project_id.as_bytes());
+        fingerprint_material.push(0);
+        fingerprint_material.extend_from_slice(package.workspace_id.as_bytes());
+        fingerprint_material.push(0);
+        fingerprint_material.extend_from_slice(package.plan_id.as_bytes());
+        fingerprint_material.extend_from_slice(&package.expected_state_revision.to_be_bytes());
+        for task in &package.tasks {
+            fingerprint_material.extend_from_slice(task.task_id.as_bytes());
+            fingerprint_material.extend_from_slice(&task.task_revision.to_be_bytes());
+            fingerprint_material.extend_from_slice(task.objective.as_bytes());
+            for criterion in &task.acceptance_criteria {
+                fingerprint_material.extend_from_slice(criterion.as_bytes());
+                fingerprint_material.push(0);
+            }
+            for path in &task.relevant_paths {
+                fingerprint_material.extend_from_slice(path.as_bytes());
+                fingerprint_material.push(0);
+            }
+        }
+        let fingerprint = lowercase_hex(&sha256(&fingerprint_material));
+        let occurred_at = format!("unix:{now}");
+        let event = NewAuditEvent {
+            contract_version: AUDIT_EVENT_CONTRACT_VERSION.to_string(),
+            event_id: random_crockford_id("evt_").map_err(|_| ())?,
+            project_id: package.project_id.clone(),
+            workspace_id: Some(package.workspace_id.clone()),
+            actor_kind: "operator".to_string(),
+            actor_subject_id: "authorized-state-admin".to_string(),
+            event_kind: "state_transitioned".to_string(),
+            outcome: "succeeded".to_string(),
+            occurred_at,
+            fingerprint,
+            correlation_id: random_crockford_id("ref_").map_err(|_| ())?,
+            resource_id: Some(package.plan_id.clone()),
+            payload: b"generic governance task package installed".to_vec(),
+        };
+        database
+            .install_task_package(package, &event)
+            .map_err(|_| ())
+    }
+
+    fn open_registered_project(
+        &self,
+        authority: &VerifiedServiceAuthority,
+        project_id: &str,
+    ) -> Result<ProjectDatabase, ()> {
+        let mut matches = self
+            .registry
+            .registered_projects()
+            .map_err(|_| ())?
+            .into_iter()
+            .filter(|project| project.project_id == project_id);
+        let project = matches.next().ok_or(())?;
+        if matches.next().is_some() {
+            return Err(());
+        }
+        validate_project_identity(&project).map_err(|_| ())?;
+        let project_root = self.projects_dir.join(&project.project_key);
+        require_owned_directory(&project_root, authority.effective_uid()).map_err(|_| ())?;
+        let database = ProjectDatabase::open_existing_at(&project_root).map_err(|_| ())?;
+        require_single_project(&database, &project).map_err(|_| ())?;
+        database.recover().map_err(|_| ())?;
+        require_database_ownership(&database, authority.effective_uid()).map_err(|_| ())?;
+        Ok(database)
     }
 }
 
@@ -822,6 +914,16 @@ fn sanitize_project_slug(value: &str) -> String {
     } else {
         slug
     }
+}
+
+fn lowercase_hex(input: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut output = String::with_capacity(input.len() * 2);
+    for byte in input {
+        output.push(HEX[(byte >> 4) as usize] as char);
+        output.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    output
 }
 
 fn trusted_service_unix_time() -> Result<i64, ProtectedStorageError> {

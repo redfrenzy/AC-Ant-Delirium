@@ -32,6 +32,13 @@ Os testes focados comprovaram:
 - rejeição de overwrite;
 - rollback do evento, plano e tarefas quando qualquer validação falha.
 
-Esta entrega ainda não conclui T8G.3. O próximo passo é expor o contrato no
-canal administrativo autenticado e então conectar submissão, revisão, avanço e
-histórico ao serviço instalado.
+O canal administrativo `ADA1` agora aceita a operação fechada
+`governance.task-package.install`, vincula o corpo inteiro à autorização e
+exige capability global `Operator/Administrative/StateAdmin`. O serviço resolve
+o projeto somente pelo ID opaco no registry, abre o banco protegido sob sua
+própria autoridade e devolve recibo sem localizador físico. Capability limitada
+ou escopo divergente são recusados e auditados.
+
+Esta entrega ainda não conclui T8G.3. Permanecem o cliente operador por
+descriptor, a submissão pública ligada ao canal limitado, revisão, avanço e
+histórico no serviço instalado.
