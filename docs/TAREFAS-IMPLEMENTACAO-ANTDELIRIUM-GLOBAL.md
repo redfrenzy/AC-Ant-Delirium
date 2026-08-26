@@ -23,7 +23,7 @@ Onda 6  wrapper rustc transparente
    |
 Onda 7  instalador Cargo e comandos existentes
    |
-Onda 8  migração controlada do AutoBrowser
+Onda 8  aceite genérico da implantação global
    |
 Onda 9  enforcement e testes hostis
    |
@@ -38,7 +38,7 @@ Onda 10 remoção do legado e aceite final
 | Construir o serviço protegido antes de esconder ou mover os planos | Evita tornar o estado canônico inacessível ao próprio AntDelirium |
 | Validar as projeções antes de ativar o wrapper | Evita que todo `cargo check` espalhe JSON incorreto por projetos |
 | Provar equivalência do wrapper antes de alterar a configuração global do Cargo | Evita quebrar todos os projetos Rust do usuário de uma só vez |
-| Separar cópia para staging, comparação, cutover e mudança de permissões | Evita uma migração irreversível do AutoBrowser |
+| Manter migrações de projetos concretos fora do gate do produto | Evita que um exemplo bloqueie o binário global e mistura de escopos |
 | Remover `guard`, `build.rs` e binários de plugin somente no fim | Mantém um rollback funcional até a nova implantação estar comprovada |
 
 ## 2. Gates obrigatórios
@@ -53,7 +53,7 @@ Uma onda só pode começar quando o gate da anterior estiver satisfeito.
 - **G5 — Projeção segura:** `guard/` contém somente os dois JSONs permitidos, sem caminhos ou estado administrativo.
 - **G6 — Wrapper transparente:** argumentos, streams, sinais e códigos de saída são equivalentes ao `rustc` real.
 - **G7 — Instalação reversível:** a configuração Cargo pode ser instalada, diagnosticada e removida sem perder configuração do usuário.
-- **G8 — Migração validada:** hashes, contagens, histórico, funcionamento e rollback do AutoBrowser foram comprovados.
+- **G8 — Implantação genérica validada:** um projeto Rust descartável usa os comandos Cargo normais, cria estado protegido e recebe somente as projeções permitidas, com rollback comprovado.
 - **G9 — Enforcement comprovado:** bypass, descoberta de caminhos e mutação autoritativa falham ou são detectados fora da autoridade do agente.
 
 ## 3. Checklist de implementação
@@ -164,7 +164,13 @@ integrado documentado em T7.3.
 
 **Gate de saída:** G7. Instalação e desinstalação devem ser testadas em `$CARGO_HOME` descartável antes da instalação real.
 
-### Onda 8 — Migrar o AutoBrowser sem perda nem cutover prematuro
+### Experimento histórico opcional — migração de um projeto de exemplo
+
+Esta seção não pertence mais ao caminho crítico do AntDelirium. O projeto usado
+como exemplo não é parte do produto e não deve ser lido, modificado, instalado,
+migrado ou usado para decidir se o binário global está pronto. As caixas abaixo
+são preservadas apenas como registro histórico do protótipo; T8.6–T8.9 estão
+pausadas por correção de escopo e não bloqueiam nenhum gate do produto.
 
 - [x] **T8.1** Fazer inventário read-only do plugin, planos, orquestrador, schemas, problemas, transições, artefatos e histórico atuais. Evidência: o [inventário T8.1](./INVENTARIO-READ-ONLY-AUTOBROWSER-T8.1.md) registra a fotografia estrutural da origem AutoBrowser usando somente `stat`, `find` e Git read-only. Foram localizados o repositório do plugin, binários/configuração legado, planos, orquestrador e índice, JSONs administrativos, transição global, problemas, schemas por domínio, manifestos, evidências de tarefas e histórico Git/governance. A inspeção também separa o `project_state/` misto — código, extensão, servidor, schemas, fixtures, ferramentas e evidências — do futuro state root canônico e distingue o arquivo legado `project_state/guard` do diretório de projeções novo. A origem já estava suja, com planos antigos removidos e substitutos não rastreados, mudanças nos planos 0.0–3.0, orquestrador, índice e conexão; esse estado foi preservado sem inferir renomes, restaurar ou limpar Git. Nenhum JSON foi interpretado ou reformatado, nenhum script/binário foi executado, nenhuma permissão foi alterada e nada foi copiado. Hashes, validação integral, contagens, modos, ownership e links permanecem explicitamente na T8.2; staging continua na T8.3. — Plano: [estado de referência][plano-estado], [Fase 7][plano-fase-7].
 - [x] **T8.2** Validar todos os JSONs e registrar hashes, contagens, permissões, links e caminhos antes de qualquer cópia. Evidência: o gerador read-only [`validate-legacy-source-inventory.sh`](../packaging/migration/validate-legacy-source-inventory.sh) percorre a origem sem seguir links, valida cada `.json`, registra cada entry por path relativo/tipo/modo/UID/GID/tamanho/SHA-256/link, revalida metadados ao redor do hash e exige duas passagens canônicas idênticas. O ledger [`legacy-source-inventory-v1`](./evidence/autobrowser-legacy-source-inventory-v1.json), regido por [schema fechado](./contracts/v1/legacy-source-inventory-v1.schema.json), contém 3.102 entries, 2.722 arquivos, 380 diretórios, nenhum link/outro tipo, 144 JSONs válidos, 16 planos, 73 tarefas, 275 eventos, um problema, quatro transições, 24 schemas, cinco manifestos e 33 evidências; o digest do payload é `7d11b66e162a10313ae3601982ce234653329743031d4a1a9ec874c34b2ccbcd`. O inventário preserva os quatro objetos `65534:65534` e seus modos `444`/`555`, sem `chown` ou normalização. O [relatório T8.2](./VALIDACAO-INVENTARIO-AUTOBROWSER-T8.2.md) registra validação meta-schema, histogramas, Git sujo/HEAD/status e a comparação posterior da lista de status. O verificador portátil [`verify-legacy-source-inventory.sh`](../packaging/migration/verify-legacy-source-inventory.sh), integrado ao `make ci`, recompõe hash, contagens, paths, ownership e invariantes de arquivo/link e recusa locator físico. A evidência usa somente paths relativos e `source_locator=operator-private`; a origem não foi modificada e nenhum conteúdo foi copiado. O snapshot não é freeze: T8.3 deve revalidar o digest imediatamente antes de staging. — Plano: [Fase 7][plano-fase-7], [matriz de validação][plano-validacao].
@@ -177,7 +183,16 @@ integrado documentado em T7.3.
 - [ ] **T8.8** Somente depois do cutover validado, aplicar a proteção definitiva dos planos e confirmar que o agente não os lê nem escreve. — Plano: [autoridade][plano-autoridade], [Fase 8][plano-fase-8].
 - [ ] **T8.9** Manter a origem antiga recuperável durante a janela de rollback definida na Onda 1. — Plano: [Fase 7][plano-fase-7].
 
-**Gate de saída:** G8. Cópia, conversão de formato, mudança de autoridade e arquivamento são operações separadas.
+**Estado do experimento:** pausado e fora dos gates do produto; nenhuma operação adicional deve ser executada contra o projeto usado como exemplo.
+
+### Onda 8 — Fechar a implantação genérica do AntDelirium
+
+- [ ] **T8G.1** Confirmar que wrapper global, serviço instalado e bundle revisado executam o mesmo release e que `doctor` retorna pronto sem depender de projeto externo. — Plano: [Fase 5][plano-fase-5], [definição de pronto][plano-pronto].
+- [ ] **T8G.2** Criar um projeto Rust descartável e provar que `cargo check`, `build` e `test` acionam o AntDelirium sem sintaxe especial, registram o projeto no serviço e materializam somente `guard/to-do_list.json` e `guard/governance_error.json`. — Plano: [fluxo desejado][plano-fluxo], [Fase 6][plano-fase-6].
+- [ ] **T8G.3** Validar tarefa atual, erros, submissão, revisão, avanço e histórico usando somente fixtures sintéticas canônicas, sem abrir ou migrar qualquer projeto de exemplo externo. — Plano: [definição de pronto][plano-pronto], [Fase 8][plano-fase-8].
+- [ ] **T8G.4** Provar atualização, desinstalação e rollback da integração global e do serviço sem apagar estado de projetos nem configuração não pertencente ao AntDelirium. — Plano: [Fase 5][plano-fase-5], [Fase 7][plano-fase-7].
+
+**Gate de saída:** G8 depende somente do AntDelirium e de fixtures sintéticas descartáveis mantidas neste repositório.
 
 ### Onda 9 — Ativar enforcement e executar testes hostis
 
@@ -198,7 +213,7 @@ integrado documentado em T7.3.
 - [ ] **T10.3** Remover cópias de binário em plugins e integrações por `build.rs` somente após cada projeto migrado passar seu gate. — Plano: [ponto de bypass][plano-build-rs], [binários duplicados][plano-duplicados].
 - [ ] **T10.4** Arquivar o layout antigo de forma recuperável; não apagar automaticamente planos, histórico ou estado original. — Plano: [Fase 7][plano-fase-7].
 - [ ] **T10.5** Revisar documentação e mensagens para não mencionar caminhos externos, TOMLs internos, orquestrador ou comandos administrativos ao agente. — Plano: [UX do agente][plano-ux], [resistência à descoberta][plano-resistencia].
-- [ ] **T10.6** Executar integralmente a matriz de validação em projetos novos, AutoBrowser, workspaces, worktrees, targets e builds paralelos. — Plano: [matriz de validação][plano-validacao].
+- [ ] **T10.6** Executar integralmente a matriz de validação em projetos Rust descartáveis, workspaces, worktrees, targets e builds paralelos; projetos externos são exemplos opcionais separados. — Plano: [matriz de validação][plano-validacao].
 - [ ] **T10.7** Conferir item por item a definição de pronto e registrar limitações que permanecem como não objetivos. — Plano: [definição de pronto][plano-pronto], [não objetivos][plano-nao-objetivos].
 
 **Gate final:** todos os itens da definição de pronto estão comprovados e o rollback permanece disponível durante a janela acordada.

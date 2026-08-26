@@ -982,6 +982,11 @@ Critério de saída:
 
 Objetivo: retirar binários e estado mutável de `plugins/<project>` sem perda.
 
+Correção de escopo: esta fase é uma capacidade opcional para operadores depois
+do produto pronto. Nenhum projeto concreto, plugin externo ou migração real faz
+parte do gate do binário global. O aceite do AntDelirium usa exclusivamente
+fixtures sintéticas descartáveis mantidas neste repositório.
+
 Tarefas:
 
 1. criar inventário read-only do plugin antigo;
@@ -997,11 +1002,11 @@ Tarefas:
 11. manter `plugins/AutoBrowser/plan/` autoritativo e protegido até a migração ser aprovada e verificada;
 12. trocar caminhos físicos de plano por IDs opacos nas projeções e no protocolo do agente.
 
-Critério de saída:
+Critério de saída opcional:
 
-- AutoBrowser mantém planos, histórico e estado necessários;
-- o projeto compila sem binário ou guard dentro de `plugins/`;
-- rollback restaura o modelo anterior.
+- o projeto escolhido pelo operador mantém planos, histórico e estado necessários;
+- o projeto compila sem cópia do binário dentro de `plugins/`;
+- rollback restaura o modelo anterior sem apagar a origem.
 
 A T1.8 fechou a política [`lifecycle-v1`](./POLITICA-GIT-RETENCAO-MIGRACAO-T1.8.md): projections são ignoradas por regra mínima autocontida em `guard/`, sem editar Git global/raiz; cutover exige operador e verificador; origem permanece recuperável por no mínimo 30 dias; state governado nunca sofre purge automático.
 
@@ -1235,7 +1240,7 @@ O trabalho estará concluído somente quando:
 - o agente receber ações de código, não instruções para editar JSON;
 - a documentação não prometer proteção que o mesmo usuário pode contornar;
 - existir um gate externo para enforcement contra bypass intencional;
-- a migração do AutoBrowser estiver validada e possuir rollback;
+- a implantação genérica estiver validada em fixtures sintéticas e possuir rollback, sem depender de projeto externo;
 - toda a suíte do AntDelirium estiver verde.
 
 ## 18. Não objetivos
