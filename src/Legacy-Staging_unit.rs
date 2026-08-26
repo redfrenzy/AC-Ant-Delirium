@@ -388,18 +388,29 @@ pub(crate) fn write_validated_source_stream_from_directory<W: Write>(
     writer: &mut W,
 ) -> Result<(), LegacyStagingError> {
     let payload = validated_inventory_document(inventory_document, expected_inventory_sha256)?;
-    let opened_root_metadata = root_directory
-        .metadata()
-        .map_err(|_| LegacyStagingError::SourceMismatch)?;
+    let opened_root_metadata = root_directory.metadata().map_err(|io_error| {
+        report_source_failure(
+            "root-metadata",
+            0,
+            LegacyStagingError::SourceMismatch,
+            io_error.raw_os_error(),
+        )
+    })?;
     if !opened_root_metadata.is_dir()
         || unix_mode(&opened_root_metadata) != payload.root.mode
         || opened_root_metadata.uid() != payload.root.uid
         || opened_root_metadata.gid() != payload.root.gid
     {
-        return Err(LegacyStagingError::SourceMismatch);
+        return Err(report_source_failure(
+            "root-contract",
+            0,
+            LegacyStagingError::SourceMismatch,
+            None,
+        ));
     }
     let root_signature = metadata_signature(&opened_root_metadata);
-    let observed_paths = collect_source_paths_from_directory(root_directory)?;
+    let observed_paths = collect_source_paths_from_directory(root_directory)
+        .map_err(|error| report_source_failure("initial-enumeration", 0, error, None))?;
     let expected_paths = payload
         .entries
         .iter()
@@ -410,22 +421,41 @@ pub(crate) fn write_validated_source_stream_from_directory<W: Write>(
         .map(String::as_str)
         .ne(expected_paths.iter().copied())
     {
-        return Err(LegacyStagingError::SourceMismatch);
+        return Err(report_source_failure(
+            "initial-path-set",
+            0,
+            LegacyStagingError::SourceMismatch,
+            None,
+        ));
     }
 
-    for entry in &payload.entries {
-        let relative = validated_relative_path(&entry.path)?;
+    for (entry_index, entry) in payload.entries.iter().enumerate() {
+        let ordinal = entry_index + 1;
+        let relative = validated_relative_path(&entry.path).map_err(|error| {
+            report_source_failure("entry-relative-contract", ordinal, error, None)
+        })?;
         let mut file =
-            open_source_entry_beneath(&root_directory, &relative, entry.r#type == "directory")?;
-        let opened = file
-            .metadata()
-            .map_err(|_| LegacyStagingError::SourceMismatch)?;
+            open_source_entry_beneath(root_directory, &relative, entry.r#type == "directory")
+                .map_err(|error| report_source_failure("entry-open", ordinal, error, None))?;
+        let opened = file.metadata().map_err(|io_error| {
+            report_source_failure(
+                "entry-metadata",
+                ordinal,
+                LegacyStagingError::SourceMismatch,
+                io_error.raw_os_error(),
+            )
+        })?;
         if unix_mode(&opened) != entry.mode
             || opened.uid() != entry.uid
             || opened.gid() != entry.gid
             || opened.len() != entry.size
         {
-            return Err(LegacyStagingError::SourceMismatch);
+            return Err(report_source_failure(
+                "entry-contract",
+                ordinal,
+                LegacyStagingError::SourceMismatch,
+                None,
+            ));
         }
         match entry.r#type.as_str() {
             "directory" if opened.is_dir() => {}
@@ -433,49 +463,125 @@ pub(crate) fn write_validated_source_stream_from_directory<W: Write>(
                 let size =
                     usize::try_from(entry.size).map_err(|_| LegacyStagingError::Inventory)?;
                 let mut bytes = vec![0_u8; size];
-                file.read_exact(&mut bytes)
-                    .map_err(|_| LegacyStagingError::SourceMismatch)?;
+                file.read_exact(&mut bytes).map_err(|io_error| {
+                    report_source_failure(
+                        "entry-read",
+                        ordinal,
+                        LegacyStagingError::SourceMismatch,
+                        io_error.raw_os_error(),
+                    )
+                })?;
                 let mut trailing = [0_u8; 1];
-                if file
-                    .read(&mut trailing)
-                    .map_err(|_| LegacyStagingError::SourceMismatch)?
-                    != 0
-                    || lowercase_hex(&sha256(&bytes))
-                        != entry
-                            .sha256
-                            .as_deref()
-                            .ok_or(LegacyStagingError::Inventory)?
+                if file.read(&mut trailing).map_err(|io_error| {
+                    report_source_failure(
+                        "entry-trailing-read",
+                        ordinal,
+                        LegacyStagingError::SourceMismatch,
+                        io_error.raw_os_error(),
+                    )
+                })? != 0
                 {
-                    return Err(LegacyStagingError::SourceMismatch);
+                    return Err(report_source_failure(
+                        "entry-trailing-bytes",
+                        ordinal,
+                        LegacyStagingError::SourceMismatch,
+                        None,
+                    ));
                 }
-                writer
-                    .write_all(&bytes)
-                    .map_err(|_| LegacyStagingError::Stream)?;
+                if lowercase_hex(&sha256(&bytes))
+                    != entry
+                        .sha256
+                        .as_deref()
+                        .ok_or(LegacyStagingError::Inventory)?
+                {
+                    return Err(report_source_failure(
+                        "entry-digest",
+                        ordinal,
+                        LegacyStagingError::SourceMismatch,
+                        None,
+                    ));
+                }
+                writer.write_all(&bytes).map_err(|io_error| {
+                    report_source_failure(
+                        "entry-stream-write",
+                        ordinal,
+                        LegacyStagingError::Stream,
+                        io_error.raw_os_error(),
+                    )
+                })?;
             }
-            _ => return Err(LegacyStagingError::SourceMismatch),
+            _ => {
+                return Err(report_source_failure(
+                    "entry-type",
+                    ordinal,
+                    LegacyStagingError::SourceMismatch,
+                    None,
+                ));
+            }
         }
         let after_file =
-            open_source_entry_beneath(root_directory, &relative, entry.r#type == "directory")?;
-        let after = after_file
-            .metadata()
-            .map_err(|_| LegacyStagingError::SourceMismatch)?;
+            open_source_entry_beneath(root_directory, &relative, entry.r#type == "directory")
+                .map_err(|error| report_source_failure("entry-reopen", ordinal, error, None))?;
+        let after = after_file.metadata().map_err(|io_error| {
+            report_source_failure(
+                "entry-final-metadata",
+                ordinal,
+                LegacyStagingError::SourceMismatch,
+                io_error.raw_os_error(),
+            )
+        })?;
         if metadata_signature(&after) != metadata_signature(&opened) {
-            return Err(LegacyStagingError::SourceMismatch);
+            return Err(report_source_failure(
+                "entry-changed",
+                ordinal,
+                LegacyStagingError::SourceMismatch,
+                None,
+            ));
         }
     }
-    let final_paths = collect_source_paths_from_directory(root_directory)?;
-    let final_root = root_directory
-        .metadata()
-        .map_err(|_| LegacyStagingError::SourceMismatch)?;
+    let final_paths = collect_source_paths_from_directory(root_directory)
+        .map_err(|error| report_source_failure("final-enumeration", 0, error, None))?;
+    let final_root = root_directory.metadata().map_err(|io_error| {
+        report_source_failure(
+            "final-root-metadata",
+            0,
+            LegacyStagingError::SourceMismatch,
+            io_error.raw_os_error(),
+        )
+    })?;
     if final_paths
         .iter()
         .map(String::as_str)
         .ne(expected_paths.iter().copied())
         || metadata_signature(&final_root) != root_signature
     {
-        return Err(LegacyStagingError::SourceMismatch);
+        return Err(report_source_failure(
+            "final-generation",
+            0,
+            LegacyStagingError::SourceMismatch,
+            None,
+        ));
     }
     Ok(())
+}
+
+fn report_source_failure(
+    phase: &'static str,
+    ordinal: usize,
+    error: LegacyStagingError,
+    errno: Option<i32>,
+) -> LegacyStagingError {
+    let class = match error {
+        LegacyStagingError::Inventory => "inventory",
+        LegacyStagingError::SourceMismatch => "source-mismatch",
+        LegacyStagingError::Stream => "stream",
+        LegacyStagingError::Destination => "destination",
+    };
+    eprintln!(
+        "antdelirium-operator[AD-MIGRATION-SOURCE-DETAIL]: phase={phase} ordinal={ordinal} class={class} errno={}",
+        errno.unwrap_or(0),
+    );
+    error
 }
 
 #[cfg(target_os = "linux")]

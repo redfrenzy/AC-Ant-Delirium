@@ -344,6 +344,30 @@ fn inherited_source_descriptor_survives_locator_removal() {
 
 #[test]
 #[ignore = "requires operator-provided T8.2 source and inventory locators"]
+fn validates_the_real_t82_descriptor_after_operator_hardening() {
+    let source =
+        PathBuf::from(std::env::var_os("ANTDELIRIUM_T83_SOURCE_ROOT").expect("source root"));
+    let inventory_path =
+        PathBuf::from(std::env::var_os("ANTDELIRIUM_T83_INVENTORY").expect("inventory path"));
+    let inventory = fs::read(inventory_path).expect("inventory bytes");
+    let document: Value = serde_json::from_slice(&inventory).expect("inventory JSON");
+    let digest = document["inventory_sha256"].as_str().unwrap().to_string();
+    let source_directory = File::open(&source).expect("source directory descriptor");
+
+    crate::service_hardening::harden_operator_process().expect("operator hardening");
+    let mut stream = Vec::new();
+    write_validated_source_stream_from_directory(
+        &source_directory,
+        &inventory,
+        &digest,
+        &mut stream,
+    )
+    .expect("hardened descriptor-bound source still matches T8.2");
+    assert_eq!(stream.len(), 15_155_427);
+}
+
+#[test]
+#[ignore = "requires operator-provided T8.2 source and inventory locators"]
 fn stages_the_real_t82_snapshot_through_protected_storage() {
     let source =
         PathBuf::from(std::env::var_os("ANTDELIRIUM_T83_SOURCE_ROOT").expect("source root"));
