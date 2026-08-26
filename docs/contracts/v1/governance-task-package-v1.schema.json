@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:governance-task-package-v1",
+  "title": "AntDelirium generic governance task package v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "project_id",
+    "workspace_id",
+    "plan_id",
+    "expected_state_revision",
+    "tasks"
+  ],
+  "properties": {
+    "contract_version": { "const": "governance-task-package-v1" },
+    "project_id": { "$ref": "#/$defs/projectId" },
+    "workspace_id": { "$ref": "#/$defs/workspaceId" },
+    "plan_id": { "$ref": "#/$defs/planId" },
+    "expected_state_revision": { "type": "integer", "minimum": 0 },
+    "tasks": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "items": { "$ref": "#/$defs/task" }
+    }
+  },
+  "$defs": {
+    "projectId": {
+      "type": "string",
+      "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$"
+    },
+    "workspaceId": {
+      "type": "string",
+      "pattern": "^wsp_[0-9a-hjkmnp-tv-z]{26}$"
+    },
+    "planId": {
+      "type": "string",
+      "pattern": "^pln_[0-9a-hjkmnp-tv-z]{26}$"
+    },
+    "taskId": {
+      "type": "string",
+      "pattern": "^tsk_[0-9a-hjkmnp-tv-z]{26}$"
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "pattern": "^(?!/)(?!(?:\\.git|guard|plugins|plan|plans|ant_delirium_config|AC_Ant-Delirium_props)(?:/|$))(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*(?:^|/)(?:connected\\.json|default_hierarchy\\.toml|default_rules\\.toml|feedback\\.json|governance\\.json|governance_history\\.json|login\\.json|manager_tasks\\.json|messages\\.json|shadow_context\\.sarif\\.json|submit_queue\\.json|task_index\\.txt|task_orchestrator\\.json|to-do_list_manifest\\.json|transition_task\\.json|violations_manifest\\.json)(?:/|$))(?![A-Za-z]:/)[^\\\\\\u0000]+$"
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_id",
+        "task_revision",
+        "objective",
+        "acceptance_criteria",
+        "relevant_paths"
+      ],
+      "properties": {
+        "task_id": { "$ref": "#/$defs/taskId" },
+        "task_revision": { "type": "integer", "minimum": 1 },
+        "objective": { "type": "string", "minLength": 1, "maxLength": 16384 },
+        "acceptance_criteria": {
+          "type": "array",
+          "maxItems": 128,
+          "items": { "type": "string", "minLength": 1, "maxLength": 4096 }
+        },
+        "relevant_paths": {
+          "type": "array",
+          "maxItems": 256,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/relativePath" }
+        }
+      }
+    }
+  }
+}

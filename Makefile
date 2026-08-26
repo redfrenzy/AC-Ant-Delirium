@@ -113,6 +113,7 @@ ci:
 	jq empty docs/contracts/v1/migration-manifest-v1.schema.json
 	jq empty docs/contracts/v1/system-installation-bundle-v1.schema.json
 	jq empty docs/contracts/v1/initial-capability-provisioning-v1.schema.json
+	jq empty docs/contracts/v1/governance-task-package-v1.schema.json
 	RUSTFLAGS="-D warnings" cargo check --locked --all-targets --target $(HOST_TARGET)
 	RUSTFLAGS="-D warnings" cargo test --locked --all-targets --target $(HOST_TARGET) --no-fail-fast
 	$(MAKE) release-nondisclosure

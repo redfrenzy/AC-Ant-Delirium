@@ -1,17 +1,21 @@
+use std::collections::BTreeSet;
 use std::path::Path;
 
 use crate::libres::Rusqlite_unit::{AC_OptionalExtension, AC_Transaction, AC_params};
 
 use super::{
-    materialize_project_guard, validate_serialized_public_document, AtomicProjectProjectionWriter,
-    AuditStore, CanonicalMutationOutcome, CanonicalStateSnapshot, CanonicalStateStore,
-    CanonicalStateTransition, CanonicalTaskProjectionRef, CanonicalTaskState,
-    CurrentTaskProjection, EventWriteOutcome, GovernanceErrorsProjection, NewAuditEvent, NewReview,
-    NewSubmission, ProjectDatabase, ProjectProjectionWriter, ProjectStateRoot,
-    ProjectionArtifactKind, ProjectionMetadata, ProjectionWriteReceipt, ReviewStore,
-    ReviewWriteOutcome, StorageProject, StorageWorkspace, SubmissionStore, SubmissionWriteOutcome,
-    TransactionalStorageError, TransactionalStorageResult, AGENT_PROJECTION_CONTRACT_VERSION,
-    CANONICAL_STATE_CONTRACT_VERSION, SUBMISSION_CONTRACT_VERSION,
+    encode_canonical_task_projection_payload, materialize_project_guard,
+    validate_serialized_public_document, AtomicProjectProjectionWriter, AuditStore,
+    CanonicalMutationOutcome, CanonicalStateSnapshot, CanonicalStateStore,
+    CanonicalStateTransition, CanonicalTaskPackage, CanonicalTaskProjectionPayload,
+    CanonicalTaskProjectionRef, CanonicalTaskState, CurrentTaskProjection, EventWriteOutcome,
+    GovernanceErrorsProjection, NewAuditEvent, NewReview, NewSubmission, ProjectDatabase,
+    ProjectProjectionWriter, ProjectStateRoot, ProjectedTaskAction, ProjectionArtifactKind,
+    ProjectionMetadata, ProjectionWriteReceipt, ReviewStore, ReviewWriteOutcome, StorageProject,
+    StorageWorkspace, SubmissionStore, SubmissionWriteOutcome, TransactionalStorageError,
+    TransactionalStorageResult, AGENT_PROJECTION_CONTRACT_VERSION,
+    CANONICAL_STATE_CONTRACT_VERSION, CANONICAL_TASK_PROJECTION_PAYLOAD_VERSION,
+    GOVERNANCE_TASK_PACKAGE_CONTRACT_VERSION, SUBMISSION_CONTRACT_VERSION,
 };
 
 pub(super) fn materialize_limited_project_projections(
@@ -151,6 +155,194 @@ impl CanonicalStateStore for ProjectDatabase {
             Ok(CanonicalMutationOutcome { state, audit })
         })
     }
+
+    fn install_task_package(
+        &self,
+        package: &CanonicalTaskPackage,
+        audit_event: &NewAuditEvent,
+    ) -> TransactionalStorageResult<CanonicalMutationOutcome> {
+        let encoded_tasks = validate_and_encode_task_package(package, audit_event)?;
+        self.with_immediate_transaction(|transaction| {
+            let audit = self.record_event_in_transaction(transaction, audit_event)?;
+            if audit.inserted() {
+                let current = transaction.query_row(
+                    "SELECT state_revision, active_plan_id, current_task_id FROM projects WHERE project_id = ?1",
+                    AC_params![package.project_id],
+                    |row| {
+                        Ok((
+                            row.get::<_, i64>(0)?,
+                            row.get::<_, Option<String>>(1)?,
+                            row.get::<_, Option<String>>(2)?,
+                        ))
+                    },
+                )?;
+                let workspace_project = transaction.query_row(
+                    "SELECT project_id FROM workspaces WHERE workspace_id = ?1 AND status = 'active'",
+                    AC_params![package.workspace_id],
+                    |row| row.get::<_, String>(0),
+                )?;
+                let plan_count = transaction.query_row(
+                    "SELECT count(*) FROM plans WHERE project_id = ?1",
+                    AC_params![package.project_id],
+                    |row| row.get::<_, i64>(0),
+                )?;
+                let task_count = transaction.query_row(
+                    "SELECT count(*) FROM tasks WHERE project_id = ?1",
+                    AC_params![package.project_id],
+                    |row| row.get::<_, i64>(0),
+                )?;
+                if workspace_project != package.project_id
+                    || current.0 != package.expected_state_revision
+                    || current.1.is_some()
+                    || current.2.is_some()
+                    || plan_count != 0
+                    || task_count != 0
+                {
+                    return Err(TransactionalStorageError::Integrity(
+                        "task package may initialize only an empty canonical project".to_string(),
+                    ));
+                }
+
+                transaction.execute(
+                    "INSERT INTO plans(plan_id, project_id, plan_revision, status, payload, created_at) VALUES (?1, ?2, 1, 'active', ?3, ?4)",
+                    AC_params![
+                        package.plan_id,
+                        package.project_id,
+                        GOVERNANCE_TASK_PACKAGE_CONTRACT_VERSION.as_bytes(),
+                        audit_event.occurred_at,
+                    ],
+                )?;
+                for (task, payload) in package.tasks.iter().zip(encoded_tasks.iter()) {
+                    transaction.execute(
+                        "INSERT INTO tasks(task_id, project_id, plan_id, task_revision, status, review_status, payload, created_at) VALUES (?1, ?2, ?3, ?4, 'available', 'not_required', ?5, ?6)",
+                        AC_params![
+                            task.task_id,
+                            package.project_id,
+                            package.plan_id,
+                            task.task_revision,
+                            payload,
+                            audit_event.occurred_at,
+                        ],
+                    )?;
+                }
+                let updated = transaction.execute(
+                    "UPDATE projects SET active_plan_id = ?2, current_task_id = ?3, state_revision = state_revision + 1 WHERE project_id = ?1 AND state_revision = ?4 AND active_plan_id IS NULL AND current_task_id IS NULL",
+                    AC_params![
+                        package.project_id,
+                        package.plan_id,
+                        package.tasks[0].task_id,
+                        package.expected_state_revision,
+                    ],
+                )?;
+                if updated != 1 {
+                    return Err(TransactionalStorageError::Integrity(
+                        "canonical state changed while installing the task package".to_string(),
+                    ));
+                }
+            }
+
+            let state = load_canonical_state_from_transaction(
+                transaction,
+                &package.project_id,
+                &package.workspace_id,
+            )?;
+            let expected_revision = package.expected_state_revision.checked_add(1).ok_or_else(|| {
+                TransactionalStorageError::InvalidInput(
+                    "task package state revision overflow".to_string(),
+                )
+            })?;
+            if state.state_revision != expected_revision
+                || state.active_plan_id.as_deref() != Some(package.plan_id.as_str())
+                || state.current_task_id.as_deref() != Some(package.tasks[0].task_id.as_str())
+                || state.tasks.len() != package.tasks.len()
+                || package.tasks.iter().any(|requested| {
+                    !state.tasks.iter().any(|persisted| {
+                        persisted.task_id == requested.task_id
+                            && persisted.task_revision == requested.task_revision
+                            && persisted.status == "available"
+                            && persisted.review_status == "not_required"
+                    })
+                })
+            {
+                return Err(TransactionalStorageError::Integrity(
+                    "persisted task package does not match the requested canonical state"
+                        .to_string(),
+                ));
+            }
+            Ok(CanonicalMutationOutcome { state, audit })
+        })
+    }
+}
+
+fn validate_and_encode_task_package(
+    package: &CanonicalTaskPackage,
+    audit_event: &NewAuditEvent,
+) -> TransactionalStorageResult<Vec<Vec<u8>>> {
+    if package.contract_version != GOVERNANCE_TASK_PACKAGE_CONTRACT_VERSION
+        || package.expected_state_revision < 0
+        || package.tasks.is_empty()
+        || package.tasks.len() > 256
+    {
+        return Err(TransactionalStorageError::InvalidInput(
+            "task package violates governance-task-package-v1".to_string(),
+        ));
+    }
+    validate_opaque_identifier(&package.project_id, "prj_", "project_id")?;
+    validate_opaque_identifier(&package.workspace_id, "wsp_", "workspace_id")?;
+    validate_opaque_identifier(&package.plan_id, "pln_", "plan_id")?;
+    validate_audit_binding(audit_event, &package.project_id, "state_transitioned")?;
+    if audit_event.workspace_id.as_deref() != Some(package.workspace_id.as_str())
+        || audit_event.resource_id.as_deref() != Some(package.plan_id.as_str())
+        || audit_event.actor_kind != "operator"
+    {
+        return Err(TransactionalStorageError::InvalidInput(
+            "task package audit event is not bound to the operator request".to_string(),
+        ));
+    }
+
+    let mut task_ids = BTreeSet::new();
+    let mut encoded = Vec::with_capacity(package.tasks.len());
+    for task in &package.tasks {
+        validate_opaque_identifier(&task.task_id, "tsk_", "task_id")?;
+        if task.task_revision < 1 || !task_ids.insert(task.task_id.as_str()) {
+            return Err(TransactionalStorageError::InvalidInput(
+                "task package contains an invalid or duplicate task".to_string(),
+            ));
+        }
+        encoded.push(encode_canonical_task_projection_payload(
+            &CanonicalTaskProjectionPayload {
+                contract_version: CANONICAL_TASK_PROJECTION_PAYLOAD_VERSION.to_string(),
+                objective: task.objective.clone(),
+                allowed_action: ProjectedTaskAction::Implement,
+                acceptance_criteria: task.acceptance_criteria.clone(),
+                relevant_paths: task.relevant_paths.clone(),
+            },
+        )?);
+    }
+    Ok(encoded)
+}
+
+fn validate_opaque_identifier(
+    value: &str,
+    prefix: &str,
+    field: &str,
+) -> TransactionalStorageResult<()> {
+    let valid = value.strip_prefix(prefix).is_some_and(|token| {
+        token.len() == 26
+            && token.bytes().all(|byte| {
+                byte.is_ascii_digit()
+                    || matches!(
+                        byte,
+                        b'a'..=b'h' | b'j'..=b'k' | b'm'..=b'n' | b'p'..=b't' | b'v'..=b'z'
+                    )
+            })
+    });
+    if !valid {
+        return Err(TransactionalStorageError::InvalidInput(format!(
+            "{field} is not a canonical opaque identifier"
+        )));
+    }
+    Ok(())
 }
 
 impl SubmissionStore for ProjectDatabase {

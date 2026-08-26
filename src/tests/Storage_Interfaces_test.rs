@@ -11,15 +11,16 @@ mod tests {
     use crate::structs::{
         build_current_task_projection, materialize_limited_project_projections,
         AtomicProjectProjectionWriter, AuditStore, CanonicalGovernanceSnapshotRequest,
-        CanonicalStateStore, CanonicalStateTransition, CurrentTaskProjection,
-        CurrentTaskProjectionDocument, EventWriteOutcome, GovernanceErrorsProjection,
-        GovernanceErrorsRefreshRequest, NewAuditEvent, NewSubmission, ProjectDatabase,
-        ProjectProjectionWriter, ProjectStateRoot, ProjectedCurrentTask,
-        ProjectedGovernanceViolation, ProjectedQueueStatus, ProjectedTaskAction,
-        ProjectionArtifactKind, ProjectionMetadata, StorageProject, StorageWorkspace,
-        SubmissionStore, TransactionalStorageError, AGENT_PROJECTION_CONTRACT_VERSION,
-        AUDIT_EVENT_CONTRACT_VERSION, CANONICAL_STATE_CONTRACT_VERSION, STORAGE_SCHEMA_VERSION,
-        SUBMISSION_CONTRACT_VERSION,
+        CanonicalStateStore, CanonicalStateTransition, CanonicalTaskPackage,
+        CanonicalTaskPackageTask, CurrentTaskProjection, CurrentTaskProjectionDocument,
+        EventWriteOutcome, GovernanceErrorsProjection, GovernanceErrorsRefreshRequest,
+        NewAuditEvent, NewSubmission, ProjectDatabase, ProjectProjectionWriter, ProjectStateRoot,
+        ProjectedCurrentTask, ProjectedGovernanceViolation, ProjectedQueueStatus,
+        ProjectedTaskAction, ProjectionArtifactKind, ProjectionMetadata, StorageProject,
+        StorageWorkspace, SubmissionStore, TransactionalStorageError,
+        AGENT_PROJECTION_CONTRACT_VERSION, AUDIT_EVENT_CONTRACT_VERSION,
+        CANONICAL_STATE_CONTRACT_VERSION, GOVERNANCE_TASK_PACKAGE_CONTRACT_VERSION,
+        STORAGE_SCHEMA_VERSION, SUBMISSION_CONTRACT_VERSION,
     };
 
     const PROJECT_ID: &str = "prj_00000000000000000000000000";
@@ -115,6 +116,45 @@ mod tests {
             .expect("canonical fixture should be inserted");
     }
 
+    fn task_package() -> CanonicalTaskPackage {
+        CanonicalTaskPackage {
+            contract_version: GOVERNANCE_TASK_PACKAGE_CONTRACT_VERSION.to_string(),
+            project_id: PROJECT_ID.to_string(),
+            workspace_id: WORKSPACE_ID.to_string(),
+            plan_id: PLAN_ID.to_string(),
+            expected_state_revision: 0,
+            tasks: vec![
+                CanonicalTaskPackageTask {
+                    task_id: TASK_ID.to_string(),
+                    task_revision: 1,
+                    objective: "Implement the synthetic governance task.".to_string(),
+                    acceptance_criteria: vec!["The focused test passes.".to_string()],
+                    relevant_paths: vec!["src/lib.rs".to_string()],
+                },
+                CanonicalTaskPackageTask {
+                    task_id: "tsk_00000000000000000000000001".to_string(),
+                    task_revision: 1,
+                    objective: "Implement the next synthetic task.".to_string(),
+                    acceptance_criteria: vec!["The next-action projection advances.".to_string()],
+                    relevant_paths: vec!["src/main.rs".to_string()],
+                },
+            ],
+        }
+    }
+
+    fn task_package_event(index: usize, fingerprint_index: usize) -> NewAuditEvent {
+        let mut event = audit_event(
+            index,
+            "state_transitioned",
+            fingerprint_index,
+            Some(PLAN_ID),
+        );
+        event.actor_kind = "operator".to_string();
+        event.actor_subject_id = "authorized-operator".to_string();
+        event.payload = b"governance task package installed".to_vec();
+        event
+    }
+
     #[test]
     fn audit_store_does_not_mutate_the_canonical_state_revision() {
         let root = unique_temp_dir("audit-boundary");
@@ -181,6 +221,75 @@ mod tests {
             AuditStore::last_audit_sequence(&database, PROJECT_ID).unwrap(),
             1
         );
+
+        fs::remove_dir_all(root).expect("temporary directory should be removed");
+    }
+
+    #[test]
+    fn task_package_initializes_an_empty_project_atomically_and_idempotently() {
+        let root = unique_temp_dir("task-package");
+        let (_, database) = initialized(&root);
+        let package = task_package();
+        let event = task_package_event(1, 12);
+
+        let installed =
+            CanonicalStateStore::install_task_package(&database, &package, &event).unwrap();
+        assert_eq!(installed.audit, EventWriteOutcome::Inserted { sequence: 1 });
+        assert_eq!(installed.state.state_revision, 1);
+        assert_eq!(installed.state.active_plan_id.as_deref(), Some(PLAN_ID));
+        assert_eq!(installed.state.current_task_id.as_deref(), Some(TASK_ID));
+        assert_eq!(installed.state.tasks.len(), 2);
+
+        let projection = database
+            .render_current_task_projection(PROJECT_ID, WORKSPACE_ID, "2026-08-11T00:00:01Z")
+            .unwrap();
+        let projection = String::from_utf8(projection).unwrap();
+        assert!(projection.contains("Implement the synthetic governance task."));
+        assert!(projection.contains("src/lib.rs"));
+        assert!(!projection.contains("Implement the next synthetic task."));
+
+        let replay =
+            CanonicalStateStore::install_task_package(&database, &package, &event).unwrap();
+        assert_eq!(replay.audit, EventWriteOutcome::Duplicate { sequence: 1 });
+        assert_eq!(replay.state, installed.state);
+        assert_eq!(database.event_count(PROJECT_ID).unwrap(), 1);
+
+        fs::remove_dir_all(root).expect("temporary directory should be removed");
+    }
+
+    #[test]
+    fn task_package_refuses_overwrite_invalid_paths_and_partial_persistence() {
+        let root = unique_temp_dir("task-package-rejection");
+        let (_, database) = initialized(&root);
+
+        let mut invalid = task_package();
+        invalid.tasks[0].relevant_paths = vec!["../private-plan.json".to_string()];
+        assert!(CanonicalStateStore::install_task_package(
+            &database,
+            &invalid,
+            &task_package_event(1, 13),
+        )
+        .is_err());
+        let empty = database
+            .load_canonical_state(PROJECT_ID, WORKSPACE_ID)
+            .unwrap();
+        assert_eq!(empty.state_revision, 0);
+        assert!(empty.tasks.is_empty());
+        assert_eq!(empty.last_event_sequence, 0);
+
+        let package = task_package();
+        CanonicalStateStore::install_task_package(&database, &package, &task_package_event(2, 14))
+            .unwrap();
+        let conflicting = task_package_event(3, 15);
+        assert!(
+            CanonicalStateStore::install_task_package(&database, &package, &conflicting).is_err()
+        );
+        let state = database
+            .load_canonical_state(PROJECT_ID, WORKSPACE_ID)
+            .unwrap();
+        assert_eq!(state.state_revision, 1);
+        assert_eq!(state.tasks.len(), 2);
+        assert_eq!(state.last_event_sequence, 1);
 
         fs::remove_dir_all(root).expect("temporary directory should be removed");
     }

@@ -9,6 +9,7 @@ pub const CANONICAL_STATE_CONTRACT_VERSION: &str = "canonical-state-v1";
 pub const SUBMISSION_CONTRACT_VERSION: &str = "submission-v1";
 pub const AUDIT_EVENT_CONTRACT_VERSION: &str = "audit-event-v1";
 pub const AGENT_PROJECTION_CONTRACT_VERSION: &str = "agent-projection-v1";
+pub const GOVERNANCE_TASK_PACKAGE_CONTRACT_VERSION: &str = "governance-task-package-v1";
 
 pub fn materialize_limited_project_projections(
     project_root: &Path,
@@ -58,6 +59,25 @@ pub struct CanonicalStateTransition {
     pub expected_state_revision: i64,
     pub active_plan_id: Option<String>,
     pub current_task_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CanonicalTaskPackageTask {
+    pub task_id: String,
+    pub task_revision: i64,
+    pub objective: String,
+    pub acceptance_criteria: Vec<String>,
+    pub relevant_paths: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CanonicalTaskPackage {
+    pub contract_version: String,
+    pub project_id: String,
+    pub workspace_id: String,
+    pub plan_id: String,
+    pub expected_state_revision: i64,
+    pub tasks: Vec<CanonicalTaskPackageTask>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -242,6 +262,12 @@ pub trait CanonicalStateStore {
     fn apply_canonical_transition(
         &self,
         transition: &CanonicalStateTransition,
+        audit_event: &NewAuditEvent,
+    ) -> TransactionalStorageResult<CanonicalMutationOutcome>;
+
+    fn install_task_package(
+        &self,
+        package: &CanonicalTaskPackage,
         audit_event: &NewAuditEvent,
     ) -> TransactionalStorageResult<CanonicalMutationOutcome>;
 }
