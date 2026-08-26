@@ -8,6 +8,7 @@ operator_credential=/var/lib/antdelirium-operator/state.cred
 admin_socket=/run/antdelirium-admin/admin.sock
 inventory_path="$project_root/docs/evidence/autobrowser-legacy-source-inventory-v1.json"
 run_id=$(date -u +%Y%m%dT%H%M%SZ)
+run_started_unix=$(date +%s)
 secret_root="/run/antdelirium-candidate-$run_id-$$"
 log_root="$project_root/target/t86-installed-candidate-logs/$run_id"
 admin_fd=
@@ -155,6 +156,14 @@ cleanup() {
     local exit_code=$?
     close_descriptors
     rm -rf "$secret_root"
+    journalctl -u antdelirium.service --since "@$run_started_unix" \
+        --no-pager --output=cat 2>/dev/null \
+        | rg -F 'antdelirium-service[AD-MIGRATION-STAGE-DETAIL]:' \
+        >"$log_root/service-stage-diagnostic.log"
+    if [[ -s "$log_root/service-stage-diagnostic.log" ]]; then
+        printf '%s\n' 'AD-T86-CANDIDATE: protected service diagnostic:'
+        sed -n '1,20p' "$log_root/service-stage-diagnostic.log"
+    fi
     {
         printf 'contract=antdelirium-installed-candidate-preparation-v1\n'
         printf 'run_id=%s\nexit_code=%s\n' "$run_id" "$exit_code"
@@ -236,7 +245,7 @@ chmod 0755 "$(dirname "$log_root")" "$log_root"
 exec > >(tee -a "$log_root/candidate-preparation.log") 2>&1
 trap cleanup EXIT
 
-for command in systemd-creds setpriv jq id python3 tee stat; do
+for command in systemd-creds setpriv journalctl jq id python3 rg sed tee stat; do
     command -v "$command" >/dev/null 2>&1 \
         || fail "required command is unavailable: $command"
 done

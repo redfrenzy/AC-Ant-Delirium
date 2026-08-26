@@ -268,17 +268,19 @@ fn stage_validated_stream<R: Read>(
     create_private_directory(&source_copy)?;
 
     let mut staged_bytes = 0_u64;
-    for entry in &payload.entries {
+    for (entry_index, entry) in payload.entries.iter().enumerate() {
+        let ordinal = entry_index + 1;
         let relative = validated_relative_path(&entry.path)?;
         let destination = source_copy.join(relative);
         match entry.r#type.as_str() {
-            "directory" => create_private_directory(&destination)?,
+            "directory" => create_private_directory(&destination)
+                .map_err(|error| report_stage_failure("directory-create", ordinal, error, None))?,
             "regular" => {
                 staged_bytes = staged_bytes
                     .checked_add(entry.size)
                     .filter(|size| *size <= MAX_STAGED_BYTES)
                     .ok_or(LegacyStagingError::Inventory)?;
-                stage_regular_file(stream, &destination, entry)?;
+                stage_regular_file(stream, &destination, entry, ordinal)?;
             }
             _ => return Err(LegacyStagingError::Inventory),
         }
@@ -768,24 +770,82 @@ fn stage_regular_file<R: Read>(
     stream: &mut R,
     destination: &Path,
     entry: &InventoryEntry,
+    ordinal: usize,
 ) -> Result<(), LegacyStagingError> {
     let parent = destination
         .parent()
         .ok_or(LegacyStagingError::Destination)?;
-    require_private_directory(parent)?;
+    require_private_directory(parent)
+        .map_err(|error| report_stage_failure("regular-parent", ordinal, error, None))?;
     let size = usize::try_from(entry.size).map_err(|_| LegacyStagingError::Inventory)?;
     let mut bytes = vec![0_u8; size];
-    stream
-        .read_exact(&mut bytes)
-        .map_err(|_| LegacyStagingError::Stream)?;
+    stream.read_exact(&mut bytes).map_err(|io_error| {
+        report_stage_failure(
+            "regular-stream-read",
+            ordinal,
+            LegacyStagingError::Stream,
+            io_error.raw_os_error(),
+        )
+    })?;
     let expected = entry
         .sha256
         .as_deref()
         .ok_or(LegacyStagingError::Inventory)?;
     if lowercase_hex(&sha256(&bytes)) != expected {
-        return Err(LegacyStagingError::SourceMismatch);
+        return Err(report_stage_failure(
+            "regular-digest",
+            ordinal,
+            LegacyStagingError::SourceMismatch,
+            None,
+        ));
     }
-    write_private_bytes(destination, &bytes)
+    let mut options = OpenOptions::new();
+    options.write(true).create_new(true).mode(0o600);
+    #[cfg(unix)]
+    options.custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC);
+    let mut file = options.open(destination).map_err(|io_error| {
+        report_stage_failure(
+            "regular-destination-open",
+            ordinal,
+            LegacyStagingError::Destination,
+            io_error.raw_os_error(),
+        )
+    })?;
+    file.write_all(&bytes).map_err(|io_error| {
+        report_stage_failure(
+            "regular-destination-write",
+            ordinal,
+            LegacyStagingError::Destination,
+            io_error.raw_os_error(),
+        )
+    })?;
+    file.sync_all().map_err(|io_error| {
+        report_stage_failure(
+            "regular-destination-sync",
+            ordinal,
+            LegacyStagingError::Destination,
+            io_error.raw_os_error(),
+        )
+    })
+}
+
+fn report_stage_failure(
+    phase: &'static str,
+    ordinal: usize,
+    error: LegacyStagingError,
+    errno: Option<i32>,
+) -> LegacyStagingError {
+    let class = match error {
+        LegacyStagingError::Inventory => "inventory",
+        LegacyStagingError::SourceMismatch => "source-mismatch",
+        LegacyStagingError::Stream => "stream",
+        LegacyStagingError::Destination => "destination",
+    };
+    eprintln!(
+        "antdelirium-service[AD-MIGRATION-STAGE-DETAIL]: phase={phase} ordinal={ordinal} class={class} errno={}",
+        errno.unwrap_or(0),
+    );
+    error
 }
 
 pub(crate) fn staged_content_digest(
