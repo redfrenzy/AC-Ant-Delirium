@@ -85,6 +85,7 @@ ci:
 	bash -n packaging/sandbox/validate-wrapper-syscalls.sh
 	bash -n packaging/systemd/render-installation-bundle.sh
 	bash -n packaging/systemd/validate-installed-service.sh
+	bash -n packaging/systemd/validate-installed-generic-project.sh
 	bash -n packaging/systemd/upgrade-installed-service.sh
 	bash -n packaging/systemd/diagnose-capability-upgrade.sh
 	bash -n packaging/systemd/manage-ci-attestation-capability.sh
@@ -128,6 +129,17 @@ legacy-example-validation:
 	bash -n packaging/migration/verify-legacy-source-inventory.sh
 	bash -n packaging/systemd/prepare-installed-autobrowser-candidate.sh
 	bash packaging/migration/verify-legacy-source-inventory.sh
+
+# -----------------------------------------------
+# make installed-generic-acceptance
+# -----------------------------------------------
+# Proves the real installed release using only a maintained synthetic Rust
+# fixture. This gate never reads, migrates or modifies an external example.
+# It requires the already-installed non-root wrapper and active systemd service.
+# -----------------------------------------------
+.PHONY: installed-generic-acceptance
+installed-generic-acceptance:
+	bash packaging/systemd/validate-installed-generic-project.sh
 
 # -----------------------------------------------
 # make cargo-command-matrix
