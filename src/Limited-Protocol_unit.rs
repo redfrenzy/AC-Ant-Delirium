@@ -109,6 +109,15 @@ struct AgentSubmissionCapabilityBundle {
     capability: WireCapability,
 }
 
+pub(crate) struct AssignedSubmissionReceipt {
+    pub(crate) submission_id: String,
+    pub(crate) payload: Vec<u8>,
+}
+
+pub(crate) struct AssignedReviewReceipt {
+    pub(crate) review_id: String,
+}
+
 pub(crate) struct AgentSubmissionReceipt {
     pub(crate) submission_id: String,
 }
@@ -529,6 +538,133 @@ fn read_agent_submission_capability_from_descriptor(
         libc::close(raw_fd);
     }
     result
+}
+
+#[cfg(unix)]
+fn read_operation_capability_from_descriptor(
+    raw_fd: i32,
+    expected_contract: &str,
+) -> Result<WireCapability, LimitedProtocolError> {
+    if raw_fd < 3 || unsafe { libc::fcntl(raw_fd, libc::F_GETFD) } < 0 {
+        return Err(LimitedProtocolError::Transport);
+    }
+    set_descriptor_close_on_exec(raw_fd).map_err(|_| LimitedProtocolError::Transport)?;
+    let deadline = std::time::Instant::now() + HANDSHAKE_DEADLINE;
+    let mut payload = Vec::with_capacity(256);
+    let mut buffer = [0_u8; 512];
+    let result = loop {
+        if payload.len() >= 4096 {
+            break Err(LimitedProtocolError::Framing);
+        }
+        if let Err(error) = wait_for(raw_fd, libc::POLLIN, deadline) {
+            break Err(error);
+        }
+        let read = unsafe { libc::read(raw_fd, buffer.as_mut_ptr().cast(), buffer.len()) };
+        if read == 0 {
+            let bundle = serde_json::from_slice::<AgentSubmissionCapabilityBundle>(&payload)
+                .map_err(|_| LimitedProtocolError::Envelope)?;
+            break (bundle.contract_version == expected_contract
+                && valid_wire_capability(&bundle.capability))
+            .then_some(bundle.capability)
+            .ok_or(LimitedProtocolError::Envelope);
+        }
+        if read < 0 {
+            let error = std::io::Error::last_os_error();
+            if error.kind() == std::io::ErrorKind::Interrupted {
+                continue;
+            }
+            break Err(LimitedProtocolError::Read);
+        }
+        payload.extend_from_slice(&buffer[..read as usize]);
+    };
+    payload.fill(0);
+    unsafe {
+        libc::close(raw_fd);
+    }
+    result
+}
+
+#[cfg(unix)]
+pub(crate) fn read_assigned_submission(
+    endpoint: &OsStr,
+    capability_fd: i32,
+    project_id: &str,
+    workspace_id: &str,
+    task_id: &str,
+    submission_id: &str,
+) -> Result<AssignedSubmissionReceipt, LimitedProtocolError> {
+    let capability = read_operation_capability_from_descriptor(
+        capability_fd,
+        "reviewer-assignment-capability-v1",
+    )?;
+    let response = request_for_connection(
+        connect_limited_service(endpoint)?,
+        "submission.read.assigned",
+        Some(capability),
+        LimitedRequestBody {
+            submission_query: Some(SubmissionQueryWireBody {
+                project_id: project_id.to_string(),
+                workspace_id: workspace_id.to_string(),
+                task_id: task_id.to_string(),
+                submission_id: submission_id.to_string(),
+            }),
+            ..LimitedRequestBody::default()
+        },
+    )?;
+    let result = response.result.ok_or(LimitedProtocolError::Envelope)?;
+    let returned_id = result
+        .submission_id
+        .filter(|value| value == submission_id && valid_opaque_id(value, "sub_"))
+        .ok_or(LimitedProtocolError::Envelope)?;
+    let submission = result
+        .assigned_submission
+        .ok_or(LimitedProtocolError::Envelope)?;
+    submission_from_wire(&submission)?;
+    let payload =
+        serde_json::to_vec_pretty(&submission).map_err(|_| LimitedProtocolError::Envelope)?;
+    Ok(AssignedSubmissionReceipt {
+        submission_id: returned_id,
+        payload,
+    })
+}
+
+#[cfg(unix)]
+pub(crate) fn decide_assigned_review(
+    endpoint: &OsStr,
+    capability_fd: i32,
+    project_id: &str,
+    workspace_id: &str,
+    task_id: &str,
+    request: &ac_ant_delirium::structs::AssignedReviewDecisionRequest,
+) -> Result<AssignedReviewReceipt, LimitedProtocolError> {
+    let capability = read_operation_capability_from_descriptor(
+        capability_fd,
+        "reviewer-decision-capability-v1",
+    )?;
+    let response = request_for_connection_with_id(
+        connect_limited_service(endpoint)?,
+        "review.decide.assigned",
+        Some(capability),
+        LimitedRequestBody {
+            review: Some(ReviewWireBody {
+                request_id: request.request_id.clone(),
+                project_id: project_id.to_string(),
+                workspace_id: workspace_id.to_string(),
+                task_id: task_id.to_string(),
+                submission_id: request.submission_id.clone(),
+                decision: request.decision.storage_value().to_string(),
+                justification: request.justification.clone(),
+            }),
+            ..LimitedRequestBody::default()
+        },
+        request.request_id.clone(),
+    )?;
+    let review_id = response
+        .result
+        .and_then(|result| result.review_id)
+        .filter(|value| valid_opaque_id(value, "rev_"))
+        .ok_or(LimitedProtocolError::Envelope)?;
+    Ok(AssignedReviewReceipt { review_id })
 }
 
 /// Opens only the installation-provided limited endpoint and negotiates adp/1.

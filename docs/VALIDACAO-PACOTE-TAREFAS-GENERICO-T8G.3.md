@@ -102,6 +102,14 @@ reaplicando as validações de IDs, evidência e não divulgação antes da resp
 Não existe listagem, busca global, path de banco ou leitura de submissão por ID
 sem o escopo completo.
 
+O perfil revisor agora possui parser próprio para `review assigned sub_<id>` e
+`review decide sub_<id> accepted|rejected '<justificativa>'`. O cliente lê
+respectivamente `reviewer-assignment-capability-v1` e
+`reviewer-decision-capability-v1` de descriptor herdado, fecha o descriptor e
+usa somente ADP1. A saída mostra apenas a submissão atribuída ou o `review_id`;
+sem endpoint, IDs de escopo e capability a chamada falha fechada. O agente não
+ganhou esses comandos ou contratos.
+
 A validação instalada será executada, quando a fixture sintética tiver uma
 tarefa canônica, com a forma:
 
@@ -112,6 +120,6 @@ sudo bash packaging/systemd/run-agent-submission.sh \
 ```
 
 Esta entrega ainda não conclui T8G.3. Permanecem provar o launcher de submissão
-contra o release instalado, ligar um cliente/supervisor de revisor à rota já
-implementada (incluindo a entrega das capabilities separadas de leitura e
-decisão) e implementar avanço e histórico no serviço.
+contra o release instalado, criar o supervisor que emite e revoga as
+capabilities separadas do cliente revisor, e implementar avanço e histórico no
+serviço.

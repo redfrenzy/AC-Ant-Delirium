@@ -9,6 +9,9 @@ mod git_unit;
 #[path = "Agent-Cli_unit.rs"]
 mod agent_cli;
 
+#[path = "Reviewer-Cli_unit.rs"]
+mod reviewer_cli;
+
 #[path = "Public-Output_unit.rs"]
 mod public_output;
 

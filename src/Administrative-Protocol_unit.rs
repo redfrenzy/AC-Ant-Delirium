@@ -1550,10 +1550,11 @@ fn parse_managed_operation(
 }
 
 fn issued_capability_contract(actor: &str, channel: &str, operation: &str) -> &'static str {
-    if actor == "agent" && channel == "limited" && operation == "submission.create" {
-        "agent-submission-capability-v1"
-    } else {
-        "admin-capability-v1"
+    match (actor, channel, operation) {
+        ("agent", "limited", "submission.create") => "agent-submission-capability-v1",
+        ("reviewer", "limited", "submission.read.assigned") => "reviewer-assignment-capability-v1",
+        ("reviewer", "limited", "review.decide.assigned") => "reviewer-decision-capability-v1",
+        _ => "admin-capability-v1",
     }
 }
 
@@ -2138,7 +2139,10 @@ fn read_capability_bundle_from_raw_fd(
         parsed.map_err(|_| AdministrativeProtocolError::Authorization)?;
     if !matches!(
         capability.contract_version.as_str(),
-        "admin-capability-v1" | "agent-submission-capability-v1"
+        "admin-capability-v1"
+            | "agent-submission-capability-v1"
+            | "reviewer-assignment-capability-v1"
+            | "reviewer-decision-capability-v1"
     ) || !valid_opaque_id(&capability.capability.capability_id, "cap_")
         || !is_encoded_nonce(&capability.capability.token)
     {

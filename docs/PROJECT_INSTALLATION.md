@@ -209,7 +209,7 @@ As consultas conferem somente os artefatos públicos regulares `guard/to-do_list
 
 A submissão agora lê a vinculação opaca da tarefa atual, gera um `request_id` no formato do protocolo limitado e constrói um payload `submission-v1` contendo somente projeto, workspace, tarefa, revisão e evidência. O handler autorizado adapta esse payload ao `SubmissionStore` transacional existente: inserção e auditoria são atômicas, retries idênticos são deduplicados e nenhuma chamada de transição canônica faz parte desse fluxo.
 
-O cliente do agente deliberadamente não abre o banco protegido. Enquanto o parser de requests e os handlers tipados ainda não estiverem ligados à fronteira autenticada, o comando real termina com `AD-SERVICE-0001`; em testes, um transporte injetado comprova a entrega tipada e o handler de serviço comprova a persistência. Isso não é um fallback para SQLite local, arquivo de fila no projeto ou descoberta de state root.
+O cliente do agente deliberadamente não abre o banco protegido. A instalação entrega endpoint limitado e capability de submissão por descriptor herdado; sem essa sessão estreita o comando termina com `AD-SERVICE-0001` ou `AD-AUTH-0001`. Isso não é um fallback para SQLite local, arquivo de fila no projeto ou descoberta de state root.
 
 `--version` é uma consulta local de metadados e não conta como uma quinta ação de governança. Ela retorna somente em stdout, com exit `0`:
 
@@ -225,7 +225,16 @@ O commit é o `HEAD` incorporado durante o build e o build script acompanha muda
 
 A decisão de revisão usa uma operação distinta, `review.decide.assigned`. O contexto autorizado fornece projeto, identidade do revisor e uma única submissão atribuída; o corpo aceita somente `accepted` ou `rejected` e uma justificativa sanitizada. A primeira decisão é gravada de forma imutável junto com `review_recorded`; retry idêntico é deduplicado e uma decisão conflitante é recusada.
 
-Registrar a revisão não altera `implemented`, `task_reviewed`, `review_status`, `grade`, `active_plan`, tarefa atual ou `state_revision`. Uma eventual transição continuará exigindo política e capability próprias do serviço. A fronteira autenticada não torna `review` um comando do executável comum: invocá-lo sem o cliente limitado e uma capability estreita continua retornando `AD-AUTH-0001`.
+Registrar a revisão não altera `implemented`, `task_reviewed`, `review_status`, `grade`, `active_plan`, tarefa atual ou `state_revision`. Uma eventual transição continuará exigindo política e capability próprias do serviço.
+
+O perfil revisor possui duas formas fechadas:
+
+```text
+antdelirium review assigned sub_<id>
+antdelirium review decide sub_<id> accepted|rejected '<justificativa>'
+```
+
+A primeira exige `reviewer-assignment-capability-v1`; a segunda exige `reviewer-decision-capability-v1`. Cada segredo chega por descriptor herdado e serve para somente uma operação. Invocar `review` sem endpoint, escopo e capability estreita continua falhando fechado; o perfil agente não recebeu essas formas.
 
 Os erros próprios agora passam pelo mesmo roteador público. A ajuda contém
 exatamente as quatro formas públicas mostradas acima. Qualquer operação fora
