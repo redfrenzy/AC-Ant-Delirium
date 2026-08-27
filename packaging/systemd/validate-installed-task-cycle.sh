@@ -59,10 +59,13 @@ target_project=$2
 [[ "$target_project" == "$repository_root"/target/* && -d "$target_project" && ! -L "$target_project" ]] \
     || fail 'the project must be a non-symlink synthetic directory under this repository target.'
 
-for command in systemd-creds setpriv jq install id tee cargo od tr getent cut sed tail; do
+for command in systemd-creds setpriv jq install id tee od tr getent cut sed tail; do
     command -v "$command" >/dev/null 2>&1 \
         || fail "required command is unavailable: $command"
 done
+invoking_home=$(getent passwd "$invoking_uid" | cut -d: -f6)
+cargo_binary="$invoking_home/.cargo/bin/cargo"
+[[ -x "$cargo_binary" ]] || fail 'the invoking user Cargo executable is unavailable.'
 [[ -x "$installed_binary" && ! -L "$installed_binary" ]] \
     || fail 'the installed AntDelirium binary is unavailable.'
 [[ -S "$admin_socket" ]] || fail 'the installed administrative socket is unavailable.'
@@ -147,10 +150,10 @@ install -d -m 0700 -o "$invoking_uid" -g "$invoking_gid" "$log_root/cargo-target
 setpriv --reuid="$invoking_uid" --regid="$invoking_gid" --init-groups \
     --no-new-privs --inh-caps=-all --ambient-caps=-all --bounding-set=-all \
     --reset-env env \
-    HOME="$(getent passwd "$invoking_uid" | cut -d: -f6)" \
-    CARGO_HOME="$(getent passwd "$invoking_uid" | cut -d: -f6)/.cargo" \
+    HOME="$invoking_home" \
+    CARGO_HOME="$invoking_home/.cargo" \
     CARGO_TARGET_DIR="$log_root/cargo-target" \
-    cargo check --manifest-path "$target_project/Cargo.toml"
+    "$cargo_binary" check --manifest-path "$target_project/Cargo.toml"
 
 jq -e --arg task "$task_id" '
     .source_revision == 1 and .task.task_id == $task and
