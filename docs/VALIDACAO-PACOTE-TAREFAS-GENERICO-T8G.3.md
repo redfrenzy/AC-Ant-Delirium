@@ -128,6 +128,9 @@ sintética com o descriptor `StateAdmin`, força um `cargo check` normal para
 atualizar as projeções e percorre submissão, leitura atribuída e decisão. O
 resultado exige que a tarefa continue disponível na mesma `source_revision`,
 pois revisão e avanço permanecem operações diferentes.
+Se a instalação canônica já foi confirmada e uma etapa posterior falhar, a
+rotina retoma com `--resume-task-id tsk_<id>` e não abre novamente o descriptor
+`StateAdmin` nem tenta reinstalar o pacote.
 
 A validação instalada será executada, quando a fixture sintética tiver uma
 tarefa canônica, com a forma:
