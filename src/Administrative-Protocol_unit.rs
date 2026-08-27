@@ -39,10 +39,12 @@ const ADMIN_MAGIC: [u8; 4] = *b"ADA1";
 const ADMIN_WIRE_VERSION: &str = "ada/1";
 const MAX_FRAME_BYTES: usize = 4 * 1024 * 1024;
 const MAX_INVENTORY_BYTES: u64 = 8 * 1024 * 1024;
+const MAX_TASK_PACKAGE_BYTES: u64 = MAX_FRAME_BYTES as u64 - (64 * 1024);
 const ADMIN_TIMEOUT: Duration = Duration::from_secs(120);
 const MIGRATION_OPERATION_TIMEOUT: Duration = Duration::from_secs(600);
 const ADMIN_SOCKET_ENV: &str = "ANTDELIRIUM_ADMIN_SOCKET";
 const ADMIN_CAPABILITY_FD_ENV: &str = "ANTDELIRIUM_ADMIN_CAPABILITY_FD";
+const TASK_PACKAGE_FD_ENV: &str = "ANTDELIRIUM_TASK_PACKAGE_FD";
 const CAPABILITY_OUTPUT_FD_ENV: &str = "ANTDELIRIUM_CAPABILITY_OUTPUT_FD";
 const CAPABILITY_TARGET_FD_ENV: &str = "ANTDELIRIUM_CAPABILITY_TARGET_FD";
 const CAPABILITY_SUBJECT_UID_ENV: &str = "ANTDELIRIUM_CAPABILITY_SUBJECT_UID";
@@ -434,6 +436,78 @@ pub(crate) fn run_migration_operator(args: &[OsString]) {
             OutputRouter::exit(PublicError::Configuration)
         }
     }
+}
+
+pub(crate) fn run_task_package_operator(args: &[OsString]) {
+    let install = args.len() == 3
+        && args[0] == OsStr::new("operator")
+        && args[1] == OsStr::new("task-package")
+        && args[2] == OsStr::new("install");
+    if !install {
+        OutputRouter::exit(PublicError::Authorization);
+    }
+    if cfg!(debug_assertions) {
+        OutputRouter::exit(PublicError::Configuration);
+    }
+    if crate::service_hardening::harden_operator_process().is_err() {
+        OutputRouter::exit(PublicError::Authorization);
+    }
+    match run_task_package_operator_inner() {
+        Ok(receipt) => OutputRouter::write_success(&format!(
+            "antdelirium[AD-TASK-PACKAGE-INSTALLED]: project_id={} workspace_id={} plan_id={} current_task_id={} state_revision={} task_count={} audit_sequence={} state={}",
+            receipt.project_id,
+            receipt.workspace_id,
+            receipt.plan_id,
+            receipt.current_task_id,
+            receipt.state_revision,
+            receipt.task_count,
+            receipt.audit_sequence,
+            receipt.state,
+        )),
+        Err(AdministrativeProtocolError::Authorization) => {
+            OutputRouter::exit(PublicError::Authorization)
+        }
+        Err(AdministrativeProtocolError::Endpoint | AdministrativeProtocolError::Transport(_)) => {
+            OutputRouter::exit(PublicError::ServiceUnavailable)
+        }
+        Err(AdministrativeProtocolError::Framing | AdministrativeProtocolError::Envelope) => {
+            OutputRouter::exit(PublicError::Protocol)
+        }
+        Err(AdministrativeProtocolError::Staging) => {
+            OutputRouter::exit(PublicError::Configuration)
+        }
+    }
+}
+
+#[cfg(unix)]
+fn run_task_package_operator_inner() -> Result<TaskPackageReceipt, AdministrativeProtocolError> {
+    let endpoint = std::env::var_os(ADMIN_SOCKET_ENV);
+    let package_fd = std::env::var_os(TASK_PACKAGE_FD_ENV);
+    clear_task_package_environment();
+    let endpoint = required_absolute_path(endpoint)?;
+    let capability = read_administrative_capability()?;
+    let mut package_bytes = read_task_package_from_raw_fd(
+        package_fd.ok_or(AdministrativeProtocolError::Authorization)?,
+    )?;
+    let parsed = serde_json::from_slice(&package_bytes);
+    package_bytes.fill(0);
+    let package: TaskPackageBody = parsed.map_err(|_| AdministrativeProtocolError::Envelope)?;
+    match exchange_administrative_request(
+        &endpoint,
+        capability.capability,
+        "governance.task-package.install",
+        AdministrativeBody::TaskPackage(package),
+    )? {
+        AdministrativeResult::TaskPackage(receipt) => Ok(receipt),
+        _ => Err(AdministrativeProtocolError::Envelope),
+    }
+}
+
+#[cfg(not(unix))]
+fn run_task_package_operator_inner() -> Result<TaskPackageReceipt, AdministrativeProtocolError> {
+    Err(AdministrativeProtocolError::Transport(
+        "unsupported-platform",
+    ))
 }
 
 pub(crate) fn run_capability_operator(args: &[OsString]) {
@@ -1800,6 +1874,12 @@ fn clear_capability_environment() {
     }
 }
 
+fn clear_task_package_environment() {
+    for name in [ADMIN_SOCKET_ENV, TASK_PACKAGE_FD_ENV] {
+        std::env::remove_var(name);
+    }
+}
+
 fn parse_decimal<T: std::str::FromStr>(
     value: Option<String>,
 ) -> Result<T, AdministrativeProtocolError> {
@@ -1977,6 +2057,36 @@ fn read_migration_source_inputs(
         return Err(AdministrativeProtocolError::Envelope);
     }
     Ok((source, bytes))
+}
+
+#[cfg(unix)]
+fn read_task_package_from_raw_fd(raw: OsString) -> Result<Vec<u8>, AdministrativeProtocolError> {
+    let raw_fd = parse_open_descriptor(&raw)?;
+    let mut file = unsafe { std::fs::File::from_raw_fd(raw_fd) };
+    set_descriptor_close_on_exec(file.as_raw_fd())
+        .map_err(|_| AdministrativeProtocolError::Authorization)?;
+    let mut status: libc::stat = unsafe { std::mem::zeroed() };
+    let flags = unsafe { libc::fcntl(file.as_raw_fd(), libc::F_GETFL) };
+    let offset = unsafe { libc::lseek(file.as_raw_fd(), 0, libc::SEEK_CUR) };
+    if unsafe { libc::fstat(file.as_raw_fd(), &mut status) } != 0
+        || (status.st_mode & libc::S_IFMT) != libc::S_IFREG
+        || status.st_size <= 0
+        || status.st_size as u64 > MAX_TASK_PACKAGE_BYTES
+        || flags < 0
+        || (flags & libc::O_ACCMODE) != libc::O_RDONLY
+        || offset != 0
+    {
+        return Err(AdministrativeProtocolError::Authorization);
+    }
+    let expected_size = status.st_size as usize;
+    let mut bytes = Vec::with_capacity(expected_size);
+    file.read_to_end(&mut bytes)
+        .map_err(|_| AdministrativeProtocolError::Envelope)?;
+    if bytes.len() != expected_size {
+        bytes.fill(0);
+        return Err(AdministrativeProtocolError::Envelope);
+    }
+    Ok(bytes)
 }
 
 #[cfg(unix)]

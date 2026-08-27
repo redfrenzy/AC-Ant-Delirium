@@ -39,6 +39,14 @@ o projeto somente pelo ID opaco no registry, abre o banco protegido sob sua
 própria autoridade e devolve recibo sem localizador físico. Capability limitada
 ou escopo divergente são recusados e auditados.
 
-Esta entrega ainda não conclui T8G.3. Permanecem o cliente operador por
-descriptor, a submissão pública ligada ao canal limitado, revisão, avanço e
-histórico no serviço instalado.
+O cliente administrativo fechado `operator task-package install` recebe o JSON
+somente pelo descriptor já aberto indicado por `ANTDELIRIUM_TASK_PACKAGE_FD`.
+Ele não aceita nome de arquivo na linha de comando, exige arquivo regular,
+somente leitura, no offset zero e menor que o frame ADA1. O descriptor recebe
+`CLOEXEC`; as variáveis do socket e do pacote são apagadas antes da conexão, e a
+capability continua chegando pelo descriptor separado já existente. O recibo
+exibe somente IDs opacos, revisão, contagens e estado — nunca o caminho do
+pacote, do banco ou do projeto.
+
+Esta entrega ainda não conclui T8G.3. Permanecem a submissão pública ligada ao
+canal limitado, revisão, avanço e histórico no serviço instalado.

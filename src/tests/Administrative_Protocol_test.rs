@@ -109,6 +109,48 @@ fn migration_source_inputs_require_readonly_inherited_descriptors() {
 
 #[cfg(unix)]
 #[test]
+fn task_package_input_requires_a_bounded_readonly_descriptor_at_offset_zero() {
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
+        "target/administrative-descriptor-tests/task-package-{}-{nonce}",
+        std::process::id()
+    ));
+    fs::create_dir_all(&root).unwrap();
+    let package_path = root.join("package.json");
+    let package = br#"{"contract_version":"governance-task-package-v1"}"#;
+    fs::write(&package_path, package).unwrap();
+
+    let readonly_fd = fs::File::open(&package_path).unwrap().into_raw_fd();
+    assert_eq!(
+        read_task_package_from_raw_fd(OsString::from(readonly_fd.to_string())).unwrap(),
+        package
+    );
+
+    let writable_fd = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&package_path)
+        .unwrap()
+        .into_raw_fd();
+    assert_eq!(
+        read_task_package_from_raw_fd(OsString::from(writable_fd.to_string())),
+        Err(AdministrativeProtocolError::Authorization)
+    );
+
+    let mut advanced = fs::File::open(&package_path).unwrap();
+    let mut first = [0_u8; 1];
+    advanced.read_exact(&mut first).unwrap();
+    assert_eq!(
+        read_task_package_from_raw_fd(OsString::from(advanced.into_raw_fd().to_string())),
+        Err(AdministrativeProtocolError::Authorization)
+    );
+}
+
+#[cfg(unix)]
+#[test]
 fn administrative_handshake_negotiates_only_ada1() {
     if !enter_isolated_socket_test(
         "handshake",
@@ -329,6 +371,111 @@ fn generic_task_package_request_is_closed_and_requires_state_admin() {
         validate_request(&wrong_operation, &nonce),
         Err(AdministrativeProtocolError::Envelope)
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn state_admin_installs_a_task_package_end_to_end_over_ada1() {
+    if !enter_isolated_socket_test(
+        "task-package",
+        "administrative_protocol::administrative_protocol_tests::state_admin_installs_a_task_package_end_to_end_over_ada1",
+    ) {
+        return;
+    }
+    let authority = VerifiedServiceAuthority::for_current_test_process().unwrap();
+    let clock = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+    let now = clock.as_secs() as i64;
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
+        "target/admin-protocol-tests/task-package-{}-{}",
+        std::process::id(),
+        clock.as_nanos()
+    ));
+    fs::create_dir_all(&root).unwrap();
+    let storage = ProtectedServiceStorage::initialize(&authority, &root).unwrap();
+    let registration = storage
+        .bootstrap_provisional(
+            &authority,
+            authority.effective_uid(),
+            &[61_u8; 32],
+            "synthetic-ada1-project",
+        )
+        .unwrap();
+    let capability_id = "cap_cccccccccccccccccccccccccc";
+    let capability_secret = [62_u8; 32];
+    storage
+        .registry()
+        .store_capability_grant(&NewCapabilityGrant {
+            grant_id: capability_id.to_string(),
+            secret_hash: sha256(&capability_secret),
+            subject_uid: authority.effective_uid(),
+            actor: CapabilityActor::Operator,
+            channel: CapabilityChannel::Administrative,
+            operation: CapabilityOperation::StateAdmin,
+            project_id: None,
+            workspace_id: None,
+            task_id: None,
+            not_before_unix: now - 60,
+            expires_at_unix: now + 600,
+            revocation_epoch: 0,
+            granted_at: format!("unix:{}", now - 60),
+        })
+        .unwrap();
+
+    let connection_nonce = [63_u8; 32];
+    let authentication =
+        ConnectionAuthentication::for_test(authority.effective_uid(), connection_nonce);
+    let (mut client, mut server) = UnixStream::pair().unwrap();
+    let response_bytes = std::thread::scope(|scope| {
+        scope.spawn(|| {
+            answer_administrative_hello(&mut server, &connection_nonce).unwrap();
+            serve_administrative_request(&mut server, &authentication, &authority, &storage)
+                .unwrap();
+        });
+        let negotiated_nonce = negotiate_client(&mut client).unwrap();
+        write_frame(
+            &mut client,
+            &AdministrativeRequest {
+                message_type: "request".to_string(),
+                wire_version: ADMIN_WIRE_VERSION.to_string(),
+                request_id: "req_cccccccccccccccccccccccccc".to_string(),
+                connection_nonce: negotiated_nonce,
+                operation: "governance.task-package.install".to_string(),
+                capability: WireCapability {
+                    capability_id: capability_id.to_string(),
+                    token: encode_base64url(&capability_secret),
+                },
+                body: AdministrativeBody::TaskPackage(TaskPackageBody {
+                    contract_version: "governance-task-package-v1".to_string(),
+                    project_id: registration.project_id.clone(),
+                    workspace_id: registration.workspace_id.clone(),
+                    plan_id: "pln_cccccccccccccccccccccccccc".to_string(),
+                    expected_state_revision: 0,
+                    tasks: vec![TaskPackageTaskBody {
+                        task_id: "tsk_cccccccccccccccccccccccccc".to_string(),
+                        task_revision: 1,
+                        objective: "Implement the synthetic ADA1 task.".to_string(),
+                        acceptance_criteria: vec!["The end-to-end test passes.".to_string()],
+                        relevant_paths: vec!["src/lib.rs".to_string()],
+                    }],
+                }),
+            },
+        )
+        .unwrap();
+        read_frame(&mut client).unwrap()
+    });
+
+    let response: AdministrativeResponse = serde_json::from_slice(&response_bytes).unwrap();
+    assert_eq!(response.status, "ok");
+    let AdministrativeResult::TaskPackage(receipt) = response.result.unwrap() else {
+        panic!("task-package receipt expected");
+    };
+    assert_eq!(receipt.project_id, registration.project_id);
+    assert_eq!(receipt.workspace_id, registration.workspace_id);
+    assert_eq!(receipt.current_task_id, "tsk_cccccccccccccccccccccccccc");
+    assert_eq!(receipt.state_revision, 1);
+    assert_eq!(receipt.task_count, 1);
+    assert_eq!(receipt.state, "installed");
+    fs::remove_dir_all(root).unwrap();
 }
 
 #[cfg(unix)]
