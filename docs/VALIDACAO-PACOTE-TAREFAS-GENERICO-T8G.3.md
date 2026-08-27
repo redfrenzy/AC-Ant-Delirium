@@ -110,6 +110,16 @@ usa somente ADP1. A saída mostra apenas a submissão atribuída ou o `review_id
 sem endpoint, IDs de escopo e capability a chamada falha fechada. O agente não
 ganhou esses comandos ou contratos.
 
+O supervisor revisável
+[`run-reviewer-operation.sh`](../packaging/systemd/run-reviewer-operation.sh)
+recebe a raiz da fixture e um `submission_id` opaco, lê somente a projeção
+pública para obter projeto/workspace/tarefa e emite uma capability de cinco
+minutos para exatamente uma operação. O descriptor é entregue ao mesmo binário
+sob o UID não-root que chamou `sudo` e revogado imediatamente depois; o `trap`
+repete a revogação em falhas intermediárias. Segredos vivem somente em `/run`
+durante a chamada, e os logs sanitizados ficam em
+`target/t8g-reviewer-launcher-logs/`.
+
 A validação instalada será executada, quando a fixture sintética tiver uma
 tarefa canônica, com a forma:
 
@@ -117,9 +127,14 @@ tarefa canônica, com a forma:
 sudo bash packaging/systemd/run-agent-submission.sh \
   --project-root <fixture-sintetica-absoluta> -- \
   --api 'hierarchy.task.current.submit Evidência verificável'
+
+sudo bash packaging/systemd/run-reviewer-operation.sh \
+  --project-root <fixture-sintetica-absoluta> -- assigned sub_<id>
+
+sudo bash packaging/systemd/run-reviewer-operation.sh \
+  --project-root <fixture-sintetica-absoluta> -- \
+  decide sub_<id> accepted 'Justificativa verificável'
 ```
 
-Esta entrega ainda não conclui T8G.3. Permanecem provar o launcher de submissão
-contra o release instalado, criar o supervisor que emite e revoga as
-capabilities separadas do cliente revisor, e implementar avanço e histórico no
-serviço.
+Esta entrega ainda não conclui T8G.3. Permanecem provar os launchers contra o
+release instalado e implementar avanço e histórico no serviço.
