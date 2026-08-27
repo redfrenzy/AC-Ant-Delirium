@@ -162,6 +162,27 @@ fn execute_typed_limited_request(
     body: LimitedRequestBody,
 ) -> LimitedResponse {
     let request_id = random_request_id().unwrap();
+    execute_typed_limited_request_with_id(
+        authentication,
+        authority,
+        storage,
+        operation,
+        capability,
+        body,
+        request_id,
+    )
+}
+
+#[cfg(unix)]
+fn execute_typed_limited_request_with_id(
+    authentication: &crate::service_authentication::ConnectionAuthentication,
+    authority: &crate::service_authority::VerifiedServiceAuthority,
+    storage: &crate::service_storage::ProtectedServiceStorage,
+    operation: &str,
+    capability: Option<WireCapability>,
+    body: LimitedRequestBody,
+    request_id: String,
+) -> LimitedResponse {
     let payload = serde_json::to_vec(&LimitedRequest {
         message_type: "request".to_string(),
         wire_version: LIMITED_WIRE_VERSION.to_string(),
@@ -183,6 +204,152 @@ fn execute_typed_limited_request(
     assert!(decoded.result.is_some());
     assert!(decoded.error.is_none());
     decoded
+}
+
+#[cfg(unix)]
+#[test]
+fn agent_submission_is_authorized_scoped_immutable_and_audited_over_adp1() {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use ac_ant_delirium::libres::Sha2_unit::sha256;
+    use ac_ant_delirium::structs::{
+        CanonicalStateStore, CanonicalTaskPackage, CanonicalTaskPackageTask, NewCapabilityGrant,
+        ProjectDatabase, SubmissionStore,
+    };
+
+    let clock = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+    let now = clock.as_secs() as i64;
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+        "target/lp/submission-{}-{}",
+        std::process::id(),
+        clock.as_nanos()
+    ));
+    std::fs::create_dir_all(&root).unwrap();
+    let authority = crate::service_authority::VerifiedServiceAuthority::for_current_test_process()
+        .expect("Linux effective uid");
+    let storage_root = root.join("service-state");
+    std::fs::create_dir(&storage_root).unwrap();
+    let storage =
+        crate::service_storage::ProtectedServiceStorage::initialize(&authority, &storage_root)
+            .unwrap();
+    let peer_uid = unsafe { libc::geteuid() };
+    let bootstrap = storage
+        .bootstrap_provisional(&authority, peer_uid, &[71_u8; 32], "submission-cycle")
+        .unwrap();
+    let registration = storage
+        .registry()
+        .provisional_registration(peer_uid, &[71_u8; 32])
+        .unwrap()
+        .unwrap();
+    let database = ProjectDatabase::open_existing_at(
+        &storage_root.join("projects").join(registration.project_key),
+    )
+    .unwrap();
+    let task_id = "tsk_dddddddddddddddddddddddddd";
+    let plan_id = "pln_dddddddddddddddddddddddddd";
+    let package_event = NewAuditEvent {
+        contract_version: AUDIT_EVENT_CONTRACT_VERSION.to_string(),
+        event_id: "evt_dddddddddddddddddddddddddd".to_string(),
+        project_id: bootstrap.project_id.clone(),
+        workspace_id: Some(bootstrap.workspace_id.clone()),
+        actor_kind: "operator".to_string(),
+        actor_subject_id: "authorized-state-admin".to_string(),
+        event_kind: "state_transitioned".to_string(),
+        outcome: "succeeded".to_string(),
+        occurred_at: format!("unix:{now}"),
+        fingerprint: "d".repeat(64),
+        correlation_id: "ref_dddddddddddddddddddddddddd".to_string(),
+        resource_id: Some(plan_id.to_string()),
+        payload: b"synthetic package installed".to_vec(),
+    };
+    database
+        .install_task_package(
+            &CanonicalTaskPackage {
+                contract_version: "governance-task-package-v1".to_string(),
+                project_id: bootstrap.project_id.clone(),
+                workspace_id: bootstrap.workspace_id.clone(),
+                plan_id: plan_id.to_string(),
+                expected_state_revision: 0,
+                tasks: vec![CanonicalTaskPackageTask {
+                    task_id: task_id.to_string(),
+                    task_revision: 1,
+                    objective: "Implement the synthetic submission task.".to_string(),
+                    acceptance_criteria: vec!["Submit immutable evidence.".to_string()],
+                    relevant_paths: vec!["src/lib.rs".to_string()],
+                }],
+            },
+            &package_event,
+        )
+        .unwrap();
+
+    let capability_id = "cap_dddddddddddddddddddddddddd";
+    let capability_secret = [72_u8; 32];
+    storage
+        .registry()
+        .store_capability_grant(&NewCapabilityGrant {
+            grant_id: capability_id.to_string(),
+            secret_hash: sha256(&capability_secret),
+            subject_uid: peer_uid,
+            actor: CapabilityActor::Agent,
+            channel: CapabilityChannel::Limited,
+            operation: CapabilityOperation::SubmissionCreate,
+            project_id: Some(bootstrap.project_id.clone()),
+            workspace_id: Some(bootstrap.workspace_id.clone()),
+            task_id: Some(task_id.to_string()),
+            not_before_unix: now - 60,
+            expires_at_unix: now + 600,
+            revocation_epoch: 0,
+            granted_at: format!("unix:{}", now - 60),
+        })
+        .unwrap();
+    let request_id = "req_dddddddddddddddddddddddddd".to_string();
+    let authentication =
+        crate::service_authentication::ConnectionAuthentication::for_test(peer_uid, [73_u8; 32]);
+    let response = execute_typed_limited_request_with_id(
+        &authentication,
+        &authority,
+        &storage,
+        "submission.create",
+        Some(WireCapability {
+            capability_id: capability_id.to_string(),
+            token: encode_base64url(&capability_secret),
+        }),
+        LimitedRequestBody {
+            submission: Some(SubmissionWireBody {
+                contract_version: "submission-v1".to_string(),
+                request_id: request_id.clone(),
+                project_id: bootstrap.project_id.clone(),
+                workspace_id: bootstrap.workspace_id.clone(),
+                task_id: task_id.to_string(),
+                task_revision: 1,
+                base_revision: None,
+                evidence: vec![SubmissionWireEvidence {
+                    kind: "note".to_string(),
+                    text: "cargo check and focused tests passed".to_string(),
+                }],
+            }),
+            ..LimitedRequestBody::default()
+        },
+        request_id,
+    )
+    .result
+    .unwrap();
+    assert!(response
+        .submission_id
+        .as_deref()
+        .is_some_and(|id| valid_opaque_id(id, "sub_")));
+    assert_eq!(response.deduplicated, Some(false));
+    assert_eq!(response.event_sequence, Some(2));
+    assert_eq!(
+        SubmissionStore::submission_count(&database, &bootstrap.project_id).unwrap(),
+        1
+    );
+    let state = database
+        .load_canonical_state(&bootstrap.project_id, &bootstrap.workspace_id)
+        .unwrap();
+    assert_eq!(state.state_revision, 1);
+    assert_eq!(state.current_task_id.as_deref(), Some(task_id));
+    std::fs::remove_dir_all(root).unwrap();
 }
 
 #[test]

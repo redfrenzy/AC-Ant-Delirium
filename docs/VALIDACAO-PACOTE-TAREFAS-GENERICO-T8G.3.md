@@ -48,5 +48,15 @@ capability continua chegando pelo descriptor separado já existente. O recibo
 exibe somente IDs opacos, revisão, contagens e estado — nunca o caminho do
 pacote, do banco ou do projeto.
 
-Esta entrega ainda não conclui T8G.3. Permanecem a submissão pública ligada ao
-canal limitado, revisão, avanço e histórico no serviço instalado.
+O listener limitado agora reconhece `submission.create` somente com capability
+`Agent/Limited/SubmissionCreate` vinculada exatamente ao projeto, workspace e
+tarefa do payload `submission-v1`. O serviço valida o contrato antes de consumir
+a autorização, resolve o banco apenas pela capability, atribui `submission_id`,
+fingerprint e horário e grava submissão mais `submission_recorded` na mesma
+transação. A operação não altera revisão do estado, tarefa atual, plano ativo ou
+status de conclusão. O teste ADA1/ADP1 sintético comprovou ainda que o recibo
+limitado contém somente ID opaco, sequência e estado de deduplicação.
+
+Esta entrega ainda não conclui T8G.3. Permanecem ligar o transporte real do
+cliente agente ao descriptor de capability, revisão, avanço e histórico no
+serviço instalado.
