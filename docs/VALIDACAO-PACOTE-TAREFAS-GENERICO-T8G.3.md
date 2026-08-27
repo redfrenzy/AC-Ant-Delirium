@@ -89,6 +89,14 @@ sequência e deduplicação. O teste ADP1 sintético percorre instalação de pa
 submissão e revisão e confirma que a revisão aceita não muda a tarefa atual nem
 o `state_revision`; avanço continua sendo uma operação separada do serviço.
 
+Antes da decisão, `submission.read.assigned` permite ao revisor obter somente a
+submissão indicada por uma capability `Reviewer/Limited/SubmissionReadAssigned`
+presa ao mesmo projeto, workspace e tarefa. O serviço confirma a vinculação no
+banco e desserializa o payload persistido em um tipo fechado `submission-v1`,
+reaplicando as validações de IDs, evidência e não divulgação antes da resposta.
+Não existe listagem, busca global, path de banco ou leitura de submissão por ID
+sem o escopo completo.
+
 A validação instalada será executada, quando a fixture sintética tiver uma
 tarefa canônica, com a forma:
 
@@ -100,4 +108,5 @@ sudo bash packaging/systemd/run-agent-submission.sh \
 
 Esta entrega ainda não conclui T8G.3. Permanecem provar o launcher de submissão
 contra o release instalado, ligar um cliente/supervisor de revisor à rota já
-implementada e implementar avanço e histórico no serviço.
+implementada (incluindo a entrega das capabilities separadas de leitura e
+decisão) e implementar avanço e histórico no serviço.

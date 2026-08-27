@@ -378,6 +378,63 @@ fn agent_submission_and_assigned_review_are_scoped_immutable_and_audited_over_ad
         1
     );
 
+    let read_capability_id = "cap_gggggggggggggggggggggggggg";
+    let read_capability_secret = [78_u8; 32];
+    storage
+        .registry()
+        .store_capability_grant(&NewCapabilityGrant {
+            grant_id: read_capability_id.to_string(),
+            secret_hash: sha256(&read_capability_secret),
+            subject_uid: peer_uid,
+            actor: CapabilityActor::Reviewer,
+            channel: CapabilityChannel::Limited,
+            operation: CapabilityOperation::SubmissionReadAssigned,
+            project_id: Some(bootstrap.project_id.clone()),
+            workspace_id: Some(bootstrap.workspace_id.clone()),
+            task_id: Some(task_id.to_string()),
+            not_before_unix: now - 60,
+            expires_at_unix: now + 600,
+            revocation_epoch: 0,
+            granted_at: format!("unix:{}", now - 60),
+        })
+        .unwrap();
+    let read_request_id = "req_gggggggggggggggggggggggggg".to_string();
+    let read_authentication =
+        crate::service_authentication::ConnectionAuthentication::for_test(peer_uid, [79_u8; 32]);
+    let read_response = execute_typed_limited_request_with_id(
+        &read_authentication,
+        &authority,
+        &storage,
+        "submission.read.assigned",
+        Some(WireCapability {
+            capability_id: read_capability_id.to_string(),
+            token: encode_base64url(&read_capability_secret),
+        }),
+        LimitedRequestBody {
+            submission_query: Some(SubmissionQueryWireBody {
+                project_id: bootstrap.project_id.clone(),
+                workspace_id: bootstrap.workspace_id.clone(),
+                task_id: task_id.to_string(),
+                submission_id: submission_id.clone(),
+            }),
+            ..LimitedRequestBody::default()
+        },
+        read_request_id,
+    )
+    .result
+    .unwrap();
+    assert_eq!(
+        read_response.submission_id.as_deref(),
+        Some(submission_id.as_str())
+    );
+    let assigned = read_response.assigned_submission.unwrap();
+    assert_eq!(assigned.task_id, task_id);
+    assert_eq!(assigned.evidence.len(), 1);
+    assert_eq!(
+        assigned.evidence[0].text,
+        "cargo check and focused tests passed"
+    );
+
     let review_capability_id = "cap_eeeeeeeeeeeeeeeeeeeeeeeeee";
     let review_capability_secret = [74_u8; 32];
     storage

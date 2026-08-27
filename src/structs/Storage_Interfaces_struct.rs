@@ -108,6 +108,12 @@ pub struct SubmissionAssignment {
     pub task_id: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssignedSubmission {
+    pub assignment: SubmissionAssignment,
+    pub payload: Vec<u8>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReviewDecision {
     Accepted,
@@ -293,6 +299,12 @@ pub trait SubmissionStore {
         project_id: &str,
         submission_id: &str,
     ) -> TransactionalStorageResult<Option<SubmissionAssignment>>;
+
+    fn read_assigned_submission(
+        &self,
+        project_id: &str,
+        submission_id: &str,
+    ) -> TransactionalStorageResult<Option<AssignedSubmission>>;
 }
 
 pub trait ReviewStore {

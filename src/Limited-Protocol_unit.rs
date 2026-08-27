@@ -137,6 +137,8 @@ struct LimitedRequestBody {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     submission: Option<SubmissionWireBody>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    submission_query: Option<SubmissionQueryWireBody>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     review: Option<ReviewWireBody>,
 }
 
@@ -159,6 +161,15 @@ struct SubmissionWireBody {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     base_revision: Option<String>,
     evidence: Vec<SubmissionWireEvidence>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SubmissionQueryWireBody {
+    project_id: String,
+    workspace_id: String,
+    task_id: String,
+    submission_id: String,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -197,6 +208,8 @@ struct LimitedResponseResult {
     governance_errors: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     submission_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    assigned_submission: Option<SubmissionWireBody>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     event_sequence: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -611,6 +624,9 @@ fn limited_response_for_payload(
         "submission.create" => {
             handle_submission_request(authentication, authority, storage, &request)?
         }
+        "submission.read.assigned" => {
+            handle_assigned_submission_request(authentication, authority, storage, &request)?
+        }
         "review.decide.assigned" => {
             handle_review_request(authentication, authority, storage, &request)?
         }
@@ -638,6 +654,7 @@ fn handle_bootstrap_request(
         || request.body.workspace_id.is_some()
         || request.body.compilation_fingerprint.is_some()
         || request.body.submission.is_some()
+        || request.body.submission_query.is_some()
         || request.body.review.is_some()
     {
         return Err(LimitedProtocolError::Envelope);
@@ -674,6 +691,7 @@ fn handle_compile_request(
     if request.body.identity_fingerprint.is_some()
         || request.body.project_slug.is_some()
         || request.body.submission.is_some()
+        || request.body.submission_query.is_some()
         || request.body.review.is_some()
     {
         return Err(LimitedProtocolError::Envelope);
@@ -732,6 +750,7 @@ fn handle_projection_request(
         || request.body.project_slug.is_some()
         || request.body.compilation_fingerprint.is_some()
         || request.body.submission.is_some()
+        || request.body.submission_query.is_some()
         || request.body.review.is_some()
     {
         return Err(LimitedProtocolError::Envelope);
@@ -779,6 +798,7 @@ fn handle_submission_request(
         || request.body.project_id.is_some()
         || request.body.workspace_id.is_some()
         || request.body.compilation_fingerprint.is_some()
+        || request.body.submission_query.is_some()
         || request.body.review.is_some()
     {
         return Err(LimitedProtocolError::Envelope);
@@ -837,6 +857,59 @@ fn handle_submission_request(
 }
 
 #[cfg(unix)]
+fn handle_assigned_submission_request(
+    authentication: &ConnectionAuthentication,
+    authority: &VerifiedServiceAuthority,
+    storage: &ProtectedServiceStorage,
+    request: &LimitedRequest,
+) -> Result<LimitedResponseResult, LimitedProtocolError> {
+    if request.body.identity_fingerprint.is_some()
+        || request.body.project_slug.is_some()
+        || request.body.project_id.is_some()
+        || request.body.workspace_id.is_some()
+        || request.body.compilation_fingerprint.is_some()
+        || request.body.submission.is_some()
+        || request.body.review.is_some()
+    {
+        return Err(LimitedProtocolError::Envelope);
+    }
+    let query = request
+        .body
+        .submission_query
+        .as_ref()
+        .ok_or(LimitedProtocolError::Envelope)?;
+    let (_authorization, resource) =
+        authorize_scoped_submission_read(authentication, authority, storage, request, query)?;
+    let stored = SubmissionStore::read_assigned_submission(
+        resource.database(),
+        &query.project_id,
+        &query.submission_id,
+    )
+    .map_err(|_| LimitedProtocolError::Envelope)?
+    .ok_or(LimitedProtocolError::Envelope)?;
+    if stored.assignment.project_id != query.project_id
+        || stored.assignment.workspace_id != query.workspace_id
+        || stored.assignment.task_id != query.task_id
+    {
+        return Err(LimitedProtocolError::Envelope);
+    }
+    let submission: SubmissionWireBody =
+        serde_json::from_slice(&stored.payload).map_err(|_| LimitedProtocolError::Envelope)?;
+    let validated = submission_from_wire(&submission)?;
+    if validated.project_id != query.project_id
+        || validated.workspace_id != query.workspace_id
+        || validated.task_id != query.task_id
+    {
+        return Err(LimitedProtocolError::Envelope);
+    }
+    Ok(LimitedResponseResult {
+        submission_id: Some(query.submission_id.clone()),
+        assigned_submission: Some(submission),
+        ..LimitedResponseResult::default()
+    })
+}
+
+#[cfg(unix)]
 fn handle_review_request(
     authentication: &ConnectionAuthentication,
     authority: &VerifiedServiceAuthority,
@@ -849,6 +922,7 @@ fn handle_review_request(
         || request.body.workspace_id.is_some()
         || request.body.compilation_fingerprint.is_some()
         || request.body.submission.is_some()
+        || request.body.submission_query.is_some()
     {
         return Err(LimitedProtocolError::Envelope);
     }
@@ -1022,6 +1096,74 @@ fn authorize_scoped_agent_submission(
         | CapabilityAuthorizationOutcome::Replay(capability)
             if capability.actor() == CapabilityActor::Agent
                 && capability.operation() == CapabilityOperation::SubmissionCreate =>
+        {
+            capability
+        }
+        _ => return Err(LimitedProtocolError::Envelope),
+    };
+    let resource = storage
+        .resolve_authorized_resource(authority, authorized)
+        .map_err(|_| LimitedProtocolError::Envelope)?;
+    Ok((outcome, resource))
+}
+
+#[cfg(unix)]
+fn authorize_scoped_submission_read(
+    authentication: &ConnectionAuthentication,
+    authority: &VerifiedServiceAuthority,
+    storage: &ProtectedServiceStorage,
+    request: &LimitedRequest,
+    query: &SubmissionQueryWireBody,
+) -> Result<
+    (
+        CapabilityAuthorizationOutcome,
+        crate::service_storage::ResolvedAuthorizedResource,
+    ),
+    LimitedProtocolError,
+> {
+    let capability = request
+        .capability
+        .as_ref()
+        .filter(|capability| valid_opaque_id(&capability.capability_id, "cap_"))
+        .ok_or(LimitedProtocolError::Envelope)?;
+    if !valid_opaque_id(&query.project_id, "prj_")
+        || !valid_opaque_id(&query.workspace_id, "wsp_")
+        || !valid_opaque_id(&query.task_id, "tsk_")
+        || !valid_opaque_id(&query.submission_id, "sub_")
+    {
+        return Err(LimitedProtocolError::Envelope);
+    }
+    let mut fingerprint_material = CapabilityOperation::SubmissionReadAssigned
+        .storage_value()
+        .as_bytes()
+        .to_vec();
+    fingerprint_material.push(0);
+    fingerprint_material.extend_from_slice(
+        &serde_json::to_vec(&request.body).map_err(|_| LimitedProtocolError::Envelope)?,
+    );
+    let authorization = CapabilityAuthorizationRequest {
+        grant_id: capability.capability_id.clone(),
+        presented_secret: decode_base64url(&capability.token)?,
+        operation: CapabilityOperation::SubmissionReadAssigned,
+        project_id: Some(query.project_id.clone()),
+        workspace_id: Some(query.workspace_id.clone()),
+        task_id: Some(query.task_id.clone()),
+        presented_connection_nonce: decode_base64url(&request.connection_nonce)?,
+        request_id: request.request_id.clone(),
+        request_fingerprint: sha256(&fingerprint_material),
+    };
+    let outcome = authentication
+        .authorize(
+            storage.registry(),
+            CapabilityChannel::Limited,
+            &authorization,
+        )
+        .map_err(|_| LimitedProtocolError::Envelope)?;
+    let authorized = match &outcome {
+        CapabilityAuthorizationOutcome::Fresh(capability)
+        | CapabilityAuthorizationOutcome::Replay(capability)
+            if capability.actor() == CapabilityActor::Reviewer
+                && capability.operation() == CapabilityOperation::SubmissionReadAssigned =>
         {
             capability
         }

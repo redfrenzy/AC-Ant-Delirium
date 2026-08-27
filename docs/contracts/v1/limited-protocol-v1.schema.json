@@ -61,6 +61,24 @@
         "workspace_id": { "type": "string", "pattern": "^wsp_[0-9a-hjkmnp-tv-z]{26}$" }
       }
     },
+    "assignedSubmissionReadBody": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["submission_query"],
+      "properties": {
+        "submission_query": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["project_id", "workspace_id", "task_id", "submission_id"],
+          "properties": {
+            "project_id": { "type": "string", "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$" },
+            "workspace_id": { "type": "string", "pattern": "^wsp_[0-9a-hjkmnp-tv-z]{26}$" },
+            "task_id": { "type": "string", "pattern": "^tsk_[0-9a-hjkmnp-tv-z]{26}$" },
+            "submission_id": { "type": "string", "pattern": "^sub_[0-9a-hjkmnp-tv-z]{26}$" }
+          }
+        }
+      }
+    },
     "clientHello": {
       "type": "object",
       "additionalProperties": false,
@@ -133,6 +151,10 @@
         {
           "if": { "properties": { "operation": { "const": "projection.refresh" } } },
           "then": { "properties": { "body": { "$ref": "#/$defs/projectionRefreshBody" } } }
+        },
+        {
+          "if": { "properties": { "operation": { "const": "submission.read.assigned" } } },
+          "then": { "properties": { "body": { "$ref": "#/$defs/assignedSubmissionReadBody" } } }
         }
       ]
     },

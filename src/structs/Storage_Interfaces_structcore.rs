@@ -5,8 +5,8 @@ use crate::libres::Rusqlite_unit::{AC_OptionalExtension, AC_Transaction, AC_para
 
 use super::{
     encode_canonical_task_projection_payload, materialize_project_guard,
-    validate_serialized_public_document, AtomicProjectProjectionWriter, AuditStore,
-    CanonicalMutationOutcome, CanonicalStateSnapshot, CanonicalStateStore,
+    validate_serialized_public_document, AssignedSubmission, AtomicProjectProjectionWriter,
+    AuditStore, CanonicalMutationOutcome, CanonicalStateSnapshot, CanonicalStateStore,
     CanonicalStateTransition, CanonicalTaskPackage, CanonicalTaskProjectionPayload,
     CanonicalTaskProjectionRef, CanonicalTaskState, CurrentTaskProjection, EventWriteOutcome,
     GovernanceErrorsProjection, NewAuditEvent, NewReview, NewSubmission, ProjectDatabase,
@@ -413,6 +413,32 @@ impl SubmissionStore for ProjectDatabase {
                         project_id: row.get(0)?,
                         workspace_id: row.get(1)?,
                         task_id: row.get(2)?,
+                    })
+                },
+            )
+            .optional()?)
+    }
+
+    fn read_assigned_submission(
+        &self,
+        project_id: &str,
+        submission_id: &str,
+    ) -> TransactionalStorageResult<Option<AssignedSubmission>> {
+        validate_opaque_identifier(project_id, "prj_", "project_id")?;
+        validate_opaque_identifier(submission_id, "sub_", "submission_id")?;
+        let connection = self.open_connection(false)?;
+        Ok(connection
+            .query_row(
+                "SELECT project_id, workspace_id, task_id, payload FROM submissions WHERE project_id = ?1 AND submission_id = ?2",
+                AC_params![project_id, submission_id],
+                |row| {
+                    Ok(AssignedSubmission {
+                        assignment: SubmissionAssignment {
+                            project_id: row.get(0)?,
+                            workspace_id: row.get(1)?,
+                            task_id: row.get(2)?,
+                        },
+                        payload: row.get(3)?,
                     })
                 },
             )
