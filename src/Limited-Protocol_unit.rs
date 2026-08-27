@@ -10,10 +10,11 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use ac_ant_delirium::libres::Sha2_unit::sha256;
 use ac_ant_delirium::libres::System_Random_unit::{fill_system_random, random_crockford_id};
 use ac_ant_delirium::structs::{
-    AuditStore, AuthorizedSubmissionMetadata, CapabilityActor, CapabilityAuthorizationOutcome,
-    CapabilityAuthorizationRequest, CapabilityChannel, CapabilityOperation, EventWriteOutcome,
-    NewAuditEvent, SubmissionCreateRequest, SubmissionEvidence, SubmissionWriteOutcome,
-    AUDIT_EVENT_CONTRACT_VERSION,
+    AuditStore, AuthorizedReviewAssignment, AuthorizedReviewMetadata, AuthorizedSubmissionMetadata,
+    CapabilityActor, CapabilityAuthorizationOutcome, CapabilityAuthorizationRequest,
+    CapabilityChannel, CapabilityOperation, EventWriteOutcome, NewAuditEvent, ReviewDecision,
+    ReviewWriteOutcome, SubmissionCreateRequest, SubmissionEvidence, SubmissionStore,
+    SubmissionWriteOutcome, AUDIT_EVENT_CONTRACT_VERSION,
 };
 use serde::{Deserialize, Serialize};
 
@@ -135,6 +136,8 @@ struct LimitedRequestBody {
     compilation_fingerprint: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     submission: Option<SubmissionWireBody>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    review: Option<ReviewWireBody>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -156,6 +159,18 @@ struct SubmissionWireBody {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     base_revision: Option<String>,
     evidence: Vec<SubmissionWireEvidence>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReviewWireBody {
+    request_id: String,
+    project_id: String,
+    workspace_id: String,
+    task_id: String,
+    submission_id: String,
+    decision: String,
+    justification: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -184,6 +199,8 @@ struct LimitedResponseResult {
     submission_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     event_sequence: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    review_id: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -594,6 +611,9 @@ fn limited_response_for_payload(
         "submission.create" => {
             handle_submission_request(authentication, authority, storage, &request)?
         }
+        "review.decide.assigned" => {
+            handle_review_request(authentication, authority, storage, &request)?
+        }
         _ => return Err(LimitedProtocolError::Envelope),
     };
     Ok(LimitedResponse {
@@ -617,6 +637,8 @@ fn handle_bootstrap_request(
         || request.body.project_id.is_some()
         || request.body.workspace_id.is_some()
         || request.body.compilation_fingerprint.is_some()
+        || request.body.submission.is_some()
+        || request.body.review.is_some()
     {
         return Err(LimitedProtocolError::Envelope);
     }
@@ -649,7 +671,11 @@ fn handle_compile_request(
     storage: &ProtectedServiceStorage,
     request: &LimitedRequest,
 ) -> Result<LimitedResponseResult, LimitedProtocolError> {
-    if request.body.identity_fingerprint.is_some() || request.body.project_slug.is_some() {
+    if request.body.identity_fingerprint.is_some()
+        || request.body.project_slug.is_some()
+        || request.body.submission.is_some()
+        || request.body.review.is_some()
+    {
         return Err(LimitedProtocolError::Envelope);
     }
     let compilation_fingerprint = decode_base64url(
@@ -705,6 +731,8 @@ fn handle_projection_request(
     if request.body.identity_fingerprint.is_some()
         || request.body.project_slug.is_some()
         || request.body.compilation_fingerprint.is_some()
+        || request.body.submission.is_some()
+        || request.body.review.is_some()
     {
         return Err(LimitedProtocolError::Envelope);
     }
@@ -751,6 +779,7 @@ fn handle_submission_request(
         || request.body.project_id.is_some()
         || request.body.workspace_id.is_some()
         || request.body.compilation_fingerprint.is_some()
+        || request.body.review.is_some()
     {
         return Err(LimitedProtocolError::Envelope);
     }
@@ -802,6 +831,109 @@ fn handle_submission_request(
         deduplicated: Some(
             matches!(authorization, CapabilityAuthorizationOutcome::Replay(_))
                 || matches!(outcome, SubmissionWriteOutcome::Duplicate { .. }),
+        ),
+        ..LimitedResponseResult::default()
+    })
+}
+
+#[cfg(unix)]
+fn handle_review_request(
+    authentication: &ConnectionAuthentication,
+    authority: &VerifiedServiceAuthority,
+    storage: &ProtectedServiceStorage,
+    request: &LimitedRequest,
+) -> Result<LimitedResponseResult, LimitedProtocolError> {
+    if request.body.identity_fingerprint.is_some()
+        || request.body.project_slug.is_some()
+        || request.body.project_id.is_some()
+        || request.body.workspace_id.is_some()
+        || request.body.compilation_fingerprint.is_some()
+        || request.body.submission.is_some()
+    {
+        return Err(LimitedProtocolError::Envelope);
+    }
+    let wire = request
+        .body
+        .review
+        .as_ref()
+        .ok_or(LimitedProtocolError::Envelope)?;
+    if wire.request_id != request.request_id {
+        return Err(LimitedProtocolError::Envelope);
+    }
+    let decision = match wire.decision.as_str() {
+        "accepted" => ReviewDecision::Accepted,
+        "rejected" => ReviewDecision::Rejected,
+        _ => return Err(LimitedProtocolError::Envelope),
+    };
+    let review = ac_ant_delirium::structs::build_assigned_review_decision(
+        &wire.request_id,
+        &wire.submission_id,
+        decision,
+        &wire.justification,
+    )
+    .map_err(|_| LimitedProtocolError::Envelope)?;
+    let payload = ac_ant_delirium::structs::serialize_assigned_review_decision(&review)
+        .map_err(|_| LimitedProtocolError::Envelope)?;
+    let (authorization, resource) =
+        authorize_scoped_reviewer_decision(authentication, authority, storage, request, wire)?;
+    let assignment = SubmissionStore::submission_assignment(
+        resource.database(),
+        &wire.project_id,
+        &wire.submission_id,
+    )
+    .map_err(|_| LimitedProtocolError::Envelope)?
+    .ok_or(LimitedProtocolError::Envelope)?;
+    if assignment.project_id != wire.project_id
+        || assignment.workspace_id != wire.workspace_id
+        || assignment.task_id != wire.task_id
+    {
+        return Err(LimitedProtocolError::Envelope);
+    }
+    let fingerprint = lowercase_hex(&sha256(&payload));
+    let created_at = format!("unix:{}", trusted_unix_time()?);
+    let review_id = random_crockford_id("rev_").map_err(|_| LimitedProtocolError::Entropy)?;
+    let reviewer_id = match &authorization {
+        CapabilityAuthorizationOutcome::Fresh(capability)
+        | CapabilityAuthorizationOutcome::Replay(capability) => capability.grant_id().to_string(),
+        CapabilityAuthorizationOutcome::Denied => return Err(LimitedProtocolError::Envelope),
+    };
+    let event = NewAuditEvent {
+        contract_version: AUDIT_EVENT_CONTRACT_VERSION.to_string(),
+        event_id: random_crockford_id("evt_").map_err(|_| LimitedProtocolError::Entropy)?,
+        project_id: wire.project_id.clone(),
+        workspace_id: Some(wire.workspace_id.clone()),
+        actor_kind: "reviewer".to_string(),
+        actor_subject_id: reviewer_id.clone(),
+        event_kind: "review_recorded".to_string(),
+        outcome: "succeeded".to_string(),
+        occurred_at: created_at.clone(),
+        fingerprint: fingerprint.clone(),
+        correlation_id: random_crockford_id("ref_").map_err(|_| LimitedProtocolError::Entropy)?,
+        resource_id: Some(review_id.clone()),
+        payload: b"immutable assigned review received".to_vec(),
+    };
+    let outcome = ac_ant_delirium::structs::record_authorized_review(
+        resource.database(),
+        &review,
+        &AuthorizedReviewAssignment {
+            project_id: wire.project_id.clone(),
+            reviewer_id,
+            assigned_submission_id: wire.submission_id.clone(),
+        },
+        &AuthorizedReviewMetadata {
+            review_id,
+            fingerprint,
+            created_at,
+        },
+        &event,
+    )
+    .map_err(|_| LimitedProtocolError::Envelope)?;
+    Ok(LimitedResponseResult {
+        review_id: Some(outcome.review_id().to_string()),
+        event_sequence: Some(outcome.event_sequence()),
+        deduplicated: Some(
+            matches!(authorization, CapabilityAuthorizationOutcome::Replay(_))
+                || matches!(outcome, ReviewWriteOutcome::Duplicate { .. }),
         ),
         ..LimitedResponseResult::default()
     })
@@ -890,6 +1022,74 @@ fn authorize_scoped_agent_submission(
         | CapabilityAuthorizationOutcome::Replay(capability)
             if capability.actor() == CapabilityActor::Agent
                 && capability.operation() == CapabilityOperation::SubmissionCreate =>
+        {
+            capability
+        }
+        _ => return Err(LimitedProtocolError::Envelope),
+    };
+    let resource = storage
+        .resolve_authorized_resource(authority, authorized)
+        .map_err(|_| LimitedProtocolError::Envelope)?;
+    Ok((outcome, resource))
+}
+
+#[cfg(unix)]
+fn authorize_scoped_reviewer_decision(
+    authentication: &ConnectionAuthentication,
+    authority: &VerifiedServiceAuthority,
+    storage: &ProtectedServiceStorage,
+    request: &LimitedRequest,
+    review: &ReviewWireBody,
+) -> Result<
+    (
+        CapabilityAuthorizationOutcome,
+        crate::service_storage::ResolvedAuthorizedResource,
+    ),
+    LimitedProtocolError,
+> {
+    let capability = request
+        .capability
+        .as_ref()
+        .filter(|capability| valid_opaque_id(&capability.capability_id, "cap_"))
+        .ok_or(LimitedProtocolError::Envelope)?;
+    if !valid_opaque_id(&review.project_id, "prj_")
+        || !valid_opaque_id(&review.workspace_id, "wsp_")
+        || !valid_opaque_id(&review.task_id, "tsk_")
+        || !valid_opaque_id(&review.submission_id, "sub_")
+    {
+        return Err(LimitedProtocolError::Envelope);
+    }
+    let mut fingerprint_material = CapabilityOperation::ReviewDecideAssigned
+        .storage_value()
+        .as_bytes()
+        .to_vec();
+    fingerprint_material.push(0);
+    fingerprint_material.extend_from_slice(
+        &serde_json::to_vec(&request.body).map_err(|_| LimitedProtocolError::Envelope)?,
+    );
+    let authorization = CapabilityAuthorizationRequest {
+        grant_id: capability.capability_id.clone(),
+        presented_secret: decode_base64url(&capability.token)?,
+        operation: CapabilityOperation::ReviewDecideAssigned,
+        project_id: Some(review.project_id.clone()),
+        workspace_id: Some(review.workspace_id.clone()),
+        task_id: Some(review.task_id.clone()),
+        presented_connection_nonce: decode_base64url(&request.connection_nonce)?,
+        request_id: request.request_id.clone(),
+        request_fingerprint: sha256(&fingerprint_material),
+    };
+    let outcome = authentication
+        .authorize(
+            storage.registry(),
+            CapabilityChannel::Limited,
+            &authorization,
+        )
+        .map_err(|_| LimitedProtocolError::Envelope)?;
+    let authorized = match &outcome {
+        CapabilityAuthorizationOutcome::Fresh(capability)
+        | CapabilityAuthorizationOutcome::Replay(capability)
+            if capability.actor() == CapabilityActor::Reviewer
+                && capability.operation() == CapabilityOperation::ReviewDecideAssigned =>
         {
             capability
         }

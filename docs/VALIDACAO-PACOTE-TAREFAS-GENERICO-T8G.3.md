@@ -79,6 +79,16 @@ etapa posterior ao grant falhar, o trap tenta novamente a revogação antes de
 remover os descritores. Os logs sanitizados ficam neste checkout em
 `target/t8g-agent-submission-launcher-logs/`.
 
+O listener limitado também reconhece `review.decide.assigned` somente com uma
+capability `Reviewer/Limited/ReviewDecideAssigned` vinculada ao mesmo projeto,
+workspace e tarefa. Depois da autorização, o serviço consulta a submissão no
+banco protegido e exige que sua vinculação canônica coincida com todos esses
+IDs antes de registrar `accepted` ou `rejected`. A decisão e o evento
+`review_recorded` são gravados atomicamente e o recibo contém apenas `review_id`,
+sequência e deduplicação. O teste ADP1 sintético percorre instalação de pacote,
+submissão e revisão e confirma que a revisão aceita não muda a tarefa atual nem
+o `state_revision`; avanço continua sendo uma operação separada do serviço.
+
 A validação instalada será executada, quando a fixture sintética tiver uma
 tarefa canônica, com a forma:
 
@@ -88,5 +98,6 @@ sudo bash packaging/systemd/run-agent-submission.sh \
   --api 'hierarchy.task.current.submit Evidência verificável'
 ```
 
-Esta entrega ainda não conclui T8G.3. Permanecem provar o launcher contra o
-release instalado, implementar revisão, avanço e histórico no serviço.
+Esta entrega ainda não conclui T8G.3. Permanecem provar o launcher de submissão
+contra o release instalado, ligar um cliente/supervisor de revisor à rota já
+implementada e implementar avanço e histórico no serviço.

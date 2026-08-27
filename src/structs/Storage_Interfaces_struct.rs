@@ -101,6 +101,13 @@ pub struct NewSubmission {
     pub received_at: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SubmissionAssignment {
+    pub project_id: String,
+    pub workspace_id: String,
+    pub task_id: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReviewDecision {
     Accepted,
@@ -280,6 +287,12 @@ pub trait SubmissionStore {
     ) -> TransactionalStorageResult<SubmissionWriteOutcome>;
 
     fn submission_count(&self, project_id: &str) -> TransactionalStorageResult<i64>;
+
+    fn submission_assignment(
+        &self,
+        project_id: &str,
+        submission_id: &str,
+    ) -> TransactionalStorageResult<Option<SubmissionAssignment>>;
 }
 
 pub trait ReviewStore {

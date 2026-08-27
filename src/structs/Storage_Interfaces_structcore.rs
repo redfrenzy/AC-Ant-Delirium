@@ -12,8 +12,8 @@ use super::{
     GovernanceErrorsProjection, NewAuditEvent, NewReview, NewSubmission, ProjectDatabase,
     ProjectProjectionWriter, ProjectStateRoot, ProjectedTaskAction, ProjectionArtifactKind,
     ProjectionMetadata, ProjectionWriteReceipt, ReviewStore, ReviewWriteOutcome, StorageProject,
-    StorageWorkspace, SubmissionStore, SubmissionWriteOutcome, TransactionalStorageError,
-    TransactionalStorageResult, AGENT_PROJECTION_CONTRACT_VERSION,
+    StorageWorkspace, SubmissionAssignment, SubmissionStore, SubmissionWriteOutcome,
+    TransactionalStorageError, TransactionalStorageResult, AGENT_PROJECTION_CONTRACT_VERSION,
     CANONICAL_STATE_CONTRACT_VERSION, CANONICAL_TASK_PROJECTION_PAYLOAD_VERSION,
     GOVERNANCE_TASK_PACKAGE_CONTRACT_VERSION, SUBMISSION_CONTRACT_VERSION,
 };
@@ -394,6 +394,29 @@ impl SubmissionStore for ProjectDatabase {
             AC_params![project_id],
             |row| row.get(0),
         )?)
+    }
+
+    fn submission_assignment(
+        &self,
+        project_id: &str,
+        submission_id: &str,
+    ) -> TransactionalStorageResult<Option<SubmissionAssignment>> {
+        validate_opaque_identifier(project_id, "prj_", "project_id")?;
+        validate_opaque_identifier(submission_id, "sub_", "submission_id")?;
+        let connection = self.open_connection(false)?;
+        Ok(connection
+            .query_row(
+                "SELECT project_id, workspace_id, task_id FROM submissions WHERE project_id = ?1 AND submission_id = ?2",
+                AC_params![project_id, submission_id],
+                |row| {
+                    Ok(SubmissionAssignment {
+                        project_id: row.get(0)?,
+                        workspace_id: row.get(1)?,
+                        task_id: row.get(2)?,
+                    })
+                },
+            )
+            .optional()?)
     }
 }
 
@@ -1085,8 +1108,7 @@ fn find_duplicate_review(
     let Some((review_id, reviewer_id, outcome, payload)) = persisted else {
         return Ok(None);
     };
-    if review_id != review.review_id
-        || reviewer_id != review.reviewer_id
+    if reviewer_id != review.reviewer_id
         || outcome != review.decision.storage_value()
         || payload != review.payload
     {
@@ -1097,7 +1119,7 @@ fn find_duplicate_review(
     let sequence = transaction
         .query_row(
             "SELECT sequence FROM events WHERE project_id = ?1 AND event_kind = 'review_recorded' AND resource_id = ?2",
-            AC_params![review.project_id, review.review_id],
+            AC_params![review.project_id, review_id],
             |row| row.get::<_, i64>(0),
         )
         .optional()?

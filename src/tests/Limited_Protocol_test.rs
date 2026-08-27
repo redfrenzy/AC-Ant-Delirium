@@ -193,8 +193,8 @@ fn execute_typed_limited_request_with_id(
         body,
     })
     .unwrap();
-    let response =
-        limited_response_for_payload(&payload, authentication, authority, storage).unwrap();
+    let response = limited_response_for_payload(&payload, authentication, authority, storage)
+        .unwrap_or_else(|error| panic!("limited operation {operation} failed: {error:?}"));
     let encoded_response = serde_json::to_vec(&response).unwrap();
     let decoded: LimitedResponse = serde_json::from_slice(&encoded_response).unwrap();
     assert_eq!(decoded.message_type, "response");
@@ -208,7 +208,7 @@ fn execute_typed_limited_request_with_id(
 
 #[cfg(unix)]
 #[test]
-fn agent_submission_is_authorized_scoped_immutable_and_audited_over_adp1() {
+fn agent_submission_and_assigned_review_are_scoped_immutable_and_audited_over_adp1() {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use ac_ant_delirium::libres::Sha2_unit::sha256;
@@ -369,16 +369,158 @@ fn agent_submission_is_authorized_scoped_immutable_and_audited_over_adp1() {
     )
     .result
     .unwrap();
-    assert!(response
-        .submission_id
-        .as_deref()
-        .is_some_and(|id| valid_opaque_id(id, "sub_")));
+    let submission_id = response.submission_id.unwrap();
+    assert!(valid_opaque_id(&submission_id, "sub_"));
     assert_eq!(response.event_sequence, Some(2));
     assert_eq!(response.deduplicated, Some(false));
     assert_eq!(
         SubmissionStore::submission_count(&database, &bootstrap.project_id).unwrap(),
         1
     );
+
+    let review_capability_id = "cap_eeeeeeeeeeeeeeeeeeeeeeeeee";
+    let review_capability_secret = [74_u8; 32];
+    storage
+        .registry()
+        .store_capability_grant(&NewCapabilityGrant {
+            grant_id: review_capability_id.to_string(),
+            secret_hash: sha256(&review_capability_secret),
+            subject_uid: peer_uid,
+            actor: CapabilityActor::Reviewer,
+            channel: CapabilityChannel::Limited,
+            operation: CapabilityOperation::ReviewDecideAssigned,
+            project_id: Some(bootstrap.project_id.clone()),
+            workspace_id: Some(bootstrap.workspace_id.clone()),
+            task_id: Some(task_id.to_string()),
+            not_before_unix: now - 60,
+            expires_at_unix: now + 600,
+            revocation_epoch: 0,
+            granted_at: format!("unix:{}", now - 60),
+        })
+        .unwrap();
+    let review_request_id = "req_eeeeeeeeeeeeeeeeeeeeeeeeee".to_string();
+    let review_authentication =
+        crate::service_authentication::ConnectionAuthentication::for_test(peer_uid, [75_u8; 32]);
+    let review_response = execute_typed_limited_request_with_id(
+        &review_authentication,
+        &authority,
+        &storage,
+        "review.decide.assigned",
+        Some(WireCapability {
+            capability_id: review_capability_id.to_string(),
+            token: encode_base64url(&review_capability_secret),
+        }),
+        LimitedRequestBody {
+            review: Some(ReviewWireBody {
+                request_id: review_request_id.clone(),
+                project_id: bootstrap.project_id.clone(),
+                workspace_id: bootstrap.workspace_id.clone(),
+                task_id: task_id.to_string(),
+                submission_id: submission_id.clone(),
+                decision: "accepted".to_string(),
+                justification: "The immutable evidence satisfies the synthetic task.".to_string(),
+            }),
+            ..LimitedRequestBody::default()
+        },
+        review_request_id.clone(),
+    )
+    .result
+    .unwrap();
+    let review_id = review_response.review_id.unwrap();
+    assert!(valid_opaque_id(&review_id, "rev_"));
+    assert_eq!(review_response.event_sequence, Some(3));
+    assert_eq!(review_response.deduplicated, Some(false));
+
+    let replay = execute_typed_limited_request_with_id(
+        &review_authentication,
+        &authority,
+        &storage,
+        "review.decide.assigned",
+        Some(WireCapability {
+            capability_id: review_capability_id.to_string(),
+            token: encode_base64url(&review_capability_secret),
+        }),
+        LimitedRequestBody {
+            review: Some(ReviewWireBody {
+                request_id: review_request_id.clone(),
+                project_id: bootstrap.project_id.clone(),
+                workspace_id: bootstrap.workspace_id.clone(),
+                task_id: task_id.to_string(),
+                submission_id,
+                decision: "accepted".to_string(),
+                justification: "The immutable evidence satisfies the synthetic task.".to_string(),
+            }),
+            ..LimitedRequestBody::default()
+        },
+        review_request_id,
+    )
+    .result
+    .unwrap();
+    assert_eq!(replay.review_id.as_deref(), Some(review_id.as_str()));
+    assert_eq!(replay.event_sequence, Some(3));
+    assert_eq!(replay.deduplicated, Some(true));
+
+    let unassigned_capability_id = "cap_ffffffffffffffffffffffffff";
+    let unassigned_capability_secret = [76_u8; 32];
+    storage
+        .registry()
+        .store_capability_grant(&NewCapabilityGrant {
+            grant_id: unassigned_capability_id.to_string(),
+            secret_hash: sha256(&unassigned_capability_secret),
+            subject_uid: peer_uid,
+            actor: CapabilityActor::Reviewer,
+            channel: CapabilityChannel::Limited,
+            operation: CapabilityOperation::ReviewDecideAssigned,
+            project_id: Some(bootstrap.project_id.clone()),
+            workspace_id: Some(bootstrap.workspace_id.clone()),
+            task_id: Some(task_id.to_string()),
+            not_before_unix: now - 60,
+            expires_at_unix: now + 600,
+            revocation_epoch: 0,
+            granted_at: format!("unix:{}", now - 60),
+        })
+        .unwrap();
+    let unassigned_request_id = "req_ffffffffffffffffffffffffff".to_string();
+    let unassigned_authentication =
+        crate::service_authentication::ConnectionAuthentication::for_test(peer_uid, [77_u8; 32]);
+    let unassigned_payload = serde_json::to_vec(&LimitedRequest {
+        message_type: "request".to_string(),
+        wire_version: LIMITED_WIRE_VERSION.to_string(),
+        request_id: unassigned_request_id.clone(),
+        connection_nonce: encode_base64url(unassigned_authentication.connection_nonce()),
+        operation: "review.decide.assigned".to_string(),
+        capability: Some(WireCapability {
+            capability_id: unassigned_capability_id.to_string(),
+            token: encode_base64url(&unassigned_capability_secret),
+        }),
+        body: LimitedRequestBody {
+            review: Some(ReviewWireBody {
+                request_id: unassigned_request_id,
+                project_id: bootstrap.project_id.clone(),
+                workspace_id: bootstrap.workspace_id.clone(),
+                task_id: task_id.to_string(),
+                submission_id: "sub_ffffffffffffffffffffffffff".to_string(),
+                decision: "accepted".to_string(),
+                justification: "No unassigned submission may be reviewed.".to_string(),
+            }),
+            ..LimitedRequestBody::default()
+        },
+    })
+    .unwrap();
+    assert!(matches!(
+        limited_response_for_payload(
+            &unassigned_payload,
+            &unassigned_authentication,
+            &authority,
+            &storage,
+        ),
+        Err(LimitedProtocolError::Envelope)
+    ));
+    assert_eq!(
+        AuditStore::audit_event_count(&database, &bootstrap.project_id).unwrap(),
+        3
+    );
+
     let state = database
         .load_canonical_state(&bootstrap.project_id, &bootstrap.workspace_id)
         .unwrap();
