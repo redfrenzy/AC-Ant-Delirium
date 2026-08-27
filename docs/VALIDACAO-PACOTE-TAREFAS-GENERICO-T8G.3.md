@@ -142,7 +142,7 @@ faz isso na mesma transação do plano, tarefas, estado e auditoria. Snapshot
 ausente, adulterado ou concorrente aborta toda a instalação. Testes focados
 comprovam o refresh limitado na revisão 1 e o rollback sem evento, plano ou
 tarefa parcial. A repetição contra o serviço instalado continua necessária
-depois da implantação do novo release.
+depois da implantação do novo release e está registrada na prova abaixo.
 
 Se a instalação canônica já foi confirmada e uma etapa posterior falhar, a
 rotina retoma com `--resume-task-id tsk_<id>` e não abre novamente o descriptor
@@ -167,5 +167,27 @@ sudo bash packaging/systemd/validate-installed-task-cycle.sh \
   --project-root <fixture-sintetica-absoluta-sob-target>
 ```
 
-Esta entrega ainda não conclui T8G.3. Permanecem provar os launchers contra o
-release instalado e implementar avanço e histórico no serviço.
+## Prova contra a instalação real
+
+O ciclo instalado passou em 27 de agosto de 2026 com o release de SHA-256
+`baa3faf17670743cae836fef92b2d043c06071ef77446b172512cc6d5b752611`.
+Serviço, wrapper Cargo, bundle e release local tinham exatamente esse hash. Em
+uma fixture canônica nova, o gate comprovou:
+
+- instalação de uma tarefa e avanço conjunto das duas projeções para a revisão 1;
+- submissão pelo comando público existente, com retorno apenas do ID opaco;
+- emissão e revogação da capability de submissão de uso único;
+- leitura somente da submissão atribuída pelo revisor;
+- decisão `accepted` sem conclusão ou avanço implícito da tarefa;
+- emissão e revogação separadas das capabilities de leitura e decisão;
+- ausência de acesso a projeto externo e de localizadores físicos nos logs de aceite.
+
+O recibo reproduzível está em
+`target/t8g-task-cycle-logs/20260827T201921Z-75927/acceptance.env` e registra
+`task_package_install=pass`, `cargo_projection_refresh=pass`,
+`agent_submission=pass`, `assigned_submission_read=pass` e
+`assigned_review_decision=pass`. A tarefa permaneceu disponível na revisão 1,
+confirmando que revisão e avanço são autoridades diferentes.
+
+Esta entrega ainda não conclui T8G.3. Permanecem implementar e validar avanço
+canônico e histórico protegido no serviço.
