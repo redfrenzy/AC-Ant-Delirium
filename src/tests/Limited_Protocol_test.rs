@@ -282,6 +282,32 @@ fn agent_submission_and_assigned_review_are_scoped_immutable_and_audited_over_ad
         )
         .unwrap();
 
+    let projection_authentication =
+        crate::service_authentication::ConnectionAuthentication::for_test(peer_uid, [76_u8; 32]);
+    let refreshed = execute_typed_limited_request(
+        &projection_authentication,
+        &authority,
+        &storage,
+        "projection.refresh",
+        Some(WireCapability {
+            capability_id: bootstrap.projection.capability_id.clone(),
+            token: encode_base64url(&bootstrap.projection.token),
+        }),
+        LimitedRequestBody {
+            project_id: Some(bootstrap.project_id.clone()),
+            workspace_id: Some(bootstrap.workspace_id.clone()),
+            ..LimitedRequestBody::default()
+        },
+    )
+    .result
+    .unwrap()
+    .current_task
+    .unwrap();
+    let refreshed: serde_json::Value = serde_json::from_str(&refreshed).unwrap();
+    assert_eq!(refreshed["source_revision"], 1);
+    assert_eq!(refreshed["task"]["task_id"], task_id);
+    assert_eq!(refreshed["queue_status"], "task_available");
+
     let capability_id = "cap_dddddddddddddddddddddddddd";
     let capability_secret = [72_u8; 32];
     storage

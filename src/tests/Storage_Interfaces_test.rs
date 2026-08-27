@@ -97,6 +97,9 @@ mod tests {
             ProjectDatabase::initialize(&state_root).expect("database should initialize");
         CanonicalStateStore::register_project(&database, &project()).unwrap();
         CanonicalStateStore::register_workspace(&database, &workspace()).unwrap();
+        database
+            .initialize_empty_governance_snapshot(PROJECT_ID, WORKSPACE_ID, "2026-08-11T00:00:00Z")
+            .unwrap();
         (state_root, database)
     }
 
@@ -247,6 +250,12 @@ mod tests {
         assert!(projection.contains("Implement the synthetic governance task."));
         assert!(projection.contains("src/lib.rs"));
         assert!(!projection.contains("Implement the next synthetic task."));
+        let governance = database
+            .render_governance_errors_projection(PROJECT_ID, WORKSPACE_ID, "2026-08-11T00:00:01Z")
+            .unwrap();
+        let governance: serde_json::Value = serde_json::from_slice(&governance).unwrap();
+        assert_eq!(governance["source_revision"], 1);
+        assert_eq!(governance["violations"], serde_json::json!([]));
 
         let replay =
             CanonicalStateStore::install_task_package(&database, &package, &event).unwrap();
@@ -276,8 +285,38 @@ mod tests {
         assert_eq!(empty.state_revision, 0);
         assert!(empty.tasks.is_empty());
         assert_eq!(empty.last_event_sequence, 0);
+        let governance = database
+            .render_governance_errors_projection(PROJECT_ID, WORKSPACE_ID, "2026-08-11T00:00:01Z")
+            .unwrap();
+        let governance: serde_json::Value = serde_json::from_slice(&governance).unwrap();
+        assert_eq!(governance["source_revision"], 0);
 
         let package = task_package();
+        database
+            .with_immediate_transaction(|transaction| {
+                transaction.execute(
+                    "DELETE FROM governance_snapshots WHERE project_id = ?1 AND workspace_id = ?2",
+                    AC_params![PROJECT_ID, WORKSPACE_ID],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        assert!(CanonicalStateStore::install_task_package(
+            &database,
+            &package,
+            &task_package_event(2, 14),
+        )
+        .is_err());
+        let rolled_back = database
+            .load_canonical_state(PROJECT_ID, WORKSPACE_ID)
+            .unwrap();
+        assert_eq!(rolled_back.state_revision, 0);
+        assert!(rolled_back.tasks.is_empty());
+        assert_eq!(rolled_back.last_event_sequence, 0);
+        database
+            .initialize_empty_governance_snapshot(PROJECT_ID, WORKSPACE_ID, "2026-08-11T00:00:02Z")
+            .unwrap();
+
         CanonicalStateStore::install_task_package(&database, &package, &task_package_event(2, 14))
             .unwrap();
         let conflicting = task_package_event(3, 15);

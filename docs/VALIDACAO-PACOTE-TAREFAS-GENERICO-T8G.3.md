@@ -128,6 +128,19 @@ sintética com o descriptor `StateAdmin`, força um `cargo check` normal para
 atualizar as projeções e percorre submissão, leitura atribuída e decisão. O
 resultado exige que a tarefa continue disponível na mesma `source_revision`,
 pois revisão e avanço permanecem operações diferentes.
+
+A primeira execução instalada revelou uma invariância ausente: a instalação do
+pacote avançava o estado canônico para a revisão 1, mas o snapshot canônico de
+erros continuava vinculado à revisão 0. O serviço conseguia renderizar a tarefa,
+recusava a projeção de erros e, como o refresh devolve os dois documentos em uma
+única resposta, o wrapper não materializava nenhum deles. A instalação agora
+carrega o snapshot já validado para a nova revisão, recalcula seu fingerprint e
+faz isso na mesma transação do plano, tarefas, estado e auditoria. Snapshot
+ausente, adulterado ou concorrente aborta toda a instalação. Testes focados
+comprovam o refresh limitado na revisão 1 e o rollback sem evento, plano ou
+tarefa parcial. A repetição contra o serviço instalado continua necessária
+depois da implantação do novo release.
+
 Se a instalação canônica já foi confirmada e uma etapa posterior falhar, a
 rotina retoma com `--resume-task-id tsk_<id>` e não abre novamente o descriptor
 `StateAdmin` nem tenta reinstalar o pacote.

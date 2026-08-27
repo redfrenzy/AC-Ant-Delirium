@@ -1,4 +1,4 @@
-use crate::libres::Rusqlite_unit::{AC_OptionalExtension, AC_params};
+use crate::libres::Rusqlite_unit::{AC_OptionalExtension, AC_Transaction, AC_params};
 use crate::libres::Sha2_unit::sha256;
 use crate::libres::System_Random_unit::random_crockford_id;
 
@@ -130,6 +130,68 @@ pub(super) fn initialize_empty_governance_snapshot(
         )?;
         Ok(())
     })
+}
+
+pub(super) fn carry_forward_canonical_governance_snapshot(
+    transaction: &AC_Transaction<'_>,
+    project_id: &str,
+    workspace_id: &str,
+    expected_source_revision: i64,
+    next_source_revision: i64,
+    observed_at: &str,
+) -> TransactionalStorageResult<()> {
+    if expected_source_revision < 0
+        || expected_source_revision.checked_add(1) != Some(next_source_revision)
+    {
+        return Err(TransactionalStorageError::InvalidInput(
+            "canonical governance snapshot revision transition is invalid".to_string(),
+        ));
+    }
+    let snapshot = transaction.query_row(
+        "SELECT contract_version, source_revision, fingerprint, payload FROM governance_snapshots WHERE project_id = ?1 AND workspace_id = ?2",
+        AC_params![project_id, workspace_id],
+        |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, Vec<u8>>(3)?,
+            ))
+        },
+    )?;
+    if snapshot.0 != CANONICAL_GOVERNANCE_SNAPSHOT_VERSION
+        || snapshot.1 != expected_source_revision
+        || snapshot_fingerprint(
+            project_id,
+            workspace_id,
+            expected_source_revision,
+            &snapshot.3,
+        )? != snapshot.2
+    {
+        return Err(TransactionalStorageError::Integrity(
+            "canonical governance snapshot cannot follow the state transition".to_string(),
+        ));
+    }
+    let next_fingerprint =
+        snapshot_fingerprint(project_id, workspace_id, next_source_revision, &snapshot.3)?;
+    let updated = transaction.execute(
+        "UPDATE governance_snapshots SET source_revision = ?3, fingerprint = ?4, observed_at = ?5 WHERE project_id = ?1 AND workspace_id = ?2 AND source_revision = ?6 AND fingerprint = ?7",
+        AC_params![
+            project_id,
+            workspace_id,
+            next_source_revision,
+            next_fingerprint,
+            observed_at,
+            expected_source_revision,
+            snapshot.2,
+        ],
+    )?;
+    if updated != 1 {
+        return Err(TransactionalStorageError::Integrity(
+            "canonical governance snapshot changed during the state transition".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 pub(super) fn refresh_governance_errors_projection(

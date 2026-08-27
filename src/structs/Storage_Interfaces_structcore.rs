@@ -162,6 +162,15 @@ impl CanonicalStateStore for ProjectDatabase {
         audit_event: &NewAuditEvent,
     ) -> TransactionalStorageResult<CanonicalMutationOutcome> {
         let encoded_tasks = validate_and_encode_task_package(package, audit_event)?;
+        let expected_revision =
+            package
+                .expected_state_revision
+                .checked_add(1)
+                .ok_or_else(|| {
+                    TransactionalStorageError::InvalidInput(
+                        "task package state revision overflow".to_string(),
+                    )
+                })?;
         self.with_immediate_transaction(|transaction| {
             let audit = self.record_event_in_transaction(transaction, audit_event)?;
             if audit.inserted() {
@@ -239,6 +248,14 @@ impl CanonicalStateStore for ProjectDatabase {
                         "canonical state changed while installing the task package".to_string(),
                     ));
                 }
+                super::Governance_Errors_Projection_structcore::carry_forward_canonical_governance_snapshot(
+                    transaction,
+                    &package.project_id,
+                    &package.workspace_id,
+                    package.expected_state_revision,
+                    expected_revision,
+                    &audit_event.occurred_at,
+                )?;
             }
 
             let state = load_canonical_state_from_transaction(
@@ -246,11 +263,6 @@ impl CanonicalStateStore for ProjectDatabase {
                 &package.project_id,
                 &package.workspace_id,
             )?;
-            let expected_revision = package.expected_state_revision.checked_add(1).ok_or_else(|| {
-                TransactionalStorageError::InvalidInput(
-                    "task package state revision overflow".to_string(),
-                )
-            })?;
             if state.state_revision != expected_revision
                 || state.active_plan_id.as_deref() != Some(package.plan_id.as_str())
                 || state.current_task_id.as_deref() != Some(package.tasks[0].task_id.as_str())
