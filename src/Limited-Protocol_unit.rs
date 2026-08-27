@@ -101,6 +101,13 @@ pub(crate) struct LimitedProjectionDocuments {
     pub(crate) governance_errors: Vec<u8>,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AgentSubmissionCapabilityBundle {
+    contract_version: String,
+    capability: WireCapability,
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct LimitedRequest {
@@ -342,12 +349,23 @@ fn refresh_projections(
 
 #[cfg(unix)]
 fn request_for_connection(
-    mut connection: NegotiatedLimitedConnection,
+    connection: NegotiatedLimitedConnection,
     operation: &str,
     capability: Option<WireCapability>,
     body: LimitedRequestBody,
 ) -> Result<LimitedResponse, LimitedProtocolError> {
     let request_id = random_request_id()?;
+    request_for_connection_with_id(connection, operation, capability, body, request_id)
+}
+
+#[cfg(unix)]
+fn request_for_connection_with_id(
+    mut connection: NegotiatedLimitedConnection,
+    operation: &str,
+    capability: Option<WireCapability>,
+    body: LimitedRequestBody,
+    request_id: String,
+) -> Result<LimitedResponse, LimitedProtocolError> {
     let request = LimitedRequest {
         message_type: "request".to_string(),
         wire_version: LIMITED_WIRE_VERSION.to_string(),
@@ -372,6 +390,111 @@ fn request_for_connection(
         return Err(LimitedProtocolError::Envelope);
     }
     Ok(response)
+}
+
+#[cfg(unix)]
+pub(crate) fn create_agent_submission(
+    endpoint: &OsStr,
+    capability_fd: i32,
+    request: &SubmissionCreateRequest,
+) -> Result<(), LimitedProtocolError> {
+    let bundle = read_agent_submission_capability_from_descriptor(capability_fd)?;
+    let connection = connect_limited_service(endpoint)?;
+    create_agent_submission_for_connection(connection, bundle, request)
+}
+
+#[cfg(unix)]
+fn create_agent_submission_for_connection(
+    connection: NegotiatedLimitedConnection,
+    bundle: AgentSubmissionCapabilityBundle,
+    request: &SubmissionCreateRequest,
+) -> Result<(), LimitedProtocolError> {
+    let evidence = request
+        .evidence
+        .iter()
+        .map(|item| match item {
+            SubmissionEvidence::Note { text } => SubmissionWireEvidence {
+                kind: "note".to_string(),
+                text: text.clone(),
+            },
+        })
+        .collect();
+    let response = request_for_connection_with_id(
+        connection,
+        "submission.create",
+        Some(bundle.capability),
+        LimitedRequestBody {
+            submission: Some(SubmissionWireBody {
+                contract_version: request.contract_version.clone(),
+                request_id: request.request_id.clone(),
+                project_id: request.project_id.clone(),
+                workspace_id: request.workspace_id.clone(),
+                task_id: request.task_id.clone(),
+                task_revision: request.task_revision,
+                base_revision: request.base_revision.clone(),
+                evidence,
+            }),
+            ..LimitedRequestBody::default()
+        },
+        request.request_id.clone(),
+    )?;
+    let result = response.result.ok_or(LimitedProtocolError::Envelope)?;
+    let submission_id = result
+        .submission_id
+        .filter(|value| valid_opaque_id(value, "sub_"))
+        .ok_or(LimitedProtocolError::Envelope)?;
+    let event_sequence = result
+        .event_sequence
+        .filter(|sequence| *sequence > 0)
+        .ok_or(LimitedProtocolError::Envelope)?;
+    let deduplicated = result.deduplicated.ok_or(LimitedProtocolError::Envelope)?;
+    let _ = (submission_id, event_sequence, deduplicated);
+    Ok(())
+}
+
+#[cfg(unix)]
+fn read_agent_submission_capability_from_descriptor(
+    raw_fd: i32,
+) -> Result<AgentSubmissionCapabilityBundle, LimitedProtocolError> {
+    if raw_fd < 3 || unsafe { libc::fcntl(raw_fd, libc::F_GETFD) } < 0 {
+        return Err(LimitedProtocolError::Transport);
+    }
+    set_descriptor_close_on_exec(raw_fd).map_err(|_| LimitedProtocolError::Transport)?;
+    let deadline = std::time::Instant::now() + HANDSHAKE_DEADLINE;
+    let mut payload = Vec::with_capacity(256);
+    let mut buffer = [0_u8; 512];
+    let result = loop {
+        if payload.len() >= 4096 {
+            break Err(LimitedProtocolError::Framing);
+        }
+        if let Err(error) = wait_for(raw_fd, libc::POLLIN, deadline) {
+            break Err(error);
+        }
+        let read = unsafe { libc::read(raw_fd, buffer.as_mut_ptr().cast(), buffer.len()) };
+        if read == 0 {
+            break serde_json::from_slice::<AgentSubmissionCapabilityBundle>(&payload)
+                .map_err(|_| LimitedProtocolError::Envelope)
+                .and_then(|bundle| {
+                    (bundle.contract_version == "agent-submission-capability-v1"
+                        && valid_wire_capability(&bundle.capability))
+                    .then_some(bundle)
+                    .ok_or(LimitedProtocolError::Envelope)
+                });
+        }
+        if read < 0 {
+            let error = std::io::Error::last_os_error();
+            if error.kind() == std::io::ErrorKind::Interrupted {
+                continue;
+            }
+            break Err(LimitedProtocolError::Read);
+        }
+        payload.extend_from_slice(&buffer[..read as usize]);
+    };
+    payload.fill(0);
+    unsafe {
+        libc::close(raw_fd);
+    }
+    result
 }
 
 /// Opens only the installation-provided limited endpoint and negotiates adp/1.

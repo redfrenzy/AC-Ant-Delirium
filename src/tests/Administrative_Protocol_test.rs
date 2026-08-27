@@ -373,6 +373,24 @@ fn generic_task_package_request_is_closed_and_requires_state_admin() {
     );
 }
 
+#[test]
+fn issued_agent_submission_capability_has_a_non_administrative_contract() {
+    assert_eq!(
+        issued_capability_contract("agent", "limited", "submission.create"),
+        "agent-submission-capability-v1"
+    );
+    for (actor, channel, operation) in [
+        ("operator", "administrative", "state.admin"),
+        ("agent", "administrative", "submission.create"),
+        ("agent", "limited", "task.current.read"),
+    ] {
+        assert_eq!(
+            issued_capability_contract(actor, channel, operation),
+            "admin-capability-v1"
+        );
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn state_admin_installs_a_task_package_end_to_end_over_ada1() {

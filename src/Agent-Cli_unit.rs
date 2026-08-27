@@ -1,3 +1,5 @@
+#[cfg(unix)]
+use std::cell::Cell;
 use std::ffi::OsString;
 use std::fs;
 use std::io::Read;
@@ -17,6 +19,8 @@ const TASK_NOTIFICATION: &str = "antdelirium[AD-TASK]: leia guard/to-do_list.jso
 const GOVERNANCE_NOTIFICATION: &str = "antdelirium[AD-GOV]: leia guard/governance_error.json";
 const MAX_PROJECTION_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_EVIDENCE_CHARACTERS: usize = 8_192;
+const LIMITED_SOCKET_ENV: &str = "ANTDELIRIUM_LIMITED_SOCKET";
+const AGENT_CAPABILITY_FD_ENV: &str = "ANTDELIRIUM_AGENT_CAPABILITY_FD";
 
 const AGENT_HELP: &str = "AntDelirium - perfil agente\n\
 Uso:\n\
@@ -72,7 +76,8 @@ impl AgentCliSuccess {
 
 pub(crate) fn run_agent_cli() {
     let args = std::env::args_os().skip(1).collect::<Vec<_>>();
-    match execute(&args, &current_directory(), &UnavailableSubmissionTransport) {
+    let transport = EnvironmentSubmissionTransport::from_environment();
+    match execute(&args, &current_directory(), &transport) {
         Ok(output) => OutputRouter::write_success(output.output()),
         Err(error) => OutputRouter::exit(error),
     }
@@ -140,11 +145,87 @@ trait AgentSubmissionTransport {
     fn create_submission(&self, request: &SubmissionCreateRequest) -> Result<(), AgentCliError>;
 }
 
+#[cfg(test)]
 struct UnavailableSubmissionTransport;
 
+#[cfg(test)]
 impl AgentSubmissionTransport for UnavailableSubmissionTransport {
     fn create_submission(&self, _request: &SubmissionCreateRequest) -> Result<(), AgentCliError> {
         Err(AgentCliError::ServiceUnavailable)
+    }
+}
+
+struct EnvironmentSubmissionTransport {
+    endpoint: Option<OsString>,
+    #[cfg(unix)]
+    capability_fd: Cell<Option<i32>>,
+}
+
+impl EnvironmentSubmissionTransport {
+    fn from_environment() -> Self {
+        let endpoint = std::env::var_os(LIMITED_SOCKET_ENV);
+        std::env::remove_var(LIMITED_SOCKET_ENV);
+        #[cfg(unix)]
+        let capability_fd = std::env::var(AGENT_CAPABILITY_FD_ENV)
+            .ok()
+            .filter(|value| !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()))
+            .and_then(|value| value.parse::<i32>().ok())
+            .filter(|raw_fd| *raw_fd >= 3);
+        std::env::remove_var(AGENT_CAPABILITY_FD_ENV);
+        Self {
+            endpoint,
+            #[cfg(unix)]
+            capability_fd: Cell::new(capability_fd),
+        }
+    }
+}
+
+impl AgentSubmissionTransport for EnvironmentSubmissionTransport {
+    fn create_submission(&self, request: &SubmissionCreateRequest) -> Result<(), AgentCliError> {
+        #[cfg(unix)]
+        {
+            let endpoint = self
+                .endpoint
+                .as_deref()
+                .ok_or(AgentCliError::ServiceUnavailable)?;
+            let capability_fd = self
+                .capability_fd
+                .take()
+                .ok_or(AgentCliError::Authorization)?;
+            return crate::limited_protocol::create_agent_submission(
+                endpoint,
+                capability_fd,
+                request,
+            )
+            .map_err(|error| match error {
+                crate::limited_protocol::LimitedProtocolError::Envelope
+                | crate::limited_protocol::LimitedProtocolError::Framing => AgentCliError::Protocol,
+                crate::limited_protocol::LimitedProtocolError::Endpoint
+                | crate::limited_protocol::LimitedProtocolError::Transport
+                | crate::limited_protocol::LimitedProtocolError::Read
+                | crate::limited_protocol::LimitedProtocolError::Write
+                | crate::limited_protocol::LimitedProtocolError::Deadline
+                | crate::limited_protocol::LimitedProtocolError::Entropy => {
+                    AgentCliError::ServiceUnavailable
+                }
+            });
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = request;
+            Err(AgentCliError::ServiceUnavailable)
+        }
+    }
+}
+
+#[cfg(unix)]
+impl Drop for EnvironmentSubmissionTransport {
+    fn drop(&mut self) {
+        if let Some(raw_fd) = self.capability_fd.take() {
+            unsafe {
+                libc::close(raw_fd);
+            }
+        }
     }
 }
 

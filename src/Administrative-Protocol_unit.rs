@@ -574,6 +574,7 @@ fn run_capability_grant_inner() -> Result<CapabilityGrantReceipt, Administrative
     let actor = actor.ok_or(AdministrativeProtocolError::Envelope)?;
     let channel = channel.ok_or(AdministrativeProtocolError::Envelope)?;
     let operation = operation.ok_or(AdministrativeProtocolError::Envelope)?;
+    let issued_contract = issued_capability_contract(&actor, &channel, &operation);
     let lifetime_seconds = parse_decimal::<i64>(lifetime_seconds)?;
     let revocation_epoch = parse_decimal::<u64>(revocation_epoch)?;
     let capability = read_administrative_capability()?;
@@ -589,7 +590,7 @@ fn run_capability_grant_inner() -> Result<CapabilityGrantReceipt, Administrative
         ));
     }
     let mut issued = AdministrativeCapabilityBundle {
-        contract_version: "admin-capability-v1".to_string(),
+        contract_version: issued_contract.to_string(),
         capability: WireCapability {
             capability_id: capability_id.clone(),
             token: encode_base64url(&token),
@@ -1548,6 +1549,14 @@ fn parse_managed_operation(
     }
 }
 
+fn issued_capability_contract(actor: &str, channel: &str, operation: &str) -> &'static str {
+    if actor == "agent" && channel == "limited" && operation == "submission.create" {
+        "agent-submission-capability-v1"
+    } else {
+        "admin-capability-v1"
+    }
+}
+
 fn erase_string(value: &mut String) {
     // SAFETY: zero bytes remain valid UTF-8. The token is never parsed again.
     unsafe { value.as_mut_vec().fill(0) };
@@ -2095,7 +2104,12 @@ fn read_administrative_capability(
     let raw = std::env::var_os(ADMIN_CAPABILITY_FD_ENV)
         .ok_or(AdministrativeProtocolError::Authorization)?;
     std::env::remove_var(ADMIN_CAPABILITY_FD_ENV);
-    read_capability_bundle_from_raw_fd(raw)
+    let mut capability = read_capability_bundle_from_raw_fd(raw)?;
+    if capability.contract_version != "admin-capability-v1" {
+        erase_string(&mut capability.capability.token);
+        return Err(AdministrativeProtocolError::Authorization);
+    }
+    Ok(capability)
 }
 
 #[cfg(unix)]
@@ -2122,8 +2136,10 @@ fn read_capability_bundle_from_raw_fd(
     bytes.fill(0);
     let mut capability: AdministrativeCapabilityBundle =
         parsed.map_err(|_| AdministrativeProtocolError::Authorization)?;
-    if capability.contract_version != "admin-capability-v1"
-        || !valid_opaque_id(&capability.capability.capability_id, "cap_")
+    if !matches!(
+        capability.contract_version.as_str(),
+        "admin-capability-v1" | "agent-submission-capability-v1"
+    ) || !valid_opaque_id(&capability.capability.capability_id, "cap_")
         || !is_encoded_nonce(&capability.capability.token)
     {
         erase_string(&mut capability.capability.token);

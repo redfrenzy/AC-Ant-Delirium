@@ -57,6 +57,16 @@ transação. A operação não altera revisão do estado, tarefa atual, plano at
 status de conclusão. O teste ADA1/ADP1 sintético comprovou ainda que o recibo
 limitado contém somente ID opaco, sequência e estado de deduplicação.
 
-Esta entrega ainda não conclui T8G.3. Permanecem ligar o transporte real do
-cliente agente ao descriptor de capability, revisão, avanço e histórico no
+O transporte real do perfil agente usa o endpoint limitado fornecido pela
+instalação e uma capability efêmera `agent-submission-capability-v1` entregue
+pelo supervisor em descriptor herdado. A variável
+`ANTDELIRIUM_AGENT_CAPABILITY_FD` contém somente o número do descriptor. O
+cliente apaga as duas variáveis antes de descobrir o projeto, fecha descriptors
+ausentes ou não consumidos e envia o mesmo `request_id` no envelope e no
+`submission-v1`. O emissor administrativo gera esse contrato apenas para a
+combinação exata `agent/limited/submission.create`; o leitor administrativo
+recusa usá-lo como credencial de operador.
+
+Esta entrega ainda não conclui T8G.3. Permanecem o launcher/supervisor instalado
+que entrega a capability ao processo agente, revisão, avanço e histórico no
 serviço instalado.

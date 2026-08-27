@@ -305,24 +305,59 @@ fn agent_submission_is_authorized_scoped_immutable_and_audited_over_adp1() {
     let request_id = "req_dddddddddddddddddddddddddd".to_string();
     let authentication =
         crate::service_authentication::ConnectionAuthentication::for_test(peer_uid, [73_u8; 32]);
+    let request = SubmissionCreateRequest {
+        contract_version: "submission-v1".to_string(),
+        request_id,
+        project_id: bootstrap.project_id.clone(),
+        workspace_id: bootstrap.workspace_id.clone(),
+        task_id: task_id.to_string(),
+        task_revision: 1,
+        base_revision: None,
+        evidence: vec![SubmissionEvidence::Note {
+            text: "cargo check and focused tests passed".to_string(),
+        }],
+    };
+    let bundle = serde_json::json!({
+        "contract_version": "agent-submission-capability-v1",
+        "capability": {
+            "capability_id": capability_id,
+            "token": encode_base64url(&capability_secret),
+        }
+    });
+    let bundle_bytes = serde_json::to_vec(&bundle).unwrap();
+    let mut descriptors = [0_i32; 2];
+    assert_eq!(unsafe { libc::pipe(descriptors.as_mut_ptr()) }, 0);
+    assert_eq!(
+        unsafe {
+            libc::write(
+                descriptors[1],
+                bundle_bytes.as_ptr().cast(),
+                bundle_bytes.len(),
+            )
+        },
+        bundle_bytes.len() as isize
+    );
+    unsafe {
+        libc::close(descriptors[1]);
+    }
+    let decoded = read_agent_submission_capability_from_descriptor(descriptors[0]).unwrap();
+    assert_eq!(decoded.contract_version, "agent-submission-capability-v1");
+    assert_eq!(unsafe { libc::fcntl(descriptors[0], libc::F_GETFD) }, -1);
     let response = execute_typed_limited_request_with_id(
         &authentication,
         &authority,
         &storage,
         "submission.create",
-        Some(WireCapability {
-            capability_id: capability_id.to_string(),
-            token: encode_base64url(&capability_secret),
-        }),
+        Some(decoded.capability),
         LimitedRequestBody {
             submission: Some(SubmissionWireBody {
-                contract_version: "submission-v1".to_string(),
-                request_id: request_id.clone(),
-                project_id: bootstrap.project_id.clone(),
-                workspace_id: bootstrap.workspace_id.clone(),
-                task_id: task_id.to_string(),
-                task_revision: 1,
-                base_revision: None,
+                contract_version: request.contract_version.clone(),
+                request_id: request.request_id.clone(),
+                project_id: request.project_id.clone(),
+                workspace_id: request.workspace_id.clone(),
+                task_id: request.task_id.clone(),
+                task_revision: request.task_revision,
+                base_revision: request.base_revision.clone(),
                 evidence: vec![SubmissionWireEvidence {
                     kind: "note".to_string(),
                     text: "cargo check and focused tests passed".to_string(),
@@ -330,7 +365,7 @@ fn agent_submission_is_authorized_scoped_immutable_and_audited_over_adp1() {
             }),
             ..LimitedRequestBody::default()
         },
-        request_id,
+        request.request_id.clone(),
     )
     .result
     .unwrap();
@@ -338,8 +373,8 @@ fn agent_submission_is_authorized_scoped_immutable_and_audited_over_adp1() {
         .submission_id
         .as_deref()
         .is_some_and(|id| valid_opaque_id(id, "sub_")));
-    assert_eq!(response.deduplicated, Some(false));
     assert_eq!(response.event_sequence, Some(2));
+    assert_eq!(response.deduplicated, Some(false));
     assert_eq!(
         SubmissionStore::submission_count(&database, &bootstrap.project_id).unwrap(),
         1
