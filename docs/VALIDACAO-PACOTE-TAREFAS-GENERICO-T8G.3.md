@@ -120,6 +120,15 @@ repete a revogação em falhas intermediárias. Segredos vivem somente em `/run`
 durante a chamada, e os logs sanitizados ficam em
 `target/t8g-reviewer-launcher-logs/`.
 
+A rotina
+[`validate-installed-task-cycle.sh`](../packaging/systemd/validate-installed-task-cycle.sh)
+compõe esses contratos somente sobre uma fixture criada pelo gate genérico sob
+`target/`. Ela recusa qualquer raiz fora deste checkout, instala uma tarefa
+sintética com o descriptor `StateAdmin`, força um `cargo check` normal para
+atualizar as projeções e percorre submissão, leitura atribuída e decisão. O
+resultado exige que a tarefa continue disponível na mesma `source_revision`,
+pois revisão e avanço permanecem operações diferentes.
+
 A validação instalada será executada, quando a fixture sintética tiver uma
 tarefa canônica, com a forma:
 
@@ -134,6 +143,9 @@ sudo bash packaging/systemd/run-reviewer-operation.sh \
 sudo bash packaging/systemd/run-reviewer-operation.sh \
   --project-root <fixture-sintetica-absoluta> -- \
   decide sub_<id> accepted 'Justificativa verificável'
+
+sudo bash packaging/systemd/validate-installed-task-cycle.sh \
+  --project-root <fixture-sintetica-absoluta-sob-target>
 ```
 
 Esta entrega ainda não conclui T8G.3. Permanecem provar os launchers contra o

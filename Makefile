@@ -91,6 +91,7 @@ ci:
 	bash -n packaging/systemd/manage-ci-attestation-capability.sh
 	bash -n packaging/systemd/run-agent-submission.sh
 	bash -n packaging/systemd/run-reviewer-operation.sh
+	bash -n packaging/systemd/validate-installed-task-cycle.sh
 	grep -Fqx 'limited_socket=/run/antdelirium/agent.sock' packaging/systemd/run-agent-submission.sh
 	grep -Fqx 'limited_socket=/run/antdelirium/agent.sock' packaging/systemd/run-reviewer-operation.sh
 	jq empty docs/contracts/v1/admin-protocol-v1.schema.json
