@@ -67,6 +67,26 @@ ausentes ou não consumidos e envia o mesmo `request_id` no envelope e no
 combinação exata `agent/limited/submission.create`; o leitor administrativo
 recusa usá-lo como credencial de operador.
 
-Esta entrega ainda não conclui T8G.3. Permanecem o launcher/supervisor instalado
-que entrega a capability ao processo agente, revisão, avanço e histórico no
-serviço instalado.
+O supervisor revisável
+[`run-agent-submission.sh`](../packaging/systemd/run-agent-submission.sh) fecha o
+ciclo sem criar uma segunda API para o agente. Ele aceita somente a forma
+pública já existente `--api 'hierarchy.task.current.submit …'`, lê projeto,
+workspace e tarefa da projeção pública, emite uma capability de cinco minutos
+vinculada aos três IDs e executa o mesmo binário sob o UID não-root que chamou
+`sudo`. O plaintext existe apenas em diretório `0700` sob `/run`, nunca entra no
+projeto ou argv, e a capability é revogada logo após a chamada. Se qualquer
+etapa posterior ao grant falhar, o trap tenta novamente a revogação antes de
+remover os descritores. Os logs sanitizados ficam neste checkout em
+`target/t8g-agent-submission-launcher-logs/`.
+
+A validação instalada será executada, quando a fixture sintética tiver uma
+tarefa canônica, com a forma:
+
+```bash
+sudo bash packaging/systemd/run-agent-submission.sh \
+  --project-root <fixture-sintetica-absoluta> -- \
+  --api 'hierarchy.task.current.submit Evidência verificável'
+```
+
+Esta entrega ainda não conclui T8G.3. Permanecem provar o launcher contra o
+release instalado, implementar revisão, avanço e histórico no serviço.
