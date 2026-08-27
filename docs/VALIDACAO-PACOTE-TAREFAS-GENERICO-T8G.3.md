@@ -56,6 +56,11 @@ fingerprint e horário e grava submissão mais `submission_recorded` na mesma
 transação. A operação não altera revisão do estado, tarefa atual, plano ativo ou
 status de conclusão. O teste ADA1/ADP1 sintético comprovou ainda que o recibo
 limitado contém somente ID opaco, sequência e estado de deduplicação.
+O cliente agente preserva o `submission_id` desse recibo e imprime somente
+`antdelirium[AD-SUBMISSION]: sub_<id>`. Assim o operador pode atribuir a
+submissão exata ao revisor sem consultar banco protegido, plano, TOML ou
+localizador físico; sequência e estado interno de deduplicação continuam fora
+da saída pública.
 
 O transporte real do perfil agente usa o endpoint limitado fornecido pela
 instalação e uma capability efêmera `agent-submission-capability-v1` entregue

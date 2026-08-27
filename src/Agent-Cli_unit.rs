@@ -62,6 +62,7 @@ enum AgentCliSuccess {
     Help,
     Version(String),
     Notification(AgentNotification),
+    Submission(String),
 }
 
 impl AgentCliSuccess {
@@ -70,6 +71,7 @@ impl AgentCliSuccess {
             Self::Help => AGENT_HELP,
             Self::Version(version) => version,
             Self::Notification(notification) => notification.output(),
+            Self::Submission(notification) => notification,
         }
     }
 }
@@ -105,10 +107,11 @@ fn execute(
             let request_id = generate_request_id()?;
             let request = build_note_submission_request(&binding, &request_id, &evidence)
                 .map_err(|_| AgentCliError::Protocol)?;
-            submission_transport.create_submission(&request)?;
-            Ok(AgentCliSuccess::Notification(
-                AgentNotification::CurrentTask,
-            ))
+            let receipt = submission_transport.create_submission(&request)?;
+            Ok(AgentCliSuccess::Submission(format!(
+                "antdelirium[AD-SUBMISSION]: {}",
+                receipt.submission_id
+            )))
         }
         AgentCommand::ForbiddenMutation => Err(AgentCliError::Authorization),
         AgentCommand::ReadCurrentTask => {
@@ -142,7 +145,10 @@ fn execute(
 }
 
 trait AgentSubmissionTransport {
-    fn create_submission(&self, request: &SubmissionCreateRequest) -> Result<(), AgentCliError>;
+    fn create_submission(
+        &self,
+        request: &SubmissionCreateRequest,
+    ) -> Result<crate::limited_protocol::AgentSubmissionReceipt, AgentCliError>;
 }
 
 #[cfg(test)]
@@ -150,7 +156,10 @@ struct UnavailableSubmissionTransport;
 
 #[cfg(test)]
 impl AgentSubmissionTransport for UnavailableSubmissionTransport {
-    fn create_submission(&self, _request: &SubmissionCreateRequest) -> Result<(), AgentCliError> {
+    fn create_submission(
+        &self,
+        _request: &SubmissionCreateRequest,
+    ) -> Result<crate::limited_protocol::AgentSubmissionReceipt, AgentCliError> {
         Err(AgentCliError::ServiceUnavailable)
     }
 }
@@ -181,7 +190,10 @@ impl EnvironmentSubmissionTransport {
 }
 
 impl AgentSubmissionTransport for EnvironmentSubmissionTransport {
-    fn create_submission(&self, request: &SubmissionCreateRequest) -> Result<(), AgentCliError> {
+    fn create_submission(
+        &self,
+        request: &SubmissionCreateRequest,
+    ) -> Result<crate::limited_protocol::AgentSubmissionReceipt, AgentCliError> {
         #[cfg(unix)]
         {
             let endpoint = self
@@ -400,9 +412,11 @@ mod tests {
         fn create_submission(
             &self,
             request: &SubmissionCreateRequest,
-        ) -> Result<(), AgentCliError> {
+        ) -> Result<crate::limited_protocol::AgentSubmissionReceipt, AgentCliError> {
             self.request.replace(Some(request.clone()));
-            Ok(())
+            Ok(crate::limited_protocol::AgentSubmissionReceipt {
+                submission_id: "sub_11111111111111111111111111".to_string(),
+            })
         }
     }
 
@@ -684,8 +698,8 @@ mod tests {
                 &Ok(root.clone()),
                 &transport,
             ),
-            Ok(AgentCliSuccess::Notification(
-                AgentNotification::CurrentTask
+            Ok(AgentCliSuccess::Submission(
+                "antdelirium[AD-SUBMISSION]: sub_11111111111111111111111111".to_string()
             ))
         );
         let request = transport

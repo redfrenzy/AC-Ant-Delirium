@@ -109,6 +109,10 @@ struct AgentSubmissionCapabilityBundle {
     capability: WireCapability,
 }
 
+pub(crate) struct AgentSubmissionReceipt {
+    pub(crate) submission_id: String,
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct LimitedRequest {
@@ -427,7 +431,7 @@ pub(crate) fn create_agent_submission(
     endpoint: &OsStr,
     capability_fd: i32,
     request: &SubmissionCreateRequest,
-) -> Result<(), LimitedProtocolError> {
+) -> Result<AgentSubmissionReceipt, LimitedProtocolError> {
     let bundle = read_agent_submission_capability_from_descriptor(capability_fd)?;
     let connection = connect_limited_service(endpoint)?;
     create_agent_submission_for_connection(connection, bundle, request)
@@ -438,7 +442,7 @@ fn create_agent_submission_for_connection(
     connection: NegotiatedLimitedConnection,
     bundle: AgentSubmissionCapabilityBundle,
     request: &SubmissionCreateRequest,
-) -> Result<(), LimitedProtocolError> {
+) -> Result<AgentSubmissionReceipt, LimitedProtocolError> {
     let evidence = request
         .evidence
         .iter()
@@ -478,8 +482,8 @@ fn create_agent_submission_for_connection(
         .filter(|sequence| *sequence > 0)
         .ok_or(LimitedProtocolError::Envelope)?;
     let deduplicated = result.deduplicated.ok_or(LimitedProtocolError::Envelope)?;
-    let _ = (submission_id, event_sequence, deduplicated);
-    Ok(())
+    let _ = (event_sequence, deduplicated);
+    Ok(AgentSubmissionReceipt { submission_id })
 }
 
 #[cfg(unix)]
