@@ -128,6 +128,9 @@ sintética com o descriptor `StateAdmin`, força um `cargo check` normal para
 atualizar as projeções e percorre submissão, leitura atribuída e decisão. O
 resultado exige que a tarefa continue disponível na mesma `source_revision`,
 pois revisão e avanço permanecem operações diferentes.
+Como o rollout atual preserva o filho audit-only assíncrono, o gate aguarda por
+no máximo cinco segundos a publicação atômica esperada; ele não usa uma espera
+fixa e encerra assim que a revisão correta aparece.
 
 A primeira execução instalada revelou uma invariância ausente: a instalação do
 pacote avançava o estado canônico para a revisão 1, mas o snapshot canônico de

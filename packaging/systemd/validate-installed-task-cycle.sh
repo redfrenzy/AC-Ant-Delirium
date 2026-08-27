@@ -187,10 +187,19 @@ install -d -m 0700 -o "$invoking_uid" -g "$invoking_gid" "$log_root/cargo-target
         "$cargo_binary" check
 )
 
-jq -e --arg task "$task_id" '
-    .source_revision == 1 and .task.task_id == $task and
-    .task.task_revision == 1 and .queue_status == "task_available"
-' "$projection" >/dev/null || fail 'cargo check did not refresh the installed canonical task.'
+projection_matches_task() {
+    jq -e --arg task "$task_id" '
+        .source_revision == 1 and .task.task_id == $task and
+        .task.task_revision == 1 and .queue_status == "task_available"
+    ' "$projection" >/dev/null 2>&1
+}
+
+for _attempt in {1..100}; do
+    projection_matches_task && break
+    sleep 0.05
+done
+projection_matches_task \
+    || fail 'cargo check did not refresh the installed canonical task within five seconds.'
 
 printf '%s\n' 'AD-T8G-CYCLE: submitting evidence through the unchanged agent API.'
 agent_output=$(bash "$script_dir/run-agent-submission.sh" \
