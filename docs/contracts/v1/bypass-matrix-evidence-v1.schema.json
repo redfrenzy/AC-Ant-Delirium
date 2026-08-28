@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://antdelirium.invalid/contracts/v1/bypass-matrix-evidence-v1.schema.json",
+  "title": "AntDelirium bypass matrix evidence v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "result",
+    "external_project_access",
+    "authority_boundary",
+    "wrapper_sha256",
+    "case_count",
+    "local_bypass_observed_count",
+    "protected_revalidation_count",
+    "cases",
+    "copy_case",
+    "enforcement_activated"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "bypass-matrix-evidence-v1"
+    },
+    "result": {
+      "const": "passed"
+    },
+    "external_project_access": {
+      "const": "forbidden"
+    },
+    "authority_boundary": {
+      "const": "ci-supervisor-required"
+    },
+    "wrapper_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "case_count": {
+      "const": 5
+    },
+    "local_bypass_observed_count": {
+      "const": 5
+    },
+    "protected_revalidation_count": {
+      "const": 5
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "vector",
+          "local_result",
+          "protected_result"
+        ],
+        "properties": {
+          "vector": {
+            "enum": [
+              "environment",
+              "local-config",
+              "cargo-config-argument",
+              "direct-rustc",
+              "project-copy"
+            ]
+          },
+          "local_result": {
+            "const": "bypass-observed"
+          },
+          "protected_result": {
+            "const": "trusted-wrapper-verified"
+          }
+        }
+      }
+    },
+    "copy_case": {
+      "const": "canonical-source-revalidated"
+    },
+    "enforcement_activated": {
+      "const": false
+    }
+  }
+}

@@ -82,6 +82,7 @@ ci:
 	bash -n packaging/cargo/validate-installed-uninstall-rollback.sh
 	bash -n packaging/rollout/validate-fail-open.sh
 	python3 -B packaging/rollout/malformed-limited-peer.py --check
+	bash -n packaging/ci/validate-bypass-matrix.sh
 	bash -n packaging/ci/validate-authoritative-gate.sh
 	bash -n packaging/migration/validate-legacy-source-inventory.sh
 	bash -n packaging/sandbox/validate-client-isolation.sh
@@ -125,6 +126,7 @@ ci:
 	jq empty docs/contracts/v1/initial-capability-provisioning-v1.schema.json
 	jq empty docs/contracts/v1/governance-task-package-v1.schema.json
 	jq empty docs/contracts/v1/fail-open-rollout-evidence-v1.schema.json
+	jq empty docs/contracts/v1/bypass-matrix-evidence-v1.schema.json
 	RUSTFLAGS="-D warnings" cargo check --locked --all-targets --target $(HOST_TARGET)
 	RUSTFLAGS="-D warnings" cargo test --locked --all-targets --target $(HOST_TARGET) --no-fail-fast
 	$(MAKE) release-nondisclosure
@@ -186,6 +188,17 @@ authoritative-ci-gate: binary
 .PHONY: fail-open-rollout
 fail-open-rollout: binary
 	bash packaging/rollout/validate-fail-open.sh
+
+# -----------------------------------------------
+# make bypass-matrix
+# -----------------------------------------------
+# Demonstrates five same-user bypasses, then requires a clean canonical
+# revalidation through the trusted wrapper selected by CI/supervisor policy.
+# No external project or protected state is used by this mechanical gate.
+# -----------------------------------------------
+.PHONY: bypass-matrix
+bypass-matrix: binary
+	bash packaging/ci/validate-bypass-matrix.sh
 
 # -----------------------------------------------
 # make adversarial-client-isolation

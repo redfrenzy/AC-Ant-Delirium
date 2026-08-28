@@ -1178,6 +1178,17 @@ Critério de saída:
 
 - os cenários de bypass definidos falham ou são detectados por uma autoridade que o agente não controla.
 
+Estado da T9.2: a
+[matriz de bypass](./VALIDACAO-MATRIZ-BYPASS-T9.2.md) comprovou que ambiente,
+configuração local, argumento `--config`, `rustc` direto e cópia do projeto
+conseguem evitar o wrapper quando controlados pelo mesmo usuário. Cada controle
+foi seguido por target limpo e revalidação da fonte canônica com `rustc` e
+wrapper confiáveis selecionados pela política do CI/supervisor; cinco bypasses
+foram observados e cinco revalidações comprovaram compilação primária pelo
+release. O gate implementa a mecânica, mas não declara este checkout uma
+autoridade externa: digest protegido, assinatura e branch gate permanecem em
+T9.6/T9.7.
+
 ## 15. Matriz mínima de validação
 
 O gate obrigatório desta matriz usa somente fixtures sintéticas mantidas neste
