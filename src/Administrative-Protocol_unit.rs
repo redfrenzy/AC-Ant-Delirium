@@ -46,6 +46,7 @@ const ADMIN_SOCKET_ENV: &str = "ANTDELIRIUM_ADMIN_SOCKET";
 const ADMIN_CAPABILITY_FD_ENV: &str = "ANTDELIRIUM_ADMIN_CAPABILITY_FD";
 const TASK_PACKAGE_FD_ENV: &str = "ANTDELIRIUM_TASK_PACKAGE_FD";
 const TASK_ADVANCE_FD_ENV: &str = "ANTDELIRIUM_TASK_ADVANCE_FD";
+const PROJECTION_CAPABILITY_FD_ENV: &str = "ANTDELIRIUM_PROJECTION_CAPABILITY_FD";
 const CAPABILITY_OUTPUT_FD_ENV: &str = "ANTDELIRIUM_CAPABILITY_OUTPUT_FD";
 const CAPABILITY_TARGET_FD_ENV: &str = "ANTDELIRIUM_CAPABILITY_TARGET_FD";
 const CAPABILITY_SUBJECT_UID_ENV: &str = "ANTDELIRIUM_CAPABILITY_SUBJECT_UID";
@@ -489,7 +490,11 @@ pub(crate) fn run_task_package_operator(args: &[OsString]) {
         && args[0] == OsStr::new("operator")
         && args[1] == OsStr::new("task")
         && args[2] == OsStr::new("advance");
-    if !install && !advance {
+    let refresh = args.len() == 3
+        && args[0] == OsStr::new("operator")
+        && args[1] == OsStr::new("projection")
+        && args[2] == OsStr::new("refresh");
+    if !install && !advance && !refresh {
         OutputRouter::exit(PublicError::Authorization);
     }
     if cfg!(debug_assertions) {
@@ -513,7 +518,7 @@ pub(crate) fn run_task_package_operator(args: &[OsString]) {
             )),
             Err(error) => exit_operator_protocol_error(error),
         }
-    } else {
+    } else if advance {
         match run_task_advance_operator_inner() {
             Ok(receipt) => OutputRouter::write_success(&format!(
                 "antdelirium[AD-TASK-ADVANCED]: project_id={} workspace_id={} completed_task_id={} next_task_id={} state_revision={} audit_sequence={} state={}",
@@ -525,6 +530,13 @@ pub(crate) fn run_task_package_operator(args: &[OsString]) {
                 receipt.audit_sequence,
                 receipt.state,
             )),
+            Err(error) => exit_operator_protocol_error(error),
+        }
+    } else {
+        match run_projection_refresh_operator_inner() {
+            Ok(()) => {
+                OutputRouter::write_success("antdelirium[AD-PROJECTION-REFRESHED]: state=refreshed")
+            }
             Err(error) => exit_operator_protocol_error(error),
         }
     }
@@ -591,6 +603,71 @@ fn run_task_advance_operator_inner() -> Result<TaskAdvanceReceipt, Administrativ
         AdministrativeResult::TaskAdvance(receipt) => Ok(receipt),
         _ => Err(AdministrativeProtocolError::Envelope),
     }
+}
+
+#[cfg(unix)]
+fn run_projection_refresh_operator_inner() -> Result<(), AdministrativeProtocolError> {
+    let endpoint = std::env::var_os(crate::cargo_config::LIMITED_SOCKET_ENV);
+    let capability_fd = std::env::var_os(PROJECTION_CAPABILITY_FD_ENV);
+    std::env::remove_var(crate::cargo_config::LIMITED_SOCKET_ENV);
+    std::env::remove_var(PROJECTION_CAPABILITY_FD_ENV);
+    let endpoint = required_absolute_path(endpoint)?;
+    let raw = capability_fd.ok_or(AdministrativeProtocolError::Authorization)?;
+    let mut capability = read_capability_bundle_from_raw_fd(raw)?;
+    if capability.contract_version != "wrapper-projection-capability-v1" {
+        erase_string(&mut capability.capability.token);
+        return Err(AdministrativeProtocolError::Authorization);
+    }
+    let project_root =
+        std::env::current_dir().map_err(|_| AdministrativeProtocolError::Envelope)?;
+    let projection = project_root.join("guard/to-do_list.json");
+    let metadata = std::fs::symlink_metadata(&projection)
+        .map_err(|_| AdministrativeProtocolError::Envelope)?;
+    if !metadata.file_type().is_file()
+        || metadata.file_type().is_symlink()
+        || metadata.len() > 1024 * 1024
+    {
+        return Err(AdministrativeProtocolError::Authorization);
+    }
+    let bytes = std::fs::read(&projection).map_err(|_| AdministrativeProtocolError::Envelope)?;
+    let document: Value =
+        serde_json::from_slice(&bytes).map_err(|_| AdministrativeProtocolError::Envelope)?;
+    if document.get("contract_version").and_then(Value::as_str) != Some("agent-projection-v1")
+        || document.get("artifact_kind").and_then(Value::as_str) != Some("current_task")
+    {
+        return Err(AdministrativeProtocolError::Envelope);
+    }
+    let project_id = document
+        .get("project_ref")
+        .and_then(Value::as_str)
+        .filter(|value| valid_opaque_id(value, "prj_"))
+        .ok_or(AdministrativeProtocolError::Envelope)?;
+    let workspace_id = document
+        .get("workspace_ref")
+        .and_then(Value::as_str)
+        .filter(|value| valid_opaque_id(value, "wsp_"))
+        .ok_or(AdministrativeProtocolError::Envelope)?;
+    let documents = crate::limited_protocol::refresh_scoped_projections(
+        endpoint.as_os_str(),
+        project_id,
+        workspace_id,
+        &capability.capability.capability_id,
+        &capability.capability.token,
+    )
+    .map_err(|_| AdministrativeProtocolError::Authorization)?;
+    ac_ant_delirium::structs::materialize_limited_project_projections(
+        &project_root,
+        &documents.current_task,
+        &documents.governance_errors,
+    )
+    .map_err(|_| AdministrativeProtocolError::Envelope)
+}
+
+#[cfg(not(unix))]
+fn run_projection_refresh_operator_inner() -> Result<(), AdministrativeProtocolError> {
+    Err(AdministrativeProtocolError::Transport(
+        "unsupported-platform",
+    ))
 }
 
 #[cfg(not(unix))]
@@ -1699,6 +1776,7 @@ fn issued_capability_contract(actor: &str, channel: &str, operation: &str) -> &'
         ("agent", "limited", "submission.create") => "agent-submission-capability-v1",
         ("reviewer", "limited", "submission.read.assigned") => "reviewer-assignment-capability-v1",
         ("reviewer", "limited", "review.decide.assigned") => "reviewer-decision-capability-v1",
+        ("wrapper", "limited", "projection.refresh") => "wrapper-projection-capability-v1",
         ("ci", "administrative", "state.transition") => "ci-state-transition-capability-v1",
         _ => "admin-capability-v1",
     }
@@ -2299,6 +2377,7 @@ fn read_capability_bundle_from_raw_fd(
             | "reviewer-assignment-capability-v1"
             | "reviewer-decision-capability-v1"
             | "ci-state-transition-capability-v1"
+            | "wrapper-projection-capability-v1"
     ) || !valid_opaque_id(&capability.capability.capability_id, "cap_")
         || !is_encoded_nonce(&capability.capability.token)
     {

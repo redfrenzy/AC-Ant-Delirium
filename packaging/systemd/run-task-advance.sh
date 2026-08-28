@@ -7,6 +7,7 @@ installed_binary=/usr/libexec/antdelirium/antdelirium
 operator_root=/var/lib/antdelirium-operator
 installation_credential="$operator_root/installation.cred"
 admin_socket=/run/antdelirium-admin/admin.sock
+limited_socket=/run/antdelirium/agent.sock
 run_id=$(date -u +%Y%m%dT%H%M%SZ)-${BASHPID:-$$}
 secret_root="/run/antdelirium-task-advance-$run_id"
 log_root="$repository_root/target/t8g-task-advance-launcher-logs/$run_id"
@@ -17,6 +18,7 @@ admin_fd=
 output_fd=
 advance_fd=
 ci_fd=
+projection_fd=
 target_fd=
 grant_active=0
 revocation_status=not-issued
@@ -32,7 +34,7 @@ close_fd() {
     [[ -z "$descriptor" ]] || eval "exec ${descriptor}${direction}"
 }
 
-revoke_transition_capability() {
+revoke_managed_capability() {
     close_fd "$admin_fd" '<&-'
     close_fd "$target_fd" '<&-'
     admin_fd=
@@ -58,7 +60,7 @@ cleanup() {
     set +e
     if [[ $grant_active -eq 1 && -f "$admin_plain" && -f "$capability_plain" ]]; then
         printf '%s\n' 'AD-T8G-ADVANCE: retrying capability revocation during cleanup.'
-        if ! revoke_transition_capability; then
+        if ! revoke_managed_capability; then
             revocation_status=failed
         fi
     fi
@@ -66,6 +68,7 @@ cleanup() {
     close_fd "$output_fd" '>&-'
     close_fd "$advance_fd" '<&-'
     close_fd "$ci_fd" '<&-'
+    close_fd "$projection_fd" '<&-'
     close_fd "$target_fd" '<&-'
     [[ -z "$admin_plain" ]] || rm -f -- "$admin_plain"
     [[ -z "$capability_plain" ]] || rm -f -- "$capability_plain"
@@ -108,7 +111,8 @@ for command in systemd-creds setpriv jq install id tee; do
 done
 [[ -x "$installed_binary" && ! -L "$installed_binary" ]] \
     || fail 'the installed AntDelirium binary is unavailable.'
-[[ -S "$admin_socket" ]] || fail 'the installed administrative socket is unavailable.'
+[[ -S "$admin_socket" && -S "$limited_socket" ]] \
+    || fail 'the installed administrative and limited sockets are unavailable.'
 [[ -f "$installation_credential" && ! -L "$installation_credential" ]] \
     || fail 'the encrypted InstallationAdmin descriptor is unavailable.'
 
@@ -213,8 +217,63 @@ ci_fd=
 advance_fd=
 
 printf '%s\n' 'AD-T8G-ADVANCE: revoking the one-use state-transition capability.'
-if ! revoke_transition_capability; then
+if ! revoke_managed_capability; then
     fail 'the one-use state-transition capability could not be revoked.'
 fi
 printf '%s\n' 'AD-T8G-ADVANCE: one-use capability revoked.'
-exit "$advance_exit"
+[[ $advance_exit -eq 0 ]] || exit "$advance_exit"
+
+close_fd "$admin_fd" '<&-'
+admin_fd=
+exec {admin_fd}<"$admin_plain"
+install -m 0600 -o "$invoking_uid" -g "$invoking_gid" /dev/null "$capability_plain"
+exec {output_fd}>"$capability_plain"
+printf '%s\n' 'AD-T8G-ADVANCE: issuing one workspace-scoped projection capability.'
+setpriv --reuid="$invoking_uid" --regid="$invoking_gid" --init-groups \
+    --no-new-privs --inh-caps=-all --ambient-caps=-all --bounding-set=-all \
+    --reset-env env \
+    ANTDELIRIUM_ADMIN_SOCKET="$admin_socket" \
+    ANTDELIRIUM_ADMIN_CAPABILITY_FD="$admin_fd" \
+    ANTDELIRIUM_CAPABILITY_OUTPUT_FD="$output_fd" \
+    ANTDELIRIUM_CAPABILITY_SUBJECT_UID="$invoking_uid" \
+    ANTDELIRIUM_CAPABILITY_ACTOR=wrapper \
+    ANTDELIRIUM_CAPABILITY_CHANNEL=limited \
+    ANTDELIRIUM_CAPABILITY_OPERATION=projection.refresh \
+    ANTDELIRIUM_CAPABILITY_PROJECT_ID="$project_id" \
+    ANTDELIRIUM_CAPABILITY_WORKSPACE_ID="$workspace_id" \
+    ANTDELIRIUM_CAPABILITY_LIFETIME_SECONDS=300 \
+    ANTDELIRIUM_CAPABILITY_REVOCATION_EPOCH=0 \
+    "$installed_binary" capability grant
+grant_active=1
+revocation_status=pending
+close_fd "$output_fd" '>&-'
+output_fd=
+jq -e '
+    .contract_version == "wrapper-projection-capability-v1" and
+    (.capability.capability_id | test("^cap_[0-9a-hjkmnp-tv-z]{26}$")) and
+    (.capability.token | test("^[A-Za-z0-9_-]{43}$"))
+' "$capability_plain" >/dev/null || fail 'the generated projection descriptor is invalid.'
+
+exec {projection_fd}<"$capability_plain"
+printf '%s\n' 'AD-T8G-ADVANCE: publishing both public projections without relying on Cargo cache misses.'
+set +e
+(
+    cd "$target_project"
+    setpriv --reuid="$invoking_uid" --regid="$invoking_gid" --init-groups \
+        --no-new-privs --inh-caps=-all --ambient-caps=-all --bounding-set=-all \
+        --reset-env env \
+        ANTDELIRIUM_LIMITED_SOCKET="$limited_socket" \
+        ANTDELIRIUM_PROJECTION_CAPABILITY_FD="$projection_fd" \
+        "$installed_binary" operator projection refresh
+)
+projection_exit=$?
+set -e
+close_fd "$projection_fd" '<&-'
+projection_fd=
+
+printf '%s\n' 'AD-T8G-ADVANCE: revoking the one-use projection capability.'
+if ! revoke_managed_capability; then
+    fail 'the one-use projection capability could not be revoked.'
+fi
+printf '%s\n' 'AD-T8G-ADVANCE: one-use projection capability revoked.'
+exit "$projection_exit"

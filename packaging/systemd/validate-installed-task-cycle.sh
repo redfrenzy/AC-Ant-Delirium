@@ -234,18 +234,6 @@ printf '%s\n' 'AD-T8G-CYCLE: advancing only through a separately authorized CI t
 bash "$script_dir/run-task-advance.sh" \
     --project-root "$target_project" --review-id "$review_id"
 
-printf '%s\n' 'AD-T8G-CYCLE: refreshing the completed canonical projection through cargo check.'
-(
-    cd "$target_project"
-    setpriv --reuid="$invoking_uid" --regid="$invoking_gid" --init-groups \
-        --no-new-privs --inh-caps=-all --ambient-caps=-all --bounding-set=-all \
-        --reset-env env \
-        HOME="$invoking_home" \
-        CARGO_HOME="$invoking_home/.cargo" \
-        CARGO_TARGET_DIR="$log_root/cargo-target" \
-        "$cargo_binary" check
-)
-
 projection_matches_completion() {
     jq -e '
         .source_revision == 2 and .task == null and
@@ -258,7 +246,21 @@ for _attempt in {1..100}; do
     sleep 0.05
 done
 projection_matches_completion \
-    || fail 'cargo check did not refresh the completed canonical task within five seconds.'
+    || fail 'the supervised transition did not publish the completed canonical task within five seconds.'
+
+printf '%s\n' 'AD-T8G-CYCLE: proving that an ordinary fully cached cargo check remains compatible.'
+(
+    cd "$target_project"
+    setpriv --reuid="$invoking_uid" --regid="$invoking_gid" --init-groups \
+        --no-new-privs --inh-caps=-all --ambient-caps=-all --bounding-set=-all \
+        --reset-env env \
+        HOME="$invoking_home" \
+        CARGO_HOME="$invoking_home/.cargo" \
+        CARGO_TARGET_DIR="$log_root/cargo-target" \
+        "$cargo_binary" check
+)
+projection_matches_completion \
+    || fail 'the cached cargo check changed or regressed the completed projection.'
 
 {
     printf 'contract=antdelirium-installed-task-cycle-evidence-v1\n'
@@ -270,6 +272,8 @@ projection_matches_completion \
     printf 'assigned_submission_read=pass\n'
     printf 'assigned_review_decision=pass\n'
     printf 'scoped_ci_state_transition=pass\n'
+    printf 'supervised_projection_refresh=pass\n'
+    printf 'cached_cargo_check=pass\n'
     printf 'protected_history_sequence=pass\n'
     printf 'canonical_task_advanced=yes\n'
     printf 'canonical_plan_completed=yes\n'

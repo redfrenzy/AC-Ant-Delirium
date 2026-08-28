@@ -274,6 +274,47 @@ pub(crate) fn run_limited_audit_cycle(
 }
 
 #[cfg(unix)]
+pub(crate) fn refresh_scoped_projections(
+    endpoint: &OsStr,
+    project_id: &str,
+    workspace_id: &str,
+    capability_id: &str,
+    token: &str,
+) -> Result<LimitedProjectionDocuments, LimitedProtocolError> {
+    if !valid_opaque_id(project_id, "prj_")
+        || !valid_opaque_id(workspace_id, "wsp_")
+        || !valid_opaque_id(capability_id, "cap_")
+        || !is_encoded_nonce(token)
+    {
+        return Err(LimitedProtocolError::Envelope);
+    }
+    let response = request_for_connection(
+        connect_limited_service(endpoint)?,
+        "projection.refresh",
+        Some(WireCapability {
+            capability_id: capability_id.to_string(),
+            token: token.to_string(),
+        }),
+        LimitedRequestBody {
+            project_id: Some(project_id.to_string()),
+            workspace_id: Some(workspace_id.to_string()),
+            ..LimitedRequestBody::default()
+        },
+    )?;
+    let result = response.result.ok_or(LimitedProtocolError::Envelope)?;
+    Ok(LimitedProjectionDocuments {
+        current_task: result
+            .current_task
+            .ok_or(LimitedProtocolError::Envelope)?
+            .into_bytes(),
+        governance_errors: result
+            .governance_errors
+            .ok_or(LimitedProtocolError::Envelope)?
+            .into_bytes(),
+    })
+}
+
+#[cfg(unix)]
 pub(crate) fn read_capability_bundle_from_descriptor(
     raw_fd: i32,
 ) -> Result<LimitedCapabilityBundle, LimitedProtocolError> {

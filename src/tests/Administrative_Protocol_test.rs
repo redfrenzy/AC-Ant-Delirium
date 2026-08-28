@@ -435,6 +435,10 @@ fn issued_agent_submission_capability_has_a_non_administrative_contract() {
         issued_capability_contract("ci", "administrative", "state.transition"),
         "ci-state-transition-capability-v1"
     );
+    assert_eq!(
+        issued_capability_contract("wrapper", "limited", "projection.refresh"),
+        "wrapper-projection-capability-v1"
+    );
     for (actor, channel, operation) in [
         ("operator", "administrative", "state.admin"),
         ("agent", "administrative", "submission.create"),

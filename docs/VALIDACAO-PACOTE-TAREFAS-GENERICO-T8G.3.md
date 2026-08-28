@@ -224,3 +224,27 @@ sem acesso ao histórico ou ao plano protegido. O recibo público contém apenas
 IDs opacos, a nova revisão canônica e a sequência de auditoria. Falta executar
 o gate instalado completo sobre o binário `storage-v10`; até esse teste real,
 esta seção descreve código e testes locais, não uma instalação já comprovada.
+
+## Primeiro ciclo instalado em `storage-v10`
+
+O ciclo real iniciado em `20260828T003100Z-101756` comprovou instalação,
+submissão, leitura atribuída, revisão aceita, emissão/revogação separada da
+capability CI e avanço canônico. O recibo `AD-TASK-ADVANCED` registrou revisão
+2, tarefa final concluída, `next_task_id=none` e sequência 8 no histórico do
+projeto. A capability administrativa foi revogada na sequência 14 do registry.
+
+O gate não foi aceito como completo porque o `cargo check` final estava
+integralmente em cache e, corretamente segundo o comportamento do Cargo, não
+invocou `rustc-workspace-wrapper`; a projeção pública permaneceu na revisão 1.
+Isso não reverteu nem invalidou a transição canônica, mas demonstrou que cache
+miss não pode ser o mecanismo de publicação após uma mutação administrativa.
+
+A correção mantém os comandos normais do agente inalterados. O supervisor de
+avanço agora emite, depois da transição, uma capability distinta e de uso único
+`Wrapper/Limited/ProjectionRefresh`, escopada ao projeto e workspace. O cliente
+interno `operator projection refresh` lê essa capability por descritor, busca
+os documentos pelo endpoint limitado e publica atomicamente somente os dois
+JSONs em `guard/`; depois o supervisor revoga a capability. O agente não recebe
+esse descritor nem precisa executar comando novo. O `cargo check` totalmente em
+cache permanece no gate apenas como prova de compatibilidade, não como gatilho
+da atualização administrativa.
