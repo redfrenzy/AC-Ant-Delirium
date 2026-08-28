@@ -79,6 +79,7 @@ check:
 ci:
 	cargo fmt --all -- --check
 	bash -n packaging/cargo/validate-standard-commands.sh
+	bash -n packaging/cargo/validate-installed-uninstall-rollback.sh
 	bash -n packaging/ci/validate-authoritative-gate.sh
 	bash -n packaging/migration/validate-legacy-source-inventory.sh
 	bash -n packaging/sandbox/validate-client-isolation.sh
@@ -92,6 +93,7 @@ ci:
 	bash -n packaging/systemd/run-agent-submission.sh
 	bash -n packaging/systemd/run-reviewer-operation.sh
 	bash -n packaging/systemd/validate-installed-task-cycle.sh
+	bash -n packaging/systemd/validate-installed-service-rollback.sh
 	grep -Fqx 'limited_socket=/run/antdelirium/agent.sock' packaging/systemd/run-agent-submission.sh
 	grep -Fqx 'limited_socket=/run/antdelirium/agent.sock' packaging/systemd/run-reviewer-operation.sh
 	jq empty docs/contracts/v1/admin-protocol-v1.schema.json
