@@ -415,7 +415,7 @@ por entrada do wrapper, `2 s` no check limpo, `1 s` no incremental e `250 ms`
 no no-op. A [evidência T6.7](./VALIDACAO-OVERHEAD-WRAPPER-T6.7.md) registra
 deltas de `2,220 ms`, `48,752 ms`, `5,214 ms` e `1,139 ms`, respectivamente,
 com exit, stdout e stderr idênticos. A rota com serviço ativo permanece fora
-dessa medição e será coberta na T10.6.
+dessa medição e será coberta na T10.4.
 
 ## 8. Estrutura externa por projeto
 
@@ -611,7 +611,7 @@ A T6.6 validou o caminho de falha silenciosa em builds Cargo reais com endpoint
 e capability ausentes: check paralelo e em cache, testes, binário, exemplo,
 build script, proc-macro e target WASM terminam normalmente, sem criar `guard/`.
 Concorrência contra o serviço ativo continua separada na matriz integral da
-T10.6, depois dos gates de isolamento e instalação.
+T10.4, depois dos gates de isolamento e instalação.
 
 ## 12. Modelo de ameaça e limites reais
 
@@ -1154,7 +1154,7 @@ Tarefas:
 6. detectar lacunas de sequência e rollback de estado;
 7. exigir resultado do gate em branches protegidas;
 8. testar bypass por env, config local, `--config`, rustc direto e cópia do projeto.
-9. impedir leitura e escrita de `plan/` e `task_orchestrator.json` pelo sandbox do agente;
+9. impedir leitura e escrita de artefatos autoritativos representados por uma raiz protegida sintética, sem depender do layout de projeto externo;
 10. provar que `submit` não altera `implemented`, revisão, aprovação ou grade;
 11. permitir alteração autoritativa apenas pelo serviço, revisor ou operador com capability adequada;
 12. registrar tentativa de acesso ou mutação direta dos planos quando a plataforma permitir.
@@ -1170,6 +1170,10 @@ Critério de saída:
 - os cenários de bypass definidos falham ou são detectados por uma autoridade que o agente não controla.
 
 ## 15. Matriz mínima de validação
+
+O gate obrigatório desta matriz usa somente fixtures sintéticas mantidas neste
+repositório. A matriz não contém migração de projeto concreto; qualquer projeto
+externo receberá plano e aceite próprios depois da conclusão do AntDelirium.
 
 | Cenário | Resultado obrigatório |
 |---|---|
@@ -1189,11 +1193,10 @@ Critério de saída:
 | `RUSTC_WORKSPACE_WRAPPER=""` | `doctor` detecta; CI ainda bloqueia |
 | configuração local substitui global | `doctor` aponta arquivo e precedência |
 | tentativa de editar estado | rejeitada ou registrada conforme autoridade disponível |
-| migração do AutoBrowser | hashes, planos e histórico conferem |
 | primeiro `cargo check` governado | gera `guard/to-do_list.json` e `guard/governance_error.json` sem caminhos externos |
 | agente lê as projeções | encontra somente tarefa atual, erros corrigíveis e caminhos relativos ao projeto |
 | agente altera ou apaga uma projeção | estado canônico não muda; projeção é regenerada |
-| agente procura `plan/` fora do projeto | sandbox ou autoridade do serviço impede leitura e escrita |
+| agente procura a raiz protegida sintética fora da fixture | sandbox ou autoridade do serviço impede leitura e escrita |
 | agente envia `hierarchy.task.current.submit` | cria submissão, mas não marca a tarefa como implementada |
 | agente tenta `implemented=true` ou override | operação pública é rejeitada e registrada |
 | `strings -a antdelirium` e inspeção ELF | não encontram caminho absoluto protegido nem caminho de build do mantenedor no release |
