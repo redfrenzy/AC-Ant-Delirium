@@ -113,6 +113,73 @@ mod tests {
     }
 
     #[test]
+    fn storage_v10_migration_assigns_a_stable_order_to_existing_tasks() {
+        let root = unique_temp_dir("v10-task-order");
+        let (state_root, database) = initialized_database(&root);
+        database
+            .with_immediate_transaction(|transaction| {
+                transaction.execute(
+                    "INSERT INTO plans(plan_id, project_id, payload, created_at) VALUES (?1, ?2, ?3, ?4)",
+                    AC_params![
+                        "pln_00000000000000000000000000",
+                        project().project_id,
+                        b"migration fixture".as_slice(),
+                        "2026-08-27T00:00:00Z",
+                    ],
+                )?;
+                transaction.execute("DROP INDEX tasks_plan_ordinal_idx", [])?;
+                transaction.execute("ALTER TABLE tasks DROP COLUMN task_ordinal", [])?;
+                transaction.execute(
+                    "INSERT INTO tasks(task_id, project_id, plan_id, task_revision, status, review_status, payload, created_at) VALUES (?1, ?2, ?3, 1, 'available', 'not_required', ?4, ?5)",
+                    AC_params![
+                        "tsk_00000000000000000000000002",
+                        project().project_id,
+                        "pln_00000000000000000000000000",
+                        b"second lexical task".as_slice(),
+                        "2026-08-27T00:00:00Z",
+                    ],
+                )?;
+                transaction.execute(
+                    "INSERT INTO tasks(task_id, project_id, plan_id, task_revision, status, review_status, payload, created_at) VALUES (?1, ?2, ?3, 1, 'available', 'not_required', ?4, ?5)",
+                    AC_params![
+                        "tsk_00000000000000000000000001",
+                        project().project_id,
+                        "pln_00000000000000000000000000",
+                        b"first lexical task".as_slice(),
+                        "2026-08-27T00:00:00Z",
+                    ],
+                )?;
+                transaction.execute("DELETE FROM schema_migrations WHERE version = 10", [])?;
+                transaction.pragma_update(None, "user_version", 9)?;
+                Ok(())
+            })
+            .unwrap();
+        drop(database);
+
+        let migrated = ProjectDatabase::open_existing_at(state_root.root()).unwrap();
+        assert_eq!(migrated.health().unwrap().schema_version, 10);
+        let ordinals = migrated
+            .with_immediate_transaction(|transaction| {
+                Ok((
+                    transaction.query_row(
+                        "SELECT task_ordinal FROM tasks WHERE task_id = ?1",
+                        AC_params!["tsk_00000000000000000000000001"],
+                        |row| row.get::<_, i64>(0),
+                    )?,
+                    transaction.query_row(
+                        "SELECT task_ordinal FROM tasks WHERE task_id = ?1",
+                        AC_params!["tsk_00000000000000000000000002"],
+                        |row| row.get::<_, i64>(0),
+                    )?,
+                ))
+            })
+            .unwrap();
+        assert_eq!(ordinals, (0, 1));
+
+        fs::remove_dir_all(root).expect("temporary directory should be removed");
+    }
+
+    #[test]
     fn deduplicates_fingerprints_without_creating_sequence_gaps() {
         let root = unique_temp_dir("deduplicate");
         let (_, database) = initialized_database(&root);

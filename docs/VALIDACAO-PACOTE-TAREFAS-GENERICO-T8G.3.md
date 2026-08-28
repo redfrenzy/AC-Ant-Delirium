@@ -191,3 +191,21 @@ confirmando que revisão e avanço são autoridades diferentes.
 
 Esta entrega ainda não conclui T8G.3. Permanecem implementar e validar avanço
 canônico e histórico protegido no serviço.
+
+## Núcleo transacional do avanço
+
+O primeiro corte do avanço introduz `storage-v10`, que preserva explicitamente
+o ordinal declarado de cada tarefa no pacote. Bancos anteriores recebem um
+ordinal determinístico durante a migração; novos pacotes e candidatos legados
+gravam o ordinal no momento da inserção. Assim, o serviço não usa IDs opacos,
+ordem de arquivos ou qualquer dado público para escolher a próxima tarefa.
+
+`CanonicalStateStore::advance_accepted_task` exige revisão `accepted` ligada,
+por relações protegidas do banco, à submissão do projeto, workspace e tarefa
+atuais. Na mesma transação ele conclui a tarefa, seleciona o próximo ordinal ou
+conclui o plano, incrementa a revisão, carrega o snapshot de erros para a nova
+revisão e grava `state_transitioned` no histórico de auditoria. Retry do mesmo
+evento é idempotente. Os testes cobrem primeira tarefa, última tarefa, plano
+concluído, revisões 1→2→3, histórico sem lacunas e migração 9→10. Esse núcleo
+ainda não é uma superfície de operador: o próximo corte deve ligá-lo a uma
+capability `Ci/Administrative/StateTransition` efêmera e escopada.

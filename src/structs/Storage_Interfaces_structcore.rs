@@ -7,13 +7,14 @@ use super::{
     encode_canonical_task_projection_payload, materialize_project_guard,
     validate_serialized_public_document, AssignedSubmission, AtomicProjectProjectionWriter,
     AuditStore, CanonicalMutationOutcome, CanonicalStateSnapshot, CanonicalStateStore,
-    CanonicalStateTransition, CanonicalTaskPackage, CanonicalTaskProjectionPayload,
-    CanonicalTaskProjectionRef, CanonicalTaskState, CurrentTaskProjection, EventWriteOutcome,
-    GovernanceErrorsProjection, NewAuditEvent, NewReview, NewSubmission, ProjectDatabase,
-    ProjectProjectionWriter, ProjectStateRoot, ProjectedTaskAction, ProjectionArtifactKind,
-    ProjectionMetadata, ProjectionWriteReceipt, ReviewStore, ReviewWriteOutcome, StorageProject,
-    StorageWorkspace, SubmissionAssignment, SubmissionStore, SubmissionWriteOutcome,
-    TransactionalStorageError, TransactionalStorageResult, AGENT_PROJECTION_CONTRACT_VERSION,
+    CanonicalStateTransition, CanonicalTaskAdvance, CanonicalTaskAdvanceOutcome,
+    CanonicalTaskPackage, CanonicalTaskProjectionPayload, CanonicalTaskProjectionRef,
+    CanonicalTaskState, CurrentTaskProjection, EventWriteOutcome, GovernanceErrorsProjection,
+    NewAuditEvent, NewReview, NewSubmission, ProjectDatabase, ProjectProjectionWriter,
+    ProjectStateRoot, ProjectedTaskAction, ProjectionArtifactKind, ProjectionMetadata,
+    ProjectionWriteReceipt, ReviewStore, ReviewWriteOutcome, StorageProject, StorageWorkspace,
+    SubmissionAssignment, SubmissionStore, SubmissionWriteOutcome, TransactionalStorageError,
+    TransactionalStorageResult, AGENT_PROJECTION_CONTRACT_VERSION,
     CANONICAL_STATE_CONTRACT_VERSION, CANONICAL_TASK_PROJECTION_PAYLOAD_VERSION,
     GOVERNANCE_TASK_PACKAGE_CONTRACT_VERSION, SUBMISSION_CONTRACT_VERSION,
 };
@@ -221,9 +222,16 @@ impl CanonicalStateStore for ProjectDatabase {
                         audit_event.occurred_at,
                     ],
                 )?;
-                for (task, payload) in package.tasks.iter().zip(encoded_tasks.iter()) {
+                for (ordinal, (task, payload)) in
+                    package.tasks.iter().zip(encoded_tasks.iter()).enumerate()
+                {
+                    let ordinal = i64::try_from(ordinal).map_err(|_| {
+                        TransactionalStorageError::InvalidInput(
+                            "task package ordinal is unsupported".to_string(),
+                        )
+                    })?;
                     transaction.execute(
-                        "INSERT INTO tasks(task_id, project_id, plan_id, task_revision, status, review_status, payload, created_at) VALUES (?1, ?2, ?3, ?4, 'available', 'not_required', ?5, ?6)",
+                        "INSERT INTO tasks(task_id, project_id, plan_id, task_revision, status, review_status, payload, created_at, task_ordinal) VALUES (?1, ?2, ?3, ?4, 'available', 'not_required', ?5, ?6, ?7)",
                         AC_params![
                             task.task_id,
                             package.project_id,
@@ -231,6 +239,7 @@ impl CanonicalStateStore for ProjectDatabase {
                             task.task_revision,
                             payload,
                             audit_event.occurred_at,
+                            ordinal,
                         ],
                     )?;
                 }
@@ -284,6 +293,201 @@ impl CanonicalStateStore for ProjectDatabase {
             Ok(CanonicalMutationOutcome { state, audit })
         })
     }
+
+    fn advance_accepted_task(
+        &self,
+        advance: &CanonicalTaskAdvance,
+        audit_event: &NewAuditEvent,
+    ) -> TransactionalStorageResult<CanonicalTaskAdvanceOutcome> {
+        validate_task_advance(advance, audit_event)?;
+        let expected_revision =
+            advance
+                .expected_state_revision
+                .checked_add(1)
+                .ok_or_else(|| {
+                    TransactionalStorageError::InvalidInput(
+                        "canonical task advance revision overflow".to_string(),
+                    )
+                })?;
+        self.with_immediate_transaction(|transaction| {
+            let audit = self.record_event_in_transaction(transaction, audit_event)?;
+            let task = transaction.query_row(
+                "SELECT plan_id, task_ordinal, status, review_status FROM tasks WHERE project_id = ?1 AND task_id = ?2",
+                AC_params![advance.project_id, advance.task_id],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, i64>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                    ))
+                },
+            )?;
+            let next_task_id = transaction
+                .query_row(
+                    "SELECT task_id FROM tasks WHERE project_id = ?1 AND plan_id = ?2 AND task_ordinal > ?3 AND status = 'available' ORDER BY task_ordinal ASC LIMIT 1",
+                    AC_params![advance.project_id, task.0, task.1],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()?;
+            if audit.inserted() {
+                let project = transaction.query_row(
+                    "SELECT state_revision, active_plan_id, current_task_id FROM projects WHERE project_id = ?1",
+                    AC_params![advance.project_id],
+                    |row| {
+                        Ok((
+                            row.get::<_, i64>(0)?,
+                            row.get::<_, Option<String>>(1)?,
+                            row.get::<_, Option<String>>(2)?,
+                        ))
+                    },
+                )?;
+                let workspace_project = transaction.query_row(
+                    "SELECT project_id FROM workspaces WHERE workspace_id = ?1 AND status = 'active'",
+                    AC_params![advance.workspace_id],
+                    |row| row.get::<_, String>(0),
+                )?;
+                let review = transaction.query_row(
+                    "SELECT r.outcome, s.project_id, s.workspace_id, s.task_id FROM reviews r JOIN submissions s ON s.submission_id = r.submission_id AND s.project_id = r.project_id WHERE r.review_id = ?1 AND r.project_id = ?2",
+                    AC_params![advance.review_id, advance.project_id],
+                    |row| {
+                        Ok((
+                            row.get::<_, String>(0)?,
+                            row.get::<_, String>(1)?,
+                            row.get::<_, Option<String>>(2)?,
+                            row.get::<_, String>(3)?,
+                        ))
+                    },
+                )?;
+                if workspace_project != advance.project_id
+                    || project.0 != advance.expected_state_revision
+                    || project.1.as_deref() != Some(task.0.as_str())
+                    || project.2.as_deref() != Some(advance.task_id.as_str())
+                    || task.2 != "available"
+                    || task.3 != "not_required"
+                    || review.0 != "accepted"
+                    || review.1 != advance.project_id
+                    || review.2.as_deref() != Some(advance.workspace_id.as_str())
+                    || review.3 != advance.task_id
+                {
+                    return Err(TransactionalStorageError::Integrity(
+                        "canonical task advance is not backed by the accepted assigned review"
+                            .to_string(),
+                    ));
+                }
+                let completed = transaction.execute(
+                    "UPDATE tasks SET status = 'completed', review_status = 'accepted' WHERE project_id = ?1 AND task_id = ?2 AND status = 'available' AND review_status = 'not_required'",
+                    AC_params![advance.project_id, advance.task_id],
+                )?;
+                if completed != 1 {
+                    return Err(TransactionalStorageError::Integrity(
+                        "canonical task changed before accepted advancement".to_string(),
+                    ));
+                }
+                if let Some(next_task_id) = next_task_id.as_deref() {
+                    let updated = transaction.execute(
+                        "UPDATE projects SET current_task_id = ?3, state_revision = state_revision + 1 WHERE project_id = ?1 AND state_revision = ?2 AND current_task_id = ?4 AND active_plan_id = ?5",
+                        AC_params![
+                            advance.project_id,
+                            advance.expected_state_revision,
+                            next_task_id,
+                            advance.task_id,
+                            task.0,
+                        ],
+                    )?;
+                    if updated != 1 {
+                        return Err(TransactionalStorageError::Integrity(
+                            "canonical project changed before accepted advancement".to_string(),
+                        ));
+                    }
+                } else {
+                    let completed_plan = transaction.execute(
+                        "UPDATE plans SET status = 'completed' WHERE project_id = ?1 AND plan_id = ?2 AND status = 'active'",
+                        AC_params![advance.project_id, task.0],
+                    )?;
+                    let updated = transaction.execute(
+                        "UPDATE projects SET active_plan_id = NULL, current_task_id = NULL, state_revision = state_revision + 1 WHERE project_id = ?1 AND state_revision = ?2 AND current_task_id = ?3 AND active_plan_id = ?4",
+                        AC_params![
+                            advance.project_id,
+                            advance.expected_state_revision,
+                            advance.task_id,
+                            task.0,
+                        ],
+                    )?;
+                    if completed_plan != 1 || updated != 1 {
+                        return Err(TransactionalStorageError::Integrity(
+                            "canonical final task could not complete its active plan".to_string(),
+                        ));
+                    }
+                }
+                super::Governance_Errors_Projection_structcore::carry_forward_canonical_governance_snapshot(
+                    transaction,
+                    &advance.project_id,
+                    &advance.workspace_id,
+                    advance.expected_state_revision,
+                    expected_revision,
+                    &audit_event.occurred_at,
+                )?;
+            }
+            let state = load_canonical_state_from_transaction(
+                transaction,
+                &advance.project_id,
+                &advance.workspace_id,
+            )?;
+            let completed = state
+                .tasks
+                .iter()
+                .find(|candidate| candidate.task_id == advance.task_id)
+                .ok_or_else(|| {
+                    TransactionalStorageError::Integrity(
+                        "advanced canonical task is unavailable".to_string(),
+                    )
+                })?;
+            if state.state_revision != expected_revision
+                || state.current_task_id != next_task_id
+                || completed.status != "completed"
+                || completed.review_status != "accepted"
+                || (next_task_id.is_none() && state.active_plan_id.is_some())
+                || (next_task_id.is_some()
+                    && state.active_plan_id.as_deref() != Some(task.0.as_str()))
+            {
+                return Err(TransactionalStorageError::Integrity(
+                    "persisted accepted advancement does not match canonical state".to_string(),
+                ));
+            }
+            Ok(CanonicalTaskAdvanceOutcome {
+                state,
+                audit,
+                completed_task_id: advance.task_id.clone(),
+                next_task_id,
+            })
+        })
+    }
+}
+
+fn validate_task_advance(
+    advance: &CanonicalTaskAdvance,
+    audit_event: &NewAuditEvent,
+) -> TransactionalStorageResult<()> {
+    validate_opaque_identifier(&advance.project_id, "prj_", "project_id")?;
+    validate_opaque_identifier(&advance.workspace_id, "wsp_", "workspace_id")?;
+    validate_opaque_identifier(&advance.task_id, "tsk_", "task_id")?;
+    validate_opaque_identifier(&advance.review_id, "rev_", "review_id")?;
+    if advance.expected_state_revision < 0 {
+        return Err(TransactionalStorageError::InvalidInput(
+            "canonical task advance revision is invalid".to_string(),
+        ));
+    }
+    validate_audit_binding(audit_event, &advance.project_id, "state_transitioned")?;
+    if audit_event.workspace_id.as_deref() != Some(advance.workspace_id.as_str())
+        || audit_event.resource_id.as_deref() != Some(advance.task_id.as_str())
+        || !matches!(audit_event.actor_kind.as_str(), "ci" | "operator")
+    {
+        return Err(TransactionalStorageError::InvalidInput(
+            "canonical task advance audit binding is invalid".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 fn validate_and_encode_task_package(

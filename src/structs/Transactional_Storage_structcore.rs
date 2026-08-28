@@ -396,6 +396,23 @@ CREATE INDEX capability_management_scope_idx
 ON capability_management_events(project_id, workspace_id, task_id);
 "#;
 
+const STORAGE_SCHEMA_V10: &str = r#"
+ALTER TABLE tasks
+ADD COLUMN task_ordinal INTEGER NOT NULL DEFAULT 0 CHECK (task_ordinal >= 0);
+
+UPDATE tasks
+SET task_ordinal = (
+    SELECT count(*) - 1
+    FROM tasks AS ordered
+    WHERE ordered.project_id = tasks.project_id
+      AND ordered.plan_id = tasks.plan_id
+      AND ordered.task_id <= tasks.task_id
+);
+
+CREATE UNIQUE INDEX tasks_plan_ordinal_idx
+ON tasks(project_id, plan_id, task_ordinal);
+"#;
+
 impl From<AC_Error> for TransactionalStorageError {
     fn from(error: AC_Error) -> Self {
         Self::Database(error.to_string())
@@ -903,6 +920,15 @@ impl ProjectDatabase {
                 AC_params!["storage-v9-pre-cutover-capability-management"],
             )?;
             transaction.pragma_update(None, "user_version", 9)?;
+            version = 9;
+        }
+        if version == 9 {
+            transaction.execute_batch(STORAGE_SCHEMA_V10)?;
+            transaction.execute(
+                "INSERT INTO schema_migrations(version, applied_at) VALUES (10, ?1)",
+                AC_params!["storage-v10-canonical-task-order"],
+            )?;
+            transaction.pragma_update(None, "user_version", 10)?;
         }
         transaction.commit()?;
         Ok(())

@@ -13,8 +13,8 @@ use ac_ant_delirium::libres::System_Random_unit::random_crockford_id;
 use ac_ant_delirium::structs::{
     encode_canonical_task_projection_payload, validate_serialized_agent_projection_document,
     CanonicalStateStore, CanonicalTaskProjectionPayload, ProjectDatabase, ProjectedTaskAction,
-    StorageProject, StorageWorkspace, CANONICAL_TASK_PROJECTION_PAYLOAD_VERSION,
-    STORAGE_SCHEMA_VERSION,
+    StorageProject, StorageWorkspace, TransactionalStorageError,
+    CANONICAL_TASK_PROJECTION_PAYLOAD_VERSION, STORAGE_SCHEMA_VERSION,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -686,11 +686,16 @@ fn materialize_candidate(
                 "INSERT INTO plans(plan_id, project_id, status, payload, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
                 AC_params![plan.canonical_id, project_id, if plan.complete { "completed" } else { "active" }, plan.payload, "migration-candidate"],
             )?;
-            for task in &plan.tasks {
+            for (task_ordinal, task) in plan.tasks.iter().enumerate() {
                 let status = if Some(plan.canonical_id.as_str()) == active_plan_id { "available" } else { "blocked" };
+                let task_ordinal = i64::try_from(task_ordinal).map_err(|_| {
+                    TransactionalStorageError::InvalidInput(
+                        "legacy task ordinal is unsupported".to_string(),
+                    )
+                })?;
                 transaction.execute(
-                    "INSERT INTO tasks(task_id, project_id, plan_id, task_revision, status, review_status, payload, created_at) VALUES (?1, ?2, ?3, 1, ?4, 'not_required', ?5, ?6)",
-                    AC_params![task.canonical_id, project_id, plan.canonical_id, status, task.payload, "migration-candidate"],
+                    "INSERT INTO tasks(task_id, project_id, plan_id, task_revision, status, review_status, payload, created_at, task_ordinal) VALUES (?1, ?2, ?3, 1, ?4, 'not_required', ?5, ?6, ?7)",
+                    AC_params![task.canonical_id, project_id, plan.canonical_id, status, task.payload, "migration-candidate", task_ordinal],
                 )?;
             }
         }

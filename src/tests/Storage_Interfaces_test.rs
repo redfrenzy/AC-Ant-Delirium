@@ -11,13 +11,13 @@ mod tests {
     use crate::structs::{
         build_current_task_projection, materialize_limited_project_projections,
         AtomicProjectProjectionWriter, AuditStore, CanonicalGovernanceSnapshotRequest,
-        CanonicalStateStore, CanonicalStateTransition, CanonicalTaskPackage,
+        CanonicalStateStore, CanonicalStateTransition, CanonicalTaskAdvance, CanonicalTaskPackage,
         CanonicalTaskPackageTask, CurrentTaskProjection, CurrentTaskProjectionDocument,
         EventWriteOutcome, GovernanceErrorsProjection, GovernanceErrorsRefreshRequest,
-        NewAuditEvent, NewSubmission, ProjectDatabase, ProjectProjectionWriter, ProjectStateRoot,
-        ProjectedCurrentTask, ProjectedGovernanceViolation, ProjectedQueueStatus,
-        ProjectedTaskAction, ProjectionArtifactKind, ProjectionMetadata, StorageProject,
-        StorageWorkspace, SubmissionStore, TransactionalStorageError,
+        NewAuditEvent, NewReview, NewSubmission, ProjectDatabase, ProjectProjectionWriter,
+        ProjectStateRoot, ProjectedCurrentTask, ProjectedGovernanceViolation, ProjectedQueueStatus,
+        ProjectedTaskAction, ProjectionArtifactKind, ProjectionMetadata, ReviewDecision,
+        ReviewStore, StorageProject, StorageWorkspace, SubmissionStore, TransactionalStorageError,
         AGENT_PROJECTION_CONTRACT_VERSION, AUDIT_EVENT_CONTRACT_VERSION,
         CANONICAL_STATE_CONTRACT_VERSION, GOVERNANCE_TASK_PACKAGE_CONTRACT_VERSION,
         STORAGE_SCHEMA_VERSION, SUBMISSION_CONTRACT_VERSION,
@@ -242,6 +242,23 @@ mod tests {
         assert_eq!(installed.state.active_plan_id.as_deref(), Some(PLAN_ID));
         assert_eq!(installed.state.current_task_id.as_deref(), Some(TASK_ID));
         assert_eq!(installed.state.tasks.len(), 2);
+        let ordinals = database
+            .with_immediate_transaction(|transaction| {
+                Ok((
+                    transaction.query_row(
+                        "SELECT task_ordinal FROM tasks WHERE task_id = ?1",
+                        AC_params![TASK_ID],
+                        |row| row.get::<_, i64>(0),
+                    )?,
+                    transaction.query_row(
+                        "SELECT task_ordinal FROM tasks WHERE task_id = ?1",
+                        AC_params!["tsk_00000000000000000000000001"],
+                        |row| row.get::<_, i64>(0),
+                    )?,
+                ))
+            })
+            .unwrap();
+        assert_eq!(ordinals, (0, 1));
 
         let projection = database
             .render_current_task_projection(PROJECT_ID, WORKSPACE_ID, "2026-08-11T00:00:01Z")
@@ -329,6 +346,171 @@ mod tests {
         assert_eq!(state.state_revision, 1);
         assert_eq!(state.tasks.len(), 2);
         assert_eq!(state.last_event_sequence, 1);
+
+        fs::remove_dir_all(root).expect("temporary directory should be removed");
+    }
+
+    #[test]
+    fn accepted_review_advances_by_package_order_and_records_history_atomically() {
+        let root = unique_temp_dir("accepted-advance");
+        let (_, database) = initialized(&root);
+        let package = task_package();
+        CanonicalStateStore::install_task_package(&database, &package, &task_package_event(1, 16))
+            .unwrap();
+
+        let submission = NewSubmission {
+            contract_version: SUBMISSION_CONTRACT_VERSION.to_string(),
+            submission_id: "sub_00000000000000000000000000".to_string(),
+            request_id: "request-accepted-advance".to_string(),
+            project_id: PROJECT_ID.to_string(),
+            workspace_id: WORKSPACE_ID.to_string(),
+            task_id: TASK_ID.to_string(),
+            task_revision: 1,
+            base_revision: None,
+            fingerprint: format!("{:064x}", 17),
+            payload: b"accepted advance submission".to_vec(),
+            received_at: "2026-08-11T00:00:01Z".to_string(),
+        };
+        let submission_event = audit_event(
+            2,
+            "submission_recorded",
+            17,
+            Some(&submission.submission_id),
+        );
+        SubmissionStore::record_submission(&database, &submission, &submission_event).unwrap();
+
+        let review = NewReview {
+            review_id: "rev_00000000000000000000000000".to_string(),
+            project_id: PROJECT_ID.to_string(),
+            submission_id: submission.submission_id.clone(),
+            reviewer_id: "authorized-reviewer".to_string(),
+            decision: ReviewDecision::Accepted,
+            fingerprint: format!("{:064x}", 18),
+            payload: b"accepted assigned review".to_vec(),
+            created_at: "2026-08-11T00:00:02Z".to_string(),
+        };
+        let mut review_event = audit_event(3, "review_recorded", 18, Some(&review.review_id));
+        review_event.actor_kind = "reviewer".to_string();
+        review_event.actor_subject_id = review.reviewer_id.clone();
+        ReviewStore::record_review(&database, &review, &review_event).unwrap();
+
+        let advance = CanonicalTaskAdvance {
+            project_id: PROJECT_ID.to_string(),
+            workspace_id: WORKSPACE_ID.to_string(),
+            task_id: TASK_ID.to_string(),
+            review_id: review.review_id.clone(),
+            expected_state_revision: 1,
+        };
+        let mut advance_event = audit_event(4, "state_transitioned", 19, Some(TASK_ID));
+        advance_event.actor_kind = "ci".to_string();
+        advance_event.actor_subject_id = "authorized-state-transition".to_string();
+        let outcome =
+            CanonicalStateStore::advance_accepted_task(&database, &advance, &advance_event)
+                .unwrap();
+        assert_eq!(outcome.audit, EventWriteOutcome::Inserted { sequence: 4 });
+        assert_eq!(outcome.state.state_revision, 2);
+        assert_eq!(outcome.completed_task_id, TASK_ID);
+        assert_eq!(
+            outcome.next_task_id.as_deref(),
+            Some("tsk_00000000000000000000000001")
+        );
+        assert_eq!(outcome.state.current_task_id, outcome.next_task_id);
+        let completed = outcome
+            .state
+            .tasks
+            .iter()
+            .find(|task| task.task_id == TASK_ID)
+            .unwrap();
+        assert_eq!(completed.status, "completed");
+        assert_eq!(completed.review_status, "accepted");
+        assert_eq!(outcome.state.last_event_sequence, 4);
+
+        let governance = database
+            .render_governance_errors_projection(PROJECT_ID, WORKSPACE_ID, "2026-08-11T00:00:03Z")
+            .unwrap();
+        let governance: serde_json::Value = serde_json::from_slice(&governance).unwrap();
+        assert_eq!(governance["source_revision"], 2);
+
+        let replay =
+            CanonicalStateStore::advance_accepted_task(&database, &advance, &advance_event)
+                .unwrap();
+        assert_eq!(replay.audit, EventWriteOutcome::Duplicate { sequence: 4 });
+        assert_eq!(replay.state, outcome.state);
+
+        let final_task_id = "tsk_00000000000000000000000001";
+        let final_submission = NewSubmission {
+            contract_version: SUBMISSION_CONTRACT_VERSION.to_string(),
+            submission_id: "sub_00000000000000000000000001".to_string(),
+            request_id: "request-final-advance".to_string(),
+            project_id: PROJECT_ID.to_string(),
+            workspace_id: WORKSPACE_ID.to_string(),
+            task_id: final_task_id.to_string(),
+            task_revision: 1,
+            base_revision: None,
+            fingerprint: format!("{:064x}", 20),
+            payload: b"final advance submission".to_vec(),
+            received_at: "2026-08-11T00:00:04Z".to_string(),
+        };
+        let final_submission_event = audit_event(
+            5,
+            "submission_recorded",
+            20,
+            Some(&final_submission.submission_id),
+        );
+        SubmissionStore::record_submission(&database, &final_submission, &final_submission_event)
+            .unwrap();
+        let final_review = NewReview {
+            review_id: "rev_00000000000000000000000001".to_string(),
+            project_id: PROJECT_ID.to_string(),
+            submission_id: final_submission.submission_id.clone(),
+            reviewer_id: "authorized-reviewer".to_string(),
+            decision: ReviewDecision::Accepted,
+            fingerprint: format!("{:064x}", 21),
+            payload: b"accepted final review".to_vec(),
+            created_at: "2026-08-11T00:00:05Z".to_string(),
+        };
+        let mut final_review_event =
+            audit_event(6, "review_recorded", 21, Some(&final_review.review_id));
+        final_review_event.actor_kind = "reviewer".to_string();
+        final_review_event.actor_subject_id = final_review.reviewer_id.clone();
+        ReviewStore::record_review(&database, &final_review, &final_review_event).unwrap();
+        let final_advance = CanonicalTaskAdvance {
+            project_id: PROJECT_ID.to_string(),
+            workspace_id: WORKSPACE_ID.to_string(),
+            task_id: final_task_id.to_string(),
+            review_id: final_review.review_id,
+            expected_state_revision: 2,
+        };
+        let mut final_advance_event = audit_event(7, "state_transitioned", 22, Some(final_task_id));
+        final_advance_event.actor_kind = "ci".to_string();
+        final_advance_event.actor_subject_id = "authorized-state-transition".to_string();
+        let final_outcome = CanonicalStateStore::advance_accepted_task(
+            &database,
+            &final_advance,
+            &final_advance_event,
+        )
+        .unwrap();
+        assert_eq!(final_outcome.state.state_revision, 3);
+        assert_eq!(final_outcome.completed_task_id, final_task_id);
+        assert_eq!(final_outcome.next_task_id, None);
+        assert_eq!(final_outcome.state.current_task_id, None);
+        assert_eq!(final_outcome.state.active_plan_id, None);
+        assert_eq!(final_outcome.state.last_event_sequence, 7);
+        let plan_status = database
+            .with_immediate_transaction(|transaction| {
+                Ok(transaction.query_row(
+                    "SELECT status FROM plans WHERE plan_id = ?1",
+                    AC_params![PLAN_ID],
+                    |row| row.get::<_, String>(0),
+                )?)
+            })
+            .unwrap();
+        assert_eq!(plan_status, "completed");
+        let governance = database
+            .render_governance_errors_projection(PROJECT_ID, WORKSPACE_ID, "2026-08-11T00:00:06Z")
+            .unwrap();
+        let governance: serde_json::Value = serde_json::from_slice(&governance).unwrap();
+        assert_eq!(governance["source_revision"], 3);
 
         fs::remove_dir_all(root).expect("temporary directory should be removed");
     }

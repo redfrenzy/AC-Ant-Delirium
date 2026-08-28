@@ -81,9 +81,26 @@ pub struct CanonicalTaskPackage {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CanonicalTaskAdvance {
+    pub project_id: String,
+    pub workspace_id: String,
+    pub task_id: String,
+    pub review_id: String,
+    pub expected_state_revision: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CanonicalMutationOutcome {
     pub state: CanonicalStateSnapshot,
     pub audit: EventWriteOutcome,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CanonicalTaskAdvanceOutcome {
+    pub state: CanonicalStateSnapshot,
+    pub audit: EventWriteOutcome,
+    pub completed_task_id: String,
+    pub next_task_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -283,6 +300,12 @@ pub trait CanonicalStateStore {
         package: &CanonicalTaskPackage,
         audit_event: &NewAuditEvent,
     ) -> TransactionalStorageResult<CanonicalMutationOutcome>;
+
+    fn advance_accepted_task(
+        &self,
+        advance: &CanonicalTaskAdvance,
+        audit_event: &NewAuditEvent,
+    ) -> TransactionalStorageResult<CanonicalTaskAdvanceOutcome>;
 }
 
 pub trait SubmissionStore {

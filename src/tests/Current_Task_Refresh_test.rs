@@ -102,9 +102,14 @@ mod tests {
     ) {
         database
             .with_immediate_transaction(|transaction| {
+                let ordinal = transaction.query_row(
+                    "SELECT count(*) FROM tasks WHERE project_id = ?1 AND plan_id = ?2",
+                    AC_params![PROJECT_ID, plan_id],
+                    |row| row.get::<_, i64>(0),
+                )?;
                 transaction.execute(
-                    "INSERT INTO tasks(task_id, project_id, plan_id, task_revision, status, review_status, payload, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-                    AC_params![task_id, PROJECT_ID, plan_id, revision, status, review_status, payload, "2026-08-13T00:00:00Z"],
+                    "INSERT INTO tasks(task_id, project_id, plan_id, task_revision, status, review_status, payload, created_at, task_ordinal) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                    AC_params![task_id, PROJECT_ID, plan_id, revision, status, review_status, payload, "2026-08-13T00:00:00Z", ordinal],
                 )?;
                 Ok(())
             })
