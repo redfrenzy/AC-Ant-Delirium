@@ -47,6 +47,35 @@ struct LimitedAuditPlan {
     project_root: std::path::PathBuf,
 }
 
+#[cfg(unix)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AuditOnlyFailureClass {
+    EndpointConfiguration,
+    ServiceUnavailable,
+    Temporary,
+    Protocol,
+    Internal,
+    ProjectionMaterialization,
+}
+
+#[cfg(unix)]
+fn classify_limited_audit_failure(
+    error: crate::limited_protocol::LimitedProtocolError,
+) -> AuditOnlyFailureClass {
+    use crate::limited_protocol::LimitedProtocolError;
+
+    match error {
+        LimitedProtocolError::Endpoint => AuditOnlyFailureClass::EndpointConfiguration,
+        LimitedProtocolError::Transport => AuditOnlyFailureClass::ServiceUnavailable,
+        LimitedProtocolError::Deadline => AuditOnlyFailureClass::Temporary,
+        LimitedProtocolError::Read
+        | LimitedProtocolError::Write
+        | LimitedProtocolError::Framing
+        | LimitedProtocolError::Envelope => AuditOnlyFailureClass::Protocol,
+        LimitedProtocolError::Entropy => AuditOnlyFailureClass::Internal,
+    }
+}
+
 impl CargoCompilationContext {
     fn from_environment() -> Self {
         Self {
@@ -131,20 +160,21 @@ fn spawn_audit_only_worker(args: &[OsString], context: &CargoCompilationContext)
                 libc::_exit(0);
             }
         };
-        let result = crate::limited_protocol::run_limited_audit_cycle(
+        let degradation = match crate::limited_protocol::run_limited_audit_cycle(
             endpoint.as_os_str(),
             &plan.observation,
             inherited,
-        )
-        .and_then(|documents| {
-            ac_ant_delirium::structs::materialize_limited_project_projections(
+        ) {
+            Ok(documents) => ac_ant_delirium::structs::materialize_limited_project_projections(
                 &plan.project_root,
                 &documents.current_task,
                 &documents.governance_errors,
             )
-            .map_err(|_| crate::limited_protocol::LimitedProtocolError::Envelope)
-        });
-        let _ = std::hint::black_box(result);
+            .err()
+            .map(|_| AuditOnlyFailureClass::ProjectionMaterialization),
+            Err(error) => Some(classify_limited_audit_failure(error)),
+        };
+        let _ = std::hint::black_box(degradation);
         unsafe {
             libc::_exit(0);
         }
@@ -665,6 +695,49 @@ mod tests {
                 PublicError::ToolchainNotExecutable
             );
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn audit_only_failures_have_closed_internal_classes() {
+        use crate::limited_protocol::LimitedProtocolError;
+
+        let cases = [
+            (
+                LimitedProtocolError::Endpoint,
+                AuditOnlyFailureClass::EndpointConfiguration,
+            ),
+            (
+                LimitedProtocolError::Transport,
+                AuditOnlyFailureClass::ServiceUnavailable,
+            ),
+            (
+                LimitedProtocolError::Deadline,
+                AuditOnlyFailureClass::Temporary,
+            ),
+            (LimitedProtocolError::Read, AuditOnlyFailureClass::Protocol),
+            (LimitedProtocolError::Write, AuditOnlyFailureClass::Protocol),
+            (
+                LimitedProtocolError::Framing,
+                AuditOnlyFailureClass::Protocol,
+            ),
+            (
+                LimitedProtocolError::Envelope,
+                AuditOnlyFailureClass::Protocol,
+            ),
+            (
+                LimitedProtocolError::Entropy,
+                AuditOnlyFailureClass::Internal,
+            ),
+        ];
+
+        for (error, expected) in cases {
+            assert_eq!(classify_limited_audit_failure(error), expected);
+        }
+        assert_ne!(
+            AuditOnlyFailureClass::Protocol,
+            AuditOnlyFailureClass::ProjectionMaterialization
+        );
     }
 
     #[test]

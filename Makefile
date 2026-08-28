@@ -80,6 +80,8 @@ ci:
 	cargo fmt --all -- --check
 	bash -n packaging/cargo/validate-standard-commands.sh
 	bash -n packaging/cargo/validate-installed-uninstall-rollback.sh
+	bash -n packaging/rollout/validate-fail-open.sh
+	python3 -B packaging/rollout/malformed-limited-peer.py --check
 	bash -n packaging/ci/validate-authoritative-gate.sh
 	bash -n packaging/migration/validate-legacy-source-inventory.sh
 	bash -n packaging/sandbox/validate-client-isolation.sh
@@ -122,6 +124,7 @@ ci:
 	jq empty docs/contracts/v1/system-installation-bundle-v1.schema.json
 	jq empty docs/contracts/v1/initial-capability-provisioning-v1.schema.json
 	jq empty docs/contracts/v1/governance-task-package-v1.schema.json
+	jq empty docs/contracts/v1/fail-open-rollout-evidence-v1.schema.json
 	RUSTFLAGS="-D warnings" cargo check --locked --all-targets --target $(HOST_TARGET)
 	RUSTFLAGS="-D warnings" cargo test --locked --all-targets --target $(HOST_TARGET) --no-fail-fast
 	$(MAKE) release-nondisclosure
@@ -172,6 +175,17 @@ cargo-command-matrix: binary
 .PHONY: authoritative-ci-gate
 authoritative-ci-gate: binary
 	bash packaging/ci/validate-authoritative-gate.sh
+
+# -----------------------------------------------
+# make fail-open-rollout
+# -----------------------------------------------
+# Exercises only maintained synthetic fixtures against the audit-only wrapper
+# and installed limited service. It records classifications and false-positive
+# counts without enabling enforcement or touching an external project.
+# -----------------------------------------------
+.PHONY: fail-open-rollout
+fail-open-rollout: binary
+	bash packaging/rollout/validate-fail-open.sh
 
 # -----------------------------------------------
 # make adversarial-client-isolation

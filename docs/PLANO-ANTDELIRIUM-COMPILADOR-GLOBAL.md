@@ -988,6 +988,15 @@ Critério de saída:
 - o CI bloqueia bypass mesmo que o wrapper local seja removido ou substituído;
 - nenhum componente substitui o proxy `cargo` gerenciado pelo rustup.
 
+Estado da política de rollout: a
+[prova T9.1](./VALIDACAO-ROLLOUT-FAIL-OPEN-T9.1.md) classificou internamente
+falhas de endpoint, transporte, timeout, protocolo, erro interno e
+materialização sem expô-las no fluxo do compilador. O gate reproduzível
+preservou o resultado do `rustc` em quatro degradações e mediu zero falsos
+positivos em três observações válidas independentes. Essa amostra é um gate
+sintético de regressão, não uma medição estatística de produção; o enforcement
+permanece desativado até os testes hostis e a decisão explícita da T9.7.
+
 ### Fase 7 — migrar projetos existentes
 
 Objetivo: retirar binários e estado mutável de `plugins/<project>` sem perda.

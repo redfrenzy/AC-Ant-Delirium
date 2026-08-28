@@ -189,7 +189,7 @@ modificar AutoBrowser ou qualquer outro projeto externo. Quando um cenário
 precisar representar planos protegidos ou um projeto hostil, o gate deve criar
 uma fixture própria sob `target/` e uma raiz protegida sintética.
 
-- [ ] **T9.1** Executar rollout fail-open, classificar falhas internas e medir falsos positivos antes de bloquear builds. — Plano: [ordem de auditoria][plano-ordem-wrapper], [Fase 6][plano-fase-6].
+- [x] **T9.1** Executar rollout fail-open, classificar falhas internas e medir falsos positivos antes de bloquear builds. Evidência: o [gate fail-open reproduzível](./VALIDACAO-ROLLOUT-FAIL-OPEN-T9.1.md) preservou compilação e diagnósticos em quatro classes de degradação, obteve zero violações em três observações válidas independentes e manteve `enforcement_activated=false`; tudo ocorreu somente com fixtures internas. — Plano: [ordem de auditoria][plano-ordem-wrapper], [Fase 6][plano-fase-6].
 - [ ] **T9.2** Testar bypass por variável de ambiente, configuração local, `--config`, `rustc` direto e cópia do projeto. — Plano: [limite de enforcement][plano-limite], [Fase 8][plano-fase-8].
 - [ ] **T9.3** Auditar o release com `strings`, ELF e busca de caminhos para remover literais protegidos e caminhos de build evitáveis. — Plano: [resistência à descoberta][plano-resistencia], [Fase 2][plano-fase-2].
 - [ ] **T9.4** Testar `open`, `stat`, `access`, `readlink`, enumeração, `strace`, `ptrace`, `/proc` e herança de descritores contra cliente e serviço. — Plano: [resistência à descoberta][plano-resistencia], [Fase 8][plano-fase-8].

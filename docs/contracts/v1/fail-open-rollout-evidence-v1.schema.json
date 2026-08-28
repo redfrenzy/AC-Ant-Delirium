@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://antdelirium.invalid/contracts/v1/fail-open-rollout-evidence-v1.schema.json",
+  "title": "AntDelirium fail-open rollout evidence v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "result",
+    "rollout_mode",
+    "external_project_access",
+    "wrapper_sha256",
+    "valid_observation_count",
+    "false_positive_count",
+    "degraded_case_count",
+    "degraded_cases",
+    "compiler_failure_precedence",
+    "enforcement_activated"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "fail-open-rollout-evidence-v1"
+    },
+    "result": {
+      "const": "passed"
+    },
+    "rollout_mode": {
+      "const": "fail-open"
+    },
+    "external_project_access": {
+      "const": "forbidden"
+    },
+    "wrapper_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "valid_observation_count": {
+      "const": 3
+    },
+    "false_positive_count": {
+      "const": 0
+    },
+    "degraded_case_count": {
+      "const": 4
+    },
+    "degraded_cases": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "case",
+          "classification",
+          "compiler_result"
+        ],
+        "properties": {
+          "case": {
+            "enum": [
+              "endpoint-absent",
+              "service-unavailable",
+              "malformed-protocol",
+              "projection-materialization"
+            ]
+          },
+          "classification": {
+            "enum": [
+              "integration-absent",
+              "service-unavailable",
+              "protocol",
+              "projection-materialization"
+            ]
+          },
+          "compiler_result": {
+            "const": "preserved"
+          }
+        }
+      }
+    },
+    "compiler_failure_precedence": {
+      "const": "preserved"
+    },
+    "enforcement_activated": {
+      "const": false
+    }
+  }
+}
