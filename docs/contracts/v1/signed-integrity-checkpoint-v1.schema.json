@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://antdelirium.invalid/contracts/v1/signed-integrity-checkpoint-v1.schema.json",
+  "title": "AntDelirium externally signed integrity checkpoint",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "checkpoint",
+    "signature_base64"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "signed-integrity-checkpoint-v1"
+    },
+    "checkpoint": {
+      "$ref": "#/$defs/checkpoint"
+    },
+    "signature_base64": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9+/]{86}==$"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "opaqueId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "projectState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "project_id",
+        "state_revision",
+        "last_event_sequence"
+      ],
+      "properties": {
+        "project_id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "state_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "last_event_sequence": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "eventStream": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "subject_id",
+        "last_sequence",
+        "chain_sha256"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "project-audit",
+            "service-security",
+            "capability-management"
+          ]
+        },
+        "subject_id": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/opaqueId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "last_sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "chain_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "governanceSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "project_id",
+        "workspace_id",
+        "source_revision",
+        "payload_sha256"
+      ],
+      "properties": {
+        "project_id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "workspace_id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "source_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "payload_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "database": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "logical_id",
+        "schema_version",
+        "semantic_sha256",
+        "projects",
+        "event_streams",
+        "governance_snapshots"
+      ],
+      "properties": {
+        "logical_id": {
+          "$ref": "#/$defs/opaqueId"
+        },
+        "schema_version": {
+          "const": 10
+        },
+        "semantic_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "projects": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/projectState"
+          }
+        },
+        "event_streams": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/eventStream"
+          }
+        },
+        "governance_snapshots": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/governanceSnapshot"
+          }
+        }
+      }
+    },
+    "checkpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "epoch",
+        "previous_checkpoint_sha256",
+        "authority_key_sha256",
+        "storage_schema_version",
+        "database_count",
+        "databases"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": "integrity-checkpoint-v1"
+        },
+        "epoch": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "previous_checkpoint_sha256": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "authority_key_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "storage_schema_version": {
+          "const": 10
+        },
+        "database_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "databases": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/database"
+          }
+        }
+      }
+    }
+  }
+}

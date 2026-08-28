@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://antdelirium.invalid/contracts/v1/integrity-authority-bundle-v1.schema.json",
+  "title": "AntDelirium external integrity authority bundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "files",
+    "private_key_included",
+    "activation_performed",
+    "global_installation_performed"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "integrity-authority-bundle-v1"
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "artifact",
+          "destination",
+          "mode",
+          "owner",
+          "group",
+          "sha256"
+        ],
+        "properties": {
+          "artifact": {
+            "const": "checkpoint-authority"
+          },
+          "destination": {
+            "const": "/usr/libexec/antdelirium/checkpoint-authority.py"
+          },
+          "mode": {
+            "const": "0755"
+          },
+          "owner": {
+            "const": "root"
+          },
+          "group": {
+            "const": "root"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    },
+    "private_key_included": {
+      "const": false
+    },
+    "activation_performed": {
+      "const": false
+    },
+    "global_installation_performed": {
+      "const": false
+    }
+  }
+}

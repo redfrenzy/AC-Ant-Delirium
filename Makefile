@@ -82,6 +82,10 @@ ci:
 	bash -n packaging/ci/validate-bypass-matrix.sh
 	bash -n packaging/ci/validate-authoritative-gate.sh
 	bash -n packaging/ci/validate-projection-authority.sh
+	bash -n packaging/integrity/render-authority-bundle.sh
+	bash -n packaging/integrity/validate-signed-checkpoint.sh
+	bash -n packaging/systemd/checkpoint-installed-integrity.sh
+	python3 -c 'import ast,pathlib; ast.parse(pathlib.Path("packaging/integrity/checkpoint-authority.py").read_text(encoding="utf-8"))'
 	bash -n packaging/release/validate-elf-nondisclosure.sh
 	bash -n packaging/migration/validate-legacy-source-inventory.sh
 	bash -n packaging/sandbox/validate-client-isolation.sh
@@ -130,9 +134,32 @@ ci:
 	jq empty docs/contracts/v1/release-elf-audit-v1.schema.json
 	jq empty docs/contracts/v1/hostile-isolation-evidence-v1.schema.json
 	jq empty docs/contracts/v1/projection-authority-evidence-v1.schema.json
+	jq empty docs/contracts/v1/signed-integrity-checkpoint-v1.schema.json
+	jq empty docs/contracts/v1/integrity-authority-bundle-v1.schema.json
 	RUSTFLAGS="-D warnings" cargo check --locked --all-targets --target $(HOST_TARGET)
 	RUSTFLAGS="-D warnings" cargo test --locked --all-targets --target $(HOST_TARGET) --no-fail-fast
 	$(MAKE) release-nondisclosure
+
+# -----------------------------------------------
+# make signed-integrity-checkpoint
+# -----------------------------------------------
+# Exercises the external Ed25519 authority against synthetic protected state.
+# It signs journal/snapshot commitments and rejects gaps, prefix rewrites,
+# rollback and signature mutation without requiring sudo or an external project.
+# -----------------------------------------------
+.PHONY: signed-integrity-checkpoint
+signed-integrity-checkpoint:
+	bash packaging/integrity/validate-signed-checkpoint.sh
+
+# -----------------------------------------------
+# make integrity-authority-bundle
+# -----------------------------------------------
+# Stages the path-free checkpoint authority for a separately reviewed root
+# installation. The bundle never includes a signing key or activates the host.
+# -----------------------------------------------
+.PHONY: integrity-authority-bundle
+integrity-authority-bundle:
+	bash packaging/integrity/render-authority-bundle.sh
 
 # -----------------------------------------------
 # make legacy-example-validation
