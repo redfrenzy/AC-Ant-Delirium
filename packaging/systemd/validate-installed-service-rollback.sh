@@ -170,6 +170,10 @@ restore_current_state() {
     mv "$validation_root/current-state" "$state_root"
     install -m 0755 "$validation_root/current-binary" "$installed_binary"
     restored_digest=$(state_digest "$state_root") || return 1
+    {
+        printf 'expected=%s\n' "${current_digest%% *}"
+        printf 'restored=%s\n' "${restored_digest%% *}"
+    } >"$log_root/current-state-digests.env"
     [[ "$restored_digest" == "$current_digest" ]] || return 1
     current_state_restored=1
     start_service || return 1
@@ -255,7 +259,13 @@ current_state_saved=1
 
 printf '%s\n' 'AD-T8G-SERVICE-ROLLBACK: activating the selected prior binary and state snapshot.'
 cp -a "$selected_backup/state" "$state_root"
-[[ $(state_digest "$state_root") == "$rollback_state_digest" ]] \
+active_rollback_digest=$(state_digest "$state_root") \
+    || fail 'the copied rollback state contains an unsafe entry.'
+{
+    printf 'selected=%s\n' "${rollback_state_digest%% *}"
+    printf 'copied=%s\n' "${active_rollback_digest%% *}"
+} >"$log_root/rollback-state-digests.env"
+[[ "$active_rollback_digest" == "$rollback_state_digest" ]] \
     || fail 'the selected rollback state was not copied exactly.'
 install -m 0755 "$selected_backup/antdelirium" "$installed_binary"
 start_service
