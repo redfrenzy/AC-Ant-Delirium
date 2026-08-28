@@ -206,6 +206,21 @@ atuais. Na mesma transação ele conclui a tarefa, seleciona o próximo ordinal 
 conclui o plano, incrementa a revisão, carrega o snapshot de erros para a nova
 revisão e grava `state_transitioned` no histórico de auditoria. Retry do mesmo
 evento é idempotente. Os testes cobrem primeira tarefa, última tarefa, plano
-concluído, revisões 1→2→3, histórico sem lacunas e migração 9→10. Esse núcleo
-ainda não é uma superfície de operador: o próximo corte deve ligá-lo a uma
-capability `Ci/Administrative/StateTransition` efêmera e escopada.
+concluído, revisões 1→2→3, histórico sem lacunas e migração 9→10.
+
+## Fronteira de avanço autorizada
+
+O comando interno `operator task advance` não recebe IDs ou caminhos por
+argumentos. Ele lê `governance-task-advance-v1` de um descritor regular,
+somente leitura, limitado e posicionado no byte zero. O serviço aceita o pedido
+somente com uma capability efêmera `Ci/Administrative/StateTransition`
+vinculada ao projeto, workspace e tarefa exatos; a revisão aceita indicada no
+pedido ainda é revalidada dentro da transação protegida.
+
+`packaging/systemd/run-task-advance.sh` é a rotina de supervisor que emite essa
+capability por tarefa, executa a transição como o usuário não-root que chamou
+`sudo` e a revoga imediatamente. O agente continua sem autoridade de avanço e
+sem acesso ao histórico ou ao plano protegido. O recibo público contém apenas
+IDs opacos, a nova revisão canônica e a sequência de auditoria. Falta executar
+o gate instalado completo sobre o binário `storage-v10`; até esse teste real,
+esta seção descreve código e testes locais, não uma instalação já comprovada.

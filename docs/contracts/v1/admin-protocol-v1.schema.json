@@ -58,12 +58,14 @@
         "wire_version": { "const": "ada/1" },
         "request_id": { "$ref": "#/$defs/requestId" },
         "connection_nonce": { "$ref": "#/$defs/nonce" },
-        "operation": { "enum": ["capability.grant", "capability.revoke", "migration.stage", "migration.normalize", "migration.dry-run", "migration.convert", "migration.attest", "migration.approve", "migration.cutover"] },
+        "operation": { "enum": ["capability.grant", "capability.revoke", "governance.task-package.install", "governance.task.advance.accepted", "migration.stage", "migration.normalize", "migration.dry-run", "migration.convert", "migration.attest", "migration.approve", "migration.cutover"] },
         "capability": { "$ref": "#/$defs/capability" },
         "body": {
           "oneOf": [
             { "$ref": "urn:antdelirium:contract:capability-grant-request-v1" },
             { "$ref": "urn:antdelirium:contract:capability-revoke-request-v1" },
+            { "$ref": "urn:antdelirium:contract:governance-task-package-v1" },
+            { "$ref": "urn:antdelirium:contract:governance-task-advance-v1" },
             { "$ref": "#/$defs/migrationStageBody" },
             { "$ref": "urn:antdelirium:contract:legacy-normalization-request-v1" },
             { "$ref": "urn:antdelirium:contract:legacy-dry-run-request-v1" },
@@ -82,6 +84,14 @@
         {
           "if": { "properties": { "operation": { "const": "capability.revoke" } } },
           "then": { "properties": { "body": { "$ref": "urn:antdelirium:contract:capability-revoke-request-v1" } } }
+        },
+        {
+          "if": { "properties": { "operation": { "const": "governance.task-package.install" } } },
+          "then": { "properties": { "body": { "$ref": "urn:antdelirium:contract:governance-task-package-v1" } } }
+        },
+        {
+          "if": { "properties": { "operation": { "const": "governance.task.advance.accepted" } } },
+          "then": { "properties": { "body": { "$ref": "urn:antdelirium:contract:governance-task-advance-v1" } } }
         },
         {
           "if": { "properties": { "operation": { "const": "migration.stage" } } },
@@ -135,6 +145,8 @@
           "oneOf": [
             { "$ref": "urn:antdelirium:contract:capability-grant-receipt-v1" },
             { "$ref": "urn:antdelirium:contract:capability-revoke-receipt-v1" },
+            { "$ref": "urn:antdelirium:contract:governance-task-package-receipt-v1" },
+            { "$ref": "urn:antdelirium:contract:governance-task-advance-receipt-v1" },
             { "$ref": "urn:antdelirium:contract:legacy-stage-receipt-v1" },
             { "$ref": "urn:antdelirium:contract:legacy-normalization-receipt-v1" },
             { "$ref": "urn:antdelirium:contract:legacy-dry-run-report-v1" },
@@ -205,6 +217,8 @@
                 "oneOf": [
                   { "$ref": "urn:antdelirium:contract:capability-grant-receipt-v1" },
                   { "$ref": "urn:antdelirium:contract:capability-revoke-receipt-v1" },
+                  { "$ref": "urn:antdelirium:contract:governance-task-package-receipt-v1" },
+                  { "$ref": "urn:antdelirium:contract:governance-task-advance-receipt-v1" },
                   { "$ref": "urn:antdelirium:contract:legacy-stage-receipt-v1" },
                   { "$ref": "urn:antdelirium:contract:legacy-normalization-receipt-v1" },
                   { "$ref": "urn:antdelirium:contract:legacy-dry-run-report-v1" },

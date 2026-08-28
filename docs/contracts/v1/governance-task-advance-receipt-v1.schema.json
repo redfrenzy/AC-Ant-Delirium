@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:governance-task-advance-receipt-v1",
+  "title": "AntDelirium accepted governance task advance receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "project_id",
+    "workspace_id",
+    "completed_task_id",
+    "next_task_id",
+    "state_revision",
+    "audit_sequence",
+    "state"
+  ],
+  "properties": {
+    "contract_version": { "const": "governance-task-advance-receipt-v1" },
+    "project_id": { "type": "string", "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$" },
+    "workspace_id": { "type": "string", "pattern": "^wsp_[0-9a-hjkmnp-tv-z]{26}$" },
+    "completed_task_id": { "type": "string", "pattern": "^tsk_[0-9a-hjkmnp-tv-z]{26}$" },
+    "next_task_id": {
+      "oneOf": [
+        { "type": "string", "pattern": "^tsk_[0-9a-hjkmnp-tv-z]{26}$" },
+        { "type": "null" }
+      ]
+    },
+    "state_revision": { "type": "integer", "minimum": 1 },
+    "audit_sequence": { "type": "integer", "minimum": 1 },
+    "state": { "enum": ["advanced", "already-advanced"] }
+  }
+}

@@ -8,6 +8,11 @@ Os arquivos deste diretório congelam a primeira versão das fronteiras de dados
 - `agent-projection-v1.schema.json`: união discriminada dos dois JSONs visíveis em `guard/`.
 - `limited-protocol-v1.schema.json`: envelopes aceitos no listener limitado.
 - `admin-protocol-v1.schema.json`: envelopes aceitos somente no listener administrativo.
+- `governance-task-package-v1.schema.json` e seu recibo: instalação inicial
+  de uma fila canônica por `StateAdmin`, sem localizador físico.
+- `governance-task-advance-v1.schema.json` e seu recibo: transição de uma
+  tarefa aceita sob capability `Ci/Administrative/StateTransition` escopada
+  ao projeto, workspace e tarefa exatos.
 - `capability-grant-request-v1.schema.json` e
   `capability-grant-receipt-v1.schema.json`: concessão operacional auditada,
   com segredo somente no request e nunca no recibo.

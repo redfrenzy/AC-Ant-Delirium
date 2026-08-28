@@ -109,7 +109,7 @@ systemctl is-active --quiet antdelirium.service
 systemctl is-active --quiet antdelirium-agent.socket
 systemctl is-active --quiet antdelirium-admin.socket
 
-validate_storage_v9_once() {
+validate_storage_v10_once() {
 python3 - "$state_root" <<'PY'
 import glob
 import sqlite3
@@ -126,8 +126,11 @@ try:
         version = connection.execute("pragma user_version").fetchone()[0]
         foreign_key_errors = connection.execute("pragma foreign_key_check").fetchall()
         quick_check = connection.execute("pragma quick_check").fetchone()[0]
-        if version != 9:
+        task_columns = {row[1] for row in connection.execute("pragma table_info(tasks)")}
+        if version != 10:
             failures.append("database-" + str(ordinal) + ":schema-version")
+        if "task_ordinal" not in task_columns:
+            failures.append("database-" + str(ordinal) + ":task-order")
         if foreign_key_errors:
             failures.append("database-" + str(ordinal) + ":foreign-key-check")
         if quick_check != "ok":
@@ -137,12 +140,15 @@ try:
     receipt_count = registry.execute("select count(*) from initial_capability_provisioning").fetchone()[0]
     grant_count = registry.execute("select count(*) from capability_grants").fetchone()[0]
     management_table = registry.execute("select count(*) from sqlite_schema where type='table' and name='capability_management_events'").fetchone()[0]
+    management_sql = registry.execute("select sql from sqlite_schema where type='table' and name='capability_management_events'").fetchone()
     if receipt_count != 1:
         failures.append("registry:provisioning-receipt-count")
     if grant_count < 2:
         failures.append("registry:bootstrap-grant-count")
     if management_table != 1:
         failures.append("registry:management-table")
+    if management_sql is None or "state.transition" not in management_sql[0]:
+        failures.append("registry:state-transition-operation")
 except (OSError, sqlite3.Error):
     print("validation=waiting")
     print("failure_reasons=database-busy-or-unavailable")
@@ -152,6 +158,7 @@ print("schema_versions=" + ",".join(str(value) for value in versions))
 print("provisioning_receipts=" + str(receipt_count))
 print("capability_grants=" + str(grant_count))
 print("capability_management_table=" + ("ready" if management_table == 1 else "unavailable"))
+print("state_transition_operation=" + ("ready" if management_sql is not None and "state.transition" in management_sql[0] else "unavailable"))
 print("validation=" + ("ready" if not failures else "waiting"))
 print("failure_reasons=" + (",".join(failures) if failures else "none"))
 raise SystemExit(0 if not failures else 2)
@@ -160,7 +167,7 @@ PY
 
 storage_ready=false
 for ((attempt = 1; attempt <= 100; attempt++)); do
-    if validate_storage_v9_once >"$log_root/storage-validation.txt" 2>&1; then
+    if validate_storage_v10_once >"$log_root/storage-validation.txt" 2>&1; then
         storage_ready=true
         break
     fi
@@ -170,13 +177,13 @@ for ((attempt = 1; attempt <= 100; attempt++)); do
     sleep 0.1
 done
 [[ "$storage_ready" == true ]] \
-    || fail 'timed out waiting for the protected storage-v9 migration.'
+    || fail 'timed out waiting for the protected storage-v10 migration.'
 
 sleep 1
 systemctl is-active --quiet antdelirium.service \
     || fail 'the upgraded service did not remain active after migration.'
-validate_storage_v9_once >"$log_root/storage-validation.txt" 2>&1 \
+validate_storage_v10_once >"$log_root/storage-validation.txt" 2>&1 \
     || fail 'protected storage did not remain valid after service stabilization.'
 
 upgrade_committed=true
-printf '%s\n' "AD-T86-UPGRADE: service upgraded to storage-v9; rollback backup retained under $backup_root"
+printf '%s\n' "AD-T86-UPGRADE: service upgraded to storage-v10; rollback backup retained under $backup_root"

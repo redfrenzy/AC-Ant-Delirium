@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:governance-task-advance-v1",
+  "title": "AntDelirium accepted governance task advance v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "project_id",
+    "workspace_id",
+    "task_id",
+    "review_id",
+    "expected_state_revision"
+  ],
+  "properties": {
+    "contract_version": { "const": "governance-task-advance-v1" },
+    "project_id": { "type": "string", "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$" },
+    "workspace_id": { "type": "string", "pattern": "^wsp_[0-9a-hjkmnp-tv-z]{26}$" },
+    "task_id": { "type": "string", "pattern": "^tsk_[0-9a-hjkmnp-tv-z]{26}$" },
+    "review_id": { "type": "string", "pattern": "^rev_[0-9a-hjkmnp-tv-z]{26}$" },
+    "expected_state_revision": { "type": "integer", "minimum": 0 }
+  }
+}

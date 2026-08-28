@@ -149,7 +149,7 @@ if [[ -z "$resume_task_id" ]]; then
                 acceptance_criteria: [
                     "A scoped agent submission is recorded.",
                     "An assigned reviewer reads and accepts the submission.",
-                    "Review does not advance or complete the canonical task."
+                    "A separately authorized CI transition completes the canonical task."
                 ],
                 relevant_paths: ["src/main.rs"]
             }]
@@ -215,15 +215,50 @@ printf '%s\n' 'AD-T8G-CYCLE: reading only the assigned submission.'
 bash "$script_dir/run-reviewer-operation.sh" \
     --project-root "$target_project" -- assigned "$submission_id"
 
-printf '%s\n' 'AD-T8G-CYCLE: accepting the assigned submission without advancing state.'
-bash "$script_dir/run-reviewer-operation.sh" \
+printf '%s\n' 'AD-T8G-CYCLE: accepting the assigned submission without implicit advancement.'
+review_output=$(bash "$script_dir/run-reviewer-operation.sh" \
     --project-root "$target_project" -- \
-    decide "$submission_id" accepted 'Installed synthetic evidence satisfies the task.'
+    decide "$submission_id" accepted 'Installed synthetic evidence satisfies the task.')
+printf '%s\n' "$review_output"
+review_id=$(printf '%s\n' "$review_output" \
+    | sed -n 's/^antdelirium\[AD-REVIEW\]: \(rev_[0-9a-hjkmnp-tv-z]\{26\}\)$/\1/p' \
+    | tail -n 1)
+[[ -n "$review_id" ]] || fail 'the reviewer did not return an opaque review receipt.'
 
 jq -e --arg task "$task_id" '
     .source_revision == 1 and .task.task_id == $task and
     .queue_status == "task_available"
 ' "$projection" >/dev/null || fail 'review unexpectedly changed the public canonical task.'
+
+printf '%s\n' 'AD-T8G-CYCLE: advancing only through a separately authorized CI transition.'
+bash "$script_dir/run-task-advance.sh" \
+    --project-root "$target_project" --review-id "$review_id"
+
+printf '%s\n' 'AD-T8G-CYCLE: refreshing the completed canonical projection through cargo check.'
+(
+    cd "$target_project"
+    setpriv --reuid="$invoking_uid" --regid="$invoking_gid" --init-groups \
+        --no-new-privs --inh-caps=-all --ambient-caps=-all --bounding-set=-all \
+        --reset-env env \
+        HOME="$invoking_home" \
+        CARGO_HOME="$invoking_home/.cargo" \
+        CARGO_TARGET_DIR="$log_root/cargo-target" \
+        "$cargo_binary" check
+)
+
+projection_matches_completion() {
+    jq -e '
+        .source_revision == 2 and .task == null and
+        .queue_status == "no_task_available"
+    ' "$projection" >/dev/null 2>&1
+}
+
+for _attempt in {1..100}; do
+    projection_matches_completion && break
+    sleep 0.05
+done
+projection_matches_completion \
+    || fail 'cargo check did not refresh the completed canonical task within five seconds.'
 
 {
     printf 'contract=antdelirium-installed-task-cycle-evidence-v1\n'
@@ -234,6 +269,9 @@ jq -e --arg task "$task_id" '
     printf 'agent_submission=pass\n'
     printf 'assigned_submission_read=pass\n'
     printf 'assigned_review_decision=pass\n'
-    printf 'canonical_task_advanced=no\n'
+    printf 'scoped_ci_state_transition=pass\n'
+    printf 'protected_history_sequence=pass\n'
+    printf 'canonical_task_advanced=yes\n'
+    printf 'canonical_plan_completed=yes\n'
 } >"$log_root/acceptance.env"
-printf '%s\n' 'AD-T8G-CYCLE: installed synthetic submission and review cycle passed.'
+printf '%s\n' 'AD-T8G-CYCLE: installed synthetic task lifecycle passed.'
