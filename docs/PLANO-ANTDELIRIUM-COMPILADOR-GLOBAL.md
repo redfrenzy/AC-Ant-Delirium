@@ -806,6 +806,17 @@ Critério de saída:
 - existe um único executável físico;
 - nenhuma funcionalidade depende de `plugins/<project>/bin`.
 
+Estado da T9.3: a
+[auditoria ELF de não divulgação](./VALIDACAO-ELF-NAO-DIVULGACAO-T9.3.md)
+configurou strip de símbolos no perfil release e remove `.comment` durante a
+produção autoritativa, eliminando tabelas estáticas, debug e o path físico do
+build do linker. O contrato `release-elf-audit-v1` exige ELF64 PIE, full RELRO,
+stack não executável, ausência de RPATH/RUNPATH e zero paths físicos de
+mantenedor, build, storage, sockets ou logs previsíveis. Dois nomes
+administrativos genéricos permanecem sem locator porque a compatibilidade
+legada ainda está compilada; eles não são tratados como segredo e serão
+retirados com as rotas legadas em T10.2/T10.3.
+
 ### Fase 3 — implementar o wrapper transparente
 
 Objetivo: provar equivalência de compilação.

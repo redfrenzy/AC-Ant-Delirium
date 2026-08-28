@@ -5,6 +5,7 @@
 
 WASM_TARGET := wasm32-wasip1
 BIN_NAME := antdelirium
+OBJCOPY ?= objcopy
 
 # The host triple. Required because .cargo/config.toml sets
 # a default target of wasm32-unknown-unknown, which would
@@ -29,24 +30,20 @@ RELEASE_RUSTFLAGS := -D warnings --remap-path-prefix=$(CURDIR)=antdelirium-src -
 binary:
 	@echo "[GOVERNANCE] Building authoritative antdelirium binary..."
 	RUSTFLAGS="$(RELEASE_RUSTFLAGS)" cargo build --release --locked --target $(HOST_TARGET) --bin $(BIN_NAME)
+	$(OBJCOPY) --remove-section .comment target/$(HOST_TARGET)/release/$(BIN_NAME)
 	@echo "[GOVERNANCE] Artifact: target/$(HOST_TARGET)/release/$(BIN_NAME)"
 
 # -----------------------------------------------
 # make release-nondisclosure
 # -----------------------------------------------
-# Builds with reproducible logical source prefixes, then rejects physical
-# maintainer, service-state, service-socket, or predictable global log paths
-# embedded in the ELF.
+# Builds with reproducible logical source prefixes, removes non-runtime ELF
+# metadata and validates symbols, hardening flags and physical locators.
 # Administrative names may remain while rollback code is compiled; names do
 # not grant authority and are removed only with the legacy implementation.
 # -----------------------------------------------
 .PHONY: release-nondisclosure
 release-nondisclosure: binary
-	@if strings -a target/$(HOST_TARGET)/release/$(BIN_NAME) | rg -q '/home/|/Users/|[A-Za-z]:\\\\Users\\\\|/var/lib/antdelirium|/run/antdelirium|/tmp/delirium_|delirium_(debug|error)\\.log'; then \
-		strings -a target/$(HOST_TARGET)/release/$(BIN_NAME) | rg -m 20 '/home/|/Users/|[A-Za-z]:\\\\Users\\\\|/var/lib/antdelirium|/run/antdelirium|/tmp/delirium_|delirium_(debug|error)\\.log'; \
-		exit 1; \
-	fi
-	@echo "[GOVERNANCE] Release contains no protected physical path or predictable global log."
+	bash packaging/release/validate-elf-nondisclosure.sh
 
 # -----------------------------------------------
 # make wasm
@@ -84,6 +81,7 @@ ci:
 	python3 -B packaging/rollout/malformed-limited-peer.py --check
 	bash -n packaging/ci/validate-bypass-matrix.sh
 	bash -n packaging/ci/validate-authoritative-gate.sh
+	bash -n packaging/release/validate-elf-nondisclosure.sh
 	bash -n packaging/migration/validate-legacy-source-inventory.sh
 	bash -n packaging/sandbox/validate-client-isolation.sh
 	bash -n packaging/sandbox/validate-wrapper-syscalls.sh
@@ -127,6 +125,7 @@ ci:
 	jq empty docs/contracts/v1/governance-task-package-v1.schema.json
 	jq empty docs/contracts/v1/fail-open-rollout-evidence-v1.schema.json
 	jq empty docs/contracts/v1/bypass-matrix-evidence-v1.schema.json
+	jq empty docs/contracts/v1/release-elf-audit-v1.schema.json
 	RUSTFLAGS="-D warnings" cargo check --locked --all-targets --target $(HOST_TARGET)
 	RUSTFLAGS="-D warnings" cargo test --locked --all-targets --target $(HOST_TARGET) --no-fail-fast
 	$(MAKE) release-nondisclosure

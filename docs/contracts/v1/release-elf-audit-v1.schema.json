@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://antdelirium.invalid/contracts/v1/release-elf-audit-v1.schema.json",
+  "title": "AntDelirium release ELF audit v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "result",
+    "external_project_access",
+    "binary_sha256",
+    "binary_size_bytes",
+    "elf_class",
+    "elf_machine",
+    "elf_type",
+    "stripped",
+    "static_symbol_table",
+    "debug_sections",
+    "comment_section",
+    "rpath",
+    "runpath",
+    "pie",
+    "relro",
+    "executable_stack",
+    "physical_locator_match_count",
+    "predictable_log_match_count",
+    "administrative_marker_count",
+    "administrative_marker_classification",
+    "legacy_marker_removal",
+    "enforcement_activated"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "release-elf-audit-v1"
+    },
+    "result": {
+      "const": "passed"
+    },
+    "external_project_access": {
+      "const": "forbidden"
+    },
+    "binary_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "binary_size_bytes": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "elf_class": {
+      "const": "ELF64"
+    },
+    "elf_machine": {
+      "const": "Advanced Micro Devices X86-64"
+    },
+    "elf_type": {
+      "const": "DYN"
+    },
+    "stripped": {
+      "const": true
+    },
+    "static_symbol_table": {
+      "const": false
+    },
+    "debug_sections": {
+      "const": false
+    },
+    "comment_section": {
+      "const": false
+    },
+    "rpath": {
+      "const": false
+    },
+    "runpath": {
+      "const": false
+    },
+    "pie": {
+      "const": true
+    },
+    "relro": {
+      "const": "full"
+    },
+    "executable_stack": {
+      "const": false
+    },
+    "physical_locator_match_count": {
+      "const": 0
+    },
+    "predictable_log_match_count": {
+      "const": 0
+    },
+    "administrative_marker_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "administrative_marker_classification": {
+      "const": "generic-names-no-physical-locator"
+    },
+    "legacy_marker_removal": {
+      "const": "t10.2-t10.3"
+    },
+    "enforcement_activated": {
+      "const": false
+    }
+  }
+}
