@@ -63,6 +63,7 @@ hashes e estados fechados.
 ## Limite desta prova
 
 Esta prova conclui a uniformidade da instalação e o acionamento automático por
-comandos Cargo normais. O ciclo com tarefa sintética, submissão, revisão,
-avanço e histórico pertence à T8G.3. Atualização, desinstalação e rollback
-genéricos pertencem à T8G.4.
+comandos Cargo normais. O ciclo completo de tarefa sintética foi comprovado na
+[T8G.3](./VALIDACAO-PACOTE-TAREFAS-GENERICO-T8G.3.md), e atualização,
+desinstalação e rollback globais foram comprovados na
+[T8G.4](./VALIDACAO-ATUALIZACAO-DESINSTALACAO-ROLLBACK-T8G.4.md).

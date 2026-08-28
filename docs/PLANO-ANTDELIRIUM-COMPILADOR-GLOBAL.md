@@ -956,6 +956,16 @@ de fora do workspace, revalida o binário ao final e gera evidência versionada
 sem paths. Execução local, digest derivado no próprio PR e evidência não assinada
 não são autoridade; runner protegido, assinatura e branch gate ficam na T9.7.
 
+Aceite da T8G.4: a
+[prova real de atualização, desinstalação e rollback](./VALIDACAO-ATUALIZACAO-DESINSTALACAO-ROLLBACK-T8G.4.md)
+removeu e reinstalou a integração Cargo registrada, preservou configuração
+sentinela e os proxies rustup, iniciou temporariamente um binário e state root
+anteriores e restaurou exatamente o estado mais novo. Os oito bancos atuais,
+contratos das unidades e hash comum de serviço, release e wrapper permaneceram
+íntegros. O primeiro ensaio também exerceu a recuperação após uma falha do gate
+causada por arquivos auxiliares SQLite/WAL; a ordem de fingerprint foi corrigida
+e a repetição completa passou.
+
 ### Fase 6 — comandos Cargo existentes e gate externo
 
 Objetivo: manter a integração invisível para o agente e reduzir bypass sem substituir o Cargo.
