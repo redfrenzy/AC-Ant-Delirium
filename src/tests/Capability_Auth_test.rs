@@ -513,6 +513,72 @@ mod tests {
     }
 
     #[test]
+    fn managed_ci_state_transition_requires_exact_task_scope() {
+        let root = fixture_root("managed-ci-state-transition");
+        let database = unregistered_database(&root);
+        let secret = [25; 32];
+        let managed = NewCapabilityGrant {
+            grant_id: GRANT_ID.to_string(),
+            secret_hash: sha256(&secret),
+            subject_uid: 1000,
+            actor: CapabilityActor::Ci,
+            channel: CapabilityChannel::Administrative,
+            operation: CapabilityOperation::StateTransition,
+            project_id: Some(PROJECT_ID.to_string()),
+            workspace_id: Some(WORKSPACE_ID.to_string()),
+            task_id: Some(TASK_ID.to_string()),
+            not_before_unix: 100,
+            expires_at_unix: 200,
+            revocation_epoch: 0,
+            granted_at: "unix:100".to_string(),
+        };
+        let receipt = database
+            .grant_managed_capability(1000, &managed, 100)
+            .expect("scoped state transition grant");
+        assert_eq!(receipt.audit_sequence, 1);
+
+        let request = CapabilityAuthorizationRequest {
+            grant_id: GRANT_ID.to_string(),
+            presented_secret: secret,
+            operation: CapabilityOperation::StateTransition,
+            project_id: Some(PROJECT_ID.to_string()),
+            workspace_id: Some(WORKSPACE_ID.to_string()),
+            task_id: Some(TASK_ID.to_string()),
+            presented_connection_nonce: [9; 32],
+            request_id: REQUEST_ID.to_string(),
+            request_fingerprint: [26; 32],
+        };
+        assert!(matches!(
+            authorize(
+                &database,
+                1000,
+                CapabilityChannel::Administrative,
+                &[9; 32],
+                150,
+                &request,
+            ),
+            CapabilityAuthorizationOutcome::Fresh(_)
+        ));
+
+        let mut wrong_task = request;
+        wrong_task.request_id = "req_11111111111111111111111111".to_string();
+        wrong_task.request_fingerprint = [27; 32];
+        wrong_task.task_id = Some("tsk_11111111111111111111111111".to_string());
+        assert_eq!(
+            authorize(
+                &database,
+                1000,
+                CapabilityChannel::Administrative,
+                &[9; 32],
+                150,
+                &wrong_task,
+            ),
+            CapabilityAuthorizationOutcome::Denied
+        );
+        fs::remove_dir_all(root).expect("fixture cleanup");
+    }
+
+    #[test]
     fn managed_grant_refuses_administrative_privilege_amplification_atomically() {
         let root = fixture_root("managed-no-privilege-amplification");
         let database = unregistered_database(&root);

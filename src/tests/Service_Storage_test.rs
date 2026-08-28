@@ -4,10 +4,12 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use ac_ant_delirium::libres::Rusqlite_unit::AC_params;
 use ac_ant_delirium::libres::Sha2_unit::sha256;
 use ac_ant_delirium::structs::{
-    AuditStore, CanonicalStateStore, CanonicalTaskPackage, CanonicalTaskPackageTask,
-    CapabilityActor, CapabilityAuthorizationOutcome, CapabilityAuthorizationRequest,
-    CapabilityChannel, CapabilityOperation, NewCapabilityGrant, NewCapabilityRevocation,
-    StorageWorkspace, GOVERNANCE_TASK_PACKAGE_CONTRACT_VERSION,
+    AuditStore, CanonicalStateStore, CanonicalTaskAdvance, CanonicalTaskPackage,
+    CanonicalTaskPackageTask, CapabilityActor, CapabilityAuthorizationOutcome,
+    CapabilityAuthorizationRequest, CapabilityChannel, CapabilityOperation, NewAuditEvent,
+    NewCapabilityGrant, NewCapabilityRevocation, NewReview, NewSubmission, ReviewDecision,
+    ReviewStore, StorageWorkspace, SubmissionStore, AUDIT_EVENT_CONTRACT_VERSION,
+    GOVERNANCE_TASK_PACKAGE_CONTRACT_VERSION, SUBMISSION_CONTRACT_VERSION,
 };
 
 #[cfg(unix)]
@@ -267,6 +269,119 @@ fn generic_task_package_rejects_a_non_admin_capability() {
         storage.registry().service_security_event_count().unwrap(),
         1
     );
+
+    fs::remove_dir_all(root).expect("fixture cleanup");
+}
+
+#[test]
+fn exact_ci_state_transition_advances_only_an_accepted_reviewed_task() {
+    let root = unique_root("accepted-task-advance");
+    let authority = authority();
+    let storage = ProtectedServiceStorage::initialize(&authority, &root).unwrap();
+    let registration = storage
+        .create_provisional_registration(&authority, 1000, &[44_u8; 32], "synthetic-project")
+        .unwrap();
+    let database = storage
+        .open_registered_project(&authority, &registration.project_id)
+        .unwrap();
+    let package = CanonicalTaskPackage {
+        contract_version: GOVERNANCE_TASK_PACKAGE_CONTRACT_VERSION.to_string(),
+        project_id: registration.project_id.clone(),
+        workspace_id: registration.workspace_id.clone(),
+        plan_id: PLAN_ID.to_string(),
+        expected_state_revision: 0,
+        tasks: vec![CanonicalTaskPackageTask {
+            task_id: TASK_ID.to_string(),
+            task_revision: 1,
+            objective: "Advance only after accepted review.".to_string(),
+            acceptance_criteria: vec!["Protected advancement succeeds.".to_string()],
+            relevant_paths: vec!["src/lib.rs".to_string()],
+        }],
+    };
+    let event = |index: i64, kind: &str, actor: &str, resource: &str| NewAuditEvent {
+        contract_version: AUDIT_EVENT_CONTRACT_VERSION.to_string(),
+        event_id: format!("evt_{index:026}"),
+        project_id: registration.project_id.clone(),
+        workspace_id: Some(registration.workspace_id.clone()),
+        actor_kind: actor.to_string(),
+        actor_subject_id: format!("authorized-{actor}"),
+        event_kind: kind.to_string(),
+        outcome: "succeeded".to_string(),
+        occurred_at: "2026-08-27T20:00:00Z".to_string(),
+        fingerprint: format!("{index:064x}"),
+        correlation_id: format!("correlation-{index}"),
+        resource_id: Some(resource.to_string()),
+        payload: format!("event-{index}").into_bytes(),
+    };
+    CanonicalStateStore::install_task_package(
+        &database,
+        &package,
+        &event(1, "state_transitioned", "operator", PLAN_ID),
+    )
+    .unwrap();
+    let submission = NewSubmission {
+        contract_version: SUBMISSION_CONTRACT_VERSION.to_string(),
+        submission_id: "sub_00000000000000000000000000".to_string(),
+        request_id: "accepted-task-advance-request".to_string(),
+        project_id: registration.project_id.clone(),
+        workspace_id: registration.workspace_id.clone(),
+        task_id: TASK_ID.to_string(),
+        task_revision: 1,
+        base_revision: None,
+        fingerprint: format!("{:064x}", 2),
+        payload: b"synthetic accepted evidence".to_vec(),
+        received_at: "2026-08-27T20:00:01Z".to_string(),
+    };
+    SubmissionStore::record_submission(
+        &database,
+        &submission,
+        &event(2, "submission_recorded", "agent", &submission.submission_id),
+    )
+    .unwrap();
+    let review = NewReview {
+        review_id: "rev_00000000000000000000000000".to_string(),
+        project_id: registration.project_id.clone(),
+        submission_id: submission.submission_id.clone(),
+        reviewer_id: "authorized-reviewer".to_string(),
+        decision: ReviewDecision::Accepted,
+        fingerprint: format!("{:064x}", 3),
+        payload: b"accepted assigned review".to_vec(),
+        created_at: "2026-08-27T20:00:02Z".to_string(),
+    };
+    ReviewStore::record_review(
+        &database,
+        &review,
+        &event(3, "review_recorded", "reviewer", &review.review_id),
+    )
+    .unwrap();
+    let capability = authorize_capability(
+        storage.registry(),
+        CapabilityActor::Ci,
+        CapabilityChannel::Administrative,
+        CapabilityOperation::StateTransition,
+        Some(&registration.project_id),
+        Some(&registration.workspace_id),
+        Some(TASK_ID),
+    );
+    let advanced = storage
+        .advance_reviewed_task(
+            &authority,
+            &capability,
+            &CanonicalTaskAdvance {
+                project_id: registration.project_id,
+                workspace_id: registration.workspace_id,
+                task_id: TASK_ID.to_string(),
+                review_id: review.review_id,
+                expected_state_revision: 1,
+            },
+        )
+        .unwrap();
+    assert_eq!(advanced.audit.sequence(), 4);
+    assert_eq!(advanced.state.state_revision, 2);
+    assert_eq!(advanced.completed_task_id, TASK_ID);
+    assert_eq!(advanced.next_task_id, None);
+    assert_eq!(advanced.state.current_task_id, None);
+    assert_eq!(advanced.state.active_plan_id, None);
 
     fs::remove_dir_all(root).expect("fixture cleanup");
 }

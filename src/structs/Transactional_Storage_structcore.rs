@@ -397,6 +397,38 @@ ON capability_management_events(project_id, workspace_id, task_id);
 "#;
 
 const STORAGE_SCHEMA_V10: &str = r#"
+DROP INDEX capability_management_time_idx;
+DROP INDEX capability_management_scope_idx;
+
+ALTER TABLE capability_management_events RENAME TO capability_management_events_v9;
+
+CREATE TABLE capability_management_events (
+    sequence INTEGER PRIMARY KEY CHECK (sequence >= 1),
+    event_id TEXT NOT NULL UNIQUE,
+    correlation_id TEXT NOT NULL UNIQUE,
+    action_kind TEXT NOT NULL CHECK (action_kind IN ('grant', 'revoke')),
+    operator_uid INTEGER NOT NULL CHECK (operator_uid >= 1),
+    grant_id TEXT NOT NULL REFERENCES capability_grants(grant_id) ON DELETE RESTRICT,
+    subject_uid INTEGER NOT NULL CHECK (subject_uid >= 1),
+    actor_kind TEXT NOT NULL CHECK (actor_kind IN ('wrapper', 'agent', 'reviewer', 'ci')),
+    channel_kind TEXT NOT NULL CHECK (channel_kind IN ('limited', 'administrative')),
+    operation TEXT NOT NULL CHECK (operation IN ('compile.observe', 'projection.refresh', 'task.current.read', 'submission.create', 'submission.read.assigned', 'review.decide.assigned', 'attestation.create', 'state.transition')),
+    project_id TEXT,
+    workspace_id TEXT,
+    task_id TEXT,
+    occurred_at_unix INTEGER NOT NULL CHECK (occurred_at_unix >= 0),
+    CHECK (workspace_id IS NULL OR project_id IS NOT NULL),
+    CHECK (task_id IS NULL OR (project_id IS NOT NULL AND workspace_id IS NOT NULL))
+) STRICT;
+
+INSERT INTO capability_management_events SELECT * FROM capability_management_events_v9;
+DROP TABLE capability_management_events_v9;
+
+CREATE INDEX capability_management_time_idx
+ON capability_management_events(occurred_at_unix, sequence);
+CREATE INDEX capability_management_scope_idx
+ON capability_management_events(project_id, workspace_id, task_id);
+
 ALTER TABLE tasks
 ADD COLUMN task_ordinal INTEGER NOT NULL DEFAULT 0 CHECK (task_ordinal >= 0);
 

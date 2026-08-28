@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 use ac_ant_delirium::libres::Sha2_unit::sha256;
 use ac_ant_delirium::libres::System_Random_unit::{fill_system_random, random_crockford_id};
 use ac_ant_delirium::structs::{
-    CanonicalTaskPackage, CanonicalTaskPackageTask, CapabilityActor,
+    CanonicalTaskAdvance, CanonicalTaskPackage, CanonicalTaskPackageTask, CapabilityActor,
     CapabilityAuthorizationOutcome, CapabilityAuthorizationRequest, CapabilityChannel,
     CapabilityOperation,
 };
@@ -45,6 +45,7 @@ const MIGRATION_OPERATION_TIMEOUT: Duration = Duration::from_secs(600);
 const ADMIN_SOCKET_ENV: &str = "ANTDELIRIUM_ADMIN_SOCKET";
 const ADMIN_CAPABILITY_FD_ENV: &str = "ANTDELIRIUM_ADMIN_CAPABILITY_FD";
 const TASK_PACKAGE_FD_ENV: &str = "ANTDELIRIUM_TASK_PACKAGE_FD";
+const TASK_ADVANCE_FD_ENV: &str = "ANTDELIRIUM_TASK_ADVANCE_FD";
 const CAPABILITY_OUTPUT_FD_ENV: &str = "ANTDELIRIUM_CAPABILITY_OUTPUT_FD";
 const CAPABILITY_TARGET_FD_ENV: &str = "ANTDELIRIUM_CAPABILITY_TARGET_FD";
 const CAPABILITY_SUBJECT_UID_ENV: &str = "ANTDELIRIUM_CAPABILITY_SUBJECT_UID";
@@ -238,11 +239,48 @@ struct TaskPackageReceipt {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TaskAdvanceBody {
+    contract_version: String,
+    project_id: String,
+    workspace_id: String,
+    task_id: String,
+    review_id: String,
+    expected_state_revision: i64,
+}
+
+impl From<TaskAdvanceBody> for CanonicalTaskAdvance {
+    fn from(body: TaskAdvanceBody) -> Self {
+        Self {
+            project_id: body.project_id,
+            workspace_id: body.workspace_id,
+            task_id: body.task_id,
+            review_id: body.review_id,
+            expected_state_revision: body.expected_state_revision,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TaskAdvanceReceipt {
+    contract_version: String,
+    project_id: String,
+    workspace_id: String,
+    completed_task_id: String,
+    next_task_id: Option<String>,
+    state_revision: i64,
+    audit_sequence: i64,
+    state: String,
+}
+
+#[derive(Serialize, Deserialize)]
 #[serde(untagged)]
 enum AdministrativeBody {
     Grant(CapabilityGrantBody),
     Revoke(CapabilityRevokeBody),
     TaskPackage(TaskPackageBody),
+    TaskAdvance(TaskAdvanceBody),
     Stage(MigrationStageBody),
     Normalize(LegacyNormalizationRequest),
     DryRun(LegacyDryRunRequest),
@@ -270,6 +308,7 @@ enum AdministrativeResult {
     Grant(CapabilityGrantReceipt),
     Revoke(CapabilityRevokeReceipt),
     TaskPackage(TaskPackageReceipt),
+    TaskAdvance(TaskAdvanceReceipt),
     Stage(LegacyStageReceipt),
     Normalize(LegacyNormalizationReceipt),
     DryRun(LegacyDryRunReport),
@@ -423,6 +462,9 @@ pub(crate) fn run_migration_operator(args: &[OsString]) {
         Ok(AdministrativeResult::TaskPackage(_)) => {
             OutputRouter::exit(PublicError::Authorization)
         }
+        Ok(AdministrativeResult::TaskAdvance(_)) => {
+            OutputRouter::exit(PublicError::Authorization)
+        }
         Err(AdministrativeProtocolError::Authorization) => {
             OutputRouter::exit(PublicError::Authorization)
         }
@@ -443,7 +485,11 @@ pub(crate) fn run_task_package_operator(args: &[OsString]) {
         && args[0] == OsStr::new("operator")
         && args[1] == OsStr::new("task-package")
         && args[2] == OsStr::new("install");
-    if !install {
+    let advance = args.len() == 3
+        && args[0] == OsStr::new("operator")
+        && args[1] == OsStr::new("task")
+        && args[2] == OsStr::new("advance");
+    if !install && !advance {
         OutputRouter::exit(PublicError::Authorization);
     }
     if cfg!(debug_assertions) {
@@ -452,8 +498,9 @@ pub(crate) fn run_task_package_operator(args: &[OsString]) {
     if crate::service_hardening::harden_operator_process().is_err() {
         OutputRouter::exit(PublicError::Authorization);
     }
-    match run_task_package_operator_inner() {
-        Ok(receipt) => OutputRouter::write_success(&format!(
+    if install {
+        match run_task_package_operator_inner() {
+            Ok(receipt) => OutputRouter::write_success(&format!(
             "antdelirium[AD-TASK-PACKAGE-INSTALLED]: project_id={} workspace_id={} plan_id={} current_task_id={} state_revision={} task_count={} audit_sequence={} state={}",
             receipt.project_id,
             receipt.workspace_id,
@@ -463,19 +510,38 @@ pub(crate) fn run_task_package_operator(args: &[OsString]) {
             receipt.task_count,
             receipt.audit_sequence,
             receipt.state,
-        )),
-        Err(AdministrativeProtocolError::Authorization) => {
+            )),
+            Err(error) => exit_operator_protocol_error(error),
+        }
+    } else {
+        match run_task_advance_operator_inner() {
+            Ok(receipt) => OutputRouter::write_success(&format!(
+                "antdelirium[AD-TASK-ADVANCED]: project_id={} workspace_id={} completed_task_id={} next_task_id={} state_revision={} audit_sequence={} state={}",
+                receipt.project_id,
+                receipt.workspace_id,
+                receipt.completed_task_id,
+                receipt.next_task_id.as_deref().unwrap_or("none"),
+                receipt.state_revision,
+                receipt.audit_sequence,
+                receipt.state,
+            )),
+            Err(error) => exit_operator_protocol_error(error),
+        }
+    }
+}
+
+fn exit_operator_protocol_error(error: AdministrativeProtocolError) -> ! {
+    match error {
+        AdministrativeProtocolError::Authorization => {
             OutputRouter::exit(PublicError::Authorization)
         }
-        Err(AdministrativeProtocolError::Endpoint | AdministrativeProtocolError::Transport(_)) => {
+        AdministrativeProtocolError::Endpoint | AdministrativeProtocolError::Transport(_) => {
             OutputRouter::exit(PublicError::ServiceUnavailable)
         }
-        Err(AdministrativeProtocolError::Framing | AdministrativeProtocolError::Envelope) => {
+        AdministrativeProtocolError::Framing | AdministrativeProtocolError::Envelope => {
             OutputRouter::exit(PublicError::Protocol)
         }
-        Err(AdministrativeProtocolError::Staging) => {
-            OutputRouter::exit(PublicError::Configuration)
-        }
+        AdministrativeProtocolError::Staging => OutputRouter::exit(PublicError::Configuration),
     }
 }
 
@@ -486,7 +552,7 @@ fn run_task_package_operator_inner() -> Result<TaskPackageReceipt, Administrativ
     clear_task_package_environment();
     let endpoint = required_absolute_path(endpoint)?;
     let capability = read_administrative_capability()?;
-    let mut package_bytes = read_task_package_from_raw_fd(
+    let mut package_bytes = read_bounded_json_from_raw_fd(
         package_fd.ok_or(AdministrativeProtocolError::Authorization)?,
     )?;
     let parsed = serde_json::from_slice(&package_bytes);
@@ -501,6 +567,37 @@ fn run_task_package_operator_inner() -> Result<TaskPackageReceipt, Administrativ
         AdministrativeResult::TaskPackage(receipt) => Ok(receipt),
         _ => Err(AdministrativeProtocolError::Envelope),
     }
+}
+
+#[cfg(unix)]
+fn run_task_advance_operator_inner() -> Result<TaskAdvanceReceipt, AdministrativeProtocolError> {
+    let endpoint = std::env::var_os(ADMIN_SOCKET_ENV);
+    let advance_fd = std::env::var_os(TASK_ADVANCE_FD_ENV);
+    clear_task_advance_environment();
+    let endpoint = required_absolute_path(endpoint)?;
+    let capability = read_administrative_capability()?;
+    let mut advance_bytes = read_bounded_json_from_raw_fd(
+        advance_fd.ok_or(AdministrativeProtocolError::Authorization)?,
+    )?;
+    let parsed = serde_json::from_slice(&advance_bytes);
+    advance_bytes.fill(0);
+    let advance: TaskAdvanceBody = parsed.map_err(|_| AdministrativeProtocolError::Envelope)?;
+    match exchange_administrative_request(
+        &endpoint,
+        capability.capability,
+        "governance.task.advance.accepted",
+        AdministrativeBody::TaskAdvance(advance),
+    )? {
+        AdministrativeResult::TaskAdvance(receipt) => Ok(receipt),
+        _ => Err(AdministrativeProtocolError::Envelope),
+    }
+}
+
+#[cfg(not(unix))]
+fn run_task_advance_operator_inner() -> Result<TaskAdvanceReceipt, AdministrativeProtocolError> {
+    Err(AdministrativeProtocolError::Transport(
+        "unsupported-platform",
+    ))
 }
 
 #[cfg(not(unix))]
@@ -1294,6 +1391,26 @@ pub(crate) fn serve_administrative_request(
                 },
             })
         }
+        AdministrativeBody::TaskAdvance(body) => {
+            let advance = CanonicalTaskAdvance::from(body);
+            let outcome = storage
+                .advance_reviewed_task(authority, &capability, &advance)
+                .map_err(|_| AdministrativeProtocolError::Authorization)?;
+            AdministrativeResult::TaskAdvance(TaskAdvanceReceipt {
+                contract_version: "governance-task-advance-receipt-v1".to_string(),
+                project_id: advance.project_id,
+                workspace_id: advance.workspace_id,
+                completed_task_id: outcome.completed_task_id,
+                next_task_id: outcome.next_task_id,
+                state_revision: outcome.state.state_revision,
+                audit_sequence: outcome.audit.sequence(),
+                state: if outcome.audit.inserted() {
+                    "advanced".to_string()
+                } else {
+                    "already-advanced".to_string()
+                },
+            })
+        }
         AdministrativeBody::Stage(body) => {
             let inventory_document = serde_json::to_vec_pretty(&body.inventory)
                 .map_err(|_| AdministrativeProtocolError::Envelope)?;
@@ -1380,6 +1497,11 @@ fn capability_request(
             Some(body.project_id.clone()),
             Some(body.workspace_id.clone()),
         ),
+        AdministrativeBody::TaskAdvance(body) => (
+            CapabilityOperation::StateTransition,
+            Some(body.project_id.clone()),
+            Some(body.workspace_id.clone()),
+        ),
         _ => (CapabilityOperation::StateAdmin, None, None),
     };
     Ok(CapabilityAuthorizationRequest {
@@ -1389,7 +1511,10 @@ fn capability_request(
         operation,
         project_id,
         workspace_id,
-        task_id: None,
+        task_id: match &request.body {
+            AdministrativeBody::TaskAdvance(body) => Some(body.task_id.clone()),
+            _ => None,
+        },
         presented_connection_nonce: *authentication.connection_nonce(),
         request_id: request.request_id.clone(),
         request_fingerprint: sha256(&fingerprint),
@@ -1417,6 +1542,14 @@ fn request_authority_matches(
                 && capability.workspace_id() == Some(body.workspace_id.as_str())
                 && capability.task_id().is_none()
         }
+        AdministrativeBody::TaskAdvance(body) => {
+            capability.actor() == CapabilityActor::Ci
+                && capability.channel() == CapabilityChannel::Administrative
+                && capability.operation() == CapabilityOperation::StateTransition
+                && capability.project_id() == Some(body.project_id.as_str())
+                && capability.workspace_id() == Some(body.workspace_id.as_str())
+                && capability.task_id() == Some(body.task_id.as_str())
+        }
         _ => {
             capability.actor() == CapabilityActor::Operator
                 && capability.channel() == CapabilityChannel::Administrative
@@ -1439,6 +1572,7 @@ fn validate_request(
             "capability.grant"
                 | "capability.revoke"
                 | "governance.task-package.install"
+                | "governance.task.advance.accepted"
                 | "migration.stage"
                 | "migration.normalize"
                 | "migration.dry-run"
@@ -1473,6 +1607,16 @@ fn validate_request(
                 && valid_opaque_id(&body.project_id, "prj_")
                 && valid_opaque_id(&body.workspace_id, "wsp_")
                 && valid_opaque_id(&body.plan_id, "pln_") =>
+        {
+            Ok(())
+        }
+        ("governance.task.advance.accepted", AdministrativeBody::TaskAdvance(body))
+            if body.contract_version == "governance-task-advance-v1"
+                && valid_opaque_id(&body.project_id, "prj_")
+                && valid_opaque_id(&body.workspace_id, "wsp_")
+                && valid_opaque_id(&body.task_id, "tsk_")
+                && valid_opaque_id(&body.review_id, "rev_")
+                && body.expected_state_revision >= 0 =>
         {
             Ok(())
         }
@@ -1545,6 +1689,7 @@ fn parse_managed_operation(
         "submission.read.assigned" => Ok(CapabilityOperation::SubmissionReadAssigned),
         "review.decide.assigned" => Ok(CapabilityOperation::ReviewDecideAssigned),
         "attestation.create" => Ok(CapabilityOperation::AttestationCreate),
+        "state.transition" => Ok(CapabilityOperation::StateTransition),
         _ => Err(AdministrativeProtocolError::Envelope),
     }
 }
@@ -1554,6 +1699,7 @@ fn issued_capability_contract(actor: &str, channel: &str, operation: &str) -> &'
         ("agent", "limited", "submission.create") => "agent-submission-capability-v1",
         ("reviewer", "limited", "submission.read.assigned") => "reviewer-assignment-capability-v1",
         ("reviewer", "limited", "review.decide.assigned") => "reviewer-decision-capability-v1",
+        ("ci", "administrative", "state.transition") => "ci-state-transition-capability-v1",
         _ => "admin-capability-v1",
     }
 }
@@ -1890,6 +2036,12 @@ fn clear_task_package_environment() {
     }
 }
 
+fn clear_task_advance_environment() {
+    for name in [ADMIN_SOCKET_ENV, TASK_ADVANCE_FD_ENV] {
+        std::env::remove_var(name);
+    }
+}
+
 fn parse_decimal<T: std::str::FromStr>(
     value: Option<String>,
 ) -> Result<T, AdministrativeProtocolError> {
@@ -2070,7 +2222,7 @@ fn read_migration_source_inputs(
 }
 
 #[cfg(unix)]
-fn read_task_package_from_raw_fd(raw: OsString) -> Result<Vec<u8>, AdministrativeProtocolError> {
+fn read_bounded_json_from_raw_fd(raw: OsString) -> Result<Vec<u8>, AdministrativeProtocolError> {
     let raw_fd = parse_open_descriptor(&raw)?;
     let mut file = unsafe { std::fs::File::from_raw_fd(raw_fd) };
     set_descriptor_close_on_exec(file.as_raw_fd())
@@ -2106,7 +2258,10 @@ fn read_administrative_capability(
         .ok_or(AdministrativeProtocolError::Authorization)?;
     std::env::remove_var(ADMIN_CAPABILITY_FD_ENV);
     let mut capability = read_capability_bundle_from_raw_fd(raw)?;
-    if capability.contract_version != "admin-capability-v1" {
+    if !matches!(
+        capability.contract_version.as_str(),
+        "admin-capability-v1" | "ci-state-transition-capability-v1"
+    ) {
         erase_string(&mut capability.capability.token);
         return Err(AdministrativeProtocolError::Authorization);
     }
@@ -2143,6 +2298,7 @@ fn read_capability_bundle_from_raw_fd(
             | "agent-submission-capability-v1"
             | "reviewer-assignment-capability-v1"
             | "reviewer-decision-capability-v1"
+            | "ci-state-transition-capability-v1"
     ) || !valid_opaque_id(&capability.capability.capability_id, "cap_")
         || !is_encoded_nonce(&capability.capability.token)
     {

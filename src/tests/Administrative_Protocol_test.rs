@@ -125,7 +125,7 @@ fn task_package_input_requires_a_bounded_readonly_descriptor_at_offset_zero() {
 
     let readonly_fd = fs::File::open(&package_path).unwrap().into_raw_fd();
     assert_eq!(
-        read_task_package_from_raw_fd(OsString::from(readonly_fd.to_string())).unwrap(),
+        read_bounded_json_from_raw_fd(OsString::from(readonly_fd.to_string())).unwrap(),
         package
     );
 
@@ -136,7 +136,7 @@ fn task_package_input_requires_a_bounded_readonly_descriptor_at_offset_zero() {
         .unwrap()
         .into_raw_fd();
     assert_eq!(
-        read_task_package_from_raw_fd(OsString::from(writable_fd.to_string())),
+        read_bounded_json_from_raw_fd(OsString::from(writable_fd.to_string())),
         Err(AdministrativeProtocolError::Authorization)
     );
 
@@ -144,7 +144,7 @@ fn task_package_input_requires_a_bounded_readonly_descriptor_at_offset_zero() {
     let mut first = [0_u8; 1];
     advanced.read_exact(&mut first).unwrap();
     assert_eq!(
-        read_task_package_from_raw_fd(OsString::from(advanced.into_raw_fd().to_string())),
+        read_bounded_json_from_raw_fd(OsString::from(advanced.into_raw_fd().to_string())),
         Err(AdministrativeProtocolError::Authorization)
     );
 }
@@ -374,6 +374,50 @@ fn generic_task_package_request_is_closed_and_requires_state_admin() {
 }
 
 #[test]
+fn accepted_task_advance_is_closed_and_requires_exact_ci_scope() {
+    let nonce = [6_u8; 32];
+    let request = AdministrativeRequest {
+        message_type: "request".to_string(),
+        wire_version: ADMIN_WIRE_VERSION.to_string(),
+        request_id: "req_00000000000000000000000000".to_string(),
+        connection_nonce: encode_base64url(&nonce),
+        operation: "governance.task.advance.accepted".to_string(),
+        capability: WireCapability {
+            capability_id: "cap_00000000000000000000000000".to_string(),
+            token: encode_base64url(&[8_u8; 32]),
+        },
+        body: AdministrativeBody::TaskAdvance(TaskAdvanceBody {
+            contract_version: "governance-task-advance-v1".to_string(),
+            project_id: "prj_00000000000000000000000000".to_string(),
+            workspace_id: "wsp_00000000000000000000000000".to_string(),
+            task_id: "tsk_00000000000000000000000000".to_string(),
+            review_id: "rev_00000000000000000000000000".to_string(),
+            expected_state_revision: 1,
+        }),
+    };
+
+    assert_eq!(validate_request(&request, &nonce), Ok(()));
+    let authentication = ConnectionAuthentication::for_test(1000, nonce);
+    let authorization = capability_request(&authentication, &request).unwrap();
+    assert_eq!(
+        authorization.operation,
+        CapabilityOperation::StateTransition
+    );
+    assert_eq!(
+        authorization.project_id.as_deref(),
+        Some("prj_00000000000000000000000000")
+    );
+    assert_eq!(
+        authorization.workspace_id.as_deref(),
+        Some("wsp_00000000000000000000000000")
+    );
+    assert_eq!(
+        authorization.task_id.as_deref(),
+        Some("tsk_00000000000000000000000000")
+    );
+}
+
+#[test]
 fn issued_agent_submission_capability_has_a_non_administrative_contract() {
     assert_eq!(
         issued_capability_contract("agent", "limited", "submission.create"),
@@ -386,6 +430,10 @@ fn issued_agent_submission_capability_has_a_non_administrative_contract() {
     assert_eq!(
         issued_capability_contract("reviewer", "limited", "review.decide.assigned"),
         "reviewer-decision-capability-v1"
+    );
+    assert_eq!(
+        issued_capability_contract("ci", "administrative", "state.transition"),
+        "ci-state-transition-capability-v1"
     );
     for (actor, channel, operation) in [
         ("operator", "administrative", "state.admin"),

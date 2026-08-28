@@ -791,6 +791,7 @@ fn validate_managed_grant_policy(
                 | CapabilityOperation::SubmissionReadAssigned
                 | CapabilityOperation::ReviewDecideAssigned
                 | CapabilityOperation::AttestationCreate
+                | CapabilityOperation::StateTransition
         )
     {
         return Err(invalid_grant());
@@ -935,6 +936,11 @@ fn actor_operation_allowed(
                 Actor::Ci,
                 Channel::Administrative,
                 Operation::AttestationCreate
+            )
+            | (
+                Actor::Ci,
+                Channel::Administrative,
+                Operation::StateTransition
             )
             | (
                 Actor::Ci,

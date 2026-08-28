@@ -10,11 +10,12 @@ use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use ac_ant_delirium::libres::Sha2_unit::sha256;
 use ac_ant_delirium::libres::System_Random_unit::{fill_system_random, random_crockford_id};
 use ac_ant_delirium::structs::{
-    AuthorizedCapability, CanonicalMutationOutcome, CanonicalStateStore, CanonicalTaskPackage,
-    CapabilityActor, CapabilityChannel, CapabilityGrantAuditReceipt, CapabilityOperation,
-    CapabilityRevocationAuditReceipt, NewAuditEvent, NewCapabilityGrant, ProjectDatabase,
-    ProvisionalProjectRegistration, ServiceSecurityAuditReceipt, StorageProject, StorageWorkspace,
-    TransactionalStorageError, AUDIT_EVENT_CONTRACT_VERSION, STORAGE_SCHEMA_VERSION,
+    AuthorizedCapability, CanonicalMutationOutcome, CanonicalStateStore, CanonicalTaskAdvance,
+    CanonicalTaskAdvanceOutcome, CanonicalTaskPackage, CapabilityActor, CapabilityChannel,
+    CapabilityGrantAuditReceipt, CapabilityOperation, CapabilityRevocationAuditReceipt,
+    NewAuditEvent, NewCapabilityGrant, ProjectDatabase, ProvisionalProjectRegistration,
+    ServiceSecurityAuditReceipt, StorageProject, StorageWorkspace, TransactionalStorageError,
+    AUDIT_EVENT_CONTRACT_VERSION, STORAGE_SCHEMA_VERSION,
 };
 
 use crate::service_authority::VerifiedServiceAuthority;
@@ -174,6 +175,60 @@ impl ProtectedServiceStorage {
         };
         database
             .install_task_package(package, &event)
+            .map_err(|_| ())
+    }
+
+    pub(crate) fn advance_reviewed_task(
+        &self,
+        authority: &VerifiedServiceAuthority,
+        capability: &AuthorizedCapability,
+        advance: &CanonicalTaskAdvance,
+    ) -> Result<CanonicalTaskAdvanceOutcome, ()> {
+        let now = trusted_service_unix_time().map_err(|_| ())?;
+        let authorized = capability.actor() == CapabilityActor::Ci
+            && capability.channel() == CapabilityChannel::Administrative
+            && capability.operation() == CapabilityOperation::StateTransition
+            && capability.project_id() == Some(advance.project_id.as_str())
+            && capability.workspace_id() == Some(advance.workspace_id.as_str())
+            && capability.task_id() == Some(advance.task_id.as_str())
+            && self
+                .registry
+                .authorized_capability_is_current(capability, now)
+                .map_err(|_| ())?;
+        if !authorized {
+            self.audit_rejected_authorized_request_at(capability, now)?;
+            return Err(());
+        }
+
+        let database = self.open_registered_project(authority, &advance.project_id)?;
+        let mut fingerprint_material = Vec::new();
+        fingerprint_material.extend_from_slice(b"governance-task-advance-v1");
+        fingerprint_material.push(0);
+        fingerprint_material.extend_from_slice(advance.project_id.as_bytes());
+        fingerprint_material.push(0);
+        fingerprint_material.extend_from_slice(advance.workspace_id.as_bytes());
+        fingerprint_material.push(0);
+        fingerprint_material.extend_from_slice(advance.task_id.as_bytes());
+        fingerprint_material.push(0);
+        fingerprint_material.extend_from_slice(advance.review_id.as_bytes());
+        fingerprint_material.extend_from_slice(&advance.expected_state_revision.to_be_bytes());
+        let event = NewAuditEvent {
+            contract_version: AUDIT_EVENT_CONTRACT_VERSION.to_string(),
+            event_id: random_crockford_id("evt_").map_err(|_| ())?,
+            project_id: advance.project_id.clone(),
+            workspace_id: Some(advance.workspace_id.clone()),
+            actor_kind: "ci".to_string(),
+            actor_subject_id: "authorized-state-transition".to_string(),
+            event_kind: "state_transitioned".to_string(),
+            outcome: "succeeded".to_string(),
+            occurred_at: format!("unix:{now}"),
+            fingerprint: lowercase_hex(&sha256(&fingerprint_material)),
+            correlation_id: random_crockford_id("ref_").map_err(|_| ())?,
+            resource_id: Some(advance.task_id.clone()),
+            payload: b"accepted assigned review advanced canonical task".to_vec(),
+        };
+        database
+            .advance_accepted_task(advance, &event)
             .map_err(|_| ())
     }
 
