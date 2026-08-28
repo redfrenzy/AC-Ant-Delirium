@@ -189,8 +189,9 @@ O recibo reproduzível está em
 `assigned_review_decision=pass`. A tarefa permaneceu disponível na revisão 1,
 confirmando que revisão e avanço são autoridades diferentes.
 
-Esta entrega ainda não conclui T8G.3. Permanecem implementar e validar avanço
-canônico e histórico protegido no serviço.
+Essa primeira execução ainda não concluía T8G.3: naquele ponto permaneciam o
+avanço canônico e o histórico protegido no serviço. As seções seguintes
+registram a implementação, a falha intermediária legítima e o aceite final.
 
 ## Núcleo transacional do avanço
 
@@ -221,9 +222,8 @@ pedido ainda é revalidada dentro da transação protegida.
 capability por tarefa, executa a transição como o usuário não-root que chamou
 `sudo` e a revoga imediatamente. O agente continua sem autoridade de avanço e
 sem acesso ao histórico ou ao plano protegido. O recibo público contém apenas
-IDs opacos, a nova revisão canônica e a sequência de auditoria. Falta executar
-o gate instalado completo sobre o binário `storage-v10`; até esse teste real,
-esta seção descreve código e testes locais, não uma instalação já comprovada.
+IDs opacos, a nova revisão canônica e a sequência de auditoria. Essa fronteira
+foi posteriormente implantada e comprovada pelo gate final descrito abaixo.
 
 ## Primeiro ciclo instalado em `storage-v10`
 
@@ -248,3 +248,34 @@ JSONs em `guard/`; depois o supervisor revoga a capability. O agente não recebe
 esse descritor nem precisa executar comando novo. O `cargo check` totalmente em
 cache permanece no gate apenas como prova de compatibilidade, não como gatilho
 da atualização administrativa.
+
+## Aceite final instalado
+
+O ciclo `20260828T120128Z-9918`, executado sobre uma fixture Rust canônica nova,
+concluiu T8G.3 com `exit_code=0`. A instalação estava integralmente no commit
+`417cbad`, com wrapper global, serviço, release e bundle no SHA-256
+`295e4406aed195495f3b4e46a587db4e0cda85548927936ffde0d5f857aa21e6`.
+
+O gate comprovou, em ordem:
+
+- pacote canônico instalado e as duas projeções publicadas na revisão 1;
+- submissão pela API pública existente e capability imediatamente revogada;
+- leitura somente da submissão atribuída e decisão `accepted` por capabilities
+  distintas, ambas revogadas;
+- avanço sob `Ci/Administrative/StateTransition` escopado à tarefa, com
+  `next_task_id=none`, revisão canônica 2 e sequência 8 no histórico protegido;
+- publicação das duas projeções sob capability independente
+  `Wrapper/Limited/ProjectionRefresh`, seguida de revogação;
+- `cargo check` totalmente em cache concluído sem alterar ou regredir a
+  projeção já correta;
+- `to-do_list.json` na revisão 2 com `task=null` e
+  `queue_status=no_task_available`, `governance_error.json` na mesma revisão e
+  zero violações;
+- ausência de localizadores físicos e de acesso a qualquer projeto externo.
+
+O recibo reproduzível está em
+`target/t8g-task-cycle-logs/20260828T120128Z-9918/acceptance.env`. Ele registra
+`scoped_ci_state_transition=pass`, `supervised_projection_refresh=pass`,
+`cached_cargo_check=pass`, `protected_history_sequence=pass`,
+`canonical_task_advanced=yes` e `canonical_plan_completed=yes`. T8G.3 está
+concluída; atualização, desinstalação e rollback permanecem na T8G.4.
