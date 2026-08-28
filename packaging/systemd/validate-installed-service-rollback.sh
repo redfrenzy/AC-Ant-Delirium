@@ -237,18 +237,18 @@ current_binary_hash=$(sha256sum "$installed_binary" | cut -d ' ' -f 1)
 rollback_binary_hash=$(sha256sum "$selected_backup/antdelirium" | cut -d ' ' -f 1)
 [[ "$current_binary_hash" != "$rollback_binary_hash" ]] \
     || fail 'the selected backup does not exercise a binary rollback.'
-rollback_state_digest=$(state_digest "$selected_backup/state") \
-    || fail 'the selected rollback state contains an unsafe entry.'
 validate_storage "$selected_backup/state" >"$log_root/selected-backup-storage.env" \
     || fail 'the selected rollback state is invalid before activation.'
+rollback_state_digest=$(state_digest "$selected_backup/state") \
+    || fail 'the selected rollback state contains an unsafe entry.'
 contracts_before=$(service_contract_digest)
 
 printf '%s\n' 'AD-T8G-SERVICE-ROLLBACK: stopping service before the exact current-state snapshot.'
 stop_service
-current_digest=$(state_digest "$state_root") \
-    || fail 'the current protected state contains an unsafe entry.'
 validate_storage "$state_root" >"$log_root/current-storage-before.env" \
     || fail 'the current protected state is invalid before rollback.'
+current_digest=$(state_digest "$state_root") \
+    || fail 'the current protected state contains an unsafe entry.'
 cp -a "$installed_binary" "$validation_root/current-binary"
 mv "$state_root" "$validation_root/current-state"
 current_state_saved=1
