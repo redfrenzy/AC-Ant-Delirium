@@ -231,26 +231,32 @@ fn state_admin_installs_a_generic_task_package_without_a_physical_locator() {
 }
 
 #[test]
-fn generic_task_package_rejects_a_non_admin_capability() {
-    let root = unique_root("generic-task-package-auth");
+fn agent_cannot_install_or_advance_canonical_tasks_and_each_attempt_is_journaled() {
+    let root = unique_root("agent-administrative-mutation");
     let authority = authority();
     let storage = ProtectedServiceStorage::initialize(&authority, &root).unwrap();
     let registration = storage
         .create_provisional_registration(&authority, 1000, &[43_u8; 32], "synthetic-project")
         .unwrap();
+    let database = storage
+        .open_registered_project(&authority, &registration.project_id)
+        .unwrap();
+    let canonical_before = database
+        .load_canonical_state(&registration.project_id, &registration.workspace_id)
+        .unwrap();
     let capability = authorize_capability(
         storage.registry(),
-        CapabilityActor::Wrapper,
+        CapabilityActor::Agent,
         CapabilityChannel::Limited,
-        CapabilityOperation::ProjectionRefresh,
+        CapabilityOperation::SubmissionCreate,
         Some(&registration.project_id),
         Some(&registration.workspace_id),
-        None,
+        Some(TASK_ID),
     );
     let package = CanonicalTaskPackage {
         contract_version: GOVERNANCE_TASK_PACKAGE_CONTRACT_VERSION.to_string(),
-        project_id: registration.project_id,
-        workspace_id: registration.workspace_id,
+        project_id: registration.project_id.clone(),
+        workspace_id: registration.workspace_id.clone(),
         plan_id: PLAN_ID.to_string(),
         expected_state_revision: 0,
         tasks: vec![CanonicalTaskPackageTask {
@@ -265,10 +271,56 @@ fn generic_task_package_rejects_a_non_admin_capability() {
     assert!(storage
         .install_generic_task_package(&authority, &capability, &package)
         .is_err());
+    assert!(storage
+        .advance_reviewed_task(
+            &authority,
+            &capability,
+            &CanonicalTaskAdvance {
+                project_id: registration.project_id.clone(),
+                workspace_id: registration.workspace_id.clone(),
+                task_id: TASK_ID.to_string(),
+                review_id: "rev_00000000000000000000000000".to_string(),
+                expected_state_revision: 0,
+            },
+        )
+        .is_err());
     assert_eq!(
         storage.registry().service_security_event_count().unwrap(),
-        1
+        2
     );
+    let canonical_after = database
+        .load_canonical_state(&registration.project_id, &registration.workspace_id)
+        .unwrap();
+    assert_eq!(canonical_after, canonical_before);
+    storage
+        .registry()
+        .with_immediate_transaction(|transaction| {
+            let summary = transaction.query_row(
+                "SELECT count(*), count(DISTINCT event_id), count(DISTINCT correlation_id), min(event_kind), min(outcome), min(actor_kind), min(operation), min(project_id), min(workspace_id), min(task_id) FROM service_security_events",
+                [],
+                |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?, row.get::<_, i64>(1)?,
+                        row.get::<_, i64>(2)?, row.get::<_, String>(3)?,
+                        row.get::<_, String>(4)?, row.get::<_, String>(5)?,
+                        row.get::<_, String>(6)?, row.get::<_, String>(7)?,
+                        row.get::<_, String>(8)?, row.get::<_, String>(9)?,
+                    ))
+                },
+            )?;
+            assert_eq!(summary.0, 2);
+            assert_eq!(summary.1, 2);
+            assert_eq!(summary.2, 2);
+            assert_eq!(summary.3, "request_rejected");
+            assert_eq!(summary.4, "rejected");
+            assert_eq!(summary.5, "agent");
+            assert_eq!(summary.6, "submission.create");
+            assert_eq!(summary.7, registration.project_id);
+            assert_eq!(summary.8, registration.workspace_id);
+            assert_eq!(summary.9, TASK_ID);
+            Ok(())
+        })
+        .unwrap();
 
     fs::remove_dir_all(root).expect("fixture cleanup");
 }

@@ -81,6 +81,7 @@ ci:
 	python3 -B packaging/rollout/malformed-limited-peer.py --check
 	bash -n packaging/ci/validate-bypass-matrix.sh
 	bash -n packaging/ci/validate-authoritative-gate.sh
+	bash -n packaging/ci/validate-projection-authority.sh
 	bash -n packaging/release/validate-elf-nondisclosure.sh
 	bash -n packaging/migration/validate-legacy-source-inventory.sh
 	bash -n packaging/sandbox/validate-client-isolation.sh
@@ -128,6 +129,7 @@ ci:
 	jq empty docs/contracts/v1/bypass-matrix-evidence-v1.schema.json
 	jq empty docs/contracts/v1/release-elf-audit-v1.schema.json
 	jq empty docs/contracts/v1/hostile-isolation-evidence-v1.schema.json
+	jq empty docs/contracts/v1/projection-authority-evidence-v1.schema.json
 	RUSTFLAGS="-D warnings" cargo check --locked --all-targets --target $(HOST_TARGET)
 	RUSTFLAGS="-D warnings" cargo test --locked --all-targets --target $(HOST_TARGET) --no-fail-fast
 	$(MAKE) release-nondisclosure
@@ -233,6 +235,17 @@ syscall-client-nondisclosure: binary
 .PHONY: hostile-isolation-matrix
 hostile-isolation-matrix: binary
 	bash packaging/sandbox/validate-hostile-isolation-matrix.sh
+
+# -----------------------------------------------
+# make projection-authority-matrix
+# -----------------------------------------------
+# Proves that project-local JSON files are disposable projections and that
+# agent attempts cannot install or advance canonical tasks. Synthetic only;
+# no installed service, sudo or external project is used.
+# -----------------------------------------------
+.PHONY: projection-authority-matrix
+projection-authority-matrix: binary
+	bash packaging/ci/validate-projection-authority.sh
 
 # -----------------------------------------------
 # make system-installation-bundle

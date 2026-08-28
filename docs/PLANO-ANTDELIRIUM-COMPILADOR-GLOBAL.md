@@ -1221,6 +1221,17 @@ para o estado protegido e fechamento de descritor herdado após `exec`. A prova
 roda como operador comum, nunca com `sudo`, não muda fonte nem consulta projeto
 externo.
 
+Estado da T9.5: a
+[matriz de autoridade das projeções](./VALIDACAO-AUTORIDADE-PROJECOES-T9.5.md)
+comprovou que exclusão, conteúdo hostil, permissões divergentes e symlinks nos
+dois JSONs públicos nunca alimentam o estado protegido. Plano, payload da
+tarefa, revisão, snapshot de governança e sequências permaneceram canônicos e
+as projeções foram reconstruídas dos bytes protegidos. A CLI pública recusou
+conclusão e override com o mesmo contrato de autorização; quando uma capability
+válida de agente tentou instalar e avançar tarefa no serviço, as duas operações
+foram negadas, não mudaram estado e geraram dois eventos opacos sem locator.
+Toda a prova usa fixtures internas e o release revisado, sem projeto externo.
+
 ## 15. Matriz mínima de validação
 
 O gate obrigatório desta matriz usa somente fixtures sintéticas mantidas neste

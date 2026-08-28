@@ -576,6 +576,24 @@ mod tests {
             .expect("initial task projection");
         let path = state_root.todo_projection_path();
         let canonical = fs::read(&path).expect("canonical task bytes");
+        let canonical_state_before =
+            CanonicalStateStore::load_canonical_state(&database, PROJECT_ID, WORKSPACE_ID).unwrap();
+        let protected_payloads_before = database
+            .with_immediate_transaction(|transaction| {
+                Ok((
+                    transaction.query_row(
+                        "SELECT payload FROM plans WHERE project_id = ?1 AND plan_id = ?2",
+                        AC_params![PROJECT_ID, PLAN_ID],
+                        |row| row.get::<_, Vec<u8>>(0),
+                    )?,
+                    transaction.query_row(
+                        "SELECT payload FROM tasks WHERE project_id = ?1 AND task_id = ?2",
+                        AC_params![PROJECT_ID, CURRENT_TASK_ID],
+                        |row| row.get::<_, Vec<u8>>(0),
+                    )?,
+                ))
+            })
+            .unwrap();
 
         fs::remove_file(&path).expect("delete public projection");
         let deleted = writer
@@ -653,8 +671,24 @@ mod tests {
         );
         let state =
             CanonicalStateStore::load_canonical_state(&database, PROJECT_ID, WORKSPACE_ID).unwrap();
-        assert_eq!(state.projection_generation, 1);
-        assert_eq!(state.last_event_sequence, 1);
+        assert_eq!(state, canonical_state_before);
+        let protected_payloads_after = database
+            .with_immediate_transaction(|transaction| {
+                Ok((
+                    transaction.query_row(
+                        "SELECT payload FROM plans WHERE project_id = ?1 AND plan_id = ?2",
+                        AC_params![PROJECT_ID, PLAN_ID],
+                        |row| row.get::<_, Vec<u8>>(0),
+                    )?,
+                    transaction.query_row(
+                        "SELECT payload FROM tasks WHERE project_id = ?1 AND task_id = ?2",
+                        AC_params![PROJECT_ID, CURRENT_TASK_ID],
+                        |row| row.get::<_, Vec<u8>>(0),
+                    )?,
+                ))
+            })
+            .unwrap();
+        assert_eq!(protected_payloads_after, protected_payloads_before);
         fs::remove_dir_all(root).expect("fixture cleanup");
     }
 }

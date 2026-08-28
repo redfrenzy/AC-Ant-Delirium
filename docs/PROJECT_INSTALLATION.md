@@ -141,6 +141,14 @@ lugar do JSON falha fechado e é preservado: o AntDelirium não executa remoçã
 recursiva de conteúdo desconhecido. Depois que o conflito é removido, o refresh
 normal recria a projeção canônica.
 
+A T9.5 consolidou essa fronteira em `make projection-authority-matrix`. Além da
+regeneração após exclusão, conteúdo falso, modo incorreto e symlink, o gate
+compara os bytes protegidos e o estado antes/depois, executa mutações proibidas
+contra o release real e prova que tentativas de instalação/avanço feitas com
+capability de agente são negadas e registradas. O contrato e o resultado estão
+em
+[`VALIDACAO-AUTORIDADE-PROJECOES-T9.5.md`](./VALIDACAO-AUTORIDADE-PROJECOES-T9.5.md).
+
 ## Fronteira de conteúdo de `guard/`
 
 Os dois builders e o writer final aplicam a mesma política de não divulgação.

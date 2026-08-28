@@ -264,6 +264,19 @@ mod tests {
             .expect("initial governance projection");
         let path = writer.governance_errors_path();
         let canonical = fs::read(&path).expect("canonical governance bytes");
+        let canonical_state_before = database
+            .load_canonical_state(PROJECT_ID, WORKSPACE_ID)
+            .unwrap();
+        let protected_snapshot_before = database
+            .with_immediate_transaction(|transaction| {
+                transaction.query_row(
+                    "SELECT fingerprint, payload FROM governance_snapshots WHERE project_id = ?1 AND workspace_id = ?2",
+                    AC_params![PROJECT_ID, WORKSPACE_ID],
+                    |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)),
+                )
+                .map_err(Into::into)
+            })
+            .unwrap();
 
         fs::remove_file(&path).expect("delete governance projection");
         let deleted = writer
@@ -326,8 +339,18 @@ mod tests {
         let state = database
             .load_canonical_state(PROJECT_ID, WORKSPACE_ID)
             .unwrap();
-        assert_eq!(state.projection_generation, 1);
-        assert_eq!(state.last_event_sequence, 2);
+        assert_eq!(state, canonical_state_before);
+        let protected_snapshot_after = database
+            .with_immediate_transaction(|transaction| {
+                transaction.query_row(
+                    "SELECT fingerprint, payload FROM governance_snapshots WHERE project_id = ?1 AND workspace_id = ?2",
+                    AC_params![PROJECT_ID, WORKSPACE_ID],
+                    |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)),
+                )
+                .map_err(Into::into)
+            })
+            .unwrap();
+        assert_eq!(protected_snapshot_after, protected_snapshot_before);
         fs::remove_dir_all(root).expect("fixture cleanup");
     }
 }
