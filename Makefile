@@ -85,6 +85,7 @@ ci:
 	bash -n packaging/migration/validate-legacy-source-inventory.sh
 	bash -n packaging/sandbox/validate-client-isolation.sh
 	bash -n packaging/sandbox/validate-wrapper-syscalls.sh
+	bash -n packaging/sandbox/validate-hostile-isolation-matrix.sh
 	bash -n packaging/systemd/render-installation-bundle.sh
 	bash -n packaging/systemd/validate-installed-service.sh
 	bash -n packaging/systemd/validate-installed-generic-project.sh
@@ -126,6 +127,7 @@ ci:
 	jq empty docs/contracts/v1/fail-open-rollout-evidence-v1.schema.json
 	jq empty docs/contracts/v1/bypass-matrix-evidence-v1.schema.json
 	jq empty docs/contracts/v1/release-elf-audit-v1.schema.json
+	jq empty docs/contracts/v1/hostile-isolation-evidence-v1.schema.json
 	RUSTFLAGS="-D warnings" cargo check --locked --all-targets --target $(HOST_TARGET)
 	RUSTFLAGS="-D warnings" cargo test --locked --all-targets --target $(HOST_TARGET) --no-fail-fast
 	$(MAKE) release-nondisclosure
@@ -220,6 +222,17 @@ adversarial-client-isolation:
 .PHONY: syscall-client-nondisclosure
 syscall-client-nondisclosure: binary
 	bash packaging/sandbox/validate-wrapper-syscalls.sh
+
+# -----------------------------------------------
+# make hostile-isolation-matrix
+# -----------------------------------------------
+# Consolidates the disposable client boundary, full wrapper syscall trace,
+# installed service /proc and ptrace denial, and inherited-FD exec proof. Run
+# as the ordinary operator; this target must never be executed with sudo.
+# -----------------------------------------------
+.PHONY: hostile-isolation-matrix
+hostile-isolation-matrix: binary
+	bash packaging/sandbox/validate-hostile-isolation-matrix.sh
 
 # -----------------------------------------------
 # make system-installation-bundle

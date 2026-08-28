@@ -699,7 +699,18 @@ Requisitos para o serviço protegido:
 
 Hardening de release, remoção de símbolos e remapeamento de caminhos de compilação são defesa em profundidade. Eles reduzem pistas estáticas, mas não substituem permissões, sandbox e separação de processo. Nomes genéricos eventualmente descobertos não podem conceder localização nem acesso ao armazenamento real.
 
-A T6.8 materializou a prova dinâmica do lado cliente em `make syscall-client-nondisclosure`. O gate segue com `strace -f` todo o `cargo check` isolado, o wrapper, seus filhos audit-only e o compilador real; exige a conexão limitada e rejeita qualquer syscall que mencione roots, layout ou payload sentinela do estado protegido. O teste não usa `sudo`, falha inconclusivo com exit `77` se `ptrace` não estiver disponível e não substitui a prova posterior de que o serviço instalado resiste a attach e inspeção de `/proc`.
+A T6.8 materializou a prova dinâmica do lado cliente em `make syscall-client-nondisclosure`. O gate segue com `strace -f` todo o `cargo check` isolado, o wrapper, seus filhos audit-only e o compilador real; exige a conexão limitada e rejeita qualquer syscall que mencione roots, layout ou payload sentinela do estado protegido. O teste não usa `sudo` e falha inconclusivo com exit `77` se `ptrace` não estiver disponível.
+
+A T9.4 consolidou essa barreira em
+[`make hostile-isolation-matrix`](./VALIDACAO-ISOLAMENTO-HOSTIL-T9.4.md). Além
+do cliente em namespaces e da árvore completa do wrapper, o gate ataca o
+serviço instalado a partir da conta comum: o kernel negou `PTRACE_SEIZE`, leitura
+de ambiente, mapas, memória, enumeração/resolução de descritores e links de
+processo; o estado recusou travessia, enumeração e abertura. Um subprocesso
+separado prova `FD_CLOEXEC` após novo `exec`. O contrato distingue metadado
+limitado que o host pode expor para um nome já conhecido de conteúdo ou locator
+interno, que continuam inacessíveis; no domínio sandboxado do agente até o PID e
+o `stat` da raiz são ocultos.
 
 ## 13. Como evitar que o agente abandone o projeto
 
@@ -1199,6 +1210,16 @@ foram observados e cinco revalidações comprovaram compilação primária pelo
 release. O gate implementa a mecânica, mas não declara este checkout uma
 autoridade externa: digest protegido, assinatura e branch gate permanecem em
 T9.6/T9.7.
+
+Estado da T9.4: a
+[matriz de isolamento hostil](./VALIDACAO-ISOLAMENTO-HOSTIL-T9.4.md) passou
+contra cliente descartável e serviço instalado. Ela exige conta dedicada,
+propriedades de hardening do unit, ausência de capabilities, negação de
+`open`/travessia/enumeração do estado, negação de leitura e resolução em
+`/proc`, recusa de attach via `ptrace`/`strace`, árvore do wrapper sem syscalls
+para o estado protegido e fechamento de descritor herdado após `exec`. A prova
+roda como operador comum, nunca com `sudo`, não muda fonte nem consulta projeto
+externo.
 
 ## 15. Matriz mínima de validação
 

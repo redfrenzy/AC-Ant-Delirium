@@ -10,7 +10,7 @@ mod tests {
     use crate::structs::{
         CapabilityActor, CapabilityAuthorizationOutcome, CapabilityAuthorizationRequest,
         CapabilityChannel, CapabilityOperation, NewCapabilityGrant, NewCapabilityRevocation,
-        ProjectDatabase, ProjectStateRoot, StorageProject,
+        ProjectDatabase, ProjectStateRoot, StorageProject, STORAGE_SCHEMA_VERSION,
     };
 
     const PROJECT_ID: &str = "prj_00000000000000000000000000";
@@ -619,7 +619,7 @@ mod tests {
     }
 
     #[test]
-    fn storage_v9_upgrade_preserves_v8_grants_and_removes_only_the_scope_foreign_key() {
+    fn storage_upgrade_from_v8_preserves_grants_and_removes_only_the_scope_foreign_key() {
         let root = fixture_root("upgrade-v8-grants");
         let state_root = ProjectStateRoot::with_default_config(
             root.join("protected"),
@@ -679,7 +679,9 @@ mod tests {
                     DROP TABLE capability_grants_v9;
                     CREATE INDEX capability_scope_idx ON capability_grants(project_id, workspace_id, task_id);
                     CREATE INDEX capability_subject_idx ON capability_grants(subject_uid, actor_kind, revocation_epoch);
-                    DELETE FROM schema_migrations WHERE version = 9;
+                    DROP INDEX tasks_plan_ordinal_idx;
+                    ALTER TABLE tasks DROP COLUMN task_ordinal;
+                    DELETE FROM schema_migrations WHERE version IN (9, 10);
                     PRAGMA user_version = 8;
                     "#,
                 )?;
@@ -689,7 +691,10 @@ mod tests {
         drop(database);
 
         let upgraded = ProjectDatabase::open_existing_at(state_root.root()).unwrap();
-        assert_eq!(upgraded.health().unwrap().schema_version, 9);
+        assert_eq!(
+            upgraded.health().unwrap().schema_version,
+            STORAGE_SCHEMA_VERSION
+        );
         assert!(matches!(
             authorize(
                 &upgraded,

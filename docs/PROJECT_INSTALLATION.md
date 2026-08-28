@@ -562,8 +562,14 @@ de descriptors da T4.7 já impede sua herança por um futuro `exec`; o serviço
 atual não cria processos filhos. A T4.8 acrescenta um probe adversarial externo
 que executa o cliente sem capabilities em namespaces descartáveis, mantém apenas
 o projeto visível e comprova falha de resolução, `stat`, `access`, `readlink`,
-enumeração e abertura dos roots protegidos conhecidos. A repetição contra a
-unidade e o serviço realmente instalados permanece na T9.4.
+enumeração e abertura dos roots protegidos conhecidos. A T9.4 passou a repetir
+e consolidar essas provas contra a unidade e o serviço realmente instalados por
+meio de `make hostile-isolation-matrix`. O comando roda como operador comum,
+nunca com `sudo`, e exige negação de attach, leitura e resolução sensível em
+`/proc`, travessia/enumeração/abertura do estado e herança de descritores após
+`exec`. O resultado e a distinção entre metadado limitado do host e conteúdo
+protegido estão documentados em
+[`VALIDACAO-ISOLAMENTO-HOSTIL-T9.4.md`](./VALIDACAO-ISOLAMENTO-HOSTIL-T9.4.md).
 
 ## Gestão administrativa de capabilities — T8.6
 
