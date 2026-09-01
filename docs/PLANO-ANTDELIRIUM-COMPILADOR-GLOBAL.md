@@ -1272,6 +1272,14 @@ estática e metadados de versão; auditoria explícita ocorre no `cargo check`
 comum pelo wrapper global. As mensagens que vivem exclusivamente no runtime de
 rollback aguardam a remoção estrutural da T10.2.
 
+Fronteira preparada para T10.2: o
+[inventário de remoção do rollback antigo](./INVENTARIO-REMOCAO-ROLLBACK-T10.2.md)
+fixa o conjunto de entrypoints, templates e regras Super Block que sairá depois
+de G9. Ele preserva explicitamente `guard/to-do_list.json`,
+`guard/governance_error.json`, a migração transacional e os rollbacks atuais de
+instalação, serviço, storage e integridade. Isso impede que a retirada use o
+prefixo `Legacy` como critério e apague funcionalidades ainda vigentes.
+
 ## 15. Matriz mínima de validação
 
 O gate obrigatório desta matriz usa somente fixtures sintéticas mantidas neste
