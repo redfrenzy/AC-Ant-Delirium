@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://antdelirium.invalid/contracts/v1/protected-branch-policy-v1.schema.json",
+  "title": "AntDelirium protected branch policy v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "policy_id",
+    "enforcement_mode",
+    "required_status_context",
+    "relevant_branches",
+    "compiler_result_precedence",
+    "wrapper_rollout",
+    "required_proofs",
+    "blocking_violation_codes",
+    "advisory_observation_codes"
+  ],
+  "properties": {
+    "contract_version": { "const": "protected-branch-policy-v1" },
+    "policy_id": { "const": "antdelirium-production-v1" },
+    "enforcement_mode": { "const": "fail-closed-external" },
+    "required_status_context": { "const": "antdelirium/protected-gate" },
+    "relevant_branches": {
+      "const": ["main", "master"]
+    },
+    "compiler_result_precedence": { "const": "preserved" },
+    "wrapper_rollout": { "const": "audit-only-local" },
+    "required_proofs": {
+      "const": [
+        "externally-signed-integrity-checkpoint",
+        "protected-wrapper-digest",
+        "clean-primary-compilation"
+      ]
+    },
+    "blocking_violation_codes": {
+      "const": [
+        "limited-protocol-invalid",
+        "primary-wrapper-bypass",
+        "projection-unavailable",
+        "protected-service-unavailable",
+        "signed-state-invalid",
+        "source-mutated-during-gate",
+        "trusted-wrapper-digest-mismatch"
+      ]
+    },
+    "advisory_observation_codes": {
+      "const": [
+        "cache-no-primary-recompile",
+        "code-rule-observation",
+        "dependency-workload",
+        "non-primary-workload",
+        "toolchain-probe"
+      ]
+    }
+  }
+}

@@ -82,6 +82,8 @@ ci:
 	bash -n packaging/ci/validate-bypass-matrix.sh
 	bash -n packaging/ci/validate-authoritative-gate.sh
 	bash -n packaging/ci/validate-projection-authority.sh
+	bash -n packaging/ci/validate-protected-branch-gate.sh
+	python3 -c 'import ast,pathlib; ast.parse(pathlib.Path("packaging/ci/protected-branch-authority.py").read_text(encoding="utf-8"))'
 	bash -n packaging/integrity/render-authority-bundle.sh
 	bash -n packaging/integrity/validate-signed-checkpoint.sh
 	bash -n packaging/systemd/checkpoint-installed-integrity.sh
@@ -136,6 +138,9 @@ ci:
 	jq empty docs/contracts/v1/projection-authority-evidence-v1.schema.json
 	jq empty docs/contracts/v1/signed-integrity-checkpoint-v1.schema.json
 	jq empty docs/contracts/v1/integrity-authority-bundle-v1.schema.json
+	jq empty docs/contracts/v1/protected-branch-policy-v1.json
+	jq empty docs/contracts/v1/protected-branch-policy-v1.schema.json
+	jq empty docs/contracts/v1/protected-branch-attestation-v1.schema.json
 	RUSTFLAGS="-D warnings" cargo check --locked --all-targets --target $(HOST_TARGET)
 	RUSTFLAGS="-D warnings" cargo test --locked --all-targets --target $(HOST_TARGET) --no-fail-fast
 	$(MAKE) release-nondisclosure
@@ -273,6 +278,17 @@ hostile-isolation-matrix: binary
 .PHONY: projection-authority-matrix
 projection-authority-matrix: binary
 	bash packaging/ci/validate-projection-authority.sh
+
+# -----------------------------------------------
+# make protected-branch-gate
+# -----------------------------------------------
+# Exercises the provider-neutral signed fail-closed decision. It proves the
+# closed violation policy but cannot configure a hosted branch without a real
+# remote and CI provider.
+# -----------------------------------------------
+.PHONY: protected-branch-gate
+protected-branch-gate:
+	bash packaging/ci/validate-protected-branch-gate.sh
 
 # -----------------------------------------------
 # make system-installation-bundle

@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://antdelirium.invalid/contracts/v1/protected-branch-attestation-v1.schema.json",
+  "title": "Externally signed AntDelirium protected branch attestation v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "attestation", "signature_base64"],
+  "properties": {
+    "contract_version": { "const": "signed-protected-branch-attestation-v1" },
+    "attestation": { "$ref": "#/$defs/attestation" },
+    "signature_base64": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9+/]{86}==$"
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "attestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "decision",
+        "policy_sha256",
+        "mechanical_evidence_sha256",
+        "integrity_envelope_sha256",
+        "source_sha256",
+        "wrapper_sha256",
+        "checkpoint_epoch",
+        "required_status_context",
+        "blocking_violations",
+        "advisory_observations",
+        "compiler_result_precedence"
+      ],
+      "properties": {
+        "contract_version": { "const": "protected-branch-attestation-v1" },
+        "decision": { "enum": ["passed", "blocked"] },
+        "policy_sha256": { "$ref": "#/$defs/sha256" },
+        "mechanical_evidence_sha256": { "$ref": "#/$defs/sha256" },
+        "integrity_envelope_sha256": { "$ref": "#/$defs/sha256" },
+        "source_sha256": { "$ref": "#/$defs/sha256" },
+        "wrapper_sha256": { "$ref": "#/$defs/sha256" },
+        "checkpoint_epoch": { "type": "integer", "minimum": 1 },
+        "required_status_context": { "const": "antdelirium/protected-gate" },
+        "blocking_violations": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z0-9-]+$" }
+        },
+        "advisory_observations": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z0-9-]+$" }
+        },
+        "compiler_result_precedence": { "const": "preserved" }
+      }
+    }
+  }
+}

@@ -43,6 +43,10 @@ Os arquivos deste diretório congelam a primeira versão das fronteiras de dados
   uma geração exata de origem, staging, normalização e semântica.
 - `legacy-dry-run-report-v1.schema.json`: diferenças bloqueadoras entre as
   contagens legadas e um SQLite sombra vazio, sem aprovação ou cutover.
+- `protected-branch-policy-v1.schema.json`: conjunto fechado de violações
+  bloqueantes, observações consultivas e provas exigidas pelo gate externo.
+- `protected-branch-attestation-v1.schema.json`: decisão path-free assinada
+  que vincula política, compilação protegida e checkpoint de integridade.
 
 Todos usam JSON Schema Draft 2020-12 e `additionalProperties: false`. Eles são contratos de domínio e API, não autorização, schema SQL nem descrição do transporte.
 

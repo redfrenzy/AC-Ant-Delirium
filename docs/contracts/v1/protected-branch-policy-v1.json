@@ -1,0 +1,33 @@
+{
+  "advisory_observation_codes": [
+    "cache-no-primary-recompile",
+    "code-rule-observation",
+    "dependency-workload",
+    "non-primary-workload",
+    "toolchain-probe"
+  ],
+  "blocking_violation_codes": [
+    "limited-protocol-invalid",
+    "primary-wrapper-bypass",
+    "projection-unavailable",
+    "protected-service-unavailable",
+    "signed-state-invalid",
+    "source-mutated-during-gate",
+    "trusted-wrapper-digest-mismatch"
+  ],
+  "compiler_result_precedence": "preserved",
+  "contract_version": "protected-branch-policy-v1",
+  "enforcement_mode": "fail-closed-external",
+  "policy_id": "antdelirium-production-v1",
+  "relevant_branches": [
+    "main",
+    "master"
+  ],
+  "required_proofs": [
+    "externally-signed-integrity-checkpoint",
+    "protected-wrapper-digest",
+    "clean-primary-compilation"
+  ],
+  "required_status_context": "antdelirium/protected-gate",
+  "wrapper_rollout": "audit-only-local"
+}

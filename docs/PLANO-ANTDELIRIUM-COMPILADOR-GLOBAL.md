@@ -1244,6 +1244,15 @@ três units e não publicou locator protegido. A autoridade operacional não cri
 outro ELF nem comando do agente. Exigir essa verificação no runner/branch e
 definir as violações fail-closed permanece exclusivamente na T9.7.
 
+Estado parcial da T9.7: a
+[política fail-closed protegida](./VALIDACAO-GATE-PROTEGIDO-T9.7.md) define
+sete códigos bloqueantes e cinco observações consultivas. A autoridade externa
+verifica a compilação em modo `protected-digest`, o checkpoint Ed25519 da T9.6
+e assina uma decisão path-free vinculada aos três artefatos. A matriz sintética
+passou, mas a tarefa continua aberta: este repositório não possui remoto ou
+workflow de CI onde o contexto `antdelirium/protected-gate` possa ser exigido
+por uma branch real.
+
 ## 15. Matriz mínima de validação
 
 O gate obrigatório desta matriz usa somente fixtures sintéticas mantidas neste
