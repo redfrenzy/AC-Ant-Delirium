@@ -348,7 +348,7 @@ antdelirium install                          instalação e integração Cargo
 antdelirium uninstall                        remoção segura apenas da integração própria
 antdelirium doctor                           diagnóstico de wrapper, Cargo e armazenamento
 antdelirium init [--project-root <path>]     bootstrap explícito
-antdelirium check [--project-root <path>]    auditoria explícita
+cargo check                                 auditoria explícita pelo wrapper global
 antdelirium status                           estado resumido do projeto atual
 antdelirium next-action                      somente a próxima ação permitida
 antdelirium --api <path>                     consulta controlada
@@ -1254,6 +1254,15 @@ na instalação root-owned, com isolamento do operador e da identidade do
 serviço. A tarefa continua aberta: este repositório não possui remoto ou
 workflow de CI onde o contexto `antdelirium/protected-gate` possa ser exigido
 por uma branch real.
+
+Estado da T10.1: a
+[matriz de paridade final](./VALIDACAO-PARIDADE-BINARIO-T10.1.md) confirmou que
+`antdelirium` é o único target executável e cobre as sete capacidades legadas
+aprovadas. As seis operações de agente/revisor usam superfícies e capabilities
+fechadas; auditoria explícita usa o `cargo check` comum pela integração global,
+sem introduzir `antdelirium check --project-root`. Os nomes antigos não são
+targets, enquanto os módulos internos de rollback permanecem somente até a
+remoção controlada da T10.2.
 
 ## 15. Matriz mínima de validação
 

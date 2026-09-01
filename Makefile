@@ -84,6 +84,7 @@ ci:
 	bash -n packaging/ci/validate-projection-authority.sh
 	bash -n packaging/ci/validate-protected-branch-gate.sh
 	bash -n packaging/ci/render-protected-branch-authority-bundle.sh
+	bash -n packaging/ci/validate-final-binary-parity.sh
 	python3 -c 'import ast,pathlib; ast.parse(pathlib.Path("packaging/ci/protected-branch-authority.py").read_text(encoding="utf-8"))'
 	bash -n packaging/integrity/render-authority-bundle.sh
 	bash -n packaging/integrity/validate-signed-checkpoint.sh
@@ -302,6 +303,17 @@ protected-branch-gate:
 .PHONY: protected-branch-authority-bundle
 protected-branch-authority-bundle:
 	bash packaging/ci/render-protected-branch-authority-bundle.sh
+
+# -----------------------------------------------
+# make final-binary-parity
+# -----------------------------------------------
+# Proves that the single executable covers the seven approved legacy
+# capabilities. Explicit auditing uses ordinary Cargo commands, not a second
+# command that agents could bypass.
+# -----------------------------------------------
+.PHONY: final-binary-parity
+final-binary-parity: binary
+	bash packaging/ci/validate-final-binary-parity.sh
 
 # -----------------------------------------------
 # make system-installation-bundle

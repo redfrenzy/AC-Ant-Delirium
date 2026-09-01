@@ -21,7 +21,7 @@ Paridade significa preservar a intenção funcional, não necessariamente a graf
 | criar submissão | `--submit <evidência>` | `submission.create` | evidência imutável; nunca marca conclusão |
 | ler submissão atribuída | `--submit-show <id>` | `submission.read.assigned` | somente própria ou explicitamente atribuída |
 | decidir revisão atribuída | `--submit-accept` / `--submit-reject` | `review.decide.assigned` | decisão limitada; sem grade ou edição direta do plano |
-| executar auditoria explícita | `audit` | futuro `antdelirium check` | usa projeto descoberto e configuração autorizada, não paths escolhidos pelo agente |
+| executar auditoria explícita | `audit` | `cargo check` comum, interceptado pelo wrapper | usa a raiz escolhida pelo Cargo e a configuração protegida; não cria um segundo comando que o agente possa ignorar |
 
 Os testes de paridade cobrem exclusivamente essas sete capacidades. A futura API pode renomear comandos para o contrato canônico, especialmente `hierarchy.task.current.submit`, desde que mantenha a semântica limitada.
 
@@ -56,4 +56,4 @@ Os testes de paridade cobrem exclusivamente essas sete capacidades. A futura API
 4. ausência de garantia para checkbox, override, grade, configuração, enumeração e mensagens;
 5. rejeição conceitual de combinações ambíguas em vez de encaminhamento múltiplo.
 
-Os testes não legitimam o parser antigo como API pública. T3.4 cria a superfície do agente; T3.5 implementa submissão canônica; T3.6 autentica revisão e administração; T3.7 elimina enumeração por ajuda e erro.
+Os testes não legitimam o parser antigo como API pública. T3.4 cria a superfície do agente; T3.5 implementa submissão canônica; T3.6 autentica revisão e administração; T3.7 elimina enumeração por ajuda e erro. A decisão final da T10.1 substitui a previsão de um `antdelirium check` separado pelo `cargo check` normal, porque a integração global já é a superfície obrigatória e um alias adicional seria ignorável.
