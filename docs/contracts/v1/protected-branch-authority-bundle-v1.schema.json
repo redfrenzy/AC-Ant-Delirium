@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://antdelirium.invalid/contracts/v1/protected-branch-authority-bundle-v1.schema.json",
+  "title": "AntDelirium protected branch authority bundle v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "files",
+    "private_key_included",
+    "activation_performed",
+    "provider_configuration_performed"
+  ],
+  "properties": {
+    "contract_version": { "const": "protected-branch-authority-bundle-v1" },
+    "files": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["artifact", "destination", "mode", "owner", "group", "sha256"],
+          "properties": {
+            "artifact": { "const": "protected-branch-authority" },
+            "destination": { "const": "/usr/libexec/antdelirium/protected-branch-authority.py" },
+            "mode": { "const": "0755" },
+            "owner": { "const": "root" },
+            "group": { "const": "root" },
+            "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["artifact", "destination", "mode", "owner", "group", "sha256"],
+          "properties": {
+            "artifact": { "const": "protected-branch-policy" },
+            "destination": { "const": "/usr/lib/antdelirium/protected-branch-policy-v1.json" },
+            "mode": { "const": "0644" },
+            "owner": { "const": "root" },
+            "group": { "const": "root" },
+            "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+          }
+        }
+      ],
+      "items": false
+    },
+    "private_key_included": { "const": false },
+    "activation_performed": { "const": false },
+    "provider_configuration_performed": { "const": false }
+  }
+}

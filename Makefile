@@ -83,10 +83,12 @@ ci:
 	bash -n packaging/ci/validate-authoritative-gate.sh
 	bash -n packaging/ci/validate-projection-authority.sh
 	bash -n packaging/ci/validate-protected-branch-gate.sh
+	bash -n packaging/ci/render-protected-branch-authority-bundle.sh
 	python3 -c 'import ast,pathlib; ast.parse(pathlib.Path("packaging/ci/protected-branch-authority.py").read_text(encoding="utf-8"))'
 	bash -n packaging/integrity/render-authority-bundle.sh
 	bash -n packaging/integrity/validate-signed-checkpoint.sh
 	bash -n packaging/systemd/checkpoint-installed-integrity.sh
+	bash -n packaging/systemd/install-protected-branch-authority.sh
 	python3 -c 'import ast,pathlib; ast.parse(pathlib.Path("packaging/integrity/checkpoint-authority.py").read_text(encoding="utf-8"))'
 	bash -n packaging/release/validate-elf-nondisclosure.sh
 	bash -n packaging/migration/validate-legacy-source-inventory.sh
@@ -141,6 +143,7 @@ ci:
 	jq empty docs/contracts/v1/protected-branch-policy-v1.json
 	jq empty docs/contracts/v1/protected-branch-policy-v1.schema.json
 	jq empty docs/contracts/v1/protected-branch-attestation-v1.schema.json
+	jq empty docs/contracts/v1/protected-branch-authority-bundle-v1.schema.json
 	RUSTFLAGS="-D warnings" cargo check --locked --all-targets --target $(HOST_TARGET)
 	RUSTFLAGS="-D warnings" cargo test --locked --all-targets --target $(HOST_TARGET) --no-fail-fast
 	$(MAKE) release-nondisclosure
@@ -289,6 +292,16 @@ projection-authority-matrix: binary
 .PHONY: protected-branch-gate
 protected-branch-gate:
 	bash packaging/ci/validate-protected-branch-gate.sh
+
+# -----------------------------------------------
+# make protected-branch-authority-bundle
+# -----------------------------------------------
+# Stages the evaluator and policy for root-owned installation. No key is
+# included and no hosted provider is configured by this target.
+# -----------------------------------------------
+.PHONY: protected-branch-authority-bundle
+protected-branch-authority-bundle:
+	bash packaging/ci/render-protected-branch-authority-bundle.sh
 
 # -----------------------------------------------
 # make system-installation-bundle

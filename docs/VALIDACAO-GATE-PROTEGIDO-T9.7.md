@@ -87,10 +87,19 @@ consultou projeto externo nem estado instalado.
 
 ## O que falta para concluir T9.7
 
-Faltam duas provas externas:
+O bundle `make protected-branch-authority-bundle` já prepara, sem chave, o
+avaliador e a política para destinos root-owned. A rotina
+[`install-protected-branch-authority.sh`](../packaging/systemd/install-protected-branch-authority.sh)
+instala apenas esses dois arquivos revisados, cria uma chave Ed25519 exclusiva
+sob `/var/lib/antdelirium-branch-gate`, comprova que operador e serviço não
+conseguem lê-la ou gravar sua raiz e testa o par de chaves. Ela não compila como
+root e publica os logs em `target/` através da identidade normal do operador,
+sem escrever como root em um destino controlado pelo usuário.
 
-1. instalar ou disponibilizar o avaliador, a política e a chave sob autoridade
-   que o agente não possa gravar;
+Faltam ainda duas provas externas:
+
+1. executar a rotina preparada e confirmar no host o isolamento do avaliador,
+   política e chave;
 2. configurar no provedor real as branches relevantes para exigir o contexto
    `antdelirium/protected-gate` e provar que merge sem esse resultado é negado.
 

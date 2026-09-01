@@ -47,6 +47,8 @@ Os arquivos deste diretório congelam a primeira versão das fronteiras de dados
   bloqueantes, observações consultivas e provas exigidas pelo gate externo.
 - `protected-branch-attestation-v1.schema.json`: decisão path-free assinada
   que vincula política, compilação protegida e checkpoint de integridade.
+- `protected-branch-authority-bundle-v1.schema.json`: instalação revisável do
+  avaliador e da política, explicitamente sem chave ou configuração do provedor.
 
 Todos usam JSON Schema Draft 2020-12 e `additionalProperties: false`. Eles são contratos de domínio e API, não autorização, schema SQL nem descrição do transporte.
 
