@@ -67,8 +67,7 @@
         "kind": {
           "enum": [
             "project-audit",
-            "service-security",
-            "capability-management"
+            "service-authority"
           ]
         },
         "subject_id": {

@@ -109,7 +109,15 @@ registry.execute(
     "INSERT INTO projects VALUES (?, ?, ?, ?)",
     ("prj_fixture", "fixture-project", 0, 0),
 )
-registry.execute("INSERT INTO service_security_state VALUES (1, 0)")
+registry.execute("INSERT INTO service_security_state VALUES (1, 2)")
+registry.execute(
+    "INSERT INTO service_security_events VALUES (?, ?, ?)",
+    (1, "evt_denied", b"denied request"),
+)
+registry.execute(
+    "INSERT INTO capability_management_events VALUES (?, ?, ?)",
+    (2, "evt_granted", b"managed grant"),
+)
 registry.commit()
 registry.close()
 
@@ -215,6 +223,22 @@ expect_rejection 'journal sequence gap detected' \
     --private-key "$private_key" --public-key "$public_key"
 cp "$log_root/project-epoch-2.db" "$project_database"
 
+printf '%s\n' 'AD-T96-INTEGRITY: rejecting a gap in the interleaved service authority journal.'
+cp "$state_root/registry/state/state.db" "$log_root/registry-epoch-2.db"
+python3 - "$state_root/registry/state/state.db" <<'PY'
+import sqlite3
+import sys
+connection = sqlite3.connect(sys.argv[1])
+connection.execute("DELETE FROM service_security_events WHERE sequence = 1")
+connection.commit()
+connection.close()
+PY
+expect_rejection 'journal sequence gap detected: service-authority' \
+    python3 -B "$authority" seal \
+    --state-root "$state_root" --anchor-root "$anchor_root" \
+    --private-key "$private_key" --public-key "$public_key"
+cp "$log_root/registry-epoch-2.db" "$state_root/registry/state/state.db"
+
 printf '%s\n' 'AD-T96-INTEGRITY: rejecting a rewritten signed prefix.'
 python3 - "$project_database" <<'PY'
 import sqlite3
@@ -291,6 +315,7 @@ evidence = {
     "private_key_outside_service_state": True,
     "checkpoint_epoch": checkpoint["epoch"],
     "database_count": checkpoint["database_count"],
+    "service_authority_interleaving_validated": True,
     "journal_gap_rejected": True,
     "journal_prefix_rewrite_rejected": True,
     "state_rollback_rejected": True,

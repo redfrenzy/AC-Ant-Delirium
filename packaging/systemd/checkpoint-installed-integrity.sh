@@ -15,6 +15,7 @@ envelope="$anchor_root/checkpoint-envelope.json"
 run_id=$(date -u +%Y%m%dT%H%M%SZ)
 log_root="$repository_root/target/t96-installed-integrity-logs/$run_id"
 units_stopped=false
+service_recovery=not-needed
 
 fail() {
     printf '%s\n' "AD-T96-INSTALLED: $1" >&2
@@ -27,11 +28,20 @@ finish() {
     if [[ "$units_stopped" == true ]]; then
         systemctl start antdelirium-agent.socket antdelirium-admin.socket
         systemctl start antdelirium.service
+        if systemctl is-active --quiet antdelirium.service \
+            && systemctl is-active --quiet antdelirium-agent.socket \
+            && systemctl is-active --quiet antdelirium-admin.socket; then
+            service_recovery=passed
+        else
+            service_recovery=failed
+            exit_code=1
+        fi
     fi
     {
         printf 'contract=installed-integrity-checkpoint-result-v1\n'
         printf 'exit_code=%s\n' "$exit_code"
         printf 'checkpoint_present=%s\n' "$([[ -f "$envelope" ]] && printf yes || printf no)"
+        printf 'service_recovery=%s\n' "$service_recovery"
         printf 'completed_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     } >"$log_root/result.env"
     chmod -R a+rX "$log_root"

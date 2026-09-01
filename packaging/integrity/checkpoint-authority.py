@@ -191,7 +191,7 @@ def event_stream(
     if expected_last < 0:
         raise IntegrityFailure("negative journal sequence")
     if sequences != list(range(1, expected_last + 1)):
-        raise IntegrityFailure("journal sequence gap detected")
+        raise IntegrityFailure(f"journal sequence gap detected: {kind}")
     head = CHAIN_SEED
     previous_head = None
     for sequence, row in zip(sequences, rows, strict=True):
@@ -207,6 +207,50 @@ def event_stream(
     return {
         "kind": kind,
         "subject_id": subject_id,
+        "last_sequence": expected_last,
+        "chain_sha256": head.hex(),
+    }
+
+
+def service_authority_stream(
+    connection: sqlite3.Connection,
+    expected_last: int,
+    previous: dict[str, Any] | None,
+) -> dict[str, Any]:
+    combined_rows = []
+    for table, row_kind in (
+        ("service_security_events", "service-security"),
+        ("capability_management_events", "capability-management"),
+    ):
+        columns = table_columns(connection, table)
+        select_columns = ",".join(quoted(column) for column in columns)
+        sequence_index = columns.index("sequence")
+        for row in connection.execute(
+            f"SELECT {select_columns} FROM {quoted(table)} ORDER BY sequence"
+        ):
+            combined_rows.append((int(row[sequence_index]), row_kind, row))
+    combined_rows.sort(key=lambda item: item[0])
+    sequences = [item[0] for item in combined_rows]
+    if expected_last < 0:
+        raise IntegrityFailure("negative journal sequence")
+    if sequences != list(range(1, expected_last + 1)):
+        raise IntegrityFailure("journal sequence gap detected: service-authority")
+
+    head = CHAIN_SEED
+    previous_head = None
+    for sequence, row_kind, row in combined_rows:
+        head = hashlib.sha256(head + encode_value(row_kind) + encode_row(row)).digest()
+        if previous is not None and sequence == int(previous["last_sequence"]):
+            previous_head = head.hex()
+    if previous is not None:
+        previous_last = int(previous["last_sequence"])
+        if previous_last == 0:
+            previous_head = CHAIN_SEED.hex()
+        if previous_last > expected_last or previous_head != previous["chain_sha256"]:
+            raise IntegrityFailure("signed journal history changed")
+    return {
+        "kind": "service-authority",
+        "subject_id": None,
         "last_sequence": expected_last,
         "chain_sha256": head.hex(),
     }
@@ -259,29 +303,10 @@ def inspect_database(
             ).fetchone()[0]
         )
         streams.append(
-            event_stream(
+            service_authority_stream(
                 connection,
-                "service_security_events",
-                "service-security",
-                None,
                 service_last,
-                previous=previous_streams.get(("service-security", None)),
-            )
-        )
-
-        management_last = int(
-            connection.execute(
-                "SELECT coalesce(max(sequence), 0) FROM capability_management_events"
-            ).fetchone()[0]
-        )
-        streams.append(
-            event_stream(
-                connection,
-                "capability_management_events",
-                "capability-management",
-                None,
-                management_last,
-                previous=previous_streams.get(("capability-management", None)),
+                previous_streams.get(("service-authority", None)),
             )
         )
 
