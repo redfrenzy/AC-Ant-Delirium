@@ -1264,6 +1264,14 @@ sem introduzir `antdelirium check --project-root`. Os nomes antigos não são
 targets, enquanto os módulos internos de rollback permanecem somente até a
 remoção controlada da T10.2.
 
+Estado parcial da T10.3: o
+[hook de plugin ativo foi removido do build](./VALIDACAO-REMOCAO-BUILD-HOOK-T10.3.md).
+O `build.rs` não aceita mais paths de binário/configuração/projeto, não procura
+em `plugins/` e não executa a CLI antiga. Ele preserva somente taxonomia
+estática e metadados de versão; auditoria explícita ocorre no `cargo check`
+comum pelo wrapper global. As mensagens que vivem exclusivamente no runtime de
+rollback aguardam a remoção estrutural da T10.2.
+
 ## 15. Matriz mínima de validação
 
 O gate obrigatório desta matriz usa somente fixtures sintéticas mantidas neste

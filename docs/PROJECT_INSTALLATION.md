@@ -834,13 +834,18 @@ a prova no serviço instalado.
 - não copiar ou renomear o executável para `plugins/<project>/bin/`;
 - não criar novos binários `delirium_cli`, `ac_ant_delirium` ou `guard`;
 - não alterar `$CARGO_HOME/config.toml` manualmente;
-- não tratar o build hook legado como a futura integração `rustc-workspace-wrapper`.
+- não recriar o build hook legado; a integração é exclusivamente o
+  `rustc-workspace-wrapper` global.
 
 O código-fonte do encaminhador `guard` antigo e a CLI madura permanecem preservados e compilados apenas como modos internos de rollback, sem rota pública. O dispatcher classifica wrapper, agente, revisor, operador e serviço antes de qualquer parser. Pedido de perfil não é autorização: somente a rota wrapper `Governed` de membro primário pode negociar `ADL1`, enquanto `DelegationOnly` encaminha diretamente ao compilador; nenhuma delas abre superfície administrativa. Revisor e operador permanecem em `AD-AUTH-0001`; e serviço só atravessa sua fronteira interna quando já está sob a conta dedicada, sem cair no parser legado.
 
-## Estado do build hook deste repositório
+## Estado do build script deste repositório
 
-O `build.rs` deste próprio checkout continua advisory durante a transição. A mensagem sobre a ausência do binário externo legado é esperada e não instala, copia ou descobre automaticamente uma nova integração.
+O `build.rs` deste checkout não procura, executa ou recebe path de binário em
+`plugins/`. Ele preserva somente a compilação da taxonomia estática e os
+metadados públicos de versão. A auditoria acontece pelo wrapper Cargo global;
+portanto uma compilação normal não emite aviso sobre plugin ausente nem sugere
+instalação dentro do projeto.
 
 ## Primitiva de instalação do binário — T7.1
 

@@ -4,9 +4,6 @@ use std::path::Path;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[path = "src/engine_identity.rs"]
-mod engine_identity;
-
 /// [AESTHETIC CORE - TAXONOMY COMPILER]
 /// Transmuta arquivos TOML em código Rust estático para performance Elite.
 fn main() {
@@ -16,8 +13,6 @@ fn main() {
     let dest_path = Path::new(&out_dir).join("generated_static_hierarchy.rs");
 
     emit_build_metadata(&manifest_dir);
-
-    run_governance_build_hook(&manifest_dir);
 
     let mut generated_code = String::new();
     generated_code.push_str("/// [GENERATED CODE] - Não edite manualmente.\n");
@@ -40,11 +35,6 @@ fn main() {
     // Re-run if configs change
     println!("cargo:rerun-if-changed=ant_delirium_config");
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-env-changed=ANT_DELIRIUM_BIN");
-    println!("cargo:rerun-if-env-changed=ANT_DELIRIUM_CONFIG");
-    println!("cargo:rerun-if-env-changed=ANT_DELIRIUM_PROJECT_ROOT");
-    println!("cargo:rerun-if-env-changed=ANT_DELIRIUM_ENFORCE_BUILD_HOOK");
-    println!("cargo:rerun-if-env-changed=ANT_DELIRIUM_SKIP_BUILD_HOOK");
     println!("cargo:rerun-if-env-changed=SOURCE_DATE_EPOCH");
 }
 
@@ -71,82 +61,6 @@ fn emit_git_rerun_directives(manifest_dir: &str) {
             println!("cargo:rerun-if-changed={reference_path}");
         }
     }
-}
-
-fn run_governance_build_hook(manifest_dir: &str) {
-    if env_flag("ANT_DELIRIUM_SKIP_BUILD_HOOK") {
-        println!(
-            "cargo:warning=[{}] governance build hook skipped by ANT_DELIRIUM_SKIP_BUILD_HOOK",
-            engine_identity::ENGINE_PACKAGE_NAME
-        );
-        return;
-    }
-
-    let manifest_path = Path::new(manifest_dir);
-    let project_root = env::var("ANT_DELIRIUM_PROJECT_ROOT")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|_| manifest_path.to_path_buf());
-    let plugin_path = env::var("ANT_DELIRIUM_BIN")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|_| {
-            manifest_path.join(format!(
-                "../plugins/{}",
-                engine_identity::DEFAULT_PLUGIN_BINARY_NAME
-            ))
-        });
-    let enforce_hook = env_flag("ANT_DELIRIUM_ENFORCE_BUILD_HOOK");
-
-    if !plugin_path.is_file() {
-        let msg = format!(
-            "[{}] governance binary not found at {}. Build hook stays advisory until an external ant_delirium binary is installed. See docs/PROJECT_INSTALLATION.md.",
-            engine_identity::ENGINE_PACKAGE_NAME,
-            plugin_path.display()
-        );
-        if enforce_hook {
-            panic!("{}", msg);
-        }
-        println!("cargo:warning={}", msg);
-        return;
-    }
-
-    let mut command = Command::new(&plugin_path);
-    command.current_dir(&project_root);
-    command.arg("--project-root").arg(&project_root);
-
-    if let Ok(config_path) = env::var("ANT_DELIRIUM_CONFIG") {
-        if !config_path.trim().is_empty() {
-            command.arg("--config").arg(config_path);
-        }
-    }
-
-    let status = command.status().unwrap_or_else(|err| {
-        panic!(
-            "[{}] failed to execute governance build hook: {}",
-            engine_identity::ENGINE_PACKAGE_NAME,
-            err
-        )
-    });
-
-    if !status.success() {
-        let message = format!(
-            "[{}] governance violations detected during build hook. Inspect the terminal output or run the API guide with: {} --api hierarchy.installation",
-            engine_identity::ENGINE_PACKAGE_NAME,
-            plugin_path.display()
-        );
-        if enforce_hook {
-            panic!("{}", message);
-        }
-        println!("cargo:warning={}", message);
-    }
-}
-
-fn env_flag(name: &str) -> bool {
-    env::var(name)
-        .map(|value| {
-            let value = value.trim();
-            value == "1" || value.eq_ignore_ascii_case("true") || value.eq_ignore_ascii_case("yes")
-        })
-        .unwrap_or(false)
 }
 
 fn git_hash(manifest_dir: &str) -> String {

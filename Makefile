@@ -59,18 +59,17 @@ wasm:
 # -----------------------------------------------
 # make check
 # -----------------------------------------------
-# Runs governance audit using the native binary directly.
+# Runs the ordinary Cargo command used by governed Rust projects.
 # -----------------------------------------------
 .PHONY: check
 check:
-	cargo run --bin $(BIN_NAME) --target $(HOST_TARGET) -- --api ant_delirium_config
+	cargo check --locked --target $(HOST_TARGET)
 
 # -----------------------------------------------
 # make ci
 # -----------------------------------------------
 # Reproduces the native quality gate used by automation. Rust warnings from
-# this package are errors; the known advisory build-hook diagnostic remains a
-# Cargo warning until the legacy hook is removed in the global migration.
+# this package are errors.
 # -----------------------------------------------
 .PHONY: ci
 ci:
@@ -85,6 +84,7 @@ ci:
 	bash -n packaging/ci/validate-protected-branch-gate.sh
 	bash -n packaging/ci/render-protected-branch-authority-bundle.sh
 	bash -n packaging/ci/validate-final-binary-parity.sh
+	bash packaging/ci/validate-obsolete-build-hook-removal.sh
 	python3 -c 'import ast,pathlib; ast.parse(pathlib.Path("packaging/ci/protected-branch-authority.py").read_text(encoding="utf-8"))'
 	bash -n packaging/integrity/render-authority-bundle.sh
 	bash -n packaging/integrity/validate-signed-checkpoint.sh
