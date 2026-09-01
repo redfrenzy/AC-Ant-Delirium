@@ -803,6 +803,32 @@ Definir `STATE_DIRECTORY` manualmente como usuário do agente não cria storage:
 o gate de UID ocorre antes da leitura dessa variável. O path físico não é
 compilado no cliente nem aparece na ajuda, versão ou erro público.
 
+### Checkpoint externo de integridade
+
+Depois da instalação do serviço, o operador prepara a autoridade sem chave e
+executa o selo instalado:
+
+```bash
+make integrity-authority-bundle
+sudo bash packaging/systemd/checkpoint-installed-integrity.sh --apply
+```
+
+O primeiro comando apenas copia a rotina path-free para um bundle sob
+`target/`, calcula seu SHA-256 e declara explicitamente que nenhuma chave ou
+ativação foi incluída. O segundo exige root, instala a cópia revisada como
+`root:root`, cria ou reutiliza a autoridade Ed25519 externa, para as três units
+durante a leitura consistente, assina/verifica o checkpoint e reinicia o
+serviço. O agente e a conta do serviço não podem ler a chave nem gravar a
+âncora. A saída normal contém somente contrato, epoch, contagens e resultado;
+detalhes e locators físicos não entram na API pública.
+
+Uma repetição cria o próximo epoch somente se todos os journals preservarem o
+prefixo assinado, suas sequências continuarem sem lacuna, revisões não
+regredirem e snapshots mantiverem fingerprints canônicos. Divergência falha
+antes de substituir o envelope anterior. A
+[validação T9.6](./VALIDACAO-INTEGRIDADE-ASSINADA-T9.6.md) documenta a matriz e
+a prova no serviço instalado.
+
 ## O que não fazer nesta fase
 
 - não copiar ou renomear o executável para `plugins/<project>/bin/`;

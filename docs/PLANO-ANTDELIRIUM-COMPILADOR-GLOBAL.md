@@ -1232,6 +1232,18 @@ válida de agente tentou instalar e avançar tarefa no serviço, as duas operaç
 foram negadas, não mudaram estado e geraram dois eventos opacos sem locator.
 Toda a prova usa fixtures internas e o release revisado, sem projeto externo.
 
+Estado da T9.6: o
+[checkpoint de integridade assinado](./VALIDACAO-INTEGRIDADE-ASSINADA-T9.6.md)
+encadeia journals de projeto, o journal intercalado de segurança/gestão e os
+snapshots canônicos num envelope Ed25519 com epoch e digest anterior. A chave e
+a âncora ficam sob root fora do state root; agente e serviço não conseguem ler
+a chave nem gravar o checkpoint. A matriz sintética rejeitou lacunas,
+reescrita de prefixo, rollback, snapshot adulterado e assinatura alterada. O
+gate do serviço instalado selou e verificou 16 bancos no epoch 1, reiniciou as
+três units e não publicou locator protegido. A autoridade operacional não cria
+outro ELF nem comando do agente. Exigir essa verificação no runner/branch e
+definir as violações fail-closed permanece exclusivamente na T9.7.
+
 ## 15. Matriz mínima de validação
 
 O gate obrigatório desta matriz usa somente fixtures sintéticas mantidas neste
