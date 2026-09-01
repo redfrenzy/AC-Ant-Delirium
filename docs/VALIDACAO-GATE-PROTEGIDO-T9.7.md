@@ -5,10 +5,11 @@ Data da prova mecânica: 1 de setembro de 2026.
 ## Estado honesto
 
 A política e a decisão fail-closed assinada estão implementadas e passaram na
-matriz sintética. A proteção de branch em um provedor hospedado ainda não está
-ativa: este checkout não possui remoto nem workflow de CI configurado. Por
-isso a T9.7 permanece aberta e nenhum texto deste documento trata a mecânica
-local como proteção de branch já implantada.
+matriz sintética. A autoridade root-owned também foi instalada e validada no
+host. A proteção de branch em um provedor hospedado ainda não está ativa: este
+checkout não possui remoto nem workflow de CI configurado. Por isso a T9.7
+permanece aberta e nenhum texto deste documento trata a autoridade instalada
+como proteção de branch já implantada.
 
 ## Onde o bloqueio ocorre
 
@@ -85,9 +86,9 @@ A execução `20260901T185440Z-15`:
 Toda a prova foi criada sob `target/`, usou somente fixture sintética e não
 consultou projeto externo nem estado instalado.
 
-## O que falta para concluir T9.7
+## Prova instalada
 
-O bundle `make protected-branch-authority-bundle` já prepara, sem chave, o
+O bundle `make protected-branch-authority-bundle` prepara, sem chave, o
 avaliador e a política para destinos root-owned. A rotina
 [`install-protected-branch-authority.sh`](../packaging/systemd/install-protected-branch-authority.sh)
 instala apenas esses dois arquivos revisados, cria uma chave Ed25519 exclusiva
@@ -96,11 +97,27 @@ conseguem lê-la ou gravar sua raiz e testa o par de chaves. Ela não compila co
 root e publica os logs em `target/` através da identidade normal do operador,
 sem escrever como root em um destino controlado pelo usuário.
 
-Faltam ainda duas provas externas:
+A execução instalada `20260901T222425Z` passou com:
 
-1. executar a rotina preparada e confirmar no host o isolamento do avaliador,
-   política e chave;
-2. configurar no provedor real as branches relevantes para exigir o contexto
+```text
+exit_code=0
+authority_installed=yes
+policy_installed=yes
+private_key_present=yes
+provider_branch_protection=not-configured
+```
+
+O teste criptográfico retornou `Signature Verified Successfully`. O log
+público não contém chave, path da chave, conteúdo protegido ou outro locator
+administrativo. A chave exclusiva permanece na raiz root-owned e a rotina
+comprovou que nem o operador normal nem a identidade do serviço conseguem
+lê-la ou gravar sua âncora.
+
+## O que falta para concluir T9.7
+
+Falta uma prova externa:
+
+1. configurar no provedor real as branches relevantes para exigir o contexto
    `antdelirium/protected-gate` e provar que merge sem esse resultado é negado.
 
 O segundo item depende de existir um remoto e de saber qual provedor administra

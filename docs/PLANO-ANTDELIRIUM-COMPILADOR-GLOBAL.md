@@ -1249,7 +1249,9 @@ Estado parcial da T9.7: a
 sete códigos bloqueantes e cinco observações consultivas. A autoridade externa
 verifica a compilação em modo `protected-digest`, o checkpoint Ed25519 da T9.6
 e assina uma decisão path-free vinculada aos três artefatos. A matriz sintética
-passou, mas a tarefa continua aberta: este repositório não possui remoto ou
+passou. A autoridade, a política e uma chave Ed25519 exclusiva também passaram
+na instalação root-owned, com isolamento do operador e da identidade do
+serviço. A tarefa continua aberta: este repositório não possui remoto ou
 workflow de CI onde o contexto `antdelirium/protected-gate` possa ser exigido
 por uma branch real.
 
