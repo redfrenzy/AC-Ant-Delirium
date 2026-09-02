@@ -1280,6 +1280,15 @@ de G9. Ele preserva explicitamente `guard/to-do_list.json`,
 instalação, serviço, storage e integridade. Isso impede que a retirada use o
 prefixo `Legacy` como critério e apague funcionalidades ainda vigentes.
 
+Estado da T10.4: a
+[matriz final de validação](./VALIDACAO-MATRIZ-FINAL-T10.4.md) passou em fixtures
+descartáveis internas e no serviço instalado. Ela revelou que o bootstrap
+provisório usava um fingerprint único para projeto e workspace; storage-v11
+separou essas identidades, preservou os registros v10 e passou com projetos de
+mesmo nome, worktrees ligadas, cache, concorrência, workspace virtual,
+native/WASM, build script, proc-macro e os comandos Cargo comuns. Nenhum projeto
+externo participou da prova.
+
 ## 15. Matriz mínima de validação
 
 O gate obrigatório desta matriz usa somente fixtures sintéticas mantidas neste
