@@ -26,18 +26,19 @@ desativar o rollback compilado.
 - as variantes internas `LegacyAgentCliRollback` e `LegacyGuardRollback`, seus
   match arms e seus testes de compilação em `src/Binary-Mode_unit.rs`.
 
-Depois que T9.8 provar paridade de checkpoint e recuperação, também saem:
+Depois que T9.8 provar paridade de backup, contexto e recuperação, saem apenas
+as funções e superfícies legadas dessas rotas:
 
-- `src/Git_unit.rs` e `src/Git_unitcore.rs`;
-- o módulo `git_unit` em `src/main.rs`;
-- `gix` do `Cargo.toml` e do lockfile, caso nenhum consumidor protegido novo o
-  utilize;
 - chamadas legadas a `capture_project_snapshot`, `commit_governance_state`,
-  `hierarchy.git.*` e `hierarchy.context.*` junto do runtime antigo.
+  `hierarchy.git.*` e `hierarchy.context.*` junto do runtime antigo;
+- os shell-outs e handlers inseguros em `src/Git_unitcore.rs` depois que seus
+  consumidores tiverem migrado para o módulo protegido.
 
-Esses itens não podem ser removidos antes de T9.8: embora a implementação atual
-seja silenciosa e insegura, ela é a única evidência compilada da semântica
-histórica de snapshot automático por tarefa.
+O módulo de backup Git privado e `gix` devem permanecer. `Git_unit` pode ser
+refatorado ou renomeado, mas a funcionalidade não sai; somente os entrypoints,
+shell-outs e handlers inseguros são retirados.
+Embora a implementação atual seja silenciosa e insegura, ela é a única
+evidência compilada da semântica histórica de backup automático por tarefa.
 
 Esses componentes não possuem rota pública hoje. Eles existem somente para
 recuperar o comportamento anterior dentro do ELF único.
@@ -61,7 +62,8 @@ mesmo commit:
 
 O `build.rs` do próprio AntDelirium já não executa esse guard. A retirada do
 axioma não elimina o enforcement novo: wrapper global, serviço dedicado,
-capabilities, checkpoint assinado e gate de branch são contratos separados.
+capabilities, backup Git privado, checkpoint assinado e transição local são
+contratos separados.
 
 ## Componentes que devem permanecer
 
@@ -85,6 +87,9 @@ transacional e auditada de uma origem antiga; não são pass-through da CLI.
 
 Também permanecem:
 
+- o repositório Git privado por projeto, a cópia versionada de fonte e o
+  histórico usado para descrições/contextos de tarefas;
+- `gix` enquanto implementar esse repositório interno;
 - rollback do instalador e da configuração Cargo;
 - backup e rollback do serviço e do storage;
 - detecção de rollback pelo checkpoint assinado;
@@ -94,10 +99,12 @@ Também permanecem:
 
 ## Ordem sem conflito
 
-1. comprovar o enforcement local T9.7;
-2. implementar e provar a substituição do commit automático na T9.8;
+1. portar e provar o backup Git automático na T9.8, inclusive em projeto sem
+   `.git`;
+2. usar o commit/fingerprint desse backup no enforcement local T9.7;
 3. preservar o commit acima como tag/release recuperável;
-4. remover as duas rotas internas, `Git_unit` e seus arquivos de runtime;
+4. remover as duas rotas internas e somente as funções Git legadas já
+   substituídas;
 5. remover o Super Block e os templates do guard local no mesmo commit;
 6. atualizar apenas snapshots e testes que cobriam esses componentes;
 7. provar que `cargo metadata` expõe somente `antdelirium` e que o ELF não
@@ -112,6 +119,8 @@ A retirada deve ser interrompida se qualquer validação:
 - remover ou deixar de atualizar `guard/to-do_list.json` ou
   `guard/governance_error.json`;
 - eliminar uma operação atual de migração, instalação ou rollback;
+- eliminar o backup Git privado, a cópia histórica de fonte ou o contexto de
+  tarefa derivado de commits;
 - reintroduzir caminho de `plugins/`, TOML externo ou instrução para editar
   `build.rs` na superfície do agente;
 - criar um segundo executável;

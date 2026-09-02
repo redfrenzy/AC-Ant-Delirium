@@ -2,16 +2,20 @@
 
 ## Resultado
 
-O AntDelirium antigo possui um checkpoint Git automático dentro do state root
-do plugin, mas essa funcionalidade **não está correta nem ativa no fluxo global
-atual**. Ela permanece compilada somente junto do runtime de rollback.
+O AntDelirium antigo possui um backup Git automático dentro do state root do
+plugin. Essa arquitetura é deliberada: o projeto governado não precisa possuir
+`.git`; o AntDelirium mantém sua própria cópia versionada do código junto do
+estado privado. A funcionalidade permanece compilada somente no runtime de
+rollback e ainda não foi portada corretamente para o fluxo global.
 
 O sistema novo já substituiu a persistência de tarefa, submissão, revisão e
 avanço por transações SQLite e journals append-only, e T9.6 acrescentou um
 checkpoint Ed25519 do estado protegido. Ainda falta preservar a outra metade
-da funcionalidade antiga: criar automaticamente, a cada avanço aceito, uma
-referência recuperável que vincule a revisão aceita, a revisão da tarefa e o
-estado do código que foi avaliado.
+da funcionalidade antiga: criar automaticamente uma referência recuperável no
+baseline e em cada transição canônica relevante — submissão, revisão e avanço
+— vinculando tarefa, revisão e estado do código avaliado. Esse histórico também
+deve fornecer os diffs e resumos usados nas descrições e contextos das tarefas
+JSON.
 
 Nenhum repositório remoto é necessário para esse mecanismo. GitHub, GitLab,
 push e branch protection são integrações opcionais fora do gate do produto.
@@ -27,6 +31,11 @@ Antes do commit, [`capture_project_snapshot`](../src/Git_unitcore.rs) executa
 algumas pastas. Chamadas em [`Agent-Runtime_unitcore.rs`](../src/Agent-Runtime_unitcore.rs)
 ocorrem depois de mutações legadas como `implemented=true`, revisão e nota.
 
+O histórico interno também é consultado por `hierarchy.context.*`: o motor
+localiza o commit associado à tarefa e renderiza o diff de `project_state/`
+sem exigir Git no projeto original. Essa é a fonte correta para contexto e
+recuperação.
+
 Os hooks gerados por `config hooks init` são outra funcionalidade: eles apenas
 bloqueiam certos commits, merges e pushes quando faltam metadados. O próprio
 README gerado declara que a ativação é manual e que o motor não executa Git ou
@@ -41,13 +50,20 @@ shell. Portanto esses hooks não implementam o commit automático.
    operador de saber que o checkpoint falhou.
 4. Não há preparação ou validação explícita de autor Git, árvore vazia,
    primeiro commit, lock concorrente ou repositório corrompido.
-5. `git add .` inclui o state root inteiro, sem uma allowlist de artefatos e sem
+5. `gix::discover` pode subir para um repositório pai em vez de exigir o
+   repositório interno exato; isso viola a separação quando o projeto possuir
+   Git por decisão própria.
+6. `git add .` inclui o state root inteiro, sem uma allowlist de artefatos e sem
    separar planos, segredos, logs ou arquivos temporários.
-6. A cópia usa `rsync --delete`; uma resolução incorreta de raiz pode apagar o
+7. A cópia usa `rsync --delete`; uma resolução incorreta de raiz pode apagar o
    snapshot interno e a falha ainda assim ser ocultada.
-7. A API legada oferece `git reset --hard` sobre o state root e retorna saída
+8. O resumo gravado em `implementation_context` executa `git diff HEAD --stat`
+   no workspace original, não no backup interno. Em um projeto sem `.git`, o
+   Git retorna erro, mas o status é ignorado e o texto pode declarar falsamente
+   que nenhum arquivo foi modificado.
+9. A API legada oferece `git reset --hard` sobre o state root e retorna saída
    bruta do Git. Ela não deve voltar à superfície do agente.
-8. Não existem testes específicos para sucesso, falha, concorrência,
+10. Não existem testes específicos para sucesso, falha, concorrência,
    recuperação ou vínculo entre tarefa e commit.
 
 ## Estado no binário global
@@ -68,13 +84,16 @@ Já estão implementados e validados:
 
 Ainda não estão implementados:
 
-- checkpoint automático imediatamente após cada avanço aceito;
+- backup e commit Git automáticos no baseline e nas transições de submissão,
+  revisão e avanço;
 - vínculo obrigatório entre checkpoint, `project_id`, `workspace_id`,
   `task_id`, revisão canônica e fingerprint do código avaliado;
 - prova de que falha ao criar esse checkpoint impede o avanço ou o torna
   explicitamente incompleto e recuperável;
-- recuperação equivalente ao snapshot histórico antigo sem copiar código para
-  `plugins/` e sem revelar a raiz protegida ao agente.
+- repositório Git privado e snapshot de código equivalentes ao backup histórico
+  antigo, fora do projeto e sem revelar a raiz protegida ao agente;
+- geração de `implementation_context` e contexto de revisão a partir do diff
+  entre commits do backup interno, inclusive quando o projeto não possui Git.
 
 ## Contrato exigido para a substituição
 
@@ -84,15 +103,25 @@ A substituição deve ser local e controlada pela autoridade protegida:
 2. o revisor aceita ou rejeita a submissão;
 3. a autoridade de transição confere auditoria atual e revisão aceita;
 4. o avanço e seu evento canônico são persistidos atomicamente;
-5. um checkpoint automático vincula a transição ao fingerprint do código
-   avaliado e recebe confirmação assinada;
-6. falha de checkpoint é observável e não pode ser convertida em sucesso;
-7. recuperação exige capability administrativa e nunca é oferecida na API do
+5. o workspace é copiado para a árvore de backup privada por uma operação
+   limitada, validada e sem seguir symlinks inesperados;
+6. commits automáticos no Git interno vinculam baseline, submissão, revisão e
+   avanço ao fingerprint do código avaliado e recebem confirmação assinada;
+7. descrições e contextos JSON são derivados do diff desse Git interno, nunca
+   de `.git` no projeto governado;
+8. o repositório interno é aberto por raiz exata e nunca descoberto subindo
+   diretórios;
+9. falha de cópia, indexação ou commit é observável e não pode ser convertida
+   em sucesso;
+10. recuperação exige capability administrativa e nunca é oferecida na API do
    agente;
-8. nenhum `.git`, cópia de fonte, plano ou log administrativo é criado dentro
-   do projeto governado ou de `plugins/`.
+11. nenhum `.git` é criado no projeto governado; o `.git`, a cópia da fonte e
+   o histórico ficam somente no state root privado do AntDelirium;
+12. capabilities, segredos, temporários e logs sensíveis ficam fora da árvore
+   versionada por uma allowlist fechada.
 
-O formato interno poderá usar Git local protegido ou armazenamento
-content-addressed, mas a implementação deve provar paridade de recuperação com
-o checkpoint antigo antes que `Git_unit`, o runtime legado e a dependência
-`gix` possam ser removidos.
+O formato obrigatório é um Git local privado, equivalente ao backup original.
+`gix` deve ser concluído ou substituído por outra implementação Git validada;
+ele não deve ser removido apenas porque o runtime legado será retirado. A
+implementação global precisa provar backup, diff, contexto e recuperação antes
+que as funções antigas possam sair.

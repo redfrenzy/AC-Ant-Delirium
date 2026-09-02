@@ -34,14 +34,14 @@ projeto externo estão fora do gate.
 | agente recebe ações de código, não edição de JSON | comprovado | API limitada e projeções com ação/evidência |
 | documentação não promete proteção contornável pelo mesmo usuário | comprovado | limites locais/host/CI declarados e não objetivos mantidos |
 | autoridade local contra bypass intencional | **pendente** | política, assinatura e autoridade estão instaladas, mas a transição canônica ainda não exige auditoria atual e sem violações |
-| checkpoint automático por tarefa aceita | **pendente** | transações, journals e checkpoint Ed25519 existem; ainda faltam gatilho automático, vínculo com fingerprint do código e paridade de recuperação do commit legado |
+| backup Git automático por ciclo de tarefa | **pendente** | transações, journals e checkpoint Ed25519 existem; ainda faltam o Git privado global, commits de baseline/submissão/revisão/avanço, contexto derivado do diff interno e paridade de recuperação do backup legado |
 | implantação genérica com rollback sem projeto externo | comprovado | T8G.1–T8G.4, storage-v11 e T10.4 |
 | toda a suíte do AntDelirium verde no estado final | **pendente** | testes focados e matrizes T10.4 passaram; a suíte integral final deve rodar depois de T10.2/T10.3 para validar o produto sem rollback compilado |
 
 ## Dependências restantes
 
-1. integrar a decisão assinada à transição canônica local e concluir T9.7;
-2. substituir e validar o commit automático legado na T9.8;
+1. portar e validar backup, commit, diff e recuperação Git na T9.8;
+2. integrar o commit/fingerprint à transição canônica local e concluir T9.7;
 3. criar a referência recuperável do release e executar a remoção inventariada
    em T10.2;
 4. retirar mensagens/templates exclusivos do rollback e concluir T10.3;
@@ -53,6 +53,6 @@ projeto externo estão fora do gate.
 
 O produto não reimplementa `rustc`, não depende de obscuridade, não promete
 impedir engenharia reversa pelo mesmo usuário, não substitui o proxy `cargo`,
-não copia repositórios para o Cargo home e não transforma JSON editável em
-autoridade. Revisão separada e controle de acesso do sistema operacional
+não usa o backup Git privado como workspace do agente, não expõe sua localização
+e não transforma JSON editável em autoridade. Revisão separada e controle de acesso do sistema operacional
 continuam autoridades necessárias; CI/branch protection é integração opcional.

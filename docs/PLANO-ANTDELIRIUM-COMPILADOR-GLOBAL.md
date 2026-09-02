@@ -436,6 +436,7 @@ $CARGO_HOME/antdelirium/
     problems/
       ...
     project_state/
+      source/
       workspaces/
         <workspace-key>/
           context.json
@@ -455,6 +456,8 @@ $CARGO_HOME/antdelirium/
       lock
       events.log
       snapshot.json
+    backup.git/
+      ... objetos e referências do backup privado ...
     connected.json
     context.json
     feedback.json
@@ -491,8 +494,12 @@ Diferenças deliberadas em relação ao plugin local:
 
 - não haverá `bin/` por projeto;
 - não haverá binário `guard` por projeto; poderá existir somente a pasta projetada `guard/`;
-- não haverá `.git` dentro da pasta de dados;
-- `project_state/` não será uma cópia do código-fonte;
+- o projeto governado não precisa possuir `.git`; o repositório Git do backup
+  fica exclusivamente no state root privado;
+- `project_state/source/` é a cópia versionada do código para backup e contexto,
+  não um workspace oferecido ao agente;
+- o Git privado versiona somente a allowlist de snapshot e metadados de
+  governança; capabilities, segredos, locks, temporários e logs ficam fora;
 - scripts gerados serão apenas templates não executáveis;
 - JSONs de leitura poderão ser projeções de um estado canônico transacional;
 - o caminho da pasta de dados não será apresentado como local de trabalho para o agente de implementação.
@@ -1268,11 +1275,14 @@ Estado parcial da T9.8: a
 [auditoria do commit automático legado](./AUDITORIA-COMMIT-AUTOMATICO-LEGADO.md)
 confirmou que o runtime antigo copia o workspace para `project_state/`, tenta
 `git add .` e `git commit` dentro do state root do plugin e descarta os status e
-erros. Essa rota não é alcançável pela CLI pública atual. SQLite transacional,
-journals e o checkpoint Ed25519 já substituem o estado de governança, mas ainda
-faltam o gatilho automático após avanço aceito, o vínculo com o fingerprint do
-código e a prova de recuperação equivalente. A substituição será local e
-protegida, sem `.git` ou cópia de fonte no projeto/`plugins/` e sem remoto.
+erros. Essa rota não é alcançável pela CLI pública atual. A intenção correta é
+manter o projeto sem Git obrigatório e usar o repositório interno como backup
+versionado, recuperação e fonte dos diffs que descrevem tarefas. SQLite
+transacional, journals e o checkpoint Ed25519 já substituem o estado de
+governança, mas ainda faltam a porta global do Git privado, o gatilho após
+avanço aceito e a geração de contexto a partir do backup interno. O novo state
+root preservará `.git`/objetos e cópia de fonte somente em armazenamento
+privado, nunca dentro do projeto e sem remoto.
 
 Estado da T10.1: a
 [matriz de paridade final](./VALIDACAO-PARIDADE-BINARIO-T10.1.md) confirmou que
@@ -1311,7 +1321,7 @@ externo participou da prova.
 Estado parcial da T10.5: a
 [auditoria da definição de pronto](./AUDITORIA-DEFINICAO-PRONTO-T10.5.md)
 conferiu cada requisito e preservou os não objetivos. Vinte e um de vinte e
-quatro itens possuem evidência; enforcement local T9.7, checkpoint automático
+quatro itens possuem evidência; enforcement local T9.7, backup Git automático
 T9.8 e a suíte integral depois da retirada T10.2/T10.3 permanecem pendentes. O
 gate final não é declarado enquanto esses três pontos estiverem abertos.
 
@@ -1399,8 +1409,9 @@ O trabalho estará concluído somente quando:
 - o agente receber ações de código, não instruções para editar JSON;
 - a documentação não prometer proteção que o mesmo usuário pode contornar;
 - a autoridade local impedir avanço com auditoria ausente, obsoleta ou violada;
-- cada avanço aceito produzir automaticamente um checkpoint recuperável
-  vinculado à tarefa, revisão e fingerprint do código;
+- baseline, submissão, revisão e avanço produzirem automaticamente commits no
+  backup Git privado, vinculados à tarefa, revisão e fingerprint do código, e
+  usarem seus diffs nos contextos JSON;
 - a implantação genérica estiver validada em fixtures sintéticas e possuir rollback, sem depender de projeto externo;
 - toda a suíte do AntDelirium estiver verde.
 
@@ -1412,7 +1423,8 @@ Esta evolução não pretende:
 - esconder o funcionamento do AntDelirium por obscuridade;
 - impedir engenharia reversa de um binário entregue ao mesmo usuário;
 - controlar o shell do agente por comportamento não documentado;
-- copiar repositórios para `$CARGO_HOME`;
+- usar a cópia privada de backup como workspace do agente ou expor sua
+  localização pela API;
 - tratar JSON editável pelo mesmo usuário como prova criptográfica;
 - substituir revisão humana, CI e controle de acesso do sistema operacional.
 
