@@ -1289,6 +1289,13 @@ mesmo nome, worktrees ligadas, cache, concorrência, workspace virtual,
 native/WASM, build script, proc-macro e os comandos Cargo comuns. Nenhum projeto
 externo participou da prova.
 
+Estado parcial da T10.5: a
+[auditoria da definição de pronto](./AUDITORIA-DEFINICAO-PRONTO-T10.5.md)
+conferiu cada requisito e preservou os não objetivos. Vinte e um itens possuem
+evidência; branch protection real da T9.7 e a suíte integral depois da retirada
+T10.2/T10.3 permanecem pendentes. O gate final não é declarado enquanto esses
+dois pontos estiverem abertos.
+
 ## 15. Matriz mínima de validação
 
 O gate obrigatório desta matriz usa somente fixtures sintéticas mantidas neste
@@ -1334,19 +1341,19 @@ externo receberá plano e aceite próprios depois da conclusão do AntDelirium.
 2. **Fechada na T1.3:** SQLite/WAL protegido é canônico; eventos permanecem append-only em tabela transacional e JSON é apenas projeção/exportação.
 3. **Fechada na T6.7:** até `25 ms` adicionais por entrada do wrapper; checks
    limpo, incremental e no-op têm tetos pareados de `2 s`, `1 s` e `250 ms`.
-4. Auditoria ocorre antes, depois ou em paralelo ao `rustc` em modo de produção?
-5. Quais violações bloqueiam e quais apenas geram dados?
-6. Como compor com `sccache` e outros wrappers já instalados?
+4. **Fechada na T6.4:** auditoria limitada é iniciada antes do `exec` e continua em worker paralelo; o `rustc` preserva precedência e semântica de exit.
+5. **Fechada na T9.7:** sete códigos definidos bloqueiam o gate protegido e cinco observações permanecem consultivas; código desconhecido falha fechado no contexto protegido.
+6. **Fechada na T7.3:** wrapper/cache preexistente é conflito explícito; não há composição ou overwrite implícito.
 7. **Fechada na T1.8:** provisório vazio pode ser quarentenado após 30 dias; qualquer state governado tem retenção mínima de 180 dias e nunca sofre purge automático.
-8. Quais partes do layout AutoBrowser são canônicas e quais são apenas exportações compatíveis?
+8. **Retirada do gate do produto:** qualquer classificação ou migração de layout AutoBrowser pertence a um trabalho externo separado e não bloqueia o AntDelirium.
 9. **Fechada na T1.8:** cutover exige operador `state.admin` mais attestation independente; rollback manual exige operador e gatilhos objetivos podem usar autorização pré-aprovada.
-10. Qual autoridade externa registrará ou validará comandos totalmente atendidos pelo cache quando essa prova for necessária?
+10. **Fechada na T7.7/T9.7:** CI/supervisor usa target limpo, digest protegido e decisão assinada; branch protection do provedor deve exigir esse contexto e permanece a implantação externa pendente.
 11. **Fechada na T1.8:** permanecem canônicos até stage, paridade e aprovação; depois do cutover o SQLite protegido é canônico e a origem fica congelada/recuperável por no mínimo 30 dias.
 12. **Fechada na T1.6:** sockets/listeners separados, `SO_PEERCRED` e capability de 256 bits vinculada a UID, ator e escopo; supervisor entrega capabilities protegidas por descriptor.
 13. **Fechada na T1.8:** regra autocontida e exata em `guard/.gitignore` somente quando necessária; nunca editar root ignore, index, exclude ou configuração Git automaticamente.
 14. **Fechada na T1.2:** UID dedicado, ausência de `CAP_SYS_PTRACE`, Yama, daemon não dumpable, AppArmor e sandbox do agente com PID namespace/procfs oculto.
 15. **Fechada na T1.3:** estado canônico migra para SQLite protegido; o cliente recebe somente projeções JSON sanitizadas e nunca o path do banco.
-16. Quais caminhos e nomes serão proibidos pela auditoria estática do release sem transformar obscuridade em requisito de segurança?
+16. **Fechada na T9.3:** paths físicos protegidos, paths do mantenedor, logs previsíveis, RPATH e metadados ELF evitáveis são proibidos; nomes genéricos não concedem autoridade e saem com o rollback em T10.2/T10.3.
 
 ## 17. Definição de pronto da evolução
 
@@ -1354,7 +1361,7 @@ O trabalho estará concluído somente quando:
 
 - houver um único binário `antdelirium`;
 - a instalação configurar `$CARGO_HOME/config.toml`, não o `Cargo.toml` dos projetos;
-- o projeto declarar seu MSRV, nunca inferior ao piso de protocolo Cargo 1.50, e permanecer validado na versão 1.93.1 atual;
+- o projeto declarar seu MSRV, nunca inferior ao piso de protocolo Cargo 1.50, e permanecer validado na toolchain estável atual (1.97.1 nesta auditoria);
 - a integração usar o `rustc` real de forma transparente;
 - projetos novos materializarem estado fora do repositório;
 - nenhum projeto precisar de binário ou guard em `plugins/`;
