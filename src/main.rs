@@ -31,6 +31,9 @@ mod service_authority;
 #[path = "Service-Storage_unit.rs"]
 mod service_storage;
 
+#[path = "Protected-Git-Backup_unit.rs"]
+mod protected_git_backup;
+
 #[path = "Service-Provisioning_unit.rs"]
 mod service_provisioning;
 

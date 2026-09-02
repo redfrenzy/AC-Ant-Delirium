@@ -160,6 +160,12 @@ fn initializes_private_registry_and_idempotent_canonical_project_storage() {
         root.join(PROJECTS_DIR_NAME)
             .join(&project().project_key)
             .join("state"),
+        root.join(PROJECTS_DIR_NAME)
+            .join(&project().project_key)
+            .join("backup"),
+        root.join(PROJECTS_DIR_NAME)
+            .join(&project().project_key)
+            .join("backup/repository.git"),
     ] {
         assert_eq!(
             fs::metadata(directory).unwrap().permissions().mode() & 0o777,

@@ -850,6 +850,11 @@ impl ProtectedServiceStorage {
         require_single_project(&database, project)?;
         database.recover()?;
         require_database_ownership(&database, authority.effective_uid())?;
+        crate::protected_git_backup::ProtectedGitBackup::initialize(
+            &project_root,
+            authority.effective_uid(),
+        )
+        .map_err(|_| ProtectedStorageError::Storage)?;
         self.registry.ensure_project(project)?;
         Ok(database)
     }
@@ -955,6 +960,11 @@ impl ProtectedServiceStorage {
             require_single_project(&database, &project)?;
             database.recover()?;
             require_database_ownership(&database, authority.effective_uid())?;
+            crate::protected_git_backup::ProtectedGitBackup::initialize(
+                &project_root,
+                authority.effective_uid(),
+            )
+            .map_err(|_| ProtectedStorageError::Storage)?;
         }
         Ok(())
     }
