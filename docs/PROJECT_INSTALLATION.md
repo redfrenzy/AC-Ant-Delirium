@@ -1105,8 +1105,10 @@ O digest é verificado antes e depois do Cargo. Sem digest externo, a evidência
 declara `authority_mode=local-mechanics`; com digest correspondente, declara
 `protected-digest`. Digest divergente falha antes da compilação. O JSON
 `ci-gate-evidence-v1` contém hashes e estados, nunca paths, mas permanece
-explicitamente não assinado nesta fase. Proteger workflow/runner, emitir
-attestation e exigir o resultado na branch continuam pertencendo à T9.7.
+explicitamente não assinado nesta fase. Emitir a decisão assinada e exigi-la na
+transição canônica local pertencem à T9.7. Projetos que usam CI hospedado podem
+publicar o mesmo resultado como status obrigatório de branch, mas isso é
+integração opcional.
 
 As fixtures Cargo T7.1, T7.2, T7.4 e T7.5 combinam relógio, PID e sequência no
 nome sob `target/`. A mesma seleção de testes passou duas vezes consecutivas sem

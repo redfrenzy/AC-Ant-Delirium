@@ -8,8 +8,10 @@ pode ser feita por busca textual, prefixo de arquivo ou diretório inteiro.
 
 O ponto de recuperação revisado antes da retirada é o commit
 `de355fe78ca958988b8c00ebf14d442e182df1f2`. A exclusão estrutural só pode ser
-executada depois de G9/T9.7 estar comprovado por um branch protegido real. Até
-lá, este inventário não autoriza apagar nem desativar o rollback compilado.
+executada depois de G9 comprovar o enforcement local da T9.7 e a substituição
+do commit automático na T9.8. Repositório remoto e branch protection não são
+pré-requisitos do produto. Até lá, este inventário não autoriza apagar nem
+desativar o rollback compilado.
 
 ## Remoção autorizada depois de G9
 
@@ -23,6 +25,19 @@ lá, este inventário não autoriza apagar nem desativar o rollback compilado.
   `run_legacy_cli_mode` em `src/main.rs`;
 - as variantes internas `LegacyAgentCliRollback` e `LegacyGuardRollback`, seus
   match arms e seus testes de compilação em `src/Binary-Mode_unit.rs`.
+
+Depois que T9.8 provar paridade de checkpoint e recuperação, também saem:
+
+- `src/Git_unit.rs` e `src/Git_unitcore.rs`;
+- o módulo `git_unit` em `src/main.rs`;
+- `gix` do `Cargo.toml` e do lockfile, caso nenhum consumidor protegido novo o
+  utilize;
+- chamadas legadas a `capture_project_snapshot`, `commit_governance_state`,
+  `hierarchy.git.*` e `hierarchy.context.*` junto do runtime antigo.
+
+Esses itens não podem ser removidos antes de T9.8: embora a implementação atual
+seja silenciosa e insegura, ela é a única evidência compilada da semântica
+histórica de snapshot automático por tarefa.
 
 Esses componentes não possuem rota pública hoje. Eles existem somente para
 recuperar o comportamento anterior dentro do ELF único.
@@ -79,15 +94,16 @@ Também permanecem:
 
 ## Ordem sem conflito
 
-1. comprovar T9.7 em remoto real e fechar G9;
-2. preservar o commit acima como tag/release recuperável;
-3. remover as duas rotas internas e seus arquivos de runtime;
-4. remover o Super Block e os templates do guard local no mesmo commit;
-5. atualizar apenas snapshots e testes que cobriam esses componentes;
-6. provar que `cargo metadata` expõe somente `antdelirium` e que o ELF não
+1. comprovar o enforcement local T9.7;
+2. implementar e provar a substituição do commit automático na T9.8;
+3. preservar o commit acima como tag/release recuperável;
+4. remover as duas rotas internas, `Git_unit` e seus arquivos de runtime;
+5. remover o Super Block e os templates do guard local no mesmo commit;
+6. atualizar apenas snapshots e testes que cobriam esses componentes;
+7. provar que `cargo metadata` expõe somente `antdelirium` e que o ELF não
    contém os entrypoints ou instruções antigas;
-7. executar a matriz T10.4 em fixtures Rust internas;
-8. revisar mensagens e documentação restantes para concluir T10.3.
+8. executar a matriz T10.4 em fixtures Rust internas;
+9. revisar mensagens e documentação restantes para concluir T10.3.
 
 ## Critérios de falha
 

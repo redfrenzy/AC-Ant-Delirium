@@ -83,7 +83,8 @@ O gate local implementa e testa a mecânica de revalidação. Ele não transform
 este checkout, seu script ou seu digest em autoridade externa. Para impedir que
 o agente modifique simultaneamente código, gate e resultado, o runner e o
 digest esperado precisam ser fornecidos por CI/supervisor não gravável pelo
-agente. Assinatura e branch protection continuam em T9.6 e T9.7.
+agente. Assinatura e enforcement da transição local continuam em T9.6 e T9.7;
+branch protection é integração opcional.
 
 ## Resultado
 

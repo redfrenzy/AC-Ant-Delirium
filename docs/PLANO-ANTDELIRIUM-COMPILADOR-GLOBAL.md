@@ -646,11 +646,15 @@ Para impedir desabilitação intencional, pelo menos uma autoridade precisa fica
 - binário e configuração controlados por root ou por outro usuário;
 - serviço supervisor com API limitada;
 - sandbox que permita escrever somente na raiz do projeto;
-- CI remoto obrigatório com política protegida;
-- branch protection que exija o resultado do AntDelirium;
+- supervisor local protegido que autorize revisão e avanço;
+- opcionalmente, CI remoto e branch protection para projetos que já utilizem
+  um provedor hospedado;
 - assinatura de eventos com chave não disponível ao agente.
 
-O caminho recomendado é usar `$CARGO_HOME` para integração local e CI/supervisor como autoridade final.
+O caminho obrigatório do produto é usar `$CARGO_HOME` para integração local e
+o serviço/supervisor root-owned como autoridade final. CI hospedado e branch
+protection são integrações opcionais; não são necessários para o AntDelirium
+funcionar como ferramenta global do Cargo.
 
 Para o AutoBrowser, o requisito imediato é mais específico: o agente não pode ler nem escrever `plugins/AutoBrowser/plan/` ou `task_orchestrator.json`. Hoje esses arquivos usam permissões graváveis pelo mesmo usuário, portanto o layout atual não satisfaz a fronteira. A implantação deverá combinar sandbox de raiz do projeto com serviço/usuário protegido, ou outra capability externa equivalente. Tornar arquivos apenas `readonly` para o mesmo usuário é defesa contra acidente, não autorização suficiente.
 
@@ -976,7 +980,8 @@ primária observável. O segundo check em cache é apenas advisory; cada nova
 execução ganha outro target limpo. O modo protegido exige path e SHA-256 vindos
 de fora do workspace, revalida o binário ao final e gera evidência versionada
 sem paths. Execução local, digest derivado no próprio PR e evidência não assinada
-não são autoridade; runner protegido, assinatura e branch gate ficam na T9.7.
+não são autoridade; supervisor protegido, assinatura e bloqueio da transição
+local ficam na T9.7. Branch gate é uma publicação opcional da mesma decisão.
 
 Aceite da T8G.4: a
 [prova real de atualização, desinstalação e rollback](./VALIDACAO-ATUALIZACAO-DESINSTALACAO-ROLLBACK-T8G.4.md)
@@ -988,7 +993,7 @@ contratos das unidades e hash comum de serviço, release e wrapper permaneceram
 causada por arquivos auxiliares SQLite/WAL; a ordem de fingerprint foi corrigida
 e a repetição completa passou.
 
-### Fase 6 — comandos Cargo existentes e gate externo
+### Fase 6 — comandos Cargo existentes e autoridade local
 
 Objetivo: manter a integração invisível para o agente e reduzir bypass sem substituir o Cargo.
 
@@ -997,8 +1002,8 @@ Tarefas:
 1. validar `cargo check`, `cargo build`, `cargo test`, `cargo run` e `cargo clippy` sem alterar a forma de chamada;
 2. provar que a primeira compilação de um projeto novo materializa o state root;
 3. tratar uma execução atendida pelo cache como ausência legítima de nova compilação, preservando o estado existente;
-4. publicar um fluxo CI autoritativo que use ambiente ou configuração protegida e target limpo;
-5. verificar no CI que o wrapper participou das compilações primárias esperadas;
+4. publicar um fluxo de supervisor autoritativo que use ambiente ou configuração protegida e target limpo;
+5. verificar no supervisor que o wrapper participou das compilações primárias esperadas;
 6. detectar tentativa de desabilitação por ambiente, configuração local, `--config` ou chamada direta do compilador;
 7. definir política fail-open de rollout e fail-closed de produção;
 8. documentar que não existe comando AntDelirium alternativo obrigatório para agentes.
@@ -1007,7 +1012,8 @@ Critério de saída:
 
 - todos os comandos Cargo existentes continuam funcionando sem instruções especiais;
 - a primeira compilação gera os dados externos automaticamente;
-- o CI bloqueia bypass mesmo que o wrapper local seja removido ou substituído;
+- a autoridade local bloqueia avanço canônico quando o wrapper foi removido,
+  substituído ou produziu auditoria ausente/obsoleta;
 - nenhum componente substitui o proxy `cargo` gerenciado pelo rustup.
 
 Estado da política de rollout: a
@@ -1183,7 +1189,8 @@ Tarefas:
 4. mover chaves de assinatura para supervisor ou CI;
 5. assinar eventos e snapshots relevantes;
 6. detectar lacunas de sequência e rollback de estado;
-7. exigir resultado do gate em branches protegidas;
+7. exigir o resultado assinado na transição canônica local; opcionalmente
+   publicar o mesmo resultado em branches protegidas;
 8. testar bypass por env, config local, `--config`, rustc direto e cópia do projeto.
 9. impedir leitura e escrita de artefatos autoritativos representados por uma raiz protegida sintética, sem depender do layout de projeto externo;
 10. provar que `submit` não altera `implemented`, revisão, aprovação ou grade;
@@ -1251,9 +1258,21 @@ verifica a compilação em modo `protected-digest`, o checkpoint Ed25519 da T9.6
 e assina uma decisão path-free vinculada aos três artefatos. A matriz sintética
 passou. A autoridade, a política e uma chave Ed25519 exclusiva também passaram
 na instalação root-owned, com isolamento do operador e da identidade do
-serviço. A tarefa continua aberta: este repositório não possui remoto ou
-workflow de CI onde o contexto `antdelirium/protected-gate` possa ser exigido
-por uma branch real.
+serviço. A tarefa continua aberta porque a decisão ainda não é requisito da
+transição canônica local: avanço deve recusar auditoria ausente, obsoleta ou
+violada e deve vinculá-la ao fingerprint atual do código. O contexto de branch
+`antdelirium/protected-gate` permanece disponível como integração opcional para
+provedores hospedados e não bloqueia o produto.
+
+Estado parcial da T9.8: a
+[auditoria do commit automático legado](./AUDITORIA-COMMIT-AUTOMATICO-LEGADO.md)
+confirmou que o runtime antigo copia o workspace para `project_state/`, tenta
+`git add .` e `git commit` dentro do state root do plugin e descarta os status e
+erros. Essa rota não é alcançável pela CLI pública atual. SQLite transacional,
+journals e o checkpoint Ed25519 já substituem o estado de governança, mas ainda
+faltam o gatilho automático após avanço aceito, o vínculo com o fingerprint do
+código e a prova de recuperação equivalente. A substituição será local e
+protegida, sem `.git` ou cópia de fonte no projeto/`plugins/` e sem remoto.
 
 Estado da T10.1: a
 [matriz de paridade final](./VALIDACAO-PARIDADE-BINARIO-T10.1.md) confirmou que
@@ -1274,8 +1293,8 @@ rollback aguardam a remoção estrutural da T10.2.
 
 Fronteira preparada para T10.2: o
 [inventário de remoção do rollback antigo](./INVENTARIO-REMOCAO-ROLLBACK-T10.2.md)
-fixa o conjunto de entrypoints, templates e regras Super Block que sairá depois
-de G9. Ele preserva explicitamente `guard/to-do_list.json`,
+fixa o conjunto de entrypoints, templates, `Git_unit` e regras Super Block que
+sairá depois de G9 e da paridade T9.8. Ele preserva explicitamente `guard/to-do_list.json`,
 `guard/governance_error.json`, a migração transacional e os rollbacks atuais de
 instalação, serviço, storage e integridade. Isso impede que a retirada use o
 prefixo `Legacy` como critério e apague funcionalidades ainda vigentes.
@@ -1291,10 +1310,10 @@ externo participou da prova.
 
 Estado parcial da T10.5: a
 [auditoria da definição de pronto](./AUDITORIA-DEFINICAO-PRONTO-T10.5.md)
-conferiu cada requisito e preservou os não objetivos. Vinte e um itens possuem
-evidência; branch protection real da T9.7 e a suíte integral depois da retirada
-T10.2/T10.3 permanecem pendentes. O gate final não é declarado enquanto esses
-dois pontos estiverem abertos.
+conferiu cada requisito e preservou os não objetivos. Vinte e um de vinte e
+quatro itens possuem evidência; enforcement local T9.7, checkpoint automático
+T9.8 e a suíte integral depois da retirada T10.2/T10.3 permanecem pendentes. O
+gate final não é declarado enquanto esses três pontos estiverem abertos.
 
 ## 15. Matriz mínima de validação
 
@@ -1342,12 +1361,12 @@ externo receberá plano e aceite próprios depois da conclusão do AntDelirium.
 3. **Fechada na T6.7:** até `25 ms` adicionais por entrada do wrapper; checks
    limpo, incremental e no-op têm tetos pareados de `2 s`, `1 s` e `250 ms`.
 4. **Fechada na T6.4:** auditoria limitada é iniciada antes do `exec` e continua em worker paralelo; o `rustc` preserva precedência e semântica de exit.
-5. **Fechada na T9.7:** sete códigos definidos bloqueiam o gate protegido e cinco observações permanecem consultivas; código desconhecido falha fechado no contexto protegido.
+5. **Parcial na T9.7:** sete códigos bloqueantes e cinco observações consultivas estão definidos; falta torná-los requisito da transição canônica local.
 6. **Fechada na T7.3:** wrapper/cache preexistente é conflito explícito; não há composição ou overwrite implícito.
 7. **Fechada na T1.8:** provisório vazio pode ser quarentenado após 30 dias; qualquer state governado tem retenção mínima de 180 dias e nunca sofre purge automático.
 8. **Retirada do gate do produto:** qualquer classificação ou migração de layout AutoBrowser pertence a um trabalho externo separado e não bloqueia o AntDelirium.
 9. **Fechada na T1.8:** cutover exige operador `state.admin` mais attestation independente; rollback manual exige operador e gatilhos objetivos podem usar autorização pré-aprovada.
-10. **Fechada na T7.7/T9.7:** CI/supervisor usa target limpo, digest protegido e decisão assinada; branch protection do provedor deve exigir esse contexto e permanece a implantação externa pendente.
+10. **Fechada na T7.7/T9.7 para o produto local:** supervisor usa target limpo, digest protegido e decisão assinada; publicação desse resultado em branch protection é integração opcional do projeto governado.
 11. **Fechada na T1.8:** permanecem canônicos até stage, paridade e aprovação; depois do cutover o SQLite protegido é canônico e a origem fica congelada/recuperável por no mínimo 30 dias.
 12. **Fechada na T1.6:** sockets/listeners separados, `SO_PEERCRED` e capability de 256 bits vinculada a UID, ator e escopo; supervisor entrega capabilities protegidas por descriptor.
 13. **Fechada na T1.8:** regra autocontida e exata em `guard/.gitignore` somente quando necessária; nunca editar root ignore, index, exclude ou configuração Git automaticamente.
@@ -1379,7 +1398,9 @@ O trabalho estará concluído somente quando:
 - dados concorrentes forem atômicos e recuperáveis;
 - o agente receber ações de código, não instruções para editar JSON;
 - a documentação não prometer proteção que o mesmo usuário pode contornar;
-- existir um gate externo para enforcement contra bypass intencional;
+- a autoridade local impedir avanço com auditoria ausente, obsoleta ou violada;
+- cada avanço aceito produzir automaticamente um checkpoint recuperável
+  vinculado à tarefa, revisão e fingerprint do código;
 - a implantação genérica estiver validada em fixtures sintéticas e possuir rollback, sem depender de projeto externo;
 - toda a suíte do AntDelirium estiver verde.
 

@@ -112,4 +112,5 @@ path de plano.
 A T9.6 fornece assinatura, continuidade e rollback detection sob autoridade
 root externa ao agente e ao serviço. Ela não ativa bloqueio de builds por conta
 própria. Tornar a verificação obrigatória num runner protegido e numa política
-de branch, com conjunto explícito de violações fail-closed, pertence à T9.7.
+da transição canônica local, com conjunto explícito de violações fail-closed,
+pertence à T9.7. Publicar a decisão em uma branch protegida é opcional.

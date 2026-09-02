@@ -1,4 +1,4 @@
-# Gate fail-closed protegido — T9.7
+# Gate fail-closed protegido — T9.7 parcial
 
 Data da prova mecânica: 1 de setembro de 2026.
 
@@ -6,26 +6,30 @@ Data da prova mecânica: 1 de setembro de 2026.
 
 A política e a decisão fail-closed assinada estão implementadas e passaram na
 matriz sintética. A autoridade root-owned também foi instalada e validada no
-host. A proteção de branch em um provedor hospedado ainda não está ativa: este
-checkout não possui remoto nem workflow de CI configurado. Por isso a T9.7
-permanece aberta e nenhum texto deste documento trata a autoridade instalada
-como proteção de branch já implantada.
+host. A T9.7 permanece aberta porque a decisão ainda não é exigida pela
+transição canônica local de tarefa. Repositório remoto, workflow hospedado e
+proteção de branch não são requisitos do AntDelirium; publicar a mesma decisão
+em um provedor é uma integração opcional.
 
 ## Onde o bloqueio ocorre
 
 O wrapper usado pelos comandos Cargo permanece `audit-only-local` e continua
 fazendo `exec` do `rustc`. Indisponibilidade do serviço não substitui o status,
-o sinal ou o diagnóstico do compilador. O fail-closed é uma decisão posterior
-do CI/supervisor externo e deve ser publicado no contexto obrigatório
-`antdelirium/protected-gate`.
+o sinal ou o diagnóstico do compilador. A decisão fail-closed já pode ser
+produzida por uma autoridade protegida, mas ainda falta fazer o serviço local
+exigi-la antes de aceitar o avanço canônico. O nome histórico de contexto
+`antdelirium/protected-gate` pode ser publicado por CI, sem tornar CI parte do
+fluxo obrigatório.
 
-O gate exige simultaneamente:
+O gate local definitivo deverá exigir simultaneamente:
 
 1. compilação primária em target limpo pelo wrapper cujo digest veio da
    autoridade protegida;
 2. evidência mecânica em modo `protected-digest`, nunca `local-mechanics`;
 3. checkpoint de integridade Ed25519 válido e vinculado à chave externa;
-4. política fechada e atestação final assinada pela autoridade externa.
+4. política fechada e atestação final assinada pela autoridade local protegida;
+5. vínculo com projeto, workspace, tarefa, revisão e fingerprint atual do
+   código antes da transição.
 
 Falha do compilador continua sendo falha do compilador. Ela impede o conjunto
 de provas de ficar completo, mas não é convertida em uma falsa violação de
@@ -113,12 +117,19 @@ administrativo. A chave exclusiva permanece na raiz root-owned e a rotina
 comprovou que nem o operador normal nem a identidade do serviço conseguem
 lê-la ou gravar sua âncora.
 
+Esse campo apenas confirma que o instalador não altera serviços externos. Ele
+não representa uma pendência do produto.
+
 ## O que falta para concluir T9.7
 
-Falta uma prova externa:
+Falta uma prova local instalada:
 
-1. configurar no provedor real as branches relevantes para exigir o contexto
-   `antdelirium/protected-gate` e provar que merge sem esse resultado é negado.
+1. persistir uma decisão vinculada à revisão corrente do código;
+2. exigir essa decisão na operação `governance.task.advance.accepted`;
+3. recusar auditoria ausente, obsoleta, adulterada ou com código bloqueante;
+4. provar que o agente não consegue emitir a decisão nem avançar a tarefa;
+5. provar cache válido quando o fingerprint não mudou e nova auditoria quando
+   o código mudou.
 
-O segundo item depende de existir um remoto e de saber qual provedor administra
-o repositório; nenhum arquivo local pode provar essa configuração sozinho.
+Configurar `antdelirium/protected-gate` em GitHub, GitLab ou outro provedor pode
+reutilizar a atestação existente, mas fica fora do gate local do produto.

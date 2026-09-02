@@ -3,7 +3,7 @@
 ## Resultado atual
 
 A definição de pronto foi conferida item por item depois da matriz T10.4. Vinte
-e um requisitos possuem evidência suficiente; dois permanecem abertos. Por
+e um de vinte e quatro requisitos possuem evidência suficiente; três permanecem abertos. Por
 isso T10.5 e o gate final do produto não estão concluídos.
 
 Esta auditoria trata somente o AntDelirium. AutoBrowser e qualquer migração de
@@ -33,19 +33,20 @@ projeto externo estão fora do gate.
 | concorrência atômica e recuperável | comprovado | storage transacional, builds paralelos e rollback instalado |
 | agente recebe ações de código, não edição de JSON | comprovado | API limitada e projeções com ação/evidência |
 | documentação não promete proteção contornável pelo mesmo usuário | comprovado | limites locais/host/CI declarados e não objetivos mantidos |
-| gate externo contra bypass intencional | **pendente** | política, assinatura e autoridade estão instaladas, mas nenhum remoto exige `antdelirium/protected-gate` por branch protection |
+| autoridade local contra bypass intencional | **pendente** | política, assinatura e autoridade estão instaladas, mas a transição canônica ainda não exige auditoria atual e sem violações |
+| checkpoint automático por tarefa aceita | **pendente** | transações, journals e checkpoint Ed25519 existem; ainda faltam gatilho automático, vínculo com fingerprint do código e paridade de recuperação do commit legado |
 | implantação genérica com rollback sem projeto externo | comprovado | T8G.1–T8G.4, storage-v11 e T10.4 |
 | toda a suíte do AntDelirium verde no estado final | **pendente** | testes focados e matrizes T10.4 passaram; a suíte integral final deve rodar depois de T10.2/T10.3 para validar o produto sem rollback compilado |
 
 ## Dependências restantes
 
-1. configurar um remoto/provedor e tornar obrigatório o contexto assinado
-   `antdelirium/protected-gate`, concluindo T9.7/G9;
-2. criar a referência recuperável do release e executar a remoção inventariada
+1. integrar a decisão assinada à transição canônica local e concluir T9.7;
+2. substituir e validar o commit automático legado na T9.8;
+3. criar a referência recuperável do release e executar a remoção inventariada
    em T10.2;
-3. retirar mensagens/templates exclusivos do rollback e concluir T10.3;
-4. executar `make ci`, a matriz final e a auditoria ELF no estado definitivo;
-5. atualizar esta auditoria, marcar T10.5 e fechar o gate final somente se tudo
+4. retirar mensagens/templates exclusivos do rollback e concluir T10.3;
+5. executar `make ci`, a matriz final e a auditoria ELF no estado definitivo;
+6. atualizar esta auditoria, marcar T10.5 e fechar o gate final somente se tudo
    permanecer verde.
 
 ## Não objetivos preservados
@@ -53,5 +54,5 @@ projeto externo estão fora do gate.
 O produto não reimplementa `rustc`, não depende de obscuridade, não promete
 impedir engenharia reversa pelo mesmo usuário, não substitui o proxy `cargo`,
 não copia repositórios para o Cargo home e não transforma JSON editável em
-autoridade. Revisão humana, CI/branch protection e controle de acesso do sistema
-operacional continuam autoridades externas necessárias.
+autoridade. Revisão separada e controle de acesso do sistema operacional
+continuam autoridades necessárias; CI/branch protection é integração opcional.
