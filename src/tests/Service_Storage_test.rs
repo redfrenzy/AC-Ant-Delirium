@@ -188,7 +188,13 @@ fn state_admin_installs_a_generic_task_package_without_a_physical_locator() {
     let authority = authority();
     let storage = ProtectedServiceStorage::initialize(&authority, &root).unwrap();
     let registration = storage
-        .create_provisional_registration(&authority, 1000, &[42_u8; 32], "synthetic-project")
+        .create_provisional_registration(
+            &authority,
+            1000,
+            &[42_u8; 32],
+            &[42_u8; 32],
+            "synthetic-project",
+        )
         .unwrap();
     let capability = authorize_capability(
         storage.registry(),
@@ -236,7 +242,13 @@ fn agent_cannot_install_or_advance_canonical_tasks_and_each_attempt_is_journaled
     let authority = authority();
     let storage = ProtectedServiceStorage::initialize(&authority, &root).unwrap();
     let registration = storage
-        .create_provisional_registration(&authority, 1000, &[43_u8; 32], "synthetic-project")
+        .create_provisional_registration(
+            &authority,
+            1000,
+            &[43_u8; 32],
+            &[43_u8; 32],
+            "synthetic-project",
+        )
         .unwrap();
     let database = storage
         .open_registered_project(&authority, &registration.project_id)
@@ -331,7 +343,13 @@ fn exact_ci_state_transition_advances_only_an_accepted_reviewed_task() {
     let authority = authority();
     let storage = ProtectedServiceStorage::initialize(&authority, &root).unwrap();
     let registration = storage
-        .create_provisional_registration(&authority, 1000, &[44_u8; 32], "synthetic-project")
+        .create_provisional_registration(
+            &authority,
+            1000,
+            &[44_u8; 32],
+            &[44_u8; 32],
+            "synthetic-project",
+        )
         .unwrap();
     let database = storage
         .open_registered_project(&authority, &registration.project_id)
@@ -450,6 +468,7 @@ fn provisional_bootstrap_is_uid_scoped_deduplicated_and_projection_ready() {
             &authority,
             authority.effective_uid(),
             &fingerprint,
+            &fingerprint,
             "Demo Crate",
         )
         .expect("first provisional bootstrap");
@@ -457,6 +476,7 @@ fn provisional_bootstrap_is_uid_scoped_deduplicated_and_projection_ready() {
         .bootstrap_provisional(
             &authority,
             authority.effective_uid(),
+            &fingerprint,
             &fingerprint,
             "renamed-client-hint",
         )
@@ -500,6 +520,63 @@ fn provisional_bootstrap_is_uid_scoped_deduplicated_and_projection_ready() {
     assert!(String::from_utf8(governance)
         .unwrap()
         .contains("\"violations\": ["));
+
+    fs::remove_dir_all(root).expect("fixture cleanup");
+}
+
+#[test]
+fn provisional_bootstrap_shares_project_and_separates_workspaces() {
+    let root = unique_root("project-workspace-identities");
+    let authority = authority();
+    let storage = ProtectedServiceStorage::initialize(&authority, &root).unwrap();
+    let project_fingerprint = [51_u8; 32];
+
+    let main = storage
+        .bootstrap_provisional(
+            &authority,
+            authority.effective_uid(),
+            &project_fingerprint,
+            &[52_u8; 32],
+            "shared-project",
+        )
+        .unwrap();
+    let linked = storage
+        .bootstrap_provisional(
+            &authority,
+            authority.effective_uid(),
+            &project_fingerprint,
+            &[53_u8; 32],
+            "ignored-renamed-hint",
+        )
+        .unwrap();
+
+    assert_eq!(main.project_id, linked.project_id);
+    assert_ne!(main.workspace_id, linked.workspace_id);
+    assert_eq!(storage.registry().registered_projects().unwrap().len(), 1);
+    assert_eq!(
+        storage
+            .registry()
+            .provisional_registration_count(authority.effective_uid())
+            .unwrap(),
+        2
+    );
+    assert!(storage
+        .registry()
+        .contains_resource_scope(&main.project_id, Some(&main.workspace_id), None)
+        .unwrap());
+    assert!(storage
+        .registry()
+        .contains_resource_scope(&linked.project_id, Some(&linked.workspace_id), None)
+        .unwrap());
+    assert!(storage
+        .bootstrap_provisional(
+            &authority,
+            authority.effective_uid(),
+            &[54_u8; 32],
+            &[52_u8; 32],
+            "conflicting-project",
+        )
+        .is_err());
 
     fs::remove_dir_all(root).expect("fixture cleanup");
 }

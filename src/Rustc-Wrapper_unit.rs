@@ -215,13 +215,13 @@ fn limited_audit_plan(
         Some(Path::new(manifest_path)),
     )
     .ok()?;
-    let mut identity = Vec::new();
-    identity.extend_from_slice(b"antdelirium-provisional-identity-v1\0");
-    identity.extend_from_slice(discovery.project_root.as_os_str().as_bytes());
+    let (project_identity_fingerprint, workspace_identity_fingerprint) =
+        provisional_identity_fingerprints(&discovery);
 
     let mut compilation = Vec::new();
     compilation.extend_from_slice(b"antdelirium-compilation-observation-v1\0");
-    compilation.extend_from_slice(&sha256(&identity));
+    compilation.extend_from_slice(&project_identity_fingerprint);
+    compilation.extend_from_slice(&workspace_identity_fingerprint);
     for argument in args {
         let bytes = argument.as_bytes();
         let length = u64::try_from(bytes.len()).ok()?;
@@ -243,11 +243,71 @@ fn limited_audit_plan(
     Some(LimitedAuditPlan {
         project_root: discovery.project_root,
         observation: crate::limited_protocol::LimitedAuditObservation {
-            identity_fingerprint: sha256(&identity),
+            project_identity_fingerprint,
+            workspace_identity_fingerprint,
             compilation_fingerprint: sha256(&compilation),
             project_slug: crate_name.to_string(),
         },
     })
+}
+
+#[cfg(unix)]
+fn provisional_identity_fingerprints(
+    discovery: &ac_ant_delirium::structs::ProjectDiscovery,
+) -> ([u8; 32], [u8; 32]) {
+    use std::os::unix::ffi::OsStrExt;
+
+    let mut project = Vec::new();
+    project.extend_from_slice(b"antdelirium-provisional-project-identity-v2\0");
+    match discovery.git_checkout.as_ref() {
+        Some(checkout) => {
+            project.extend_from_slice(b"git-common-dir\0");
+            extend_filesystem_identity(
+                &mut project,
+                checkout.common_dir_identity,
+                checkout.common_dir.as_os_str().as_bytes(),
+            );
+        }
+        None => {
+            project.extend_from_slice(b"cargo-project-root\0");
+            extend_filesystem_identity(
+                &mut project,
+                discovery.project_root_identity,
+                discovery.project_root.as_os_str().as_bytes(),
+            );
+        }
+    }
+    let project_fingerprint = sha256(&project);
+
+    let mut workspace = Vec::new();
+    workspace.extend_from_slice(b"antdelirium-provisional-workspace-identity-v2\0");
+    workspace.extend_from_slice(&project_fingerprint);
+    extend_filesystem_identity(
+        &mut workspace,
+        discovery.project_root_identity,
+        discovery.project_root.as_os_str().as_bytes(),
+    );
+    (project_fingerprint, sha256(&workspace))
+}
+
+#[cfg(unix)]
+fn extend_filesystem_identity(
+    material: &mut Vec<u8>,
+    identity: Option<ac_ant_delirium::structs::FilesystemIdentity>,
+    fallback_path: &[u8],
+) {
+    match identity {
+        Some(identity) => {
+            material.extend_from_slice(b"inode\0");
+            material.extend_from_slice(&identity.device.to_be_bytes());
+            material.extend_from_slice(&identity.inode.to_be_bytes());
+        }
+        None => {
+            material.extend_from_slice(b"path\0");
+            material.extend_from_slice(&(fallback_path.len() as u64).to_be_bytes());
+            material.extend_from_slice(fallback_path);
+        }
+    }
 }
 
 #[cfg(unix)]
@@ -900,8 +960,12 @@ mod tests {
 
         assert_eq!(first.project_root, root);
         assert_eq!(
-            first.observation.identity_fingerprint,
-            second.observation.identity_fingerprint
+            first.observation.project_identity_fingerprint,
+            second.observation.project_identity_fingerprint
+        );
+        assert_eq!(
+            first.observation.workspace_identity_fingerprint,
+            second.observation.workspace_identity_fingerprint
         );
         assert_ne!(
             first.observation.compilation_fingerprint,

@@ -92,7 +92,8 @@ pub(crate) struct LimitedCapabilityBundle {
 
 #[derive(Clone)]
 pub(crate) struct LimitedAuditObservation {
-    pub(crate) identity_fingerprint: [u8; 32],
+    pub(crate) project_identity_fingerprint: [u8; 32],
+    pub(crate) workspace_identity_fingerprint: [u8; 32],
     pub(crate) compilation_fingerprint: [u8; 32],
     pub(crate) project_slug: String,
 }
@@ -138,7 +139,9 @@ struct LimitedRequest {
 #[serde(deny_unknown_fields)]
 struct LimitedRequestBody {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    identity_fingerprint: Option<String>,
+    project_identity_fingerprint: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    workspace_identity_fingerprint: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     project_slug: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -367,7 +370,12 @@ fn bootstrap_capabilities(
         "project.bootstrap.observe",
         None,
         LimitedRequestBody {
-            identity_fingerprint: Some(encode_base64url(&observation.identity_fingerprint)),
+            project_identity_fingerprint: Some(encode_base64url(
+                &observation.project_identity_fingerprint,
+            )),
+            workspace_identity_fingerprint: Some(encode_base64url(
+                &observation.workspace_identity_fingerprint,
+            )),
             project_slug: Some(observation.project_slug.clone()),
             ..LimitedRequestBody::default()
         },
@@ -840,10 +848,17 @@ fn handle_bootstrap_request(
     {
         return Err(LimitedProtocolError::Envelope);
     }
-    let identity = decode_base64url(
+    let project_identity = decode_base64url(
         request
             .body
-            .identity_fingerprint
+            .project_identity_fingerprint
+            .as_deref()
+            .ok_or(LimitedProtocolError::Envelope)?,
+    )?;
+    let workspace_identity = decode_base64url(
+        request
+            .body
+            .workspace_identity_fingerprint
             .as_deref()
             .ok_or(LimitedProtocolError::Envelope)?,
     )?;
@@ -854,7 +869,13 @@ fn handle_bootstrap_request(
         .filter(|slug| !slug.is_empty() && slug.len() <= MAX_PROJECT_SLUG_BYTES)
         .ok_or(LimitedProtocolError::Envelope)?;
     let bootstrap = storage
-        .bootstrap_provisional(authority, authentication.peer_uid(), &identity, slug)
+        .bootstrap_provisional(
+            authority,
+            authentication.peer_uid(),
+            &project_identity,
+            &workspace_identity,
+            slug,
+        )
         .map_err(|_| LimitedProtocolError::Envelope)?;
     Ok(LimitedResponseResult {
         capability_bundle: Some(bundle_from_bootstrap(bootstrap)),
@@ -869,7 +890,8 @@ fn handle_compile_request(
     storage: &ProtectedServiceStorage,
     request: &LimitedRequest,
 ) -> Result<LimitedResponseResult, LimitedProtocolError> {
-    if request.body.identity_fingerprint.is_some()
+    if request.body.project_identity_fingerprint.is_some()
+        || request.body.workspace_identity_fingerprint.is_some()
         || request.body.project_slug.is_some()
         || request.body.submission.is_some()
         || request.body.submission_query.is_some()
@@ -927,7 +949,8 @@ fn handle_projection_request(
     storage: &ProtectedServiceStorage,
     request: &LimitedRequest,
 ) -> Result<LimitedResponseResult, LimitedProtocolError> {
-    if request.body.identity_fingerprint.is_some()
+    if request.body.project_identity_fingerprint.is_some()
+        || request.body.workspace_identity_fingerprint.is_some()
         || request.body.project_slug.is_some()
         || request.body.compilation_fingerprint.is_some()
         || request.body.submission.is_some()
@@ -974,7 +997,8 @@ fn handle_submission_request(
     storage: &ProtectedServiceStorage,
     request: &LimitedRequest,
 ) -> Result<LimitedResponseResult, LimitedProtocolError> {
-    if request.body.identity_fingerprint.is_some()
+    if request.body.project_identity_fingerprint.is_some()
+        || request.body.workspace_identity_fingerprint.is_some()
         || request.body.project_slug.is_some()
         || request.body.project_id.is_some()
         || request.body.workspace_id.is_some()
@@ -1044,7 +1068,8 @@ fn handle_assigned_submission_request(
     storage: &ProtectedServiceStorage,
     request: &LimitedRequest,
 ) -> Result<LimitedResponseResult, LimitedProtocolError> {
-    if request.body.identity_fingerprint.is_some()
+    if request.body.project_identity_fingerprint.is_some()
+        || request.body.workspace_identity_fingerprint.is_some()
         || request.body.project_slug.is_some()
         || request.body.project_id.is_some()
         || request.body.workspace_id.is_some()
@@ -1097,7 +1122,8 @@ fn handle_review_request(
     storage: &ProtectedServiceStorage,
     request: &LimitedRequest,
 ) -> Result<LimitedResponseResult, LimitedProtocolError> {
-    if request.body.identity_fingerprint.is_some()
+    if request.body.project_identity_fingerprint.is_some()
+        || request.body.workspace_identity_fingerprint.is_some()
         || request.body.project_slug.is_some()
         || request.body.project_id.is_some()
         || request.body.workspace_id.is_some()

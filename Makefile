@@ -99,6 +99,7 @@ ci:
 	bash -n packaging/systemd/render-installation-bundle.sh
 	bash -n packaging/systemd/validate-installed-service.sh
 	bash -n packaging/systemd/validate-installed-generic-project.sh
+	bash -n packaging/systemd/validate-installed-identity-matrix.sh
 	bash -n packaging/systemd/upgrade-installed-service.sh
 	bash -n packaging/systemd/diagnose-capability-upgrade.sh
 	bash -n packaging/systemd/manage-ci-attestation-capability.sh
@@ -193,6 +194,17 @@ legacy-example-validation:
 .PHONY: installed-generic-acceptance
 installed-generic-acceptance:
 	bash packaging/systemd/validate-installed-generic-project.sh
+
+# -----------------------------------------------
+# make installed-identity-matrix
+# -----------------------------------------------
+# Exercises installed project identity with two same-name projects, linked
+# worktrees, a cache-complete check and parallel builds. Every fixture lives
+# under target/ in this repository and no external project is inspected.
+# -----------------------------------------------
+.PHONY: installed-identity-matrix
+installed-identity-matrix:
+	bash packaging/systemd/validate-installed-identity-matrix.sh
 
 # -----------------------------------------------
 # make cargo-command-matrix

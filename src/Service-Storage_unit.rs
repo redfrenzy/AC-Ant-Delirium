@@ -641,19 +641,27 @@ impl ProtectedServiceStorage {
         &self,
         authority: &VerifiedServiceAuthority,
         peer_uid: u32,
-        identity_fingerprint: &[u8; 32],
+        project_identity_fingerprint: &[u8; 32],
+        workspace_identity_fingerprint: &[u8; 32],
         requested_slug: &str,
     ) -> Result<ProvisionalBootstrapResult, ()> {
-        if identity_fingerprint.iter().all(|byte| *byte == 0) {
+        if project_identity_fingerprint.iter().all(|byte| *byte == 0)
+            || workspace_identity_fingerprint.iter().all(|byte| *byte == 0)
+        {
             return Err(());
         }
         let _guard = self.bootstrap_lock.lock().map_err(|_| ())?;
         let registration = match self
             .registry
-            .provisional_registration(peer_uid, identity_fingerprint)
+            .provisional_registration(peer_uid, workspace_identity_fingerprint)
             .map_err(|_| ())?
         {
-            Some(registration) => registration,
+            Some(registration)
+                if registration.project_identity_fingerprint == *project_identity_fingerprint =>
+            {
+                registration
+            }
+            Some(_) => return Err(()),
             None => {
                 if self
                     .registry
@@ -666,7 +674,8 @@ impl ProtectedServiceStorage {
                 self.create_provisional_registration(
                     authority,
                     peer_uid,
-                    identity_fingerprint,
+                    project_identity_fingerprint,
+                    workspace_identity_fingerprint,
                     requested_slug,
                 )?
             }
@@ -694,20 +703,31 @@ impl ProtectedServiceStorage {
         &self,
         authority: &VerifiedServiceAuthority,
         peer_uid: u32,
-        identity_fingerprint: &[u8; 32],
+        project_identity_fingerprint: &[u8; 32],
+        workspace_identity_fingerprint: &[u8; 32],
         requested_slug: &str,
     ) -> Result<ProvisionalProjectRegistration, ()> {
-        let project_id = random_crockford_id("prj_").map_err(|_| ())?;
+        let existing_project = self
+            .registry
+            .provisional_project(peer_uid, project_identity_fingerprint)
+            .map_err(|_| ())?;
+        let project_id = match existing_project.as_ref() {
+            Some(project) => project.project_id.clone(),
+            None => random_crockford_id("prj_").map_err(|_| ())?,
+        };
         let workspace_id = random_crockford_id("wsp_").map_err(|_| ())?;
         let project_token = project_id.strip_prefix("prj_").ok_or(())?;
         let workspace_token = workspace_id.strip_prefix("wsp_").ok_or(())?;
         let slug = sanitize_project_slug(requested_slug);
         let now = trusted_service_unix_time().map_err(|_| ())?;
         let created_at = format!("unix:{now}");
-        let project = StorageProject {
-            project_id: project_id.clone(),
-            project_key: format!("{slug}--{project_token}"),
-            created_at: created_at.clone(),
+        let project = match existing_project {
+            Some(project) => project,
+            None => StorageProject {
+                project_id: project_id.clone(),
+                project_key: format!("{slug}--{project_token}"),
+                created_at: created_at.clone(),
+            },
         };
         let workspace = StorageWorkspace {
             workspace_id: workspace_id.clone(),
@@ -729,7 +749,8 @@ impl ProtectedServiceStorage {
             .map_err(|_| ())?;
         let registration = ProvisionalProjectRegistration {
             peer_uid,
-            identity_fingerprint: *identity_fingerprint,
+            project_identity_fingerprint: *project_identity_fingerprint,
+            workspace_identity_fingerprint: *workspace_identity_fingerprint,
             project_id,
             workspace_id,
             project_key: project.project_key,

@@ -118,6 +118,31 @@ mod tests {
         let (state_root, database) = initialized_database(&root);
         database
             .with_immediate_transaction(|transaction| {
+                transaction.execute("DROP INDEX provisional_project_identity_idx", [])?;
+                transaction.execute("DROP INDEX provisional_project_peer_idx", [])?;
+                transaction.execute(
+                    "ALTER TABLE provisional_project_registrations RENAME TO provisional_project_registrations_v11",
+                    [],
+                )?;
+                transaction.execute_batch(
+                    r#"
+CREATE TABLE provisional_project_registrations (
+    peer_uid INTEGER NOT NULL CHECK (peer_uid >= 0),
+    identity_fingerprint BLOB NOT NULL CHECK (length(identity_fingerprint) = 32),
+    project_id TEXT NOT NULL UNIQUE REFERENCES projects(project_id) ON DELETE RESTRICT,
+    workspace_id TEXT NOT NULL UNIQUE REFERENCES workspaces(workspace_id) ON DELETE RESTRICT,
+    project_key TEXT NOT NULL UNIQUE,
+    workspace_key TEXT NOT NULL,
+    created_at_unix INTEGER NOT NULL CHECK (created_at_unix >= 0),
+    PRIMARY KEY (peer_uid, identity_fingerprint)
+) STRICT;
+CREATE INDEX provisional_project_peer_idx
+ON provisional_project_registrations(peer_uid, created_at_unix);
+DROP TABLE provisional_project_registrations_v11;
+DROP TABLE provisional_project_identities;
+"#,
+                )?;
+                transaction.execute("DELETE FROM schema_migrations WHERE version = 11", [])?;
                 transaction.execute(
                     "INSERT INTO plans(plan_id, project_id, payload, created_at) VALUES (?1, ?2, ?3, ?4)",
                     AC_params![
@@ -157,7 +182,10 @@ mod tests {
         drop(database);
 
         let migrated = ProjectDatabase::open_existing_at(state_root.root()).unwrap();
-        assert_eq!(migrated.health().unwrap().schema_version, 10);
+        assert_eq!(
+            migrated.health().unwrap().schema_version,
+            STORAGE_SCHEMA_VERSION
+        );
         let ordinals = migrated
             .with_immediate_transaction(|transaction| {
                 Ok((

@@ -445,6 +445,71 @@ CREATE UNIQUE INDEX tasks_plan_ordinal_idx
 ON tasks(project_id, plan_id, task_ordinal);
 "#;
 
+const STORAGE_SCHEMA_V11: &str = r#"
+CREATE TABLE provisional_project_identities (
+    peer_uid INTEGER NOT NULL CHECK (peer_uid >= 0),
+    project_identity_fingerprint BLOB NOT NULL CHECK (length(project_identity_fingerprint) = 32),
+    project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE RESTRICT,
+    PRIMARY KEY (peer_uid, project_identity_fingerprint),
+    UNIQUE (peer_uid, project_identity_fingerprint, project_id)
+) STRICT;
+
+INSERT INTO provisional_project_identities(
+    peer_uid,
+    project_identity_fingerprint,
+    project_id
+)
+SELECT peer_uid, identity_fingerprint, project_id
+FROM provisional_project_registrations;
+
+DROP INDEX provisional_project_peer_idx;
+ALTER TABLE provisional_project_registrations RENAME TO provisional_project_registrations_v10;
+
+CREATE TABLE provisional_project_registrations (
+    peer_uid INTEGER NOT NULL CHECK (peer_uid >= 0),
+    project_identity_fingerprint BLOB NOT NULL CHECK (length(project_identity_fingerprint) = 32),
+    workspace_identity_fingerprint BLOB NOT NULL CHECK (length(workspace_identity_fingerprint) = 32),
+    project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE RESTRICT,
+    workspace_id TEXT NOT NULL UNIQUE REFERENCES workspaces(workspace_id) ON DELETE RESTRICT,
+    project_key TEXT NOT NULL,
+    workspace_key TEXT NOT NULL,
+    created_at_unix INTEGER NOT NULL CHECK (created_at_unix >= 0),
+    PRIMARY KEY (peer_uid, workspace_identity_fingerprint),
+    FOREIGN KEY (peer_uid, project_identity_fingerprint, project_id)
+        REFERENCES provisional_project_identities(peer_uid, project_identity_fingerprint, project_id)
+        ON DELETE RESTRICT
+) STRICT;
+
+INSERT INTO provisional_project_registrations(
+    peer_uid,
+    project_identity_fingerprint,
+    workspace_identity_fingerprint,
+    project_id,
+    workspace_id,
+    project_key,
+    workspace_key,
+    created_at_unix
+)
+SELECT
+    peer_uid,
+    identity_fingerprint,
+    identity_fingerprint,
+    project_id,
+    workspace_id,
+    project_key,
+    workspace_key,
+    created_at_unix
+FROM provisional_project_registrations_v10;
+
+DROP TABLE provisional_project_registrations_v10;
+
+CREATE INDEX provisional_project_peer_idx
+ON provisional_project_registrations(peer_uid, created_at_unix);
+
+CREATE INDEX provisional_project_identity_idx
+ON provisional_project_registrations(peer_uid, project_identity_fingerprint, created_at_unix);
+"#;
+
 impl From<AC_Error> for TransactionalStorageError {
     fn from(error: AC_Error) -> Self {
         Self::Database(error.to_string())
@@ -533,22 +598,45 @@ impl ProjectDatabase {
     pub fn provisional_registration(
         &self,
         peer_uid: u32,
-        identity_fingerprint: &[u8; 32],
+        workspace_identity_fingerprint: &[u8; 32],
     ) -> TransactionalStorageResult<Option<ProvisionalProjectRegistration>> {
         let connection = self.open_connection(false)?;
         connection
             .query_row(
-                "SELECT project_id, workspace_id, project_key, workspace_key, created_at_unix FROM provisional_project_registrations WHERE peer_uid = ?1 AND identity_fingerprint = ?2",
-                AC_params![i64::from(peer_uid), identity_fingerprint.as_slice()],
+                "SELECT project_identity_fingerprint, project_id, workspace_id, project_key, workspace_key, created_at_unix FROM provisional_project_registrations WHERE peer_uid = ?1 AND workspace_identity_fingerprint = ?2",
+                AC_params![i64::from(peer_uid), workspace_identity_fingerprint.as_slice()],
                 |row| {
                     Ok(ProvisionalProjectRegistration {
                         peer_uid,
-                        identity_fingerprint: *identity_fingerprint,
+                        project_identity_fingerprint: row.get(0)?,
+                        workspace_identity_fingerprint: *workspace_identity_fingerprint,
+                        project_id: row.get(1)?,
+                        workspace_id: row.get(2)?,
+                        project_key: row.get(3)?,
+                        workspace_key: row.get(4)?,
+                        created_at_unix: row.get(5)?,
+                    })
+                },
+            )
+            .optional()
+            .map_err(Into::into)
+    }
+
+    pub fn provisional_project(
+        &self,
+        peer_uid: u32,
+        project_identity_fingerprint: &[u8; 32],
+    ) -> TransactionalStorageResult<Option<StorageProject>> {
+        let connection = self.open_connection(false)?;
+        connection
+            .query_row(
+                "SELECT projects.project_id, projects.project_key, projects.created_at FROM provisional_project_identities JOIN projects ON projects.project_id = provisional_project_identities.project_id WHERE provisional_project_identities.peer_uid = ?1 AND provisional_project_identities.project_identity_fingerprint = ?2",
+                AC_params![i64::from(peer_uid), project_identity_fingerprint.as_slice()],
+                |row| {
+                    Ok(StorageProject {
                         project_id: row.get(0)?,
-                        workspace_id: row.get(1)?,
-                        project_key: row.get(2)?,
-                        workspace_key: row.get(3)?,
-                        created_at_unix: row.get(4)?,
+                        project_key: row.get(1)?,
+                        created_at: row.get(2)?,
                     })
                 },
             )
@@ -570,9 +658,13 @@ impl ProjectDatabase {
         registration: &ProvisionalProjectRegistration,
     ) -> TransactionalStorageResult<()> {
         if registration
-            .identity_fingerprint
+            .project_identity_fingerprint
             .iter()
             .all(|byte| *byte == 0)
+            || registration
+                .workspace_identity_fingerprint
+                .iter()
+                .all(|byte| *byte == 0)
             || registration.created_at_unix < 0
         {
             return Err(TransactionalStorageError::InvalidInput(
@@ -581,10 +673,32 @@ impl ProjectDatabase {
         }
         self.with_immediate_transaction(|transaction| {
             transaction.execute(
-                "INSERT INTO provisional_project_registrations(peer_uid, identity_fingerprint, project_id, workspace_id, project_key, workspace_key, created_at_unix) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                "INSERT INTO provisional_project_identities(peer_uid, project_identity_fingerprint, project_id) VALUES (?1, ?2, ?3) ON CONFLICT(peer_uid, project_identity_fingerprint) DO NOTHING",
                 AC_params![
                     i64::from(registration.peer_uid),
-                    registration.identity_fingerprint.as_slice(),
+                    registration.project_identity_fingerprint.as_slice(),
+                    registration.project_id,
+                ],
+            )?;
+            let bound_project_id: String = transaction.query_row(
+                "SELECT project_id FROM provisional_project_identities WHERE peer_uid = ?1 AND project_identity_fingerprint = ?2",
+                AC_params![
+                    i64::from(registration.peer_uid),
+                    registration.project_identity_fingerprint.as_slice(),
+                ],
+                |row| row.get(0),
+            )?;
+            if bound_project_id != registration.project_id {
+                return Err(TransactionalStorageError::Integrity(
+                    "project identity is already bound to another project".to_string(),
+                ));
+            }
+            transaction.execute(
+                "INSERT INTO provisional_project_registrations(peer_uid, project_identity_fingerprint, workspace_identity_fingerprint, project_id, workspace_id, project_key, workspace_key, created_at_unix) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                AC_params![
+                    i64::from(registration.peer_uid),
+                    registration.project_identity_fingerprint.as_slice(),
+                    registration.workspace_identity_fingerprint.as_slice(),
                     registration.project_id,
                     registration.workspace_id,
                     registration.project_key,
@@ -961,6 +1075,15 @@ impl ProjectDatabase {
                 AC_params!["storage-v10-canonical-task-order"],
             )?;
             transaction.pragma_update(None, "user_version", 10)?;
+            version = 10;
+        }
+        if version == 10 {
+            transaction.execute_batch(STORAGE_SCHEMA_V11)?;
+            transaction.execute(
+                "INSERT INTO schema_migrations(version, applied_at) VALUES (11, ?1)",
+                AC_params!["storage-v11-project-workspace-identities"],
+            )?;
+            transaction.pragma_update(None, "user_version", 11)?;
         }
         transaction.commit()?;
         Ok(())

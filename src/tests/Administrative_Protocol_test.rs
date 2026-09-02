@@ -475,6 +475,7 @@ fn state_admin_installs_a_task_package_end_to_end_over_ada1() {
             &authority,
             authority.effective_uid(),
             &[61_u8; 32],
+            &[62_u8; 32],
             "synthetic-ada1-project",
         )
         .unwrap();

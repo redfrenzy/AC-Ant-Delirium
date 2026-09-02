@@ -1,7 +1,7 @@
 use std::fmt;
 use std::path::PathBuf;
 
-pub const STORAGE_SCHEMA_VERSION: i32 = 10;
+pub const STORAGE_SCHEMA_VERSION: i32 = 11;
 pub const STORAGE_BUSY_TIMEOUT_MILLIS: u64 = 5_000;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -19,7 +19,8 @@ pub struct StorageProject {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProvisionalProjectRegistration {
     pub peer_uid: u32,
-    pub identity_fingerprint: [u8; 32],
+    pub project_identity_fingerprint: [u8; 32],
+    pub workspace_identity_fingerprint: [u8; 32],
     pub project_id: String,
     pub workspace_id: String,
     pub project_key: String,

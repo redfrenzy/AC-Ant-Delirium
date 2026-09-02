@@ -90,7 +90,8 @@ fn bootstrap_compile_and_projection_complete_one_typed_limited_exchange() {
         "project.bootstrap.observe",
         None,
         LimitedRequestBody {
-            identity_fingerprint: Some(encode_base64url(&[31_u8; 32])),
+            project_identity_fingerprint: Some(encode_base64url(&[31_u8; 32])),
+            workspace_identity_fingerprint: Some(encode_base64url(&[32_u8; 32])),
             project_slug: Some("typed-cycle".to_string()),
             ..LimitedRequestBody::default()
         },
@@ -136,7 +137,7 @@ fn bootstrap_compile_and_projection_complete_one_typed_limited_exchange() {
 
     let registration = storage
         .registry()
-        .provisional_registration(peer_uid, &[31_u8; 32])
+        .provisional_registration(peer_uid, &[32_u8; 32])
         .unwrap()
         .unwrap();
     let database = ProjectDatabase::open_existing_at(
@@ -234,11 +235,17 @@ fn agent_submission_and_assigned_review_are_scoped_immutable_and_audited_over_ad
             .unwrap();
     let peer_uid = unsafe { libc::geteuid() };
     let bootstrap = storage
-        .bootstrap_provisional(&authority, peer_uid, &[71_u8; 32], "submission-cycle")
+        .bootstrap_provisional(
+            &authority,
+            peer_uid,
+            &[71_u8; 32],
+            &[72_u8; 32],
+            "submission-cycle",
+        )
         .unwrap();
     let registration = storage
         .registry()
-        .provisional_registration(peer_uid, &[71_u8; 32])
+        .provisional_registration(peer_uid, &[72_u8; 32])
         .unwrap()
         .unwrap();
     let database = ProjectDatabase::open_existing_at(
