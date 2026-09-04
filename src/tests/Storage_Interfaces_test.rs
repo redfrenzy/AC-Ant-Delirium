@@ -592,11 +592,44 @@ mod tests {
             20,
             Some(&submission.submission_id),
         );
+        let checkpoint = BackupCheckpointRecord {
+            transition_kind: "submission".to_string(),
+            transition_id: submission.submission_id.clone(),
+            project_id: PROJECT_ID.to_string(),
+            workspace_id: WORKSPACE_ID.to_string(),
+            task_id: Some(TASK_ID.to_string()),
+            task_revision: Some(1),
+            state_revision: 0,
+            commit_id: "a".repeat(40),
+            parent_commit_id: Some("b".repeat(40)),
+            source_fingerprint: "c".repeat(64),
+            entry_count: 2,
+            byte_count: 41,
+            recorded_at: "unix:1788000000".to_string(),
+        };
 
-        let inserted = SubmissionStore::record_submission(&database, &submission, &event).unwrap();
+        let inserted = SubmissionStore::record_submission_with_checkpoint(
+            &database,
+            &submission,
+            &event,
+            &checkpoint,
+        )
+        .unwrap();
         assert!(inserted.inserted());
         assert_eq!(inserted.event_sequence(), 1);
-        let duplicate = SubmissionStore::record_submission(&database, &submission, &event).unwrap();
+        assert_eq!(
+            database
+                .backup_checkpoint(PROJECT_ID, "submission", &submission.submission_id)
+                .unwrap(),
+            Some(checkpoint.clone())
+        );
+        let duplicate = SubmissionStore::record_submission_with_checkpoint(
+            &database,
+            &submission,
+            &event,
+            &checkpoint,
+        )
+        .unwrap();
         assert!(!duplicate.inserted());
         assert_eq!(duplicate.submission_id(), submission.submission_id);
         assert_eq!(

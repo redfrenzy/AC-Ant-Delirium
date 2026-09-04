@@ -624,6 +624,30 @@ fn agent_submission_and_assigned_review_are_scoped_immutable_and_audited_over_ad
         SubmissionStore::submission_count(&database, &bootstrap.project_id).unwrap(),
         0,
     );
+    let request_fingerprint = lowercase_hex(&sha256(
+        &ac_ant_delirium::structs::serialize_submission_request(&request).unwrap(),
+    ));
+    let expected_submission_id = format!("sub_{}", &request_fingerprint[..26]);
+    let interrupted_checkpoint = storage
+        .commit_submission_snapshot_from_descriptor(
+            &authority,
+            peer_uid,
+            &bootstrap.project_id,
+            &bootstrap.workspace_id,
+            task_id,
+            1,
+            &expected_submission_id,
+            &source_descriptor,
+        )
+        .unwrap();
+    assert!(database
+        .backup_checkpoint(&bootstrap.project_id, "submission", &expected_submission_id,)
+        .unwrap()
+        .is_none());
+    assert_eq!(
+        SubmissionStore::submission_count(&database, &bootstrap.project_id).unwrap(),
+        0,
+    );
     let response = limited_response_for_payload_with_descriptor(
         &submission_payload,
         &authentication,
@@ -635,6 +659,7 @@ fn agent_submission_and_assigned_review_are_scoped_immutable_and_audited_over_ad
     .result
     .unwrap();
     let submission_id = response.submission_id.unwrap();
+    assert_eq!(submission_id, expected_submission_id);
     assert!(valid_opaque_id(&submission_id, "sub_"));
     assert_eq!(response.event_sequence, Some(2));
     assert_eq!(response.deduplicated, Some(false));
@@ -642,6 +667,14 @@ fn agent_submission_and_assigned_review_are_scoped_immutable_and_audited_over_ad
     assert_eq!(
         SubmissionStore::submission_count(&database, &bootstrap.project_id).unwrap(),
         1
+    );
+    assert_eq!(
+        database
+            .backup_checkpoint(&bootstrap.project_id, "submission", &submission_id)
+            .unwrap()
+            .unwrap()
+            .commit_id,
+        interrupted_checkpoint.commit_id,
     );
 
     let read_capability_id = "cap_gggggggggggggggggggggggggg";
@@ -724,6 +757,35 @@ fn agent_submission_and_assigned_review_are_scoped_immutable_and_audited_over_ad
     let review_request_id = "req_eeeeeeeeeeeeeeeeeeeeeeeeee".to_string();
     let review_authentication =
         crate::service_authentication::ConnectionAuthentication::for_test(peer_uid, [75_u8; 32]);
+    let review_request = ac_ant_delirium::structs::build_assigned_review_decision(
+        &review_request_id,
+        &submission_id,
+        ReviewDecision::Accepted,
+        "The immutable evidence satisfies the synthetic task.",
+    )
+    .unwrap();
+    let review_fingerprint = lowercase_hex(&sha256(
+        &ac_ant_delirium::structs::serialize_assigned_review_decision(&review_request).unwrap(),
+    ));
+    let expected_review_id = format!("rev_{}", &review_fingerprint[..26]);
+    let interrupted_review_checkpoint = storage
+        .commit_review_snapshot(
+            &authority,
+            &bootstrap.project_id,
+            &bootstrap.workspace_id,
+            task_id,
+            &submission_id,
+            &expected_review_id,
+        )
+        .unwrap();
+    assert!(database
+        .review_assignment(&bootstrap.project_id, &expected_review_id)
+        .unwrap()
+        .is_none());
+    assert!(database
+        .backup_checkpoint(&bootstrap.project_id, "review", &expected_review_id)
+        .unwrap()
+        .is_none());
     let review_response = execute_typed_limited_request_with_id(
         &review_authentication,
         &authority,
@@ -750,9 +812,18 @@ fn agent_submission_and_assigned_review_are_scoped_immutable_and_audited_over_ad
     .result
     .unwrap();
     let review_id = review_response.review_id.unwrap();
+    assert_eq!(review_id, expected_review_id);
     assert!(valid_opaque_id(&review_id, "rev_"));
     assert_eq!(review_response.event_sequence, Some(3));
     assert_eq!(review_response.deduplicated, Some(false));
+    assert_eq!(
+        database
+            .backup_checkpoint(&bootstrap.project_id, "review", &review_id)
+            .unwrap()
+            .unwrap()
+            .commit_id,
+        interrupted_review_checkpoint.commit_id,
+    );
 
     let replay = execute_typed_limited_request_with_id(
         &review_authentication,

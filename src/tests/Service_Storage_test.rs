@@ -550,7 +550,7 @@ fn interrupted_advance_commit_is_reused_and_finalized_atomically() {
         &event(3, "review_recorded", "reviewer", &review.review_id),
     )
     .unwrap();
-    storage
+    let review_checkpoint = storage
         .commit_review_snapshot(
             &authority,
             &registration.project_id,
@@ -560,6 +560,9 @@ fn interrupted_advance_commit_is_reused_and_finalized_atomically() {
             &review.review_id,
         )
         .unwrap();
+    assert!(database
+        .record_backup_checkpoint(&review_checkpoint)
+        .unwrap());
     let interrupted_receipt = backup
         .commit_snapshot_from_transition(
             &crate::protected_git_backup::BackupCommitMetadata {

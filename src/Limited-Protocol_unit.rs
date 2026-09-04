@@ -15,7 +15,7 @@ use ac_ant_delirium::structs::{
     AuditStore, AuthorizedReviewAssignment, AuthorizedReviewMetadata, AuthorizedSubmissionMetadata,
     CapabilityActor, CapabilityAuthorizationOutcome, CapabilityAuthorizationRequest,
     CapabilityChannel, CapabilityOperation, EventWriteOutcome, NewAuditEvent, ReviewDecision,
-    ReviewWriteOutcome, SubmissionCreateRequest, SubmissionEvidence, SubmissionStore,
+    ReviewStore, ReviewWriteOutcome, SubmissionCreateRequest, SubmissionEvidence, SubmissionStore,
     SubmissionWriteOutcome, AUDIT_EVENT_CONTRACT_VERSION,
 };
 use serde::{Deserialize, Serialize};
@@ -1324,7 +1324,23 @@ fn handle_submission_request(
         authorize_scoped_agent_submission(authentication, authority, storage, request, wire)?;
     let fingerprint = lowercase_hex(&sha256(&payload));
     let received_at = format!("unix:{}", trusted_unix_time()?);
-    let submission_id = random_crockford_id("sub_").map_err(|_| LimitedProtocolError::Entropy)?;
+    let submission_id = resource
+        .database()
+        .submission_id_for_request(&wire.project_id, &wire.request_id, &fingerprint)
+        .map_err(|_| LimitedProtocolError::Envelope)?
+        .unwrap_or_else(|| format!("sub_{}", &fingerprint[..26]));
+    let checkpoint = storage
+        .commit_submission_snapshot_from_descriptor(
+            authority,
+            authentication.peer_uid(),
+            &wire.project_id,
+            &wire.workspace_id,
+            &wire.task_id,
+            wire.task_revision,
+            &submission_id,
+            source_descriptor.ok_or(LimitedProtocolError::Envelope)?,
+        )
+        .map_err(|_| LimitedProtocolError::Envelope)?;
     let event = NewAuditEvent {
         contract_version: AUDIT_EVENT_CONTRACT_VERSION.to_string(),
         event_id: random_crockford_id("evt_").map_err(|_| LimitedProtocolError::Entropy)?,
@@ -1340,7 +1356,7 @@ fn handle_submission_request(
         resource_id: Some(submission_id.clone()),
         payload: b"immutable submission received".to_vec(),
     };
-    let outcome = ac_ant_delirium::structs::record_authorized_submission(
+    let outcome = ac_ant_delirium::structs::record_authorized_submission_with_checkpoint(
         resource.database(),
         &submission,
         &AuthorizedSubmissionMetadata {
@@ -1349,20 +1365,9 @@ fn handle_submission_request(
             received_at,
         },
         &event,
+        &checkpoint,
     )
     .map_err(|_| LimitedProtocolError::Envelope)?;
-    storage
-        .commit_submission_snapshot_from_descriptor(
-            authority,
-            authentication.peer_uid(),
-            &wire.project_id,
-            &wire.workspace_id,
-            &wire.task_id,
-            wire.task_revision,
-            outcome.submission_id(),
-            source_descriptor.ok_or(LimitedProtocolError::Envelope)?,
-        )
-        .map_err(|_| LimitedProtocolError::Envelope)?;
     Ok(LimitedResponseResult {
         submission_id: Some(outcome.submission_id().to_string()),
         event_sequence: Some(outcome.event_sequence()),
@@ -1488,12 +1493,26 @@ fn handle_review_request(
     }
     let fingerprint = lowercase_hex(&sha256(&payload));
     let created_at = format!("unix:{}", trusted_unix_time()?);
-    let review_id = random_crockford_id("rev_").map_err(|_| LimitedProtocolError::Entropy)?;
+    let review_id = resource
+        .database()
+        .review_id_for_submission(&wire.project_id, &wire.submission_id)
+        .map_err(|_| LimitedProtocolError::Envelope)?
+        .unwrap_or_else(|| format!("rev_{}", &fingerprint[..26]));
     let reviewer_id = match &authorization {
         CapabilityAuthorizationOutcome::Fresh(capability)
         | CapabilityAuthorizationOutcome::Replay(capability) => capability.grant_id().to_string(),
         CapabilityAuthorizationOutcome::Denied => return Err(LimitedProtocolError::Envelope),
     };
+    let checkpoint = storage
+        .commit_review_snapshot(
+            authority,
+            &wire.project_id,
+            &wire.workspace_id,
+            &wire.task_id,
+            &wire.submission_id,
+            &review_id,
+        )
+        .map_err(|_| LimitedProtocolError::Envelope)?;
     let event = NewAuditEvent {
         contract_version: AUDIT_EVENT_CONTRACT_VERSION.to_string(),
         event_id: random_crockford_id("evt_").map_err(|_| LimitedProtocolError::Entropy)?,
@@ -1509,7 +1528,7 @@ fn handle_review_request(
         resource_id: Some(review_id.clone()),
         payload: b"immutable assigned review received".to_vec(),
     };
-    let outcome = ac_ant_delirium::structs::record_authorized_review(
+    let outcome = ac_ant_delirium::structs::record_authorized_review_with_checkpoint(
         resource.database(),
         &review,
         &AuthorizedReviewAssignment {
@@ -1523,18 +1542,9 @@ fn handle_review_request(
             created_at,
         },
         &event,
+        &checkpoint,
     )
     .map_err(|_| LimitedProtocolError::Envelope)?;
-    storage
-        .commit_review_snapshot(
-            authority,
-            &wire.project_id,
-            &wire.workspace_id,
-            &wire.task_id,
-            &wire.submission_id,
-            outcome.review_id(),
-        )
-        .map_err(|_| LimitedProtocolError::Envelope)?;
     Ok(LimitedResponseResult {
         review_id: Some(outcome.review_id().to_string()),
         event_sequence: Some(outcome.event_sequence()),

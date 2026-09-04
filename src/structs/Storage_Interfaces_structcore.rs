@@ -614,39 +614,46 @@ impl SubmissionStore for ProjectDatabase {
         submission: &NewSubmission,
         audit_event: &NewAuditEvent,
     ) -> TransactionalStorageResult<SubmissionWriteOutcome> {
-        validate_submission(submission, audit_event)?;
-        self.with_immediate_transaction(|transaction| {
-            if let Some(outcome) = find_duplicate_submission(transaction, submission)? {
-                return Ok(outcome);
+        record_submission_transactionally(self, submission, audit_event, None)
+    }
+
+    fn record_submission_with_checkpoint(
+        &self,
+        submission: &NewSubmission,
+        audit_event: &NewAuditEvent,
+        checkpoint: &BackupCheckpointRecord,
+    ) -> TransactionalStorageResult<SubmissionWriteOutcome> {
+        record_submission_transactionally(self, submission, audit_event, Some(checkpoint))
+    }
+
+    fn submission_id_for_request(
+        &self,
+        project_id: &str,
+        request_id: &str,
+        fingerprint: &str,
+    ) -> TransactionalStorageResult<Option<String>> {
+        validate_opaque_identifier(project_id, "prj_", "project_id")?;
+        validate_required("request_id", request_id)?;
+        validate_fingerprint(fingerprint)?;
+        let connection = self.open_connection(false)?;
+        let existing = connection
+            .query_row(
+                "SELECT submission_id, fingerprint FROM submissions WHERE project_id = ?1 AND request_id = ?2",
+                AC_params![project_id, request_id],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            )
+            .optional()?;
+        match existing {
+            Some((submission_id, persisted_fingerprint))
+                if persisted_fingerprint == fingerprint =>
+            {
+                Ok(Some(submission_id))
             }
-            validate_submission_relationships(transaction, submission)?;
-            transaction.execute(
-                "INSERT INTO submissions(contract_version, submission_id, project_id, workspace_id, task_id, task_revision, base_revision, request_id, fingerprint, payload, received_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-                AC_params![
-                    submission.contract_version,
-                    submission.submission_id,
-                    submission.project_id,
-                    submission.workspace_id,
-                    submission.task_id,
-                    submission.task_revision,
-                    submission.base_revision,
-                    submission.request_id,
-                    submission.fingerprint,
-                    submission.payload,
-                    submission.received_at,
-                ],
-            )?;
-            let audit = self.record_event_in_transaction(transaction, audit_event)?;
-            if !audit.inserted() {
-                return Err(TransactionalStorageError::Integrity(
-                    "new submission resolved to an existing audit event".to_string(),
-                ));
-            }
-            Ok(SubmissionWriteOutcome::Inserted {
-                submission_id: submission.submission_id.clone(),
-                event_sequence: audit.sequence(),
-            })
-        })
+            Some(_) => Err(TransactionalStorageError::Integrity(
+                "request_id was reused with a different submission fingerprint".to_string(),
+            )),
+            None => Ok(None),
+        }
     }
 
     fn submission_count(&self, project_id: &str) -> TransactionalStorageResult<i64> {
@@ -709,41 +716,107 @@ impl SubmissionStore for ProjectDatabase {
     }
 }
 
+fn record_submission_transactionally(
+    database: &ProjectDatabase,
+    submission: &NewSubmission,
+    audit_event: &NewAuditEvent,
+    checkpoint: Option<&BackupCheckpointRecord>,
+) -> TransactionalStorageResult<SubmissionWriteOutcome> {
+    validate_submission(submission, audit_event)?;
+    if let Some(checkpoint) = checkpoint {
+        validate_submission_checkpoint(submission, checkpoint)?;
+    }
+    database.with_immediate_transaction(|transaction| {
+        if let Some(checkpoint) = checkpoint {
+            if record_backup_checkpoint_in_transaction(transaction, checkpoint)? {
+                require_checkpoint_current_state(transaction, checkpoint)?;
+            }
+        }
+        if let Some(outcome) = find_duplicate_submission(transaction, submission)? {
+            return Ok(outcome);
+        }
+        validate_submission_relationships(transaction, submission)?;
+        transaction.execute(
+            "INSERT INTO submissions(contract_version, submission_id, project_id, workspace_id, task_id, task_revision, base_revision, request_id, fingerprint, payload, received_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            AC_params![
+                submission.contract_version,
+                submission.submission_id,
+                submission.project_id,
+                submission.workspace_id,
+                submission.task_id,
+                submission.task_revision,
+                submission.base_revision,
+                submission.request_id,
+                submission.fingerprint,
+                submission.payload,
+                submission.received_at,
+            ],
+        )?;
+        let audit = database.record_event_in_transaction(transaction, audit_event)?;
+        if !audit.inserted() {
+            return Err(TransactionalStorageError::Integrity(
+                "new submission resolved to an existing audit event".to_string(),
+            ));
+        }
+        Ok(SubmissionWriteOutcome::Inserted {
+            submission_id: submission.submission_id.clone(),
+            event_sequence: audit.sequence(),
+        })
+    })
+}
+
+fn validate_submission_checkpoint(
+    submission: &NewSubmission,
+    checkpoint: &BackupCheckpointRecord,
+) -> TransactionalStorageResult<()> {
+    validate_backup_checkpoint(checkpoint)?;
+    if checkpoint.transition_kind != "submission"
+        || checkpoint.transition_id != submission.submission_id
+        || checkpoint.project_id != submission.project_id
+        || checkpoint.workspace_id != submission.workspace_id
+        || checkpoint.task_id.as_deref() != Some(submission.task_id.as_str())
+        || checkpoint.task_revision != Some(submission.task_revision)
+    {
+        return Err(TransactionalStorageError::InvalidInput(
+            "submission checkpoint is not bound to the immutable submission".to_string(),
+        ));
+    }
+    Ok(())
+}
+
 impl ReviewStore for ProjectDatabase {
     fn record_review(
         &self,
         review: &NewReview,
         audit_event: &NewAuditEvent,
     ) -> TransactionalStorageResult<ReviewWriteOutcome> {
-        validate_review(review, audit_event)?;
-        self.with_immediate_transaction(|transaction| {
-            if let Some(outcome) = find_duplicate_review(transaction, review)? {
-                return Ok(outcome);
-            }
-            validate_review_relationships(transaction, review)?;
-            transaction.execute(
-                "INSERT INTO reviews(review_id, project_id, submission_id, reviewer_id, outcome, payload, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                AC_params![
-                    review.review_id,
-                    review.project_id,
-                    review.submission_id,
-                    review.reviewer_id,
-                    review.decision.storage_value(),
-                    review.payload,
-                    review.created_at,
-                ],
-            )?;
-            let audit = self.record_event_in_transaction(transaction, audit_event)?;
-            if !audit.inserted() {
-                return Err(TransactionalStorageError::Integrity(
-                    "new review resolved to an existing audit event".to_string(),
-                ));
-            }
-            Ok(ReviewWriteOutcome::Inserted {
-                review_id: review.review_id.clone(),
-                event_sequence: audit.sequence(),
-            })
-        })
+        record_review_transactionally(self, review, audit_event, None)
+    }
+
+    fn record_review_with_checkpoint(
+        &self,
+        review: &NewReview,
+        audit_event: &NewAuditEvent,
+        checkpoint: &BackupCheckpointRecord,
+    ) -> TransactionalStorageResult<ReviewWriteOutcome> {
+        record_review_transactionally(self, review, audit_event, Some(checkpoint))
+    }
+
+    fn review_id_for_submission(
+        &self,
+        project_id: &str,
+        submission_id: &str,
+    ) -> TransactionalStorageResult<Option<String>> {
+        validate_opaque_identifier(project_id, "prj_", "project_id")?;
+        validate_opaque_identifier(submission_id, "sub_", "submission_id")?;
+        let connection = self.open_connection(false)?;
+        Ok(connection
+            .query_row(
+                "SELECT review_id FROM reviews WHERE project_id = ?1 AND submission_id = ?2",
+                AC_params![project_id, submission_id],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?)
     }
 
     fn review_assignment(
@@ -768,6 +841,105 @@ impl ReviewStore for ProjectDatabase {
             )
             .optional()?)
     }
+}
+
+fn record_review_transactionally(
+    database: &ProjectDatabase,
+    review: &NewReview,
+    audit_event: &NewAuditEvent,
+    checkpoint: Option<&BackupCheckpointRecord>,
+) -> TransactionalStorageResult<ReviewWriteOutcome> {
+    validate_review(review, audit_event)?;
+    if let Some(checkpoint) = checkpoint {
+        validate_review_checkpoint(review, checkpoint)?;
+    }
+    database.with_immediate_transaction(|transaction| {
+        if let Some(checkpoint) = checkpoint {
+            let assignment = transaction.query_row(
+                "SELECT workspace_id, task_id, task_revision FROM submissions WHERE project_id = ?1 AND submission_id = ?2",
+                AC_params![review.project_id, review.submission_id],
+                |row| {
+                    Ok((
+                        row.get::<_, Option<String>>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, i64>(2)?,
+                    ))
+                },
+            )?;
+            if assignment.0.as_deref() != Some(checkpoint.workspace_id.as_str())
+                || checkpoint.task_id.as_deref() != Some(assignment.1.as_str())
+                || checkpoint.task_revision != Some(assignment.2)
+            {
+                return Err(TransactionalStorageError::InvalidInput(
+                    "review checkpoint does not match the assigned submission".to_string(),
+                ));
+            }
+            if record_backup_checkpoint_in_transaction(transaction, checkpoint)? {
+                require_checkpoint_current_state(transaction, checkpoint)?;
+            }
+        }
+        if let Some(outcome) = find_duplicate_review(transaction, review)? {
+            return Ok(outcome);
+        }
+        validate_review_relationships(transaction, review)?;
+        transaction.execute(
+            "INSERT INTO reviews(review_id, project_id, submission_id, reviewer_id, outcome, payload, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            AC_params![
+                review.review_id,
+                review.project_id,
+                review.submission_id,
+                review.reviewer_id,
+                review.decision.storage_value(),
+                review.payload,
+                review.created_at,
+            ],
+        )?;
+        let audit = database.record_event_in_transaction(transaction, audit_event)?;
+        if !audit.inserted() {
+            return Err(TransactionalStorageError::Integrity(
+                "new review resolved to an existing audit event".to_string(),
+            ));
+        }
+        Ok(ReviewWriteOutcome::Inserted {
+            review_id: review.review_id.clone(),
+            event_sequence: audit.sequence(),
+        })
+    })
+}
+
+fn validate_review_checkpoint(
+    review: &NewReview,
+    checkpoint: &BackupCheckpointRecord,
+) -> TransactionalStorageResult<()> {
+    validate_backup_checkpoint(checkpoint)?;
+    if checkpoint.transition_kind != "review"
+        || checkpoint.transition_id != review.review_id
+        || checkpoint.project_id != review.project_id
+        || checkpoint.task_id.is_none()
+        || checkpoint.task_revision.is_none()
+    {
+        return Err(TransactionalStorageError::InvalidInput(
+            "review checkpoint is not bound to the immutable review".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn require_checkpoint_current_state(
+    transaction: &AC_Transaction<'_>,
+    checkpoint: &BackupCheckpointRecord,
+) -> TransactionalStorageResult<()> {
+    let state_revision = transaction.query_row(
+        "SELECT state_revision FROM projects WHERE project_id = ?1",
+        AC_params![checkpoint.project_id],
+        |row| row.get::<_, i64>(0),
+    )?;
+    if state_revision != checkpoint.state_revision {
+        return Err(TransactionalStorageError::Integrity(
+            "new backup checkpoint does not match the current canonical revision".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 impl BackupCheckpointStore for ProjectDatabase {

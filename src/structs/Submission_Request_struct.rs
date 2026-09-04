@@ -1,4 +1,7 @@
-use super::{NewAuditEvent, SubmissionStore, SubmissionWriteOutcome, TransactionalStorageResult};
+use super::{
+    BackupCheckpointRecord, NewAuditEvent, SubmissionStore, SubmissionWriteOutcome,
+    TransactionalStorageResult,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CurrentTaskSubmissionBinding {
@@ -65,5 +68,21 @@ pub fn record_authorized_submission<S: SubmissionStore>(
         request,
         metadata,
         audit_event,
+    )
+}
+
+pub fn record_authorized_submission_with_checkpoint<S: SubmissionStore>(
+    store: &S,
+    request: &SubmissionCreateRequest,
+    metadata: &AuthorizedSubmissionMetadata,
+    audit_event: &NewAuditEvent,
+    checkpoint: &BackupCheckpointRecord,
+) -> TransactionalStorageResult<SubmissionWriteOutcome> {
+    super::Submission_Request_structcore::record_authorized_submission_with_checkpoint(
+        store,
+        request,
+        metadata,
+        audit_event,
+        checkpoint,
     )
 }

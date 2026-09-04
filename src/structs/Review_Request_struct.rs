@@ -1,5 +1,6 @@
 use super::{
-    NewAuditEvent, ReviewDecision, ReviewStore, ReviewWriteOutcome, TransactionalStorageResult,
+    BackupCheckpointRecord, NewAuditEvent, ReviewDecision, ReviewStore, ReviewWriteOutcome,
+    TransactionalStorageResult,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -57,5 +58,23 @@ pub fn record_authorized_review<S: ReviewStore>(
         assignment,
         metadata,
         audit_event,
+    )
+}
+
+pub fn record_authorized_review_with_checkpoint<S: ReviewStore>(
+    store: &S,
+    request: &AssignedReviewDecisionRequest,
+    assignment: &AuthorizedReviewAssignment,
+    metadata: &AuthorizedReviewMetadata,
+    audit_event: &NewAuditEvent,
+    checkpoint: &BackupCheckpointRecord,
+) -> TransactionalStorageResult<ReviewWriteOutcome> {
+    super::Review_Request_structcore::record_authorized_review_with_checkpoint(
+        store,
+        request,
+        assignment,
+        metadata,
+        audit_event,
+        checkpoint,
     )
 }

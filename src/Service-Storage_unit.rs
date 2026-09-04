@@ -229,7 +229,7 @@ impl ProtectedServiceStorage {
         task_revision: i64,
         submission_id: &str,
         descriptor: &OwnedFd,
-    ) -> Result<crate::protected_git_backup::BackupCommitReceipt, ()> {
+    ) -> Result<BackupCheckpointRecord, ()> {
         self.validate_workspace_descriptor(peer_uid, project_id, workspace_id, descriptor)?;
         let project = self
             .registry
@@ -280,8 +280,7 @@ impl ProtectedServiceStorage {
                 descriptor,
             )
             .map_err(|_| ())?;
-        persist_backup_checkpoint(
-            &database,
+        backup_checkpoint_record(
             "submission",
             submission_id,
             project_id,
@@ -290,8 +289,7 @@ impl ProtectedServiceStorage {
             Some(task_revision),
             state.state_revision,
             &receipt,
-        )?;
-        Ok(receipt)
+        )
     }
 
     pub(crate) fn commit_review_snapshot(
@@ -302,7 +300,7 @@ impl ProtectedServiceStorage {
         task_id: &str,
         submission_id: &str,
         review_id: &str,
-    ) -> Result<crate::protected_git_backup::BackupCommitReceipt, ()> {
+    ) -> Result<BackupCheckpointRecord, ()> {
         let project = self
             .registry
             .registered_projects()
@@ -349,8 +347,7 @@ impl ProtectedServiceStorage {
                 submission_id,
             )
             .map_err(|_| ())?;
-        persist_backup_checkpoint(
-            &database,
+        backup_checkpoint_record(
             "review",
             review_id,
             project_id,
@@ -359,8 +356,7 @@ impl ProtectedServiceStorage {
             Some(task.task_revision),
             state.state_revision,
             &receipt,
-        )?;
-        Ok(receipt)
+        )
     }
 
     pub(crate) fn install_generic_task_package(
@@ -1073,16 +1069,7 @@ impl ProtectedServiceStorage {
                             }
                         };
                         if !domain_transition_exists {
-                            if recovered.metadata.transition
-                                == crate::protected_git_backup::BackupTransition::Advance
-                                && canonical_state.state_revision.checked_add(1)
-                                    == Some(recovered.metadata.state_revision)
-                                && canonical_state.current_task_id.as_deref()
-                                    == recovered.metadata.task_id.as_deref()
-                            {
-                                continue;
-                            }
-                            return Err(());
+                            continue;
                         }
                     }
                     persist_backup_checkpoint(

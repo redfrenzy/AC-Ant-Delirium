@@ -1,7 +1,7 @@
 use super::{
     reject_public_path_references, AssignedReviewDecisionRequest, AuthorizedReviewAssignment,
-    AuthorizedReviewMetadata, NewAuditEvent, NewReview, ReviewDecision, ReviewStore,
-    ReviewWriteOutcome, TransactionalStorageError, TransactionalStorageResult,
+    AuthorizedReviewMetadata, BackupCheckpointRecord, NewAuditEvent, NewReview, ReviewDecision,
+    ReviewStore, ReviewWriteOutcome, TransactionalStorageError, TransactionalStorageResult,
 };
 
 pub(super) fn build_assigned_review_decision(
@@ -60,6 +60,35 @@ pub(super) fn record_authorized_review<S: ReviewStore>(
         created_at: metadata.created_at.clone(),
     };
     store.record_review(&review, audit_event)
+}
+
+pub(super) fn record_authorized_review_with_checkpoint<S: ReviewStore>(
+    store: &S,
+    request: &AssignedReviewDecisionRequest,
+    assignment: &AuthorizedReviewAssignment,
+    metadata: &AuthorizedReviewMetadata,
+    audit_event: &NewAuditEvent,
+    checkpoint: &BackupCheckpointRecord,
+) -> TransactionalStorageResult<ReviewWriteOutcome> {
+    validate_request(request)?;
+    validate_assignment(assignment)?;
+    if request.submission_id != assignment.assigned_submission_id {
+        return Err(invalid("review request is outside the assigned submission"));
+    }
+    validate_opaque_id(&metadata.review_id, "rev_", "review_id")?;
+    validate_fingerprint(&metadata.fingerprint)?;
+    validate_text(&metadata.created_at, 1, 255, "created_at")?;
+    let review = NewReview {
+        review_id: metadata.review_id.clone(),
+        project_id: assignment.project_id.clone(),
+        submission_id: request.submission_id.clone(),
+        reviewer_id: assignment.reviewer_id.clone(),
+        decision: request.decision,
+        fingerprint: metadata.fingerprint.clone(),
+        payload: serialize_assigned_review_decision(request)?,
+        created_at: metadata.created_at.clone(),
+    };
+    store.record_review_with_checkpoint(&review, audit_event, checkpoint)
 }
 
 fn validate_request(request: &AssignedReviewDecisionRequest) -> TransactionalStorageResult<()> {

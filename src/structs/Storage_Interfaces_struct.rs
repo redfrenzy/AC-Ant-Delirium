@@ -339,6 +339,20 @@ pub trait SubmissionStore {
         audit_event: &NewAuditEvent,
     ) -> TransactionalStorageResult<SubmissionWriteOutcome>;
 
+    fn record_submission_with_checkpoint(
+        &self,
+        submission: &NewSubmission,
+        audit_event: &NewAuditEvent,
+        checkpoint: &BackupCheckpointRecord,
+    ) -> TransactionalStorageResult<SubmissionWriteOutcome>;
+
+    fn submission_id_for_request(
+        &self,
+        project_id: &str,
+        request_id: &str,
+        fingerprint: &str,
+    ) -> TransactionalStorageResult<Option<String>>;
+
     fn submission_count(&self, project_id: &str) -> TransactionalStorageResult<i64>;
 
     fn submission_assignment(
@@ -360,6 +374,19 @@ pub trait ReviewStore {
         review: &NewReview,
         audit_event: &NewAuditEvent,
     ) -> TransactionalStorageResult<ReviewWriteOutcome>;
+
+    fn record_review_with_checkpoint(
+        &self,
+        review: &NewReview,
+        audit_event: &NewAuditEvent,
+        checkpoint: &BackupCheckpointRecord,
+    ) -> TransactionalStorageResult<ReviewWriteOutcome>;
+
+    fn review_id_for_submission(
+        &self,
+        project_id: &str,
+        submission_id: &str,
+    ) -> TransactionalStorageResult<Option<String>>;
 
     fn review_assignment(
         &self,

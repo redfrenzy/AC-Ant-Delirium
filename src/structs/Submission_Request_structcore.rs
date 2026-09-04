@@ -1,8 +1,9 @@
 use super::{
     reject_public_path_references, validate_serialized_public_document,
-    AuthorizedSubmissionMetadata, CurrentTaskSubmissionBinding, NewAuditEvent, NewSubmission,
-    SubmissionCreateRequest, SubmissionEvidence, SubmissionStore, SubmissionWriteOutcome,
-    TransactionalStorageError, TransactionalStorageResult, SUBMISSION_CONTRACT_VERSION,
+    AuthorizedSubmissionMetadata, BackupCheckpointRecord, CurrentTaskSubmissionBinding,
+    NewAuditEvent, NewSubmission, SubmissionCreateRequest, SubmissionEvidence, SubmissionStore,
+    SubmissionWriteOutcome, TransactionalStorageError, TransactionalStorageResult,
+    SUBMISSION_CONTRACT_VERSION,
 };
 
 pub(super) fn parse_current_task_submission_binding(
@@ -113,6 +114,33 @@ pub(super) fn record_authorized_submission<S: SubmissionStore>(
         received_at: metadata.received_at.clone(),
     };
     store.record_submission(&submission, audit_event)
+}
+
+pub(super) fn record_authorized_submission_with_checkpoint<S: SubmissionStore>(
+    store: &S,
+    request: &SubmissionCreateRequest,
+    metadata: &AuthorizedSubmissionMetadata,
+    audit_event: &NewAuditEvent,
+    checkpoint: &BackupCheckpointRecord,
+) -> TransactionalStorageResult<SubmissionWriteOutcome> {
+    let payload = serialize_submission_request(request)?;
+    validate_opaque_id(&metadata.submission_id, "sub_", "submission_id")?;
+    validate_fingerprint(&metadata.fingerprint)?;
+    validate_text(&metadata.received_at, 1, 255, "received_at")?;
+    let submission = NewSubmission {
+        contract_version: request.contract_version.clone(),
+        submission_id: metadata.submission_id.clone(),
+        request_id: request.request_id.clone(),
+        project_id: request.project_id.clone(),
+        workspace_id: request.workspace_id.clone(),
+        task_id: request.task_id.clone(),
+        task_revision: request.task_revision,
+        base_revision: request.base_revision.clone(),
+        fingerprint: metadata.fingerprint.clone(),
+        payload,
+        received_at: metadata.received_at.clone(),
+    };
+    store.record_submission_with_checkpoint(&submission, audit_event, checkpoint)
 }
 
 fn validate_request(request: &SubmissionCreateRequest) -> TransactionalStorageResult<()> {
