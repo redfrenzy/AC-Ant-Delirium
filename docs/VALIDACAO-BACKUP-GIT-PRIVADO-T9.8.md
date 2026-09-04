@@ -92,9 +92,23 @@ ID já persistido. Se o processo parar antes da transação, resta somente um
 commit não canônico reutilizável; ele não vira submissão, revisão ou conclusão
 durante o bootstrap.
 
-O contrato `protected-git-snapshot-v1` contém somente transição, IDs opacos,
-revisões, horário lógico, fingerprint, contagem de entradas e bytes. Ele não
-contém path do projeto, path do state root, capability, segredo ou comando.
+O incremento `5cfe62a` fechou a política de inclusão
+`rust-project-source-v1`. A captura inclui todo arquivo regular alcançável pelo
+descritor do projeto, inclusive arquivos ocultos normais e diretórios aninhados
+chamados `target`; preserva somente o bit executável e o conteúdo. Na raiz,
+`.git`, `target`, `guard`, `plugins` e `AC_Ant-Delirium_props` são excluídos.
+Uma entrada `.git` é excluída em qualquer profundidade. Symlinks, arquivos
+especiais, paths não UTF-8, traversal e qualquer leitura que mude de identidade
+durante a captura falham fechados. A política não consulta `.gitignore` nem o
+Git do projeto, portanto funciona da mesma forma em projetos sem `.git`.
+
+Snapshots novos usam `protected-git-snapshot-v2` e gravam o identificador da
+política dentro de `snapshot.json`, ficando vinculada ao hash do commit. A
+recuperação aceita `protected-git-snapshot-v1` somente sem o campo novo, para
+preservar os históricos já instalados; v2 sem a política exata é rejeitado.
+Ambos os contratos contêm somente transição, IDs opacos, revisões, horário
+lógico, fingerprint, contagem de entradas e bytes. Eles não contêm path do
+projeto, path do state root, capability, segredo ou comando.
 
 ## Validação executada
 
@@ -111,14 +125,17 @@ Resultado:
 - 198 testes de biblioteca e 9 testes de integração passaram; a suíte integral
   mais recente do binário passou com 318 testes e
   manteve 8 testes instalados condicionais ignorados;
-- nove testes focados do backup, o ciclo limitado de submissão/revisão e o
+- onze testes focados do backup, o ciclo limitado de submissão/revisão e o
   teste de avanço CI com checkpoint passaram após o incremento de revisão;
 - os testes do protocolo limitado e o teste de vínculo do descritor à
   identidade persistida passaram;
 - repositório pai deliberadamente presente não recebeu a referência privada;
 - dois commits sintéticos produziram parent chain e fingerprints distintos;
-- somente `source/Cargo.toml`, `source/src/lib.rs` e `snapshot.json` apareceram
-  na árvore do teste positivo;
+- a matriz da política incluiu fonte aninhada, arquivo oculto normal e
+  `src/target/`, excluiu as cinco raízes privadas/geradas e não transportou
+  `.git` aninhado;
+- snapshots v2 sem `rust-project-source-v1` ou com uma política diferente foram
+  rejeitados, enquanto o formato v1 exato continuou legível;
 - uma fixture sem `.git` recebeu o baseline dentro do storage protegido sem
   criar `.git` ou outro estado Git no projeto;
 - a mesma fixture removeu somente o recibo `baseline` do SQLite, preservou o
@@ -144,8 +161,7 @@ Resultado:
 
 ## O que falta para concluir T9.8
 
-1. definir e validar a política definitiva de inclusão de arquivos do projeto;
-2. derivar diff e contexto somente dos commits privados;
-3. testar concorrência e corrupção das transições ainda abertas;
-4. provar o ciclo completo instalado em fixture sem `.git`;
-5. integrar o commit atual à decisão local da T9.7.
+1. derivar diff e contexto somente dos commits privados;
+2. testar concorrência e corrupção das transições ainda abertas;
+3. provar o ciclo completo instalado em fixture sem `.git`;
+4. integrar o commit atual à decisão local da T9.7.

@@ -1279,15 +1279,21 @@ erros. Essa rota não é alcançável pela CLI pública atual. A intenção corr
 manter o projeto sem Git obrigatório e usar o repositório interno como backup
 versionado, recuperação e fonte dos diffs que descrevem tarefas. SQLite
 transacional, journals e o checkpoint Ed25519 já substituem o estado de
-governança. Os commits `a8ba8e4`, `d9ea687`, `4c5532c` e `7a33ce9`
-acrescentaram o Git bare privado e os checkpoints `baseline`, `submission`,
-`review` e `advance`: o wrapper e a submissão entregam um descritor
+governança. Os incrementos registrados na
+[validação T9.8](./VALIDACAO-BACKUP-GIT-PRIVADO-T9.8.md) acrescentaram o Git
+bare privado e os checkpoints `baseline`, `submission`, `review` e `advance`:
+o wrapper e a submissão entregam um descritor
 `SCM_RIGHTS`, o serviço o vincula à identidade persistida e varre a árvore com
 syscalls relativas sem transportar locator; revisão e avanço reutilizam os
-objetos da transição exata no histórico protegido. Ainda faltam os vínculos
-transacionais dos recibos, a geração de contexto e a recuperação integral. O novo
-state root preserva objetos e cópia de fonte somente em armazenamento privado,
-nunca dentro do projeto e sem remoto.
+objetos da transição exata no histórico protegido. Recibos e mutações de
+domínio já são finalizados em transações SQLite reentrantes, e o bootstrap
+recupera checkpoints cujo domínio canônico já existe. A política versionada
+`rust-project-source-v1` fecha quais arquivos entram e fica vinculada aos novos
+commits `protected-git-snapshot-v2`, mantendo leitura estrita do v1 instalado.
+Ainda faltam diff/contexto do histórico, concorrência/corrupção, o ciclo
+instalado completo e o vínculo ao gate T9.7. O state root preserva objetos e
+cópia de fonte somente em armazenamento privado, nunca dentro do projeto e sem
+remoto.
 
 Estado da T10.1: a
 [matriz de paridade final](./VALIDACAO-PARIDADE-BINARIO-T10.1.md) confirmou que
