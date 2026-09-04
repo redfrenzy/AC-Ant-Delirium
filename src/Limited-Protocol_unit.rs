@@ -1523,6 +1523,16 @@ fn handle_review_request(
         &event,
     )
     .map_err(|_| LimitedProtocolError::Envelope)?;
+    storage
+        .commit_review_snapshot(
+            authority,
+            &wire.project_id,
+            &wire.workspace_id,
+            &wire.task_id,
+            &wire.submission_id,
+            outcome.review_id(),
+        )
+        .map_err(|_| LimitedProtocolError::Envelope)?;
     Ok(LimitedResponseResult {
         review_id: Some(outcome.review_id().to_string()),
         event_sequence: Some(outcome.event_sequence()),

@@ -1,5 +1,6 @@
 use super::*;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[cfg(unix)]
 use std::fs::OpenOptions;
@@ -18,11 +19,15 @@ const TASK_ID: &str = "tsk_00000000000000000000000000";
 
 fn unique_root(label: &str) -> PathBuf {
     let sequence = FIXTURE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
-        "target/protected-git-backup-tests/{label}-{}-{sequence}",
-        std::process::id(),
-    ));
-    fs::create_dir_all(&root).expect("backup fixture root");
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("test clock after epoch")
+        .as_nanos();
+    let parent =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/protected-git-backup-tests");
+    fs::create_dir_all(&parent).expect("backup fixture parent");
+    let root = parent.join(format!("{label}-{}-{sequence}-{nonce}", std::process::id(),));
+    fs::create_dir(&root).expect("unique backup fixture root");
     root
 }
 
@@ -358,6 +363,107 @@ fn one_workspace_descriptor_can_produce_baseline_and_submission_snapshots() {
             .id()
             .to_string(),
         submission.commit_id,
+    );
+}
+
+#[test]
+fn review_and_advance_reuse_the_protected_source_without_a_workspace_descriptor() {
+    let storage = unique_root("metadata-only-transitions");
+    let backup = ProtectedGitBackup::initialize(&storage, current_uid()).unwrap();
+    let baseline = backup
+        .commit_snapshot(
+            &metadata(BackupTransition::Baseline, 0),
+            vec![entry("src/lib.rs", b"pub fn value() -> u8 { 1 }\n")],
+        )
+        .unwrap();
+    let submission = backup
+        .commit_snapshot(
+            &metadata(BackupTransition::Submission, 1),
+            vec![entry("src/lib.rs", b"pub fn value() -> u8 { 2 }\n")],
+        )
+        .unwrap();
+    let mut newer_submission_metadata = metadata(BackupTransition::Submission, 1);
+    newer_submission_metadata.transition_id = Some("sub_11111111111111111111111111".to_string());
+    let newer_submission = backup
+        .commit_snapshot(
+            &newer_submission_metadata,
+            vec![entry("src/lib.rs", b"pub fn value() -> u8 { 3 }\n")],
+        )
+        .unwrap();
+    let review_metadata = metadata(BackupTransition::Review, 1);
+    let review = backup
+        .commit_snapshot_from_transition(
+            &review_metadata,
+            BackupTransition::Submission,
+            "sub_00000000000000000000000000",
+        )
+        .unwrap();
+    let advance_metadata = metadata(BackupTransition::Advance, 2);
+    let advance = backup
+        .commit_snapshot_from_transition(
+            &advance_metadata,
+            BackupTransition::Review,
+            "rev_00000000000000000000000000",
+        )
+        .unwrap();
+
+    assert_eq!(
+        review.parent_commit_id.as_deref(),
+        Some(newer_submission.commit_id.as_str())
+    );
+    assert_eq!(
+        advance.parent_commit_id.as_deref(),
+        Some(review.commit_id.as_str())
+    );
+    assert_ne!(submission.source_fingerprint, baseline.source_fingerprint);
+    assert_ne!(
+        newer_submission.source_fingerprint,
+        submission.source_fingerprint
+    );
+    assert_eq!(review.source_fingerprint, submission.source_fingerprint);
+    assert_eq!(advance.source_fingerprint, submission.source_fingerprint);
+    assert_eq!(
+        backup
+            .commit_snapshot_from_transition(
+                &review_metadata,
+                BackupTransition::Submission,
+                "sub_00000000000000000000000000",
+            )
+            .unwrap(),
+        review,
+    );
+    assert_eq!(
+        backup
+            .commit_snapshot_from_transition(
+                &advance_metadata,
+                BackupTransition::Review,
+                "rev_00000000000000000000000000",
+            )
+            .unwrap(),
+        advance,
+    );
+
+    let repository = gix::open(backup.repository_path()).unwrap();
+    let source_at = |commit_id: &str| {
+        repository
+            .find_object(gix::ObjectId::from_hex(commit_id.as_bytes()).unwrap())
+            .unwrap()
+            .into_commit()
+            .tree()
+            .unwrap()
+            .lookup_entry_by_path("source")
+            .unwrap()
+            .unwrap()
+            .oid()
+            .to_string()
+    };
+    assert_eq!(
+        source_at(&review.commit_id),
+        source_at(&submission.commit_id)
+    );
+    assert_eq!(
+        source_at(&advance.commit_id),
+        source_at(&submission.commit_id)
     );
 }
 

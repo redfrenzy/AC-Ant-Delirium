@@ -487,6 +487,52 @@ fn exact_ci_state_transition_advances_only_an_accepted_reviewed_task() {
         &event(2, "submission_recorded", "agent", &submission.submission_id),
     )
     .unwrap();
+    let project_root = storage.projects_dir.join(&registration.project_key);
+    let backup = crate::protected_git_backup::ProtectedGitBackup::initialize(
+        &project_root,
+        authority.effective_uid(),
+    )
+    .unwrap();
+    backup
+        .commit_snapshot(
+            &crate::protected_git_backup::BackupCommitMetadata {
+                transition: crate::protected_git_backup::BackupTransition::Baseline,
+                project_id: registration.project_id.clone(),
+                workspace_id: registration.workspace_id.clone(),
+                task_id: Some(TASK_ID.to_string()),
+                task_revision: Some(1),
+                state_revision: 1,
+                occurred_at_unix: 1_788_000_000,
+                observed_compilation_fingerprint: Some("a".repeat(64)),
+                transition_id: None,
+            },
+            vec![crate::protected_git_backup::BackupSnapshotEntry {
+                relative_path: "src/lib.rs".to_string(),
+                executable: false,
+                contents: b"pub fn accepted() {}\n".to_vec(),
+            }],
+        )
+        .unwrap();
+    backup
+        .commit_snapshot(
+            &crate::protected_git_backup::BackupCommitMetadata {
+                transition: crate::protected_git_backup::BackupTransition::Submission,
+                project_id: registration.project_id.clone(),
+                workspace_id: registration.workspace_id.clone(),
+                task_id: Some(TASK_ID.to_string()),
+                task_revision: Some(1),
+                state_revision: 1,
+                occurred_at_unix: 1_788_000_001,
+                observed_compilation_fingerprint: None,
+                transition_id: Some(submission.submission_id.clone()),
+            },
+            vec![crate::protected_git_backup::BackupSnapshotEntry {
+                relative_path: "src/lib.rs".to_string(),
+                executable: false,
+                contents: b"pub fn accepted() {}\n".to_vec(),
+            }],
+        )
+        .unwrap();
     let review = NewReview {
         review_id: "rev_00000000000000000000000000".to_string(),
         project_id: registration.project_id.clone(),
@@ -503,6 +549,16 @@ fn exact_ci_state_transition_advances_only_an_accepted_reviewed_task() {
         &event(3, "review_recorded", "reviewer", &review.review_id),
     )
     .unwrap();
+    storage
+        .commit_review_snapshot(
+            &authority,
+            &registration.project_id,
+            &registration.workspace_id,
+            TASK_ID,
+            &submission.submission_id,
+            &review.review_id,
+        )
+        .unwrap();
     let capability = authorize_capability(
         storage.registry(),
         CapabilityActor::Ci,
@@ -531,6 +587,27 @@ fn exact_ci_state_transition_advances_only_an_accepted_reviewed_task() {
     assert_eq!(advanced.next_task_id, None);
     assert_eq!(advanced.state.current_task_id, None);
     assert_eq!(advanced.state.active_plan_id, None);
+    let repository = gix::open(project_root.join("backup/repository.git")).unwrap();
+    let commit = repository
+        .find_reference("refs/heads/snapshots")
+        .unwrap()
+        .peel_to_commit()
+        .unwrap();
+    let snapshot = commit
+        .tree()
+        .unwrap()
+        .lookup_entry_by_path("snapshot.json")
+        .unwrap()
+        .unwrap()
+        .object()
+        .unwrap()
+        .into_blob()
+        .data
+        .clone();
+    let snapshot: serde_json::Value = serde_json::from_slice(&snapshot).unwrap();
+    assert_eq!(snapshot["transition"], "advance");
+    assert_eq!(snapshot["transition_id"], "rev_00000000000000000000000000");
+    assert_eq!(commit.ancestors().all().unwrap().count(), 4);
 
     fs::remove_dir_all(root).expect("fixture cleanup");
 }

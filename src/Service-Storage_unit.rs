@@ -267,6 +267,62 @@ impl ProtectedServiceStorage {
             .map_err(|_| ())
     }
 
+    pub(crate) fn commit_review_snapshot(
+        &self,
+        authority: &VerifiedServiceAuthority,
+        project_id: &str,
+        workspace_id: &str,
+        task_id: &str,
+        submission_id: &str,
+        review_id: &str,
+    ) -> Result<crate::protected_git_backup::BackupCommitReceipt, ()> {
+        let project = self
+            .registry
+            .registered_projects()
+            .map_err(|_| ())?
+            .into_iter()
+            .find(|project| project.project_id == project_id)
+            .ok_or(())?;
+        validate_project_identity(&project).map_err(|_| ())?;
+        let project_root = self.projects_dir.join(&project.project_key);
+        require_owned_directory(&project_root, authority.effective_uid()).map_err(|_| ())?;
+        let database = ProjectDatabase::open_existing_at(&project_root).map_err(|_| ())?;
+        require_single_project(&database, &project).map_err(|_| ())?;
+        let state = database
+            .load_canonical_state(project_id, workspace_id)
+            .map_err(|_| ())?;
+        let task = state
+            .tasks
+            .iter()
+            .find(|task| task.task_id == task_id)
+            .ok_or(())?;
+        if state.current_task_id.as_deref() != Some(task.task_id.as_str()) {
+            return Err(());
+        }
+        let backup = crate::protected_git_backup::ProtectedGitBackup::initialize(
+            &project_root,
+            authority.effective_uid(),
+        )
+        .map_err(|_| ())?;
+        backup
+            .commit_snapshot_from_transition(
+                &crate::protected_git_backup::BackupCommitMetadata {
+                    transition: crate::protected_git_backup::BackupTransition::Review,
+                    project_id: project_id.to_string(),
+                    workspace_id: workspace_id.to_string(),
+                    task_id: Some(task_id.to_string()),
+                    task_revision: Some(task.task_revision),
+                    state_revision: state.state_revision,
+                    occurred_at_unix: trusted_service_unix_time().map_err(|_| ())?,
+                    observed_compilation_fingerprint: None,
+                    transition_id: Some(review_id.to_string()),
+                },
+                crate::protected_git_backup::BackupTransition::Submission,
+                submission_id,
+            )
+            .map_err(|_| ())
+    }
+
     pub(crate) fn install_generic_task_package(
         &self,
         authority: &VerifiedServiceAuthority,
@@ -383,9 +439,49 @@ impl ProtectedServiceStorage {
             resource_id: Some(advance.task_id.clone()),
             payload: b"accepted assigned review advanced canonical task".to_vec(),
         };
-        database
+        let outcome = database
             .advance_accepted_task(advance, &event)
-            .map_err(|_| ())
+            .map_err(|_| ())?;
+        let task_revision = outcome
+            .state
+            .tasks
+            .iter()
+            .find(|task| task.task_id == outcome.completed_task_id)
+            .map(|task| task.task_revision)
+            .ok_or(())?;
+        let project = self
+            .registry
+            .registered_projects()
+            .map_err(|_| ())?
+            .into_iter()
+            .find(|project| project.project_id == advance.project_id)
+            .ok_or(())?;
+        validate_project_identity(&project).map_err(|_| ())?;
+        let project_root = self.projects_dir.join(&project.project_key);
+        require_owned_directory(&project_root, authority.effective_uid()).map_err(|_| ())?;
+        let backup = crate::protected_git_backup::ProtectedGitBackup::initialize(
+            &project_root,
+            authority.effective_uid(),
+        )
+        .map_err(|_| ())?;
+        backup
+            .commit_snapshot_from_transition(
+                &crate::protected_git_backup::BackupCommitMetadata {
+                    transition: crate::protected_git_backup::BackupTransition::Advance,
+                    project_id: advance.project_id.clone(),
+                    workspace_id: advance.workspace_id.clone(),
+                    task_id: Some(advance.task_id.clone()),
+                    task_revision: Some(task_revision),
+                    state_revision: outcome.state.state_revision,
+                    occurred_at_unix: now,
+                    observed_compilation_fingerprint: None,
+                    transition_id: Some(advance.review_id.clone()),
+                },
+                crate::protected_git_backup::BackupTransition::Review,
+                &advance.review_id,
+            )
+            .map_err(|_| ())?;
+        Ok(outcome)
     }
 
     fn open_registered_project(

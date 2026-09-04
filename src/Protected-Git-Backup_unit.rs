@@ -307,9 +307,200 @@ impl ProtectedGitBackup {
         self.commit_snapshot(metadata, entries)
     }
 
+    pub(crate) fn commit_snapshot_from_transition(
+        &self,
+        metadata: &BackupCommitMetadata,
+        source_transition: BackupTransition,
+        source_transition_id: &str,
+    ) -> Result<BackupCommitReceipt, ProtectedGitBackupError> {
+        self.commit_metadata_snapshot(metadata, source_transition, source_transition_id)
+    }
+
+    fn commit_metadata_snapshot(
+        &self,
+        metadata: &BackupCommitMetadata,
+        source_transition: BackupTransition,
+        source_transition_id: &str,
+    ) -> Result<BackupCommitReceipt, ProtectedGitBackupError> {
+        require_owned_directory(&self.backup_root, self.expected_uid)?;
+        require_owned_directory(&self.repository_path, self.expected_uid)?;
+        validate_metadata(metadata)?;
+        let repository =
+            gix::open(&self.repository_path).map_err(|_| ProtectedGitBackupError::Repository)?;
+        if !repository.is_bare() {
+            return Err(ProtectedGitBackupError::Repository);
+        }
+        let parent = repository
+            .find_reference(SNAPSHOT_REFERENCE)
+            .map_err(|_| ProtectedGitBackupError::Commit)?
+            .target()
+            .try_id()
+            .map(ToOwned::to_owned)
+            .ok_or(ProtectedGitBackupError::Commit)?;
+        let source_commit_id =
+            find_transition_commit_id(&repository, source_transition, source_transition_id)?
+                .ok_or(ProtectedGitBackupError::Commit)?;
+        let source_commit = repository
+            .find_object(source_commit_id)
+            .map_err(|_| ProtectedGitBackupError::Repository)?
+            .try_into_commit()
+            .map_err(|_| ProtectedGitBackupError::Repository)?;
+        let source_commit_tree = source_commit
+            .tree()
+            .map_err(|_| ProtectedGitBackupError::Repository)?;
+        let source_tree_id = source_commit_tree
+            .lookup_entry_by_path("source")
+            .map_err(|_| ProtectedGitBackupError::Repository)?
+            .ok_or(ProtectedGitBackupError::Commit)?
+            .object()
+            .map_err(|_| ProtectedGitBackupError::Repository)?
+            .try_into_tree()
+            .map_err(|_| ProtectedGitBackupError::Commit)?
+            .id()
+            .detach();
+        let previous = read_snapshot_metadata(&source_commit_tree)?;
+        let source_fingerprint = previous.source_fingerprint;
+        let entry_count = previous.entry_count;
+        let byte_count = previous.byte_count;
+        if let Some(receipt) = existing_transition_receipt(
+            &repository,
+            metadata,
+            &source_fingerprint,
+            entry_count,
+            byte_count,
+        )? {
+            return Ok(receipt);
+        }
+        let metadata_document = SnapshotMetadataDocument {
+            contract_version: "protected-git-snapshot-v1",
+            transition: metadata.transition,
+            project_id: &metadata.project_id,
+            workspace_id: &metadata.workspace_id,
+            task_id: metadata.task_id.as_deref(),
+            task_revision: metadata.task_revision,
+            state_revision: metadata.state_revision,
+            occurred_at: format!("unix:{}", metadata.occurred_at_unix),
+            source_fingerprint: &source_fingerprint,
+            observed_compilation_fingerprint: metadata.observed_compilation_fingerprint.as_deref(),
+            transition_id: metadata.transition_id.as_deref(),
+            entry_count,
+            byte_count,
+        };
+        let metadata_bytes = serde_json::to_vec(&metadata_document)
+            .map_err(|_| ProtectedGitBackupError::InvalidMetadata)?;
+        let metadata_id = repository
+            .write_blob(&metadata_bytes)
+            .map_err(|_| ProtectedGitBackupError::Repository)?
+            .detach();
+        let root_tree = gix::objs::Tree {
+            entries: vec![
+                gix::objs::tree::Entry {
+                    mode: gix::objs::tree::EntryKind::Blob.into(),
+                    filename: b"snapshot.json".to_vec().into(),
+                    oid: metadata_id,
+                },
+                gix::objs::tree::Entry {
+                    mode: gix::objs::tree::EntryKind::Tree.into(),
+                    filename: b"source".to_vec().into(),
+                    oid: source_tree_id,
+                },
+            ],
+        };
+        let tree_id = repository
+            .write_object(&root_tree)
+            .map_err(|_| ProtectedGitBackupError::Repository)?
+            .detach();
+        let signature_time = format!("{} +0000", metadata.occurred_at_unix);
+        let signature = gix::actor::SignatureRef {
+            name: b"AntDelirium".as_bstr(),
+            email: b"protected@antdelirium.invalid".as_bstr(),
+            time: &signature_time,
+        };
+        let message = format!(
+            "antdelirium snapshot: {} project={} workspace={} task={} state_revision={}",
+            metadata.transition.as_str(),
+            metadata.project_id,
+            metadata.workspace_id,
+            metadata.task_id.as_deref().unwrap_or("none"),
+            metadata.state_revision,
+        );
+        let commit_id = repository
+            .commit_as(
+                signature,
+                signature,
+                SNAPSHOT_REFERENCE,
+                message,
+                tree_id,
+                [parent],
+            )
+            .map_err(|_| ProtectedGitBackupError::Commit)?
+            .detach();
+        harden_repository_tree(&self.repository_path, self.expected_uid)?;
+        Ok(BackupCommitReceipt {
+            commit_id: commit_id.to_string(),
+            parent_commit_id: Some(parent.to_string()),
+            source_fingerprint,
+            entry_count,
+            byte_count,
+        })
+    }
+
     #[cfg(test)]
     pub(crate) fn repository_path(&self) -> &Path {
         &self.repository_path
+    }
+}
+
+fn read_snapshot_metadata(
+    tree: &gix::Tree<'_>,
+) -> Result<StoredSnapshotMetadata, ProtectedGitBackupError> {
+    let snapshot = tree
+        .lookup_entry_by_path("snapshot.json")
+        .map_err(|_| ProtectedGitBackupError::Repository)?
+        .ok_or(ProtectedGitBackupError::Commit)?
+        .object()
+        .map_err(|_| ProtectedGitBackupError::Repository)?
+        .try_into_blob()
+        .map_err(|_| ProtectedGitBackupError::Commit)?
+        .data
+        .clone();
+    serde_json::from_slice(&snapshot).map_err(|_| ProtectedGitBackupError::Commit)
+}
+
+fn find_transition_commit_id(
+    repository: &gix::Repository,
+    transition: BackupTransition,
+    transition_id: &str,
+) -> Result<Option<gix::ObjectId>, ProtectedGitBackupError> {
+    let Some(reference) = repository
+        .try_find_reference(SNAPSHOT_REFERENCE)
+        .map_err(|_| ProtectedGitBackupError::Repository)?
+    else {
+        return Ok(None);
+    };
+    let mut next_commit = reference
+        .target()
+        .try_id()
+        .map(ToOwned::to_owned)
+        .ok_or(ProtectedGitBackupError::Repository)?;
+    loop {
+        let commit = repository
+            .find_object(next_commit)
+            .map_err(|_| ProtectedGitBackupError::Repository)?
+            .try_into_commit()
+            .map_err(|_| ProtectedGitBackupError::Repository)?;
+        let tree = commit
+            .tree()
+            .map_err(|_| ProtectedGitBackupError::Repository)?;
+        let stored = read_snapshot_metadata(&tree)?;
+        if stored.transition == transition && stored.transition_id.as_deref() == Some(transition_id)
+        {
+            return Ok(Some(commit.id().detach()));
+        }
+        let Some(parent) = commit.parent_ids().next() else {
+            return Ok(None);
+        };
+        next_commit = parent.detach();
     }
 }
 
@@ -344,19 +535,10 @@ fn existing_transition_receipt(
         let tree = commit
             .tree()
             .map_err(|_| ProtectedGitBackupError::Repository)?;
-        let snapshot = tree
-            .lookup_entry_by_path("snapshot.json")
-            .map_err(|_| ProtectedGitBackupError::Repository)?
-            .ok_or(ProtectedGitBackupError::Commit)?
-            .object()
-            .map_err(|_| ProtectedGitBackupError::Repository)?
-            .try_into_blob()
-            .map_err(|_| ProtectedGitBackupError::Commit)?
-            .data
-            .clone();
-        let stored: StoredSnapshotMetadata =
-            serde_json::from_slice(&snapshot).map_err(|_| ProtectedGitBackupError::Commit)?;
-        if stored.transition_id.as_deref() == Some(transition_id) {
+        let stored = read_snapshot_metadata(&tree)?;
+        if stored.transition == metadata.transition
+            && stored.transition_id.as_deref() == Some(transition_id)
+        {
             if stored.contract_version != "protected-git-snapshot-v1"
                 || stored.transition != metadata.transition
                 || stored.project_id != metadata.project_id
