@@ -534,6 +534,31 @@ fn request_for_connection_with_descriptor(
 }
 
 #[cfg(unix)]
+fn request_for_connection_with_descriptor_and_id(
+    mut connection: NegotiatedLimitedConnection,
+    operation: &str,
+    capability: Option<WireCapability>,
+    body: LimitedRequestBody,
+    request_id: String,
+    descriptor: &OwnedFd,
+) -> Result<LimitedResponse, LimitedProtocolError> {
+    let request = LimitedRequest {
+        message_type: "request".to_string(),
+        wire_version: LIMITED_WIRE_VERSION.to_string(),
+        request_id: request_id.clone(),
+        connection_nonce: connection.connection_nonce.clone(),
+        operation: operation.to_string(),
+        capability,
+        body,
+    };
+    write_stream_frame(&mut connection.stream, &request)?;
+    send_descriptor(&connection.stream, descriptor)?;
+    let payload =
+        read_stream_frame_with_timeout(&mut connection.stream, REQUEST_RESPONSE_DEADLINE)?;
+    validate_limited_response(&payload, &request_id)
+}
+
+#[cfg(unix)]
 fn send_descriptor(stream: &UnixStream, descriptor: &OwnedFd) -> Result<(), LimitedProtocolError> {
     let deadline = std::time::Instant::now() + REQUEST_RESPONSE_DEADLINE;
     let mut marker = [b'D'];
@@ -688,10 +713,11 @@ pub(crate) fn create_agent_submission(
     endpoint: &OsStr,
     capability_fd: i32,
     request: &SubmissionCreateRequest,
+    source_descriptor: &OwnedFd,
 ) -> Result<AgentSubmissionReceipt, LimitedProtocolError> {
     let bundle = read_agent_submission_capability_from_descriptor(capability_fd)?;
     let connection = connect_limited_service(endpoint)?;
-    create_agent_submission_for_connection(connection, bundle, request)
+    create_agent_submission_for_connection(connection, bundle, request, source_descriptor)
 }
 
 #[cfg(unix)]
@@ -699,6 +725,7 @@ fn create_agent_submission_for_connection(
     connection: NegotiatedLimitedConnection,
     bundle: AgentSubmissionCapabilityBundle,
     request: &SubmissionCreateRequest,
+    source_descriptor: &OwnedFd,
 ) -> Result<AgentSubmissionReceipt, LimitedProtocolError> {
     let evidence = request
         .evidence
@@ -710,7 +737,7 @@ fn create_agent_submission_for_connection(
             },
         })
         .collect();
-    let response = request_for_connection_with_id(
+    let response = request_for_connection_with_descriptor_and_id(
         connection,
         "submission.create",
         Some(bundle.capability),
@@ -725,11 +752,16 @@ fn create_agent_submission_for_connection(
                 base_revision: request.base_revision.clone(),
                 evidence,
             }),
+            source_descriptor: Some(true),
             ..LimitedRequestBody::default()
         },
         request.request_id.clone(),
+        source_descriptor,
     )?;
     let result = response.result.ok_or(LimitedProtocolError::Envelope)?;
+    if result.backup_recorded != Some(true) {
+        return Err(LimitedProtocolError::Envelope);
+    }
     let submission_id = result
         .submission_id
         .filter(|value| valid_opaque_id(value, "sub_"))
@@ -990,7 +1022,12 @@ pub(crate) fn serve_limited_request(
     let parsed: LimitedRequest =
         serde_json::from_slice(&payload).map_err(|_| LimitedProtocolError::Envelope)?;
     let descriptor_requested = parsed.body.source_descriptor == Some(true);
-    if descriptor_requested && parsed.operation != "compile.observe" {
+    if descriptor_requested
+        && !matches!(
+            parsed.operation.as_str(),
+            "compile.observe" | "submission.create"
+        )
+    {
         return Err(LimitedProtocolError::Envelope);
     }
     let descriptor = descriptor_requested
@@ -1041,9 +1078,13 @@ fn limited_response_for_payload_with_descriptor(
         "projection.refresh" => {
             handle_projection_request(authentication, authority, storage, &request)?
         }
-        "submission.create" => {
-            handle_submission_request(authentication, authority, storage, &request)?
-        }
+        "submission.create" => handle_submission_request(
+            authentication,
+            authority,
+            storage,
+            &request,
+            source_descriptor,
+        )?,
         "submission.read.assigned" => {
             handle_assigned_submission_request(authentication, authority, storage, &request)?
         }
@@ -1251,6 +1292,7 @@ fn handle_submission_request(
     authority: &VerifiedServiceAuthority,
     storage: &ProtectedServiceStorage,
     request: &LimitedRequest,
+    source_descriptor: Option<&OwnedFd>,
 ) -> Result<LimitedResponseResult, LimitedProtocolError> {
     if request.body.project_identity_fingerprint.is_some()
         || request.body.workspace_identity_fingerprint.is_some()
@@ -1260,7 +1302,8 @@ fn handle_submission_request(
         || request.body.compilation_fingerprint.is_some()
         || request.body.submission_query.is_some()
         || request.body.review.is_some()
-        || request.body.source_descriptor.is_some()
+        || request.body.source_descriptor != Some(true)
+        || source_descriptor.is_none()
     {
         return Err(LimitedProtocolError::Envelope);
     }
@@ -1306,6 +1349,18 @@ fn handle_submission_request(
         &event,
     )
     .map_err(|_| LimitedProtocolError::Envelope)?;
+    storage
+        .commit_submission_snapshot_from_descriptor(
+            authority,
+            authentication.peer_uid(),
+            &wire.project_id,
+            &wire.workspace_id,
+            &wire.task_id,
+            wire.task_revision,
+            outcome.submission_id(),
+            source_descriptor.ok_or(LimitedProtocolError::Envelope)?,
+        )
+        .map_err(|_| LimitedProtocolError::Envelope)?;
     Ok(LimitedResponseResult {
         submission_id: Some(outcome.submission_id().to_string()),
         event_sequence: Some(outcome.event_sequence()),
@@ -1313,6 +1368,7 @@ fn handle_submission_request(
             matches!(authorization, CapabilityAuthorizationOutcome::Replay(_))
                 || matches!(outcome, SubmissionWriteOutcome::Duplicate { .. }),
         ),
+        backup_recorded: Some(true),
         ..LimitedResponseResult::default()
     })
 }

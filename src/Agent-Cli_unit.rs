@@ -3,6 +3,10 @@ use std::cell::Cell;
 use std::ffi::OsString;
 use std::fs;
 use std::io::Read;
+#[cfg(unix)]
+use std::os::fd::OwnedFd;
+#[cfg(unix)]
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 
 use ac_ant_delirium::structs::{
@@ -107,7 +111,7 @@ fn execute(
             let request_id = generate_request_id()?;
             let request = build_note_submission_request(&binding, &request_id, &evidence)
                 .map_err(|_| AgentCliError::Protocol)?;
-            let receipt = submission_transport.create_submission(&request)?;
+            let receipt = submission_transport.create_submission(&request, &project_root)?;
             Ok(AgentCliSuccess::Submission(format!(
                 "antdelirium[AD-SUBMISSION]: {}",
                 receipt.submission_id
@@ -148,6 +152,7 @@ trait AgentSubmissionTransport {
     fn create_submission(
         &self,
         request: &SubmissionCreateRequest,
+        project_root: &Path,
     ) -> Result<crate::limited_protocol::AgentSubmissionReceipt, AgentCliError>;
 }
 
@@ -159,6 +164,7 @@ impl AgentSubmissionTransport for UnavailableSubmissionTransport {
     fn create_submission(
         &self,
         _request: &SubmissionCreateRequest,
+        _project_root: &Path,
     ) -> Result<crate::limited_protocol::AgentSubmissionReceipt, AgentCliError> {
         Err(AgentCliError::ServiceUnavailable)
     }
@@ -193,6 +199,7 @@ impl AgentSubmissionTransport for EnvironmentSubmissionTransport {
     fn create_submission(
         &self,
         request: &SubmissionCreateRequest,
+        project_root: &Path,
     ) -> Result<crate::limited_protocol::AgentSubmissionReceipt, AgentCliError> {
         #[cfg(unix)]
         {
@@ -204,10 +211,17 @@ impl AgentSubmissionTransport for EnvironmentSubmissionTransport {
                 .capability_fd
                 .take()
                 .ok_or(AgentCliError::Authorization)?;
+            let source_descriptor: OwnedFd = fs::OpenOptions::new()
+                .read(true)
+                .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
+                .open(project_root)
+                .map_err(|_| AgentCliError::Protocol)?
+                .into();
             return crate::limited_protocol::create_agent_submission(
                 endpoint,
                 capability_fd,
                 request,
+                &source_descriptor,
             )
             .map_err(|error| match error {
                 crate::limited_protocol::LimitedProtocolError::Envelope
@@ -224,7 +238,7 @@ impl AgentSubmissionTransport for EnvironmentSubmissionTransport {
         }
         #[cfg(not(unix))]
         {
-            let _ = request;
+            let _ = (request, project_root);
             Err(AgentCliError::ServiceUnavailable)
         }
     }
@@ -412,6 +426,7 @@ mod tests {
         fn create_submission(
             &self,
             request: &SubmissionCreateRequest,
+            _project_root: &Path,
         ) -> Result<crate::limited_protocol::AgentSubmissionReceipt, AgentCliError> {
             self.request.replace(Some(request.clone()));
             Ok(crate::limited_protocol::AgentSubmissionReceipt {

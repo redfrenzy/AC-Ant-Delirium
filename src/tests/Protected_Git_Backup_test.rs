@@ -47,6 +47,13 @@ fn metadata(transition: BackupTransition, state_revision: i64) -> BackupCommitMe
         state_revision,
         occurred_at_unix: 1_788_000_000 + state_revision,
         observed_compilation_fingerprint: Some("a".repeat(64)),
+        transition_id: match transition {
+            BackupTransition::Baseline => None,
+            BackupTransition::Submission => Some("sub_00000000000000000000000000".to_string()),
+            BackupTransition::Review | BackupTransition::Advance => {
+                Some("rev_00000000000000000000000000".to_string())
+            }
+        },
     }
 }
 
@@ -159,6 +166,7 @@ fn commits_only_the_validated_source_tree_and_opens_a_history_chain() {
     assert_eq!(snapshot["transition"], "advance");
     assert_eq!(snapshot["source_fingerprint"], advance.source_fingerprint);
     assert_eq!(snapshot["observed_compilation_fingerprint"], "a".repeat(64));
+    assert_eq!(snapshot["transition_id"], "rev_00000000000000000000000000");
     assert!(tree.lookup_entry_by_path("state").unwrap().is_none());
     assert!(tree.lookup_entry_by_path("capabilities").unwrap().is_none());
 }
@@ -289,6 +297,68 @@ fn snapshots_a_project_descriptor_without_reading_excluded_roots() {
             .unwrap()
             .is_none());
     }
+}
+
+#[cfg(unix)]
+#[test]
+fn one_workspace_descriptor_can_produce_baseline_and_submission_snapshots() {
+    let storage = unique_root("descriptor-reuse-storage");
+    let workspace = unique_root("descriptor-reuse-workspace");
+    fs::create_dir_all(workspace.join("src")).unwrap();
+    fs::write(workspace.join("Cargo.toml"), b"[package]\n").unwrap();
+    fs::write(
+        workspace.join("src/lib.rs"),
+        b"pub fn value() -> u8 { 1 }\n",
+    )
+    .unwrap();
+    let descriptor = open_directory(&workspace);
+    let backup = ProtectedGitBackup::initialize(&storage, current_uid()).unwrap();
+
+    let baseline = backup
+        .commit_snapshot_from_descriptor(&metadata(BackupTransition::Baseline, 0), &descriptor)
+        .unwrap();
+    fs::write(
+        workspace.join("src/lib.rs"),
+        b"pub fn value() -> u8 { 2 }\n",
+    )
+    .unwrap();
+    let submission = backup
+        .commit_snapshot_from_descriptor(&metadata(BackupTransition::Submission, 1), &descriptor)
+        .unwrap();
+    let replay = backup
+        .commit_snapshot_from_descriptor(&metadata(BackupTransition::Submission, 1), &descriptor)
+        .unwrap();
+
+    assert_eq!(
+        submission.parent_commit_id.as_deref(),
+        Some(baseline.commit_id.as_str())
+    );
+    assert_ne!(submission.source_fingerprint, baseline.source_fingerprint);
+    assert_eq!(replay, submission);
+
+    fs::write(
+        workspace.join("src/lib.rs"),
+        b"pub fn value() -> u8 { 3 }\n",
+    )
+    .unwrap();
+    assert_eq!(
+        backup.commit_snapshot_from_descriptor(
+            &metadata(BackupTransition::Submission, 1),
+            &descriptor,
+        ),
+        Err(ProtectedGitBackupError::Commit),
+    );
+    let repository = gix::open(backup.repository_path()).unwrap();
+    assert_eq!(
+        repository
+            .find_reference(SNAPSHOT_REFERENCE)
+            .unwrap()
+            .peel_to_commit()
+            .unwrap()
+            .id()
+            .to_string(),
+        submission.commit_id,
+    );
 }
 
 #[cfg(unix)]

@@ -17,7 +17,7 @@ use std::os::unix::fs::{MetadataExt, PermissionsExt};
 
 use ac_ant_delirium::libres::Sha2_unit::sha256;
 use gix::bstr::ByteSlice;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 const BACKUP_DIRECTORY_NAME: &str = "backup";
 const REPOSITORY_DIRECTORY_NAME: &str = "repository.git";
@@ -39,7 +39,7 @@ pub(crate) enum ProtectedGitBackupError {
     Commit,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum BackupTransition {
     Baseline,
@@ -76,6 +76,7 @@ pub(crate) struct BackupCommitMetadata {
     pub(crate) state_revision: i64,
     pub(crate) occurred_at_unix: i64,
     pub(crate) observed_compilation_fingerprint: Option<String>,
+    pub(crate) transition_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -99,6 +100,23 @@ struct SnapshotMetadataDocument<'a> {
     occurred_at: String,
     source_fingerprint: &'a str,
     observed_compilation_fingerprint: Option<&'a str>,
+    transition_id: Option<&'a str>,
+    entry_count: u64,
+    byte_count: u64,
+}
+
+#[derive(Debug, Deserialize)]
+struct StoredSnapshotMetadata {
+    contract_version: String,
+    transition: BackupTransition,
+    project_id: String,
+    workspace_id: String,
+    task_id: Option<String>,
+    task_revision: Option<i64>,
+    state_revision: i64,
+    source_fingerprint: String,
+    observed_compilation_fingerprint: Option<String>,
+    transition_id: Option<String>,
     entry_count: u64,
     byte_count: u64,
 }
@@ -177,6 +195,7 @@ impl ProtectedGitBackup {
             occurred_at: format!("unix:{}", metadata.occurred_at_unix),
             source_fingerprint: &source_fingerprint_hex,
             observed_compilation_fingerprint: metadata.observed_compilation_fingerprint.as_deref(),
+            transition_id: metadata.transition_id.as_deref(),
             entry_count,
             byte_count,
         };
@@ -197,6 +216,15 @@ impl ProtectedGitBackup {
             gix::open(&self.repository_path).map_err(|_| ProtectedGitBackupError::Repository)?;
         if !repository.is_bare() {
             return Err(ProtectedGitBackupError::Repository);
+        }
+        if let Some(receipt) = existing_transition_receipt(
+            &repository,
+            metadata,
+            &source_fingerprint_hex,
+            entry_count,
+            byte_count,
+        )? {
+            return Ok(receipt);
         }
         let tree_id = write_tree(&repository, &root)?;
         let parent = repository
@@ -285,6 +313,80 @@ impl ProtectedGitBackup {
     }
 }
 
+fn existing_transition_receipt(
+    repository: &gix::Repository,
+    metadata: &BackupCommitMetadata,
+    source_fingerprint: &str,
+    entry_count: u64,
+    byte_count: u64,
+) -> Result<Option<BackupCommitReceipt>, ProtectedGitBackupError> {
+    let Some(transition_id) = metadata.transition_id.as_deref() else {
+        return Ok(None);
+    };
+    let Some(reference) = repository
+        .try_find_reference(SNAPSHOT_REFERENCE)
+        .map_err(|_| ProtectedGitBackupError::Repository)?
+    else {
+        return Ok(None);
+    };
+    let mut next_commit = reference
+        .target()
+        .try_id()
+        .map(ToOwned::to_owned)
+        .ok_or(ProtectedGitBackupError::Repository)?;
+
+    loop {
+        let commit = repository
+            .find_object(next_commit)
+            .map_err(|_| ProtectedGitBackupError::Repository)?
+            .try_into_commit()
+            .map_err(|_| ProtectedGitBackupError::Repository)?;
+        let tree = commit
+            .tree()
+            .map_err(|_| ProtectedGitBackupError::Repository)?;
+        let snapshot = tree
+            .lookup_entry_by_path("snapshot.json")
+            .map_err(|_| ProtectedGitBackupError::Repository)?
+            .ok_or(ProtectedGitBackupError::Commit)?
+            .object()
+            .map_err(|_| ProtectedGitBackupError::Repository)?
+            .try_into_blob()
+            .map_err(|_| ProtectedGitBackupError::Commit)?
+            .data
+            .clone();
+        let stored: StoredSnapshotMetadata =
+            serde_json::from_slice(&snapshot).map_err(|_| ProtectedGitBackupError::Commit)?;
+        if stored.transition_id.as_deref() == Some(transition_id) {
+            if stored.contract_version != "protected-git-snapshot-v1"
+                || stored.transition != metadata.transition
+                || stored.project_id != metadata.project_id
+                || stored.workspace_id != metadata.workspace_id
+                || stored.task_id != metadata.task_id
+                || stored.task_revision != metadata.task_revision
+                || stored.state_revision != metadata.state_revision
+                || stored.source_fingerprint != source_fingerprint
+                || stored.observed_compilation_fingerprint
+                    != metadata.observed_compilation_fingerprint
+                || stored.entry_count != entry_count
+                || stored.byte_count != byte_count
+            {
+                return Err(ProtectedGitBackupError::Commit);
+            }
+            return Ok(Some(BackupCommitReceipt {
+                commit_id: commit.id().to_string(),
+                parent_commit_id: commit.parent_ids().next().map(|id| id.to_string()),
+                source_fingerprint: stored.source_fingerprint,
+                entry_count: stored.entry_count,
+                byte_count: stored.byte_count,
+            }));
+        }
+        let Some(parent) = commit.parent_ids().next() else {
+            return Ok(None);
+        };
+        next_commit = parent.detach();
+    }
+}
+
 fn validate_metadata(metadata: &BackupCommitMetadata) -> Result<(), ProtectedGitBackupError> {
     if !valid_opaque_id(&metadata.project_id, "prj_")
         || !valid_opaque_id(&metadata.workspace_id, "wsp_")
@@ -301,10 +403,25 @@ fn validate_metadata(metadata: &BackupCommitMetadata) -> Result<(), ProtectedGit
             .observed_compilation_fingerprint
             .as_deref()
             .is_some_and(|fingerprint| !valid_sha256_hex(fingerprint))
+        || !valid_transition_id(metadata)
     {
         return Err(ProtectedGitBackupError::InvalidMetadata);
     }
     Ok(())
+}
+
+fn valid_transition_id(metadata: &BackupCommitMetadata) -> bool {
+    match metadata.transition {
+        BackupTransition::Baseline => metadata.transition_id.is_none(),
+        BackupTransition::Submission => metadata
+            .transition_id
+            .as_deref()
+            .is_some_and(|value| valid_opaque_id(value, "sub_")),
+        BackupTransition::Review | BackupTransition::Advance => metadata
+            .transition_id
+            .as_deref()
+            .is_some_and(|value| valid_opaque_id(value, "rev_")),
+    }
 }
 
 fn valid_sha256_hex(value: &str) -> bool {
@@ -404,7 +521,13 @@ struct DirectoryStream(*mut libc::DIR);
 #[cfg(unix)]
 impl DirectoryStream {
     fn duplicate_from(raw_fd: i32) -> Result<Self, ProtectedGitBackupError> {
-        let duplicate = unsafe { libc::fcntl(raw_fd, libc::F_DUPFD_CLOEXEC, 3) };
+        let duplicate = unsafe {
+            libc::openat(
+                raw_fd,
+                c".".as_ptr(),
+                libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+            )
+        };
         if duplicate < 0 {
             return Err(ProtectedGitBackupError::InvalidEntry);
         }

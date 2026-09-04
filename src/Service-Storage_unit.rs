@@ -196,6 +196,71 @@ impl ProtectedServiceStorage {
                     state_revision: state.state_revision,
                     occurred_at_unix: trusted_service_unix_time().map_err(|_| ())?,
                     observed_compilation_fingerprint: Some(lowercase_hex(compilation_fingerprint)),
+                    transition_id: None,
+                },
+                descriptor,
+            )
+            .map_err(|_| ())
+    }
+
+    #[cfg(unix)]
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn commit_submission_snapshot_from_descriptor(
+        &self,
+        authority: &VerifiedServiceAuthority,
+        peer_uid: u32,
+        project_id: &str,
+        workspace_id: &str,
+        task_id: &str,
+        task_revision: i64,
+        submission_id: &str,
+        descriptor: &OwnedFd,
+    ) -> Result<crate::protected_git_backup::BackupCommitReceipt, ()> {
+        self.validate_workspace_descriptor(peer_uid, project_id, workspace_id, descriptor)?;
+        let project = self
+            .registry
+            .registered_projects()
+            .map_err(|_| ())?
+            .into_iter()
+            .find(|project| project.project_id == project_id)
+            .ok_or(())?;
+        validate_project_identity(&project).map_err(|_| ())?;
+        let project_root = self.projects_dir.join(&project.project_key);
+        require_owned_directory(&project_root, authority.effective_uid()).map_err(|_| ())?;
+        let database = ProjectDatabase::open_existing_at(&project_root).map_err(|_| ())?;
+        require_single_project(&database, &project).map_err(|_| ())?;
+        let state = database
+            .load_canonical_state(project_id, workspace_id)
+            .map_err(|_| ())?;
+        let current_task = state
+            .tasks
+            .iter()
+            .find(|task| task.task_id == task_id)
+            .filter(|task| task.task_revision == task_revision)
+            .ok_or(())?;
+        if state.current_task_id.as_deref() != Some(current_task.task_id.as_str()) {
+            return Err(());
+        }
+        let backup = crate::protected_git_backup::ProtectedGitBackup::initialize(
+            &project_root,
+            authority.effective_uid(),
+        )
+        .map_err(|_| ())?;
+        if !backup.has_snapshot().map_err(|_| ())? {
+            return Err(());
+        }
+        backup
+            .commit_snapshot_from_descriptor(
+                &crate::protected_git_backup::BackupCommitMetadata {
+                    transition: crate::protected_git_backup::BackupTransition::Submission,
+                    project_id: project_id.to_string(),
+                    workspace_id: workspace_id.to_string(),
+                    task_id: Some(task_id.to_string()),
+                    task_revision: Some(task_revision),
+                    state_revision: state.state_revision,
+                    occurred_at_unix: trusted_service_unix_time().map_err(|_| ())?,
+                    observed_compilation_fingerprint: None,
+                    transition_id: Some(submission_id.to_string()),
                 },
                 descriptor,
             )

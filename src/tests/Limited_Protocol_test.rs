@@ -380,6 +380,26 @@ fn agent_submission_and_assigned_review_are_scoped_immutable_and_audited_over_ad
         clock.as_nanos()
     ));
     std::fs::create_dir_all(&root).unwrap();
+    let workspace_root = root.join("workspace");
+    std::fs::create_dir_all(workspace_root.join("src")).unwrap();
+    std::fs::write(
+        workspace_root.join("Cargo.toml"),
+        b"[package]\nname = \"submission-cycle\"\nversion = \"0.1.0\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        workspace_root.join("src/lib.rs"),
+        b"pub fn value() -> u8 { 1 }\n",
+    )
+    .unwrap();
+    let project_fingerprint = [71_u8; 32];
+    let workspace_metadata = std::fs::metadata(&workspace_root).unwrap();
+    let mut workspace_material = b"antdelirium-provisional-workspace-identity-v2\0".to_vec();
+    workspace_material.extend_from_slice(&project_fingerprint);
+    workspace_material.extend_from_slice(b"inode\0");
+    workspace_material.extend_from_slice(&workspace_metadata.dev().to_be_bytes());
+    workspace_material.extend_from_slice(&workspace_metadata.ino().to_be_bytes());
+    let workspace_fingerprint = sha256(&workspace_material);
     let authority = crate::service_authority::VerifiedServiceAuthority::for_current_test_process()
         .expect("Linux effective uid");
     let storage_root = root.join("service-state");
@@ -392,20 +412,36 @@ fn agent_submission_and_assigned_review_are_scoped_immutable_and_audited_over_ad
         .bootstrap_provisional(
             &authority,
             peer_uid,
-            &[71_u8; 32],
-            &[72_u8; 32],
+            &project_fingerprint,
+            &workspace_fingerprint,
             "submission-cycle",
         )
         .unwrap();
     let registration = storage
         .registry()
-        .provisional_registration(peer_uid, &[72_u8; 32])
+        .provisional_registration(peer_uid, &workspace_fingerprint)
         .unwrap()
         .unwrap();
     let database = ProjectDatabase::open_existing_at(
         &storage_root.join("projects").join(registration.project_key),
     )
     .unwrap();
+    let source_descriptor: OwnedFd = std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(&workspace_root)
+        .unwrap()
+        .into();
+    storage
+        .commit_baseline_snapshot_from_descriptor(
+            &authority,
+            peer_uid,
+            &bootstrap.project_id,
+            &bootstrap.workspace_id,
+            &[70_u8; 32],
+            &source_descriptor,
+        )
+        .unwrap();
     let task_id = "tsk_dddddddddddddddddddddddddd";
     let plan_id = "pln_dddddddddddddddddddddddddd";
     let package_event = NewAuditEvent {
@@ -504,6 +540,11 @@ fn agent_submission_and_assigned_review_are_scoped_immutable_and_audited_over_ad
             text: "cargo check and focused tests passed".to_string(),
         }],
     };
+    std::fs::write(
+        workspace_root.join("src/lib.rs"),
+        b"pub fn value() -> u8 { 2 }\n",
+    )
+    .unwrap();
     let bundle = serde_json::json!({
         "contract_version": "agent-submission-capability-v1",
         "capability": {
@@ -530,13 +571,14 @@ fn agent_submission_and_assigned_review_are_scoped_immutable_and_audited_over_ad
     let decoded = read_agent_submission_capability_from_descriptor(descriptors[0]).unwrap();
     assert_eq!(decoded.contract_version, "agent-submission-capability-v1");
     assert_eq!(unsafe { libc::fcntl(descriptors[0], libc::F_GETFD) }, -1);
-    let response = execute_typed_limited_request_with_id(
-        &authentication,
-        &authority,
-        &storage,
-        "submission.create",
-        Some(decoded.capability),
-        LimitedRequestBody {
+    let submission_payload = serde_json::to_vec(&LimitedRequest {
+        message_type: "request".to_string(),
+        wire_version: LIMITED_WIRE_VERSION.to_string(),
+        request_id: request.request_id.clone(),
+        connection_nonce: encode_base64url(authentication.connection_nonce()),
+        operation: "submission.create".to_string(),
+        capability: Some(decoded.capability),
+        body: LimitedRequestBody {
             submission: Some(SubmissionWireBody {
                 contract_version: request.contract_version.clone(),
                 request_id: request.request_id.clone(),
@@ -550,16 +592,34 @@ fn agent_submission_and_assigned_review_are_scoped_immutable_and_audited_over_ad
                     text: "cargo check and focused tests passed".to_string(),
                 }],
             }),
+            source_descriptor: Some(true),
             ..LimitedRequestBody::default()
         },
-        request.request_id.clone(),
+    })
+    .unwrap();
+    assert!(matches!(
+        limited_response_for_payload(&submission_payload, &authentication, &authority, &storage,),
+        Err(LimitedProtocolError::Envelope),
+    ));
+    assert_eq!(
+        SubmissionStore::submission_count(&database, &bootstrap.project_id).unwrap(),
+        0,
+    );
+    let response = limited_response_for_payload_with_descriptor(
+        &submission_payload,
+        &authentication,
+        &authority,
+        &storage,
+        Some(&source_descriptor),
     )
+    .unwrap()
     .result
     .unwrap();
     let submission_id = response.submission_id.unwrap();
     assert!(valid_opaque_id(&submission_id, "sub_"));
     assert_eq!(response.event_sequence, Some(2));
     assert_eq!(response.deduplicated, Some(false));
+    assert_eq!(response.backup_recorded, Some(true));
     assert_eq!(
         SubmissionStore::submission_count(&database, &bootstrap.project_id).unwrap(),
         1
