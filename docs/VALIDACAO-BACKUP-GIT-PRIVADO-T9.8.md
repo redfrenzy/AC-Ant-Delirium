@@ -68,6 +68,14 @@ workspace, tarefa, revisões, fingerprint, limites, timestamp e a ausência de p
 antes de reconstruir o recibo. Um baseline existente deixa de ser confundido
 com um ciclo completo: inconsistência ou corrupção falha fechada.
 
+O incremento `a16b610` fechou a janela inconsistente do avanço de tarefa. O
+serviço agora cria ou reutiliza primeiro o commit `advance` e, em uma única
+transação SQLite, grava seu recibo, o evento de auditoria e a mudança do estado
+canônico. O horário original do commit recuperado alimenta o evento e o recibo,
+e o ID do evento é derivado da transição; por isso reentrar antes ou depois do
+commit SQLite não cria outro commit nem outro avanço. Falha posterior à inserção
+do recibo dentro da transação reverte também evento e estado.
+
 O contrato `protected-git-snapshot-v1` contém somente transição, IDs opacos,
 revisões, horário lógico, fingerprint, contagem de entradas e bytes. Ele não
 contém path do projeto, path do state root, capability, segredo ou comando.
@@ -100,6 +108,12 @@ Resultado:
 - a mesma fixture removeu somente o recibo `baseline` do SQLite, preservou o
   commit Git e comprovou que o bootstrap seguinte restaurou o vínculo exato sem
   solicitar nova cópia da fonte;
+- o teste de avanço criou o commit `advance`, interrompeu antes do SQLite,
+  confirmou estado e recibo inalterados e recuperou usando exatamente o mesmo
+  commit; uma segunda reentrada após a conclusão retornou o evento duplicado e
+  o mesmo estado;
+- uma tentativa com revisão inexistente falhou depois de iniciar a transação e
+  comprovou rollback conjunto do recibo, evento e estado;
 - a matriz Cargo isola seu Cargo home e força endpoint indisponível, evitando
   que a instalação global contamine o cenário fail-open;
 - nenhuma configuração Cargo, serviço instalado ou projeto externo foi
@@ -108,9 +122,8 @@ Resultado:
 ## O que falta para concluir T9.8
 
 1. definir e validar a política definitiva de inclusão de arquivos do projeto;
-2. concluir a recuperação das demais transições e a coordenação entre o
-   recibo transacional e a mudança de referência Git;
+2. concluir a recuperação coordenada das transições de submissão e revisão;
 3. derivar diff e contexto somente dos commits privados;
-4. testar concorrência, falha parcial, corrupção e recuperação;
+4. testar concorrência e corrupção das transições ainda abertas;
 5. provar o ciclo completo instalado em fixture sem `.git`;
 6. integrar o commit atual à decisão local da T9.7.
