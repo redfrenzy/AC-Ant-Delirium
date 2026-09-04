@@ -76,9 +76,9 @@ cargo test --locked --offline --target x86_64-unknown-linux-gnu --test Rustc_Wra
 Resultado:
 
 - check sem warnings;
-- 197 testes de biblioteca, 316 testes de binário e 9 testes de integração
-  passaram no checkpoint de submissão; 8 testes instalados condicionais
-  permaneceram ignorados;
+- 197 testes de biblioteca e 9 testes de integração passaram no checkpoint de
+  submissão; a suíte integral mais recente do binário passou com 317 testes e
+  manteve 8 testes instalados condicionais ignorados;
 - nove testes focados do backup, o ciclo limitado de submissão/revisão e o
   teste de avanço CI com checkpoint passaram após o incremento de revisão;
 - os testes do protocolo limitado e o teste de vínculo do descritor à
