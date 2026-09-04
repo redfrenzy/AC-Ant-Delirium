@@ -167,7 +167,8 @@ fn commits_only_the_validated_source_tree_and_opens_a_history_chain() {
         .data
         .clone();
     let snapshot: serde_json::Value = serde_json::from_slice(&snapshot).unwrap();
-    assert_eq!(snapshot["contract_version"], "protected-git-snapshot-v1");
+    assert_eq!(snapshot["contract_version"], SNAPSHOT_CONTRACT_VERSION);
+    assert_eq!(snapshot["source_policy"], SOURCE_SNAPSHOT_POLICY);
     assert_eq!(snapshot["transition"], "advance");
     assert_eq!(snapshot["source_fingerprint"], advance.source_fingerprint);
     assert_eq!(snapshot["observed_compilation_fingerprint"], "a".repeat(64));
@@ -208,6 +209,7 @@ fn rejects_paths_outside_the_closed_source_snapshot() {
         "../secret",
         "src/../../secret",
         ".git/config",
+        "vendor/dependency/.git/config",
         "target/debug/token",
         "guard/to-do_list.json",
         "AC_Ant-Delirium_props/plan/private.json",
@@ -282,13 +284,24 @@ fn snapshots_a_project_descriptor_without_reading_excluded_roots() {
     fs::create_dir_all(workspace.join("guard")).unwrap();
     fs::create_dir_all(workspace.join(".git")).unwrap();
     fs::create_dir_all(workspace.join("plugins/private")).unwrap();
+    fs::create_dir_all(workspace.join("AC_Ant-Delirium_props/plan")).unwrap();
+    fs::create_dir_all(workspace.join("src/.git")).unwrap();
+    fs::create_dir_all(workspace.join("src/target")).unwrap();
     fs::write(workspace.join("Cargo.toml"), b"[package]\n").unwrap();
+    fs::write(workspace.join(".env"), b"PROJECT_SETTING=checked-in\n").unwrap();
     fs::write(workspace.join("src/lib.rs"), b"pub fn descriptor() {}\n").unwrap();
     fs::write(workspace.join("src/nested/data.bin"), b"data").unwrap();
+    fs::write(workspace.join("src/target/source.txt"), b"nested-source").unwrap();
+    fs::write(workspace.join("src/.git/config"), b"nested-git-secret").unwrap();
     fs::write(workspace.join("target/debug/secret"), b"target-secret").unwrap();
     fs::write(workspace.join("guard/private"), b"guard-secret").unwrap();
     fs::write(workspace.join(".git/config"), b"git-secret").unwrap();
     fs::write(workspace.join("plugins/private/state"), b"plugin-secret").unwrap();
+    fs::write(
+        workspace.join("AC_Ant-Delirium_props/plan/private.json"),
+        b"plan-secret",
+    )
+    .unwrap();
 
     let backup = ProtectedGitBackup::initialize(&storage, current_uid()).unwrap();
     let receipt = backup
@@ -297,7 +310,7 @@ fn snapshots_a_project_descriptor_without_reading_excluded_roots() {
             &open_directory(&workspace),
         )
         .unwrap();
-    assert_eq!(receipt.entry_count, 3);
+    assert_eq!(receipt.entry_count, 5);
 
     let repository = gix::open(backup.repository_path()).unwrap();
     let tree = repository
@@ -319,12 +332,65 @@ fn snapshots_a_project_descriptor_without_reading_excluded_roots() {
         .lookup_entry_by_path("source/src/nested/data.bin")
         .unwrap()
         .is_some());
-    for excluded in ["target", "guard", ".git", "plugins"] {
+    assert!(tree.lookup_entry_by_path("source/.env").unwrap().is_some());
+    assert!(tree
+        .lookup_entry_by_path("source/src/target/source.txt")
+        .unwrap()
+        .is_some());
+    assert!(tree
+        .lookup_entry_by_path("source/src/.git")
+        .unwrap()
+        .is_none());
+    for excluded in [
+        "target",
+        "guard",
+        ".git",
+        "plugins",
+        "AC_Ant-Delirium_props",
+    ] {
         assert!(tree
             .lookup_entry_by_path(format!("source/{excluded}"))
             .unwrap()
             .is_none());
     }
+}
+
+#[test]
+fn accepts_only_the_versioned_source_policy_and_legacy_v1_without_a_policy_field() {
+    let base = serde_json::json!({
+        "contract_version": LEGACY_SNAPSHOT_CONTRACT_VERSION,
+        "transition": "baseline",
+        "project_id": PROJECT_ID,
+        "workspace_id": WORKSPACE_ID,
+        "task_id": null,
+        "task_revision": null,
+        "state_revision": 0,
+        "occurred_at": "unix:1788000000",
+        "source_fingerprint": "a".repeat(64),
+        "observed_compilation_fingerprint": "a".repeat(64),
+        "transition_id": null,
+        "entry_count": 1,
+        "byte_count": 1
+    });
+    let legacy: StoredSnapshotMetadata = serde_json::from_value(base.clone()).unwrap();
+    assert!(valid_snapshot_contract(&legacy));
+
+    let mut current = base.clone();
+    current["contract_version"] = SNAPSHOT_CONTRACT_VERSION.into();
+    current["source_policy"] = SOURCE_SNAPSHOT_POLICY.into();
+    let current: StoredSnapshotMetadata = serde_json::from_value(current).unwrap();
+    assert!(valid_snapshot_contract(&current));
+
+    let mut missing_policy = base.clone();
+    missing_policy["contract_version"] = SNAPSHOT_CONTRACT_VERSION.into();
+    let missing_policy: StoredSnapshotMetadata = serde_json::from_value(missing_policy).unwrap();
+    assert!(!valid_snapshot_contract(&missing_policy));
+
+    let mut changed_policy = base;
+    changed_policy["contract_version"] = SNAPSHOT_CONTRACT_VERSION.into();
+    changed_policy["source_policy"] = "include-everything".into();
+    let changed_policy: StoredSnapshotMetadata = serde_json::from_value(changed_policy).unwrap();
+    assert!(!valid_snapshot_contract(&changed_policy));
 }
 
 #[cfg(unix)]

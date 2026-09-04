@@ -22,6 +22,16 @@ use serde::{Deserialize, Serialize};
 const BACKUP_DIRECTORY_NAME: &str = "backup";
 const REPOSITORY_DIRECTORY_NAME: &str = "repository.git";
 const SNAPSHOT_REFERENCE: &str = "refs/heads/snapshots";
+const SNAPSHOT_CONTRACT_VERSION: &str = "protected-git-snapshot-v2";
+const LEGACY_SNAPSHOT_CONTRACT_VERSION: &str = "protected-git-snapshot-v1";
+const SOURCE_SNAPSHOT_POLICY: &str = "rust-project-source-v1";
+const EXCLUDED_ROOT_ENTRIES: [&str; 5] = [
+    ".git",
+    "target",
+    "guard",
+    "plugins",
+    "AC_Ant-Delirium_props",
+];
 const MAX_SNAPSHOT_ENTRIES: usize = 100_000;
 const MAX_SINGLE_FILE_BYTES: usize = 64 * 1024 * 1024;
 const MAX_SNAPSHOT_BYTES: u64 = 2 * 1024 * 1024 * 1024;
@@ -98,6 +108,7 @@ pub(crate) struct RecoveredBackupCheckpoint {
 #[derive(Debug, Serialize)]
 struct SnapshotMetadataDocument<'a> {
     contract_version: &'static str,
+    source_policy: &'static str,
     transition: BackupTransition,
     project_id: &'a str,
     workspace_id: &'a str,
@@ -115,6 +126,8 @@ struct SnapshotMetadataDocument<'a> {
 #[derive(Debug, Deserialize)]
 struct StoredSnapshotMetadata {
     contract_version: String,
+    #[serde(default)]
+    source_policy: Option<String>,
     transition: BackupTransition,
     project_id: String,
     workspace_id: String,
@@ -193,7 +206,8 @@ impl ProtectedGitBackup {
         let entry_count = count_files(&source_tree);
         let source_fingerprint_hex = lowercase_hex(&source_fingerprint);
         let metadata_document = SnapshotMetadataDocument {
-            contract_version: "protected-git-snapshot-v1",
+            contract_version: SNAPSHOT_CONTRACT_VERSION,
+            source_policy: SOURCE_SNAPSHOT_POLICY,
             transition: metadata.transition,
             project_id: &metadata.project_id,
             workspace_id: &metadata.workspace_id,
@@ -357,7 +371,7 @@ impl ProtectedGitBackup {
                 .tree()
                 .map_err(|_| ProtectedGitBackupError::Repository)?;
             let stored = read_snapshot_metadata(&tree)?;
-            if stored.contract_version != "protected-git-snapshot-v1"
+            if !valid_snapshot_contract(&stored)
                 || !valid_sha256_hex(&stored.source_fingerprint)
                 || stored.entry_count == 0
                 || stored.byte_count > MAX_SNAPSHOT_BYTES
@@ -499,7 +513,8 @@ impl ProtectedGitBackup {
             return Ok(receipt);
         }
         let metadata_document = SnapshotMetadataDocument {
-            contract_version: "protected-git-snapshot-v1",
+            contract_version: SNAPSHOT_CONTRACT_VERSION,
+            source_policy: SOURCE_SNAPSHOT_POLICY,
             transition: metadata.transition,
             project_id: &metadata.project_id,
             workspace_id: &metadata.workspace_id,
@@ -667,7 +682,7 @@ fn existing_transition_receipt(
         if stored.transition == metadata.transition
             && stored.transition_id.as_deref() == Some(transition_id)
         {
-            if stored.contract_version != "protected-git-snapshot-v1"
+            if !valid_snapshot_contract(&stored)
                 || stored.transition != metadata.transition
                 || stored.project_id != metadata.project_id
                 || stored.workspace_id != metadata.workspace_id
@@ -746,6 +761,16 @@ fn valid_sha256_hex(value: &str) -> bool {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
+fn valid_snapshot_contract(metadata: &StoredSnapshotMetadata) -> bool {
+    match metadata.contract_version.as_str() {
+        SNAPSHOT_CONTRACT_VERSION => {
+            metadata.source_policy.as_deref() == Some(SOURCE_SNAPSHOT_POLICY)
+        }
+        LEGACY_SNAPSHOT_CONTRACT_VERSION => metadata.source_policy.is_none(),
+        _ => false,
+    }
+}
+
 fn valid_opaque_id(value: &str, prefix: &str) -> bool {
     let Some(token) = value.strip_prefix(prefix) else {
         return false;
@@ -819,12 +844,7 @@ fn validated_relative_components(path: &str) -> Result<Vec<String>, ProtectedGit
             _ => return Err(ProtectedGitBackupError::InvalidEntry),
         }
     }
-    if components.is_empty()
-        || matches!(
-            components[0].as_str(),
-            "target" | "guard" | "plugins" | "AC_Ant-Delirium_props"
-        )
-    {
+    if components.is_empty() || excluded_snapshot_path(&components) {
         return Err(ProtectedGitBackupError::InvalidEntry);
     }
     Ok(components)
@@ -919,7 +939,7 @@ fn collect_directory_entries(
         }
         let name =
             std::str::from_utf8(name_bytes).map_err(|_| ProtectedGitBackupError::InvalidEntry)?;
-        if relative_prefix.is_empty() && excluded_root_entry(name) {
+        if excluded_descriptor_entry(relative_prefix, name) {
             continue;
         }
         if name.is_empty() || name.contains('/') || name.contains('\\') {
@@ -1019,11 +1039,15 @@ fn collect_directory_entries(
 }
 
 #[cfg(unix)]
-fn excluded_root_entry(name: &str) -> bool {
-    matches!(
-        name,
-        ".git" | "target" | "guard" | "plugins" | "AC_Ant-Delirium_props"
-    )
+fn excluded_descriptor_entry(relative_prefix: &str, name: &str) -> bool {
+    name == ".git" || (relative_prefix.is_empty() && EXCLUDED_ROOT_ENTRIES.contains(&name))
+}
+
+fn excluded_snapshot_path(components: &[String]) -> bool {
+    components.iter().any(|component| component == ".git")
+        || components
+            .first()
+            .is_some_and(|component| EXCLUDED_ROOT_ENTRIES.contains(&component.as_str()))
 }
 
 fn insert_entry(
