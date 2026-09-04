@@ -1279,10 +1279,13 @@ erros. Essa rota não é alcançável pela CLI pública atual. A intenção corr
 manter o projeto sem Git obrigatório e usar o repositório interno como backup
 versionado, recuperação e fonte dos diffs que descrevem tarefas. SQLite
 transacional, journals e o checkpoint Ed25519 já substituem o estado de
-governança, mas ainda faltam a porta global do Git privado, o gatilho após
-avanço aceito e a geração de contexto a partir do backup interno. O novo state
-root preservará `.git`/objetos e cópia de fonte somente em armazenamento
-privado, nunca dentro do projeto e sem remoto.
+governança. Os commits `a8ba8e4` e `d9ea687` acrescentaram o Git bare privado e
+o checkpoint `baseline`: o wrapper entrega um descritor `SCM_RIGHTS`, o serviço
+o vincula à identidade persistida e varre a árvore com syscalls relativas sem
+transportar locator. Ainda faltam os gatilhos de submissão, revisão e avanço,
+os vínculos duráveis, a geração de contexto e a recuperação integral. O novo
+state root preserva objetos e cópia de fonte somente em armazenamento privado,
+nunca dentro do projeto e sem remoto.
 
 Estado da T10.1: a
 [matriz de paridade final](./VALIDACAO-PARIDADE-BINARIO-T10.1.md) confirmou que
