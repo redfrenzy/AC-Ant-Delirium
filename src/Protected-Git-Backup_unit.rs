@@ -37,6 +37,7 @@ const MAX_SINGLE_FILE_BYTES: usize = 64 * 1024 * 1024;
 const MAX_SNAPSHOT_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 const MAX_SNAPSHOT_DEPTH: usize = 64;
 const MAX_RELATIVE_PATH_BYTES: usize = 4096;
+const MAX_SOURCE_CONTEXT_CHANGES: usize = 512;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ProtectedGitBackupError {
@@ -103,6 +104,42 @@ pub(crate) struct BackupCommitReceipt {
 pub(crate) struct RecoveredBackupCheckpoint {
     pub(crate) metadata: BackupCommitMetadata,
     pub(crate) receipt: BackupCommitReceipt,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum ProtectedSourceChangeKind {
+    Added,
+    Modified,
+    Deleted,
+    ModeChanged,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub(crate) struct ProtectedSourceChange {
+    pub(crate) relative_path: String,
+    pub(crate) kind: ProtectedSourceChangeKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub(crate) struct ProtectedSourceContext {
+    pub(crate) contract_version: &'static str,
+    pub(crate) project_id: String,
+    pub(crate) workspace_id: String,
+    pub(crate) task_id: Option<String>,
+    pub(crate) task_revision: Option<i64>,
+    pub(crate) transition: BackupTransition,
+    pub(crate) transition_id: Option<String>,
+    pub(crate) source_fingerprint: String,
+    pub(crate) changed_file_count: u64,
+    pub(crate) changes_truncated: bool,
+    pub(crate) changes: Vec<ProtectedSourceChange>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ProtectedSourceFile {
+    object_id: String,
+    mode: u16,
 }
 
 #[derive(Debug, Serialize)]
@@ -438,6 +475,115 @@ impl ProtectedGitBackup {
         Ok(self.recover_checkpoint_chain()?.into_iter().next())
     }
 
+    pub(crate) fn source_context_for_transition(
+        &self,
+        transition: BackupTransition,
+        transition_id: &str,
+    ) -> Result<ProtectedSourceContext, ProtectedGitBackupError> {
+        if transition == BackupTransition::Baseline {
+            return Err(ProtectedGitBackupError::InvalidMetadata);
+        }
+        require_owned_directory(&self.backup_root, self.expected_uid)?;
+        require_owned_directory(&self.repository_path, self.expected_uid)?;
+        let repository =
+            gix::open(&self.repository_path).map_err(|_| ProtectedGitBackupError::Repository)?;
+        if !repository.is_bare() {
+            return Err(ProtectedGitBackupError::Repository);
+        }
+        let commit_id = find_transition_commit_id(&repository, transition, transition_id)?
+            .ok_or(ProtectedGitBackupError::Commit)?;
+        let commit = repository
+            .find_object(commit_id)
+            .map_err(|_| ProtectedGitBackupError::Repository)?
+            .try_into_commit()
+            .map_err(|_| ProtectedGitBackupError::Repository)?;
+        let tree = commit
+            .tree()
+            .map_err(|_| ProtectedGitBackupError::Repository)?;
+        let stored = read_snapshot_metadata(&tree)?;
+        if !valid_snapshot_contract(&stored)
+            || stored.transition != transition
+            || stored.transition_id.as_deref() != Some(transition_id)
+            || !valid_sha256_hex(&stored.source_fingerprint)
+        {
+            return Err(ProtectedGitBackupError::Commit);
+        }
+        let occurred_at_unix = stored
+            .occurred_at
+            .strip_prefix("unix:")
+            .and_then(|value| value.parse::<i64>().ok())
+            .ok_or(ProtectedGitBackupError::Commit)?;
+        validate_metadata(&BackupCommitMetadata {
+            transition: stored.transition,
+            project_id: stored.project_id.clone(),
+            workspace_id: stored.workspace_id.clone(),
+            task_id: stored.task_id.clone(),
+            task_revision: stored.task_revision,
+            state_revision: stored.state_revision,
+            occurred_at_unix,
+            observed_compilation_fingerprint: stored.observed_compilation_fingerprint.clone(),
+            transition_id: stored.transition_id.clone(),
+        })
+        .map_err(|_| ProtectedGitBackupError::Commit)?;
+        let current_source = source_file_inventory(&tree)?;
+        if current_source.len() as u64 != stored.entry_count {
+            return Err(ProtectedGitBackupError::Commit);
+        }
+        let previous_source = previous_workspace_source_inventory(
+            &repository,
+            &commit,
+            &stored.project_id,
+            &stored.workspace_id,
+        )?;
+        if (stored.transition == BackupTransition::Baseline) != previous_source.is_none() {
+            return Err(ProtectedGitBackupError::Commit);
+        }
+        let previous_source = previous_source.unwrap_or_default();
+        let mut paths = BTreeSet::new();
+        paths.extend(previous_source.keys().cloned());
+        paths.extend(current_source.keys().cloned());
+        let mut changed_file_count = 0_u64;
+        let mut changes = Vec::new();
+        for path in paths {
+            let kind = match (previous_source.get(&path), current_source.get(&path)) {
+                (None, Some(_)) => Some(ProtectedSourceChangeKind::Added),
+                (Some(_), None) => Some(ProtectedSourceChangeKind::Deleted),
+                (Some(previous), Some(current)) if previous.object_id != current.object_id => {
+                    Some(ProtectedSourceChangeKind::Modified)
+                }
+                (Some(previous), Some(current)) if previous.mode != current.mode => {
+                    Some(ProtectedSourceChangeKind::ModeChanged)
+                }
+                _ => None,
+            };
+            let Some(kind) = kind else {
+                continue;
+            };
+            changed_file_count = changed_file_count
+                .checked_add(1)
+                .ok_or(ProtectedGitBackupError::LimitExceeded)?;
+            if changes.len() < MAX_SOURCE_CONTEXT_CHANGES {
+                changes.push(ProtectedSourceChange {
+                    relative_path: path,
+                    kind,
+                });
+            }
+        }
+        Ok(ProtectedSourceContext {
+            contract_version: "protected-source-context-v1",
+            project_id: stored.project_id,
+            workspace_id: stored.workspace_id,
+            task_id: stored.task_id,
+            task_revision: stored.task_revision,
+            transition: stored.transition,
+            transition_id: stored.transition_id,
+            source_fingerprint: stored.source_fingerprint,
+            changed_file_count,
+            changes_truncated: changed_file_count > changes.len() as u64,
+            changes,
+        })
+    }
+
     #[cfg(unix)]
     pub(crate) fn commit_snapshot_from_descriptor(
         &self,
@@ -643,6 +789,103 @@ fn find_transition_commit_id(
         let Some(parent) = commit.parent_ids().next() else {
             return Ok(None);
         };
+        next_commit = parent.detach();
+    }
+}
+
+fn source_file_inventory(
+    commit_tree: &gix::Tree<'_>,
+) -> Result<BTreeMap<String, ProtectedSourceFile>, ProtectedGitBackupError> {
+    let source_tree = commit_tree
+        .lookup_entry_by_path("source")
+        .map_err(|_| ProtectedGitBackupError::Repository)?
+        .ok_or(ProtectedGitBackupError::Commit)?
+        .object()
+        .map_err(|_| ProtectedGitBackupError::Repository)?
+        .try_into_tree()
+        .map_err(|_| ProtectedGitBackupError::Commit)?;
+    let entries = source_tree
+        .traverse()
+        .breadthfirst
+        .files()
+        .map_err(|_| ProtectedGitBackupError::Repository)?;
+    let mut inventory = BTreeMap::new();
+    for entry in entries {
+        if entry.mode.kind() == gix::objs::tree::EntryKind::Tree {
+            continue;
+        }
+        if !matches!(
+            entry.mode.kind(),
+            gix::objs::tree::EntryKind::Blob | gix::objs::tree::EntryKind::BlobExecutable
+        ) {
+            return Err(ProtectedGitBackupError::Commit);
+        }
+        let relative_path = entry
+            .filepath
+            .to_str()
+            .map_err(|_| ProtectedGitBackupError::Commit)?
+            .to_string();
+        validated_relative_components(&relative_path)
+            .map_err(|_| ProtectedGitBackupError::Commit)?;
+        if inventory
+            .insert(
+                relative_path,
+                ProtectedSourceFile {
+                    object_id: entry.oid.to_string(),
+                    mode: entry.mode.value(),
+                },
+            )
+            .is_some()
+        {
+            return Err(ProtectedGitBackupError::Commit);
+        }
+    }
+    if inventory.is_empty() || inventory.len() > MAX_SNAPSHOT_ENTRIES {
+        return Err(ProtectedGitBackupError::Commit);
+    }
+    Ok(inventory)
+}
+
+fn previous_workspace_source_inventory(
+    repository: &gix::Repository,
+    commit: &gix::Commit<'_>,
+    project_id: &str,
+    workspace_id: &str,
+) -> Result<Option<BTreeMap<String, ProtectedSourceFile>>, ProtectedGitBackupError> {
+    let mut parent_ids = commit.parent_ids();
+    let Some(mut next_commit) = parent_ids.next().map(|id| id.detach()) else {
+        return Ok(None);
+    };
+    if parent_ids.next().is_some() {
+        return Err(ProtectedGitBackupError::Commit);
+    }
+    loop {
+        let commit = repository
+            .find_object(next_commit)
+            .map_err(|_| ProtectedGitBackupError::Repository)?
+            .try_into_commit()
+            .map_err(|_| ProtectedGitBackupError::Repository)?;
+        let tree = commit
+            .tree()
+            .map_err(|_| ProtectedGitBackupError::Repository)?;
+        let stored = read_snapshot_metadata(&tree)?;
+        if !valid_snapshot_contract(&stored) || stored.project_id != project_id {
+            return Err(ProtectedGitBackupError::Commit);
+        }
+        if stored.workspace_id == workspace_id {
+            let inventory = source_file_inventory(&tree)?;
+            if inventory.len() as u64 != stored.entry_count {
+                return Err(ProtectedGitBackupError::Commit);
+            }
+            return Ok(Some(inventory));
+        }
+        let mut parent_ids = commit.parent_ids();
+        let Some(parent) = parent_ids.next() else {
+            return Ok(None);
+        };
+        if parent_ids.next().is_some() {
+            return Err(ProtectedGitBackupError::Commit);
+        }
         next_commit = parent.detach();
     }
 }

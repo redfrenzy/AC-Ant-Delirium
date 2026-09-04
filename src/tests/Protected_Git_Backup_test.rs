@@ -70,6 +70,14 @@ fn entry(path: &str, contents: &[u8]) -> BackupSnapshotEntry {
     }
 }
 
+fn executable_entry(path: &str, contents: &[u8]) -> BackupSnapshotEntry {
+    BackupSnapshotEntry {
+        relative_path: path.to_string(),
+        executable: true,
+        contents: contents.to_vec(),
+    }
+}
+
 #[test]
 fn creates_an_exact_private_bare_repository_without_discovery() {
     let root = unique_root("exact-root");
@@ -562,6 +570,139 @@ fn review_and_advance_reuse_the_protected_source_without_a_workspace_descriptor(
         source_at(&advance.commit_id),
         source_at(&submission.commit_id)
     );
+}
+
+#[test]
+fn derives_a_bounded_source_context_only_from_private_commit_trees() {
+    let storage = unique_root("private-source-context");
+    let backup = ProtectedGitBackup::initialize(&storage, current_uid()).unwrap();
+    backup
+        .commit_snapshot(
+            &metadata(BackupTransition::Baseline, 0),
+            vec![
+                entry("src/deleted.rs", b"deleted\n"),
+                entry("src/mode.sh", b"#!/bin/sh\n"),
+                entry("src/modified.rs", b"before\n"),
+                entry("src/unchanged.rs", b"same\n"),
+            ],
+        )
+        .unwrap();
+    backup
+        .commit_snapshot(
+            &metadata(BackupTransition::Submission, 1),
+            vec![
+                entry("src/added.rs", b"added\n"),
+                executable_entry("src/mode.sh", b"#!/bin/sh\n"),
+                entry("src/modified.rs", b"after\n"),
+                entry("src/unchanged.rs", b"same\n"),
+            ],
+        )
+        .unwrap();
+
+    let context = backup
+        .source_context_for_transition(
+            BackupTransition::Submission,
+            "sub_00000000000000000000000000",
+        )
+        .unwrap();
+    assert_eq!(context.contract_version, "protected-source-context-v1");
+    assert_eq!(context.changed_file_count, 4);
+    assert!(!context.changes_truncated);
+    assert_eq!(
+        context.changes,
+        vec![
+            ProtectedSourceChange {
+                relative_path: "src/added.rs".to_string(),
+                kind: ProtectedSourceChangeKind::Added,
+            },
+            ProtectedSourceChange {
+                relative_path: "src/deleted.rs".to_string(),
+                kind: ProtectedSourceChangeKind::Deleted,
+            },
+            ProtectedSourceChange {
+                relative_path: "src/mode.sh".to_string(),
+                kind: ProtectedSourceChangeKind::ModeChanged,
+            },
+            ProtectedSourceChange {
+                relative_path: "src/modified.rs".to_string(),
+                kind: ProtectedSourceChangeKind::Modified,
+            },
+        ]
+    );
+    let encoded = serde_json::to_string(&context).unwrap();
+    assert!(!encoded.contains(storage.to_string_lossy().as_ref()));
+    assert!(!encoded.contains("repository.git"));
+}
+
+#[test]
+fn compares_a_submission_with_its_own_workspace_when_histories_are_interleaved() {
+    let storage = unique_root("interleaved-source-context");
+    let backup = ProtectedGitBackup::initialize(&storage, current_uid()).unwrap();
+    backup
+        .commit_snapshot(
+            &metadata(BackupTransition::Baseline, 0),
+            vec![entry("src/lib.rs", b"workspace-one\n")],
+        )
+        .unwrap();
+    let mut other_baseline = metadata(BackupTransition::Baseline, 0);
+    other_baseline.workspace_id = "wsp_11111111111111111111111111".to_string();
+    backup
+        .commit_snapshot(
+            &other_baseline,
+            vec![entry("src/lib.rs", b"workspace-two\n")],
+        )
+        .unwrap();
+    backup
+        .commit_snapshot(
+            &metadata(BackupTransition::Submission, 1),
+            vec![entry("src/lib.rs", b"workspace-one\n")],
+        )
+        .unwrap();
+
+    let context = backup
+        .source_context_for_transition(
+            BackupTransition::Submission,
+            "sub_00000000000000000000000000",
+        )
+        .unwrap();
+    assert_eq!(context.workspace_id, WORKSPACE_ID);
+    assert_eq!(context.changed_file_count, 0);
+    assert!(context.changes.is_empty());
+}
+
+#[test]
+fn bounds_the_rendered_change_list_without_losing_the_total_count() {
+    let storage = unique_root("bounded-source-context");
+    let backup = ProtectedGitBackup::initialize(&storage, current_uid()).unwrap();
+    backup
+        .commit_snapshot(
+            &metadata(BackupTransition::Baseline, 0),
+            vec![entry("Cargo.toml", b"[package]\n")],
+        )
+        .unwrap();
+    let mut submitted = vec![entry("Cargo.toml", b"[package]\n")];
+    for ordinal in 0..=MAX_SOURCE_CONTEXT_CHANGES {
+        submitted.push(entry(
+            &format!("src/generated-{ordinal:04}.rs"),
+            b"source\n",
+        ));
+    }
+    backup
+        .commit_snapshot(&metadata(BackupTransition::Submission, 1), submitted)
+        .unwrap();
+
+    let context = backup
+        .source_context_for_transition(
+            BackupTransition::Submission,
+            "sub_00000000000000000000000000",
+        )
+        .unwrap();
+    assert_eq!(
+        context.changed_file_count,
+        (MAX_SOURCE_CONTEXT_CHANGES + 1) as u64
+    );
+    assert_eq!(context.changes.len(), MAX_SOURCE_CONTEXT_CHANGES);
+    assert!(context.changes_truncated);
 }
 
 #[cfg(unix)]
