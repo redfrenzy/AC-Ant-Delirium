@@ -76,6 +76,14 @@ e o ID do evento é derivado da transição; por isso reentrar antes ou depois d
 commit SQLite não cria outro commit nem outro avanço. Falha posterior à inserção
 do recibo dentro da transação reverte também evento e estado.
 
+O incremento `0d2d13d` ampliou a recuperação do baseline para toda a cadeia
+linear protegida. O bootstrap usa primeiro uma consulta SQLite barata; somente
+quando falta um recibo ele percorre e valida os commits. Recibos de submissão e
+revisão só são restaurados quando o respectivo registro canônico já existe. Um
+commit `advance` ainda pendente não é promovido pelo bootstrap e permanece para
+a retomada atômica da própria transição. Commits de outros workspaces do mesmo
+projeto são preservados sem misturar seus recibos.
+
 O contrato `protected-git-snapshot-v1` contém somente transição, IDs opacos,
 revisões, horário lógico, fingerprint, contagem de entradas e bytes. Ele não
 contém path do projeto, path do state root, capability, segredo ou comando.
@@ -114,6 +122,10 @@ Resultado:
   o mesmo estado;
 - uma tentativa com revisão inexistente falhou depois de iniciar a transação e
   comprovou rollback conjunto do recibo, evento e estado;
+- o ciclo ADP/1 removeu os recibos de submissão e revisão, preservou registros e
+  commits, e comprovou a reconstrução exata dos dois no bootstrap seguinte;
+- o caminho de reinício encontrou um `advance` ainda sem estado canônico e
+  comprovou que não o registrou antecipadamente;
 - a matriz Cargo isola seu Cargo home e força endpoint indisponível, evitando
   que a instalação global contamine o cenário fail-open;
 - nenhuma configuração Cargo, serviço instalado ou projeto externo foi
@@ -122,7 +134,8 @@ Resultado:
 ## O que falta para concluir T9.8
 
 1. definir e validar a política definitiva de inclusão de arquivos do projeto;
-2. concluir a recuperação coordenada das transições de submissão e revisão;
+2. tratar sem depender do retry do cliente a interrupção de uma submissão entre
+   seu registro SQLite e a criação do commit Git;
 3. derivar diff e contexto somente dos commits privados;
 4. testar concorrência e corrupção das transições ainda abertas;
 5. provar o ciclo completo instalado em fixture sem `.git`;
