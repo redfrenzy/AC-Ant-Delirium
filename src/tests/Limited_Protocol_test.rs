@@ -3,7 +3,9 @@ use super::*;
 #[cfg(unix)]
 use std::ffi::OsStr;
 #[cfg(unix)]
-use std::os::fd::AsRawFd;
+use std::os::fd::{AsRawFd, OwnedFd};
+#[cfg(unix)]
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 #[cfg(unix)]
 use std::os::unix::net::UnixStream;
 
@@ -38,6 +40,7 @@ fn inherited_capability_descriptor_is_bounded_typed_and_closed_after_read() {
             capability_id: "cap_11111111111111111111111111".to_string(),
             token: encode_base64url(&[8_u8; 32]),
         },
+        backup_required: false,
     };
     let payload = serde_json::to_vec(&bundle).unwrap();
     let mut descriptors = [0_i32; 2];
@@ -54,6 +57,157 @@ fn inherited_capability_descriptor_is_bounded_typed_and_closed_after_read() {
     assert_eq!(decoded.project_id, bundle.project_id);
     assert!(valid_capability_bundle(&decoded));
     assert_eq!(unsafe { libc::fcntl(descriptors[0], libc::F_GETFD) }, -1);
+}
+
+#[cfg(unix)]
+#[test]
+fn source_descriptor_transport_preserves_identity_and_close_on_exec() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join(format!("target/lp/fd-{}", random_request_id().unwrap()));
+    std::fs::create_dir_all(&root).unwrap();
+    let descriptor: OwnedFd = std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(&root)
+        .unwrap()
+        .into();
+    let source_metadata = std::fs::metadata(&root).unwrap();
+    let (sender, receiver) = UnixStream::pair().unwrap();
+
+    send_descriptor(&sender, &descriptor).unwrap();
+    let received = receive_descriptor(&receiver).unwrap();
+    let mut received_stat: libc::stat = unsafe { std::mem::zeroed() };
+    assert_eq!(
+        unsafe { libc::fstat(received.as_raw_fd(), &mut received_stat) },
+        0
+    );
+    assert_eq!(received_stat.st_dev as u64, source_metadata.dev());
+    assert_eq!(received_stat.st_ino as u64, source_metadata.ino());
+    assert_ne!(
+        unsafe { libc::fcntl(received.as_raw_fd(), libc::F_GETFD) } & libc::FD_CLOEXEC,
+        0
+    );
+
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn first_compile_records_a_descriptor_bound_baseline_without_a_project_git_directory() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+        "target/lp/baseline-{}",
+        random_request_id().unwrap()
+    ));
+    let workspace_root = root.join("workspace");
+    let storage_root = root.join("service-state");
+    std::fs::create_dir_all(workspace_root.join("src")).unwrap();
+    std::fs::create_dir(&storage_root).unwrap();
+    std::fs::write(
+        workspace_root.join("Cargo.toml"),
+        b"[package]\nname = \"descriptor-baseline\"\nversion = \"0.1.0\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        workspace_root.join("src/lib.rs"),
+        b"pub fn value() -> u8 { 7 }\n",
+    )
+    .unwrap();
+    assert!(!workspace_root.join(".git").exists());
+
+    let project_fingerprint = [41_u8; 32];
+    let workspace_metadata = std::fs::metadata(&workspace_root).unwrap();
+    let mut workspace_material = b"antdelirium-provisional-workspace-identity-v2\0".to_vec();
+    workspace_material.extend_from_slice(&project_fingerprint);
+    workspace_material.extend_from_slice(b"inode\0");
+    workspace_material.extend_from_slice(&workspace_metadata.dev().to_be_bytes());
+    workspace_material.extend_from_slice(&workspace_metadata.ino().to_be_bytes());
+    let workspace_fingerprint = sha256(&workspace_material);
+
+    let authority = crate::service_authority::VerifiedServiceAuthority::for_current_test_process()
+        .expect("Linux effective uid");
+    let storage =
+        crate::service_storage::ProtectedServiceStorage::initialize(&authority, &storage_root)
+            .unwrap();
+    let peer_uid = unsafe { libc::geteuid() };
+    let authentication =
+        crate::service_authentication::ConnectionAuthentication::for_test(peer_uid, [42_u8; 32]);
+    let bootstrap = execute_typed_limited_request(
+        &authentication,
+        &authority,
+        &storage,
+        "project.bootstrap.observe",
+        None,
+        LimitedRequestBody {
+            project_identity_fingerprint: Some(encode_base64url(&project_fingerprint)),
+            workspace_identity_fingerprint: Some(encode_base64url(&workspace_fingerprint)),
+            project_slug: Some("descriptor-baseline".to_string()),
+            ..LimitedRequestBody::default()
+        },
+    )
+    .result
+    .unwrap()
+    .capability_bundle
+    .unwrap();
+    assert!(bootstrap.backup_required);
+
+    let descriptor: OwnedFd = std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(&workspace_root)
+        .unwrap()
+        .into();
+    let request_id = random_request_id().unwrap();
+    let payload = serde_json::to_vec(&LimitedRequest {
+        message_type: "request".to_string(),
+        wire_version: LIMITED_WIRE_VERSION.to_string(),
+        request_id: request_id.clone(),
+        connection_nonce: encode_base64url(authentication.connection_nonce()),
+        operation: "compile.observe".to_string(),
+        capability: Some(bootstrap.compile.clone()),
+        body: LimitedRequestBody {
+            project_id: Some(bootstrap.project_id.clone()),
+            workspace_id: Some(bootstrap.workspace_id.clone()),
+            compilation_fingerprint: Some(encode_base64url(&[43_u8; 32])),
+            source_descriptor: Some(true),
+            ..LimitedRequestBody::default()
+        },
+    })
+    .unwrap();
+    let response = limited_response_for_payload_with_descriptor(
+        &payload,
+        &authentication,
+        &authority,
+        &storage,
+        Some(&descriptor),
+    )
+    .unwrap();
+    assert_eq!(response.result.unwrap().backup_recorded, Some(true));
+
+    let registration = storage
+        .registry()
+        .provisional_registration(peer_uid, &workspace_fingerprint)
+        .unwrap()
+        .unwrap();
+    let protected_root = storage_root.join("projects").join(registration.project_key);
+    let backup = crate::protected_git_backup::ProtectedGitBackup::initialize(
+        &protected_root,
+        authority.effective_uid(),
+    )
+    .unwrap();
+    assert!(backup.has_snapshot().unwrap());
+    assert!(!workspace_root.join(".git").exists());
+    let second_bootstrap = storage
+        .bootstrap_provisional(
+            &authority,
+            peer_uid,
+            &project_fingerprint,
+            &workspace_fingerprint,
+            "descriptor-baseline",
+        )
+        .unwrap();
+    assert!(!second_bootstrap.backup_required);
+
+    std::fs::remove_dir_all(root).unwrap();
 }
 
 #[cfg(unix)]

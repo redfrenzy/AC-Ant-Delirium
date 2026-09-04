@@ -2,7 +2,7 @@
 use std::ffi::OsStr;
 use std::io::{Read, Write};
 #[cfg(unix)]
-use std::os::fd::AsRawFd;
+use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 #[cfg(unix)]
 use std::os::unix::net::UnixStream;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -88,14 +88,16 @@ pub(crate) struct LimitedCapabilityBundle {
     workspace_id: String,
     compile: WireCapability,
     projection: WireCapability,
+    #[serde(default, skip_serializing_if = "is_false")]
+    backup_required: bool,
 }
 
-#[derive(Clone)]
 pub(crate) struct LimitedAuditObservation {
     pub(crate) project_identity_fingerprint: [u8; 32],
     pub(crate) workspace_identity_fingerprint: [u8; 32],
     pub(crate) compilation_fingerprint: [u8; 32],
     pub(crate) project_slug: String,
+    pub(crate) source_descriptor: OwnedFd,
 }
 
 pub(crate) struct LimitedProjectionDocuments {
@@ -156,6 +158,8 @@ struct LimitedRequestBody {
     submission_query: Option<SubmissionQueryWireBody>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     review: Option<ReviewWireBody>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    source_descriptor: Option<bool>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -230,6 +234,8 @@ struct LimitedResponseResult {
     event_sequence: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     review_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    backup_recorded: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -393,22 +399,40 @@ fn observe_compilation(
     observation: &LimitedAuditObservation,
     capabilities: &LimitedCapabilityBundle,
 ) -> Result<(), LimitedProtocolError> {
-    let response = request_for_connection(
-        connect_limited_service(endpoint)?,
-        "compile.observe",
-        Some(capabilities.compile.clone()),
-        LimitedRequestBody {
-            project_id: Some(capabilities.project_id.clone()),
-            workspace_id: Some(capabilities.workspace_id.clone()),
-            compilation_fingerprint: Some(encode_base64url(&observation.compilation_fingerprint)),
-            ..LimitedRequestBody::default()
-        },
-    )?;
-    response
-        .result
-        .and_then(|result| result.deduplicated)
-        .map(|_| ())
-        .ok_or(LimitedProtocolError::Envelope)
+    let descriptor = capabilities
+        .backup_required
+        .then_some(&observation.source_descriptor);
+    let body = LimitedRequestBody {
+        project_id: Some(capabilities.project_id.clone()),
+        workspace_id: Some(capabilities.workspace_id.clone()),
+        compilation_fingerprint: Some(encode_base64url(&observation.compilation_fingerprint)),
+        source_descriptor: descriptor.as_ref().map(|_| true),
+        ..LimitedRequestBody::default()
+    };
+    let connection = connect_limited_service(endpoint)?;
+    let response = match descriptor.as_ref() {
+        Some(descriptor) => request_for_connection_with_descriptor(
+            connection,
+            "compile.observe",
+            Some(capabilities.compile.clone()),
+            body,
+            descriptor,
+        )?,
+        None => request_for_connection(
+            connection,
+            "compile.observe",
+            Some(capabilities.compile.clone()),
+            body,
+        )?,
+    };
+    let result = response.result.ok_or(LimitedProtocolError::Envelope)?;
+    if result.deduplicated.is_none()
+        || (descriptor.is_some() && result.backup_recorded != Some(true))
+        || (descriptor.is_none() && result.backup_recorded.is_some())
+    {
+        return Err(LimitedProtocolError::Envelope);
+    }
+    Ok(())
 }
 
 #[cfg(unix)]
@@ -472,6 +496,181 @@ fn request_for_connection_with_id(
         read_stream_frame_with_timeout(&mut connection.stream, REQUEST_RESPONSE_DEADLINE)?;
     let response: LimitedResponse =
         serde_json::from_slice(&payload).map_err(|_| LimitedProtocolError::Envelope)?;
+    if response.message_type != "response"
+        || response.wire_version != LIMITED_WIRE_VERSION
+        || response.request_id != request_id
+        || response.status != "ok"
+        || response.result.is_none()
+        || response.error.is_some()
+    {
+        return Err(LimitedProtocolError::Envelope);
+    }
+    Ok(response)
+}
+
+#[cfg(unix)]
+fn request_for_connection_with_descriptor(
+    mut connection: NegotiatedLimitedConnection,
+    operation: &str,
+    capability: Option<WireCapability>,
+    body: LimitedRequestBody,
+    descriptor: &OwnedFd,
+) -> Result<LimitedResponse, LimitedProtocolError> {
+    let request_id = random_request_id()?;
+    let request = LimitedRequest {
+        message_type: "request".to_string(),
+        wire_version: LIMITED_WIRE_VERSION.to_string(),
+        request_id: request_id.clone(),
+        connection_nonce: connection.connection_nonce.clone(),
+        operation: operation.to_string(),
+        capability,
+        body,
+    };
+    write_stream_frame(&mut connection.stream, &request)?;
+    send_descriptor(&connection.stream, descriptor)?;
+    let payload =
+        read_stream_frame_with_timeout(&mut connection.stream, REQUEST_RESPONSE_DEADLINE)?;
+    validate_limited_response(&payload, &request_id)
+}
+
+#[cfg(unix)]
+fn send_descriptor(stream: &UnixStream, descriptor: &OwnedFd) -> Result<(), LimitedProtocolError> {
+    let deadline = std::time::Instant::now() + REQUEST_RESPONSE_DEADLINE;
+    let mut marker = [b'D'];
+    let mut io = libc::iovec {
+        iov_base: marker.as_mut_ptr().cast(),
+        iov_len: marker.len(),
+    };
+    let mut control = [0_usize; 8];
+    let control_bytes =
+        unsafe { libc::CMSG_SPACE(std::mem::size_of::<libc::c_int>() as libc::c_uint) as usize };
+    if control_bytes > std::mem::size_of_val(&control) {
+        return Err(LimitedProtocolError::Transport);
+    }
+    let mut message: libc::msghdr = unsafe { std::mem::zeroed() };
+    message.msg_iov = &mut io;
+    message.msg_iovlen = 1;
+    message.msg_control = control.as_mut_ptr().cast();
+    message.msg_controllen = control_bytes;
+    let header = unsafe { libc::CMSG_FIRSTHDR(&message) };
+    if header.is_null() {
+        return Err(LimitedProtocolError::Transport);
+    }
+    unsafe {
+        (*header).cmsg_len =
+            libc::CMSG_LEN(std::mem::size_of::<libc::c_int>() as libc::c_uint) as usize;
+        (*header).cmsg_level = libc::SOL_SOCKET;
+        (*header).cmsg_type = libc::SCM_RIGHTS;
+        *(libc::CMSG_DATA(header).cast::<libc::c_int>()) = descriptor.as_raw_fd();
+    }
+    loop {
+        wait_for(stream.as_raw_fd(), libc::POLLOUT, deadline)?;
+        let sent = unsafe { libc::sendmsg(stream.as_raw_fd(), &message, libc::MSG_NOSIGNAL) };
+        if sent == 1 {
+            return Ok(());
+        }
+        if sent < 0 && std::io::Error::last_os_error().kind() == std::io::ErrorKind::Interrupted {
+            continue;
+        }
+        return Err(LimitedProtocolError::Write);
+    }
+}
+
+#[cfg(unix)]
+fn receive_descriptor(stream: &UnixStream) -> Result<OwnedFd, LimitedProtocolError> {
+    let deadline = std::time::Instant::now() + REQUEST_RESPONSE_DEADLINE;
+    let mut marker = [0_u8; 1];
+    let mut io = libc::iovec {
+        iov_base: marker.as_mut_ptr().cast(),
+        iov_len: marker.len(),
+    };
+    let mut control = [0_usize; 8];
+    let mut message: libc::msghdr = unsafe { std::mem::zeroed() };
+    message.msg_iov = &mut io;
+    message.msg_iovlen = 1;
+    message.msg_control = control.as_mut_ptr().cast();
+    message.msg_controllen = std::mem::size_of_val(&control);
+    let received = loop {
+        wait_for(stream.as_raw_fd(), libc::POLLIN, deadline)?;
+        let result =
+            unsafe { libc::recvmsg(stream.as_raw_fd(), &mut message, libc::MSG_CMSG_CLOEXEC) };
+        if result < 0 && std::io::Error::last_os_error().kind() == std::io::ErrorKind::Interrupted {
+            continue;
+        }
+        break result;
+    };
+    if received != 1
+        || marker != [b'D']
+        || message.msg_flags & (libc::MSG_CTRUNC | libc::MSG_TRUNC) != 0
+    {
+        close_received_descriptors(&message);
+        return Err(LimitedProtocolError::Read);
+    }
+    let header = unsafe { libc::CMSG_FIRSTHDR(&message) };
+    if header.is_null()
+        || unsafe { (*header).cmsg_level } != libc::SOL_SOCKET
+        || unsafe { (*header).cmsg_type } != libc::SCM_RIGHTS
+        || unsafe { (*header).cmsg_len }
+            != unsafe {
+                libc::CMSG_LEN(std::mem::size_of::<libc::c_int>() as libc::c_uint) as usize
+            }
+        || !unsafe { libc::CMSG_NXTHDR(&message, header) }.is_null()
+    {
+        close_received_descriptors(&message);
+        return Err(LimitedProtocolError::Envelope);
+    }
+    let raw_fd = unsafe { *(libc::CMSG_DATA(header).cast::<libc::c_int>()) };
+    if raw_fd < 3 {
+        if raw_fd >= 0 {
+            unsafe {
+                libc::close(raw_fd);
+            }
+        }
+        return Err(LimitedProtocolError::Envelope);
+    }
+    let descriptor = unsafe { OwnedFd::from_raw_fd(raw_fd) };
+    let flags = unsafe { libc::fcntl(descriptor.as_raw_fd(), libc::F_GETFD) };
+    if flags < 0 || flags & libc::FD_CLOEXEC == 0 {
+        return Err(LimitedProtocolError::Transport);
+    }
+    Ok(descriptor)
+}
+
+#[cfg(unix)]
+fn close_received_descriptors(message: &libc::msghdr) {
+    let data_offset = unsafe { libc::CMSG_LEN(0) as usize };
+    let mut header = unsafe { libc::CMSG_FIRSTHDR(message) };
+    while !header.is_null() {
+        let is_rights = unsafe {
+            (*header).cmsg_level == libc::SOL_SOCKET && (*header).cmsg_type == libc::SCM_RIGHTS
+        };
+        if is_rights {
+            let message_bytes = unsafe { (*header).cmsg_len };
+            if message_bytes >= data_offset {
+                let descriptor_count =
+                    (message_bytes - data_offset) / std::mem::size_of::<libc::c_int>();
+                let descriptors = unsafe { libc::CMSG_DATA(header).cast::<libc::c_int>() };
+                for index in 0..descriptor_count {
+                    let raw_fd = unsafe { *descriptors.add(index) };
+                    if raw_fd >= 0 {
+                        unsafe {
+                            libc::close(raw_fd);
+                        }
+                    }
+                }
+            }
+        }
+        header = unsafe { libc::CMSG_NXTHDR(message, header) };
+    }
+}
+
+#[cfg(unix)]
+fn validate_limited_response(
+    payload: &[u8],
+    request_id: &str,
+) -> Result<LimitedResponse, LimitedProtocolError> {
+    let response: LimitedResponse =
+        serde_json::from_slice(payload).map_err(|_| LimitedProtocolError::Envelope)?;
     if response.message_type != "response"
         || response.wire_version != LIMITED_WIRE_VERSION
         || response.request_id != request_id
@@ -788,16 +987,42 @@ pub(crate) fn serve_limited_request(
     storage: &ProtectedServiceStorage,
 ) -> Result<(), LimitedProtocolError> {
     let payload = read_stream_frame(stream)?;
-    let response = limited_response_for_payload(&payload, authentication, authority, storage)?;
+    let parsed: LimitedRequest =
+        serde_json::from_slice(&payload).map_err(|_| LimitedProtocolError::Envelope)?;
+    let descriptor_requested = parsed.body.source_descriptor == Some(true);
+    if descriptor_requested && parsed.operation != "compile.observe" {
+        return Err(LimitedProtocolError::Envelope);
+    }
+    let descriptor = descriptor_requested
+        .then(|| receive_descriptor(stream))
+        .transpose()?;
+    let response = limited_response_for_payload_with_descriptor(
+        &payload,
+        authentication,
+        authority,
+        storage,
+        descriptor.as_ref(),
+    )?;
     write_stream_frame(stream, &response)
 }
 
-#[cfg(unix)]
+#[cfg(all(unix, test))]
 fn limited_response_for_payload(
     payload: &[u8],
     authentication: &ConnectionAuthentication,
     authority: &VerifiedServiceAuthority,
     storage: &ProtectedServiceStorage,
+) -> Result<LimitedResponse, LimitedProtocolError> {
+    limited_response_for_payload_with_descriptor(payload, authentication, authority, storage, None)
+}
+
+#[cfg(unix)]
+fn limited_response_for_payload_with_descriptor(
+    payload: &[u8],
+    authentication: &ConnectionAuthentication,
+    authority: &VerifiedServiceAuthority,
+    storage: &ProtectedServiceStorage,
+    source_descriptor: Option<&OwnedFd>,
 ) -> Result<LimitedResponse, LimitedProtocolError> {
     let request: LimitedRequest =
         serde_json::from_slice(payload).map_err(|_| LimitedProtocolError::Envelope)?;
@@ -806,7 +1031,13 @@ fn limited_response_for_payload(
         "project.bootstrap.observe" => {
             handle_bootstrap_request(authentication, authority, storage, &request)?
         }
-        "compile.observe" => handle_compile_request(authentication, authority, storage, &request)?,
+        "compile.observe" => handle_compile_request(
+            authentication,
+            authority,
+            storage,
+            &request,
+            source_descriptor,
+        )?,
         "projection.refresh" => {
             handle_projection_request(authentication, authority, storage, &request)?
         }
@@ -845,6 +1076,7 @@ fn handle_bootstrap_request(
         || request.body.submission.is_some()
         || request.body.submission_query.is_some()
         || request.body.review.is_some()
+        || request.body.source_descriptor.is_some()
     {
         return Err(LimitedProtocolError::Envelope);
     }
@@ -889,6 +1121,7 @@ fn handle_compile_request(
     authority: &VerifiedServiceAuthority,
     storage: &ProtectedServiceStorage,
     request: &LimitedRequest,
+    source_descriptor: Option<&OwnedFd>,
 ) -> Result<LimitedResponseResult, LimitedProtocolError> {
     if request.body.project_identity_fingerprint.is_some()
         || request.body.workspace_identity_fingerprint.is_some()
@@ -896,6 +1129,8 @@ fn handle_compile_request(
         || request.body.submission.is_some()
         || request.body.submission_query.is_some()
         || request.body.review.is_some()
+        || request.body.source_descriptor == Some(false)
+        || (request.body.source_descriptor == Some(true)) != source_descriptor.is_some()
     {
         return Err(LimitedProtocolError::Envelope);
     }
@@ -914,6 +1149,24 @@ fn handle_compile_request(
         CapabilityOperation::CompileObserve,
     )?;
     let now = trusted_unix_time()?;
+    let backup_recorded = match source_descriptor {
+        Some(descriptor) => {
+            storage
+                .commit_baseline_snapshot_from_descriptor(
+                    authority,
+                    authentication.peer_uid(),
+                    resource.project_id(),
+                    resource
+                        .workspace_id()
+                        .ok_or(LimitedProtocolError::Envelope)?,
+                    &compilation_fingerprint,
+                    descriptor,
+                )
+                .map_err(|_| LimitedProtocolError::Envelope)?;
+            Some(true)
+        }
+        None => None,
+    };
     let event = NewAuditEvent {
         contract_version: AUDIT_EVENT_CONTRACT_VERSION.to_string(),
         event_id: random_crockford_id("evt_").map_err(|_| LimitedProtocolError::Entropy)?,
@@ -938,6 +1191,7 @@ fn handle_compile_request(
             matches!(outcome, CapabilityAuthorizationOutcome::Replay(_))
                 || matches!(write, EventWriteOutcome::Duplicate { .. }),
         ),
+        backup_recorded,
         ..LimitedResponseResult::default()
     })
 }
@@ -956,6 +1210,7 @@ fn handle_projection_request(
         || request.body.submission.is_some()
         || request.body.submission_query.is_some()
         || request.body.review.is_some()
+        || request.body.source_descriptor.is_some()
     {
         return Err(LimitedProtocolError::Envelope);
     }
@@ -1005,6 +1260,7 @@ fn handle_submission_request(
         || request.body.compilation_fingerprint.is_some()
         || request.body.submission_query.is_some()
         || request.body.review.is_some()
+        || request.body.source_descriptor.is_some()
     {
         return Err(LimitedProtocolError::Envelope);
     }
@@ -1076,6 +1332,7 @@ fn handle_assigned_submission_request(
         || request.body.compilation_fingerprint.is_some()
         || request.body.submission.is_some()
         || request.body.review.is_some()
+        || request.body.source_descriptor.is_some()
     {
         return Err(LimitedProtocolError::Envelope);
     }
@@ -1130,6 +1387,7 @@ fn handle_review_request(
         || request.body.compilation_fingerprint.is_some()
         || request.body.submission.is_some()
         || request.body.submission_query.is_some()
+        || request.body.source_descriptor.is_some()
     {
         return Err(LimitedProtocolError::Envelope);
     }
@@ -1548,7 +1806,12 @@ fn bundle_from_bootstrap(result: ProvisionalBootstrapResult) -> LimitedCapabilit
             capability_id: result.projection.capability_id,
             token: encode_base64url(&result.projection.token),
         },
+        backup_required: result.backup_required,
     }
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 fn valid_capability_bundle(bundle: &LimitedCapabilityBundle) -> bool {

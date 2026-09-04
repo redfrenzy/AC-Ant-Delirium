@@ -13,6 +13,12 @@ use ac_ant_delirium::structs::{
 };
 
 #[cfg(unix)]
+use std::fs::OpenOptions;
+#[cfg(unix)]
+use std::os::fd::OwnedFd;
+#[cfg(unix)]
+use std::os::unix::fs::OpenOptionsExt;
+#[cfg(unix)]
 use std::os::unix::fs::{symlink, PermissionsExt};
 
 const PROJECT_ID: &str = "prj_00000000000000000000000000";
@@ -35,6 +41,27 @@ fn unique_root(label: &str) -> PathBuf {
 
 fn authority() -> VerifiedServiceAuthority {
     VerifiedServiceAuthority::for_current_test_process().expect("Linux effective uid")
+}
+
+#[cfg(unix)]
+fn open_directory(path: &Path) -> OwnedFd {
+    OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(path)
+        .unwrap()
+        .into()
+}
+
+#[cfg(unix)]
+fn workspace_fingerprint(project_fingerprint: &[u8; 32], path: &Path) -> [u8; 32] {
+    let metadata = fs::metadata(path).unwrap();
+    let mut material = b"antdelirium-provisional-workspace-identity-v2\0".to_vec();
+    material.extend_from_slice(project_fingerprint);
+    material.extend_from_slice(b"inode\0");
+    material.extend_from_slice(&metadata.dev().to_be_bytes());
+    material.extend_from_slice(&metadata.ino().to_be_bytes());
+    sha256(&material)
 }
 
 fn project() -> StorageProject {
@@ -186,6 +213,52 @@ fn initializes_private_registry_and_idempotent_canonical_project_storage() {
     drop(storage);
     ProtectedServiceStorage::initialize(&authority, &root).expect("restart recovery");
     fs::remove_dir_all(root).expect("fixture cleanup");
+}
+
+#[cfg(unix)]
+#[test]
+fn workspace_descriptor_must_match_the_registered_filesystem_identity() {
+    let root = unique_root("workspace-descriptor");
+    let workspace = unique_root("workspace-descriptor-source");
+    let unrelated = unique_root("workspace-descriptor-unrelated");
+    let authority = authority();
+    let storage = ProtectedServiceStorage::initialize(&authority, &root).unwrap();
+    let project_fingerprint = [42_u8; 32];
+    let workspace_fingerprint = workspace_fingerprint(&project_fingerprint, &workspace);
+    let registration = storage
+        .create_provisional_registration(
+            &authority,
+            1000,
+            &project_fingerprint,
+            &workspace_fingerprint,
+            "descriptor-project",
+        )
+        .unwrap();
+
+    storage
+        .validate_workspace_descriptor(
+            1000,
+            &registration.project_id,
+            &registration.workspace_id,
+            &open_directory(&workspace),
+        )
+        .expect("registered workspace descriptor");
+    assert!(storage
+        .validate_workspace_descriptor(
+            1000,
+            &registration.project_id,
+            &registration.workspace_id,
+            &open_directory(&unrelated),
+        )
+        .is_err());
+    assert!(storage
+        .validate_workspace_descriptor(
+            1001,
+            &registration.project_id,
+            &registration.workspace_id,
+            &open_directory(&workspace),
+        )
+        .is_err());
 }
 
 #[test]

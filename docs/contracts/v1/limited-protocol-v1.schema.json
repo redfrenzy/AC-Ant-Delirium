@@ -30,15 +30,17 @@
         "project_id": { "type": "string", "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$" },
         "workspace_id": { "type": "string", "pattern": "^wsp_[0-9a-hjkmnp-tv-z]{26}$" },
         "compile": { "$ref": "#/$defs/capability" },
-        "projection": { "$ref": "#/$defs/capability" }
+        "projection": { "$ref": "#/$defs/capability" },
+        "backup_required": { "type": "boolean" }
       }
     },
     "bootstrapBody": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["identity_fingerprint", "project_slug"],
+      "required": ["project_identity_fingerprint", "workspace_identity_fingerprint", "project_slug"],
       "properties": {
-        "identity_fingerprint": { "$ref": "#/$defs/nonce" },
+        "project_identity_fingerprint": { "$ref": "#/$defs/nonce" },
+        "workspace_identity_fingerprint": { "$ref": "#/$defs/nonce" },
         "project_slug": { "type": "string", "minLength": 1, "maxLength": 64 }
       }
     },
@@ -49,7 +51,8 @@
       "properties": {
         "project_id": { "type": "string", "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$" },
         "workspace_id": { "type": "string", "pattern": "^wsp_[0-9a-hjkmnp-tv-z]{26}$" },
-        "compilation_fingerprint": { "$ref": "#/$defs/nonce" }
+        "compilation_fingerprint": { "$ref": "#/$defs/nonce" },
+        "source_descriptor": { "const": true }
       }
     },
     "projectionRefreshBody": {

@@ -236,11 +236,25 @@ fn run_cargo_with_depth(root: &Path, target: &Path, depth: &str, args: &[&str]) 
 
 fn cargo_command(root: &Path, target: &Path, wrapped: bool, args: &[&str]) -> Command {
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| OsString::from("cargo"));
+    let isolated_cargo_home = target.join("cargo-home");
+    fs::create_dir_all(&isolated_cargo_home).expect("create isolated Cargo home");
+    let unavailable_endpoint = target.join("unavailable-agent.sock");
+    let endpoint_value_override = format!(
+        "env.ANTDELIRIUM_LIMITED_SOCKET.value=\"{}\"",
+        unavailable_endpoint
+            .to_str()
+            .expect("matrix target path is UTF-8")
+    );
     let mut command = Command::new(cargo);
     command
         .current_dir(root)
+        .arg("--config")
+        .arg(endpoint_value_override)
+        .arg("--config")
+        .arg("env.ANTDELIRIUM_LIMITED_SOCKET.force=true")
         .args(args)
         .env("CARGO_TARGET_DIR", target)
+        .env("CARGO_HOME", isolated_cargo_home)
         .env_remove("RUSTC_WRAPPER")
         .env_remove("ANTDELIRIUM_WRAPPER_DEPTH")
         .env_remove("ANTDELIRIUM_LIMITED_SOCKET")

@@ -2,6 +2,12 @@ use super::*;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 #[cfg(unix)]
+use std::fs::OpenOptions;
+#[cfg(unix)]
+use std::os::fd::OwnedFd;
+#[cfg(unix)]
+use std::os::unix::fs::OpenOptionsExt;
+#[cfg(unix)]
 use std::os::unix::fs::{symlink, PermissionsExt};
 
 static FIXTURE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -40,6 +46,7 @@ fn metadata(transition: BackupTransition, state_revision: i64) -> BackupCommitMe
         task_revision: (transition != BackupTransition::Baseline).then_some(1),
         state_revision,
         occurred_at_unix: 1_788_000_000 + state_revision,
+        observed_compilation_fingerprint: Some("a".repeat(64)),
     }
 }
 
@@ -151,6 +158,7 @@ fn commits_only_the_validated_source_tree_and_opens_a_history_chain() {
     assert_eq!(snapshot["contract_version"], "protected-git-snapshot-v1");
     assert_eq!(snapshot["transition"], "advance");
     assert_eq!(snapshot["source_fingerprint"], advance.source_fingerprint);
+    assert_eq!(snapshot["observed_compilation_fingerprint"], "a".repeat(64));
     assert!(tree.lookup_entry_by_path("state").unwrap().is_none());
     assert!(tree.lookup_entry_by_path("capabilities").unwrap().is_none());
 }
@@ -216,4 +224,94 @@ fn rejects_a_symlinked_repository_root() {
         ProtectedGitBackup::initialize(&root, current_uid()),
         Err(ProtectedGitBackupError::InvalidRoot)
     ));
+}
+
+#[cfg(unix)]
+fn open_directory(path: &Path) -> OwnedFd {
+    OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(path)
+        .unwrap()
+        .into()
+}
+
+#[cfg(unix)]
+#[test]
+fn snapshots_a_project_descriptor_without_reading_excluded_roots() {
+    let storage = unique_root("descriptor-storage");
+    let workspace = unique_root("descriptor-workspace");
+    fs::create_dir_all(workspace.join("src/nested")).unwrap();
+    fs::create_dir_all(workspace.join("target/debug")).unwrap();
+    fs::create_dir_all(workspace.join("guard")).unwrap();
+    fs::create_dir_all(workspace.join(".git")).unwrap();
+    fs::create_dir_all(workspace.join("plugins/private")).unwrap();
+    fs::write(workspace.join("Cargo.toml"), b"[package]\n").unwrap();
+    fs::write(workspace.join("src/lib.rs"), b"pub fn descriptor() {}\n").unwrap();
+    fs::write(workspace.join("src/nested/data.bin"), b"data").unwrap();
+    fs::write(workspace.join("target/debug/secret"), b"target-secret").unwrap();
+    fs::write(workspace.join("guard/private"), b"guard-secret").unwrap();
+    fs::write(workspace.join(".git/config"), b"git-secret").unwrap();
+    fs::write(workspace.join("plugins/private/state"), b"plugin-secret").unwrap();
+
+    let backup = ProtectedGitBackup::initialize(&storage, current_uid()).unwrap();
+    let receipt = backup
+        .commit_snapshot_from_descriptor(
+            &metadata(BackupTransition::Baseline, 0),
+            &open_directory(&workspace),
+        )
+        .unwrap();
+    assert_eq!(receipt.entry_count, 3);
+
+    let repository = gix::open(backup.repository_path()).unwrap();
+    let tree = repository
+        .find_reference(SNAPSHOT_REFERENCE)
+        .unwrap()
+        .peel_to_commit()
+        .unwrap()
+        .tree()
+        .unwrap();
+    assert!(tree
+        .lookup_entry_by_path("source/Cargo.toml")
+        .unwrap()
+        .is_some());
+    assert!(tree
+        .lookup_entry_by_path("source/src/lib.rs")
+        .unwrap()
+        .is_some());
+    assert!(tree
+        .lookup_entry_by_path("source/src/nested/data.bin")
+        .unwrap()
+        .is_some());
+    for excluded in ["target", "guard", ".git", "plugins"] {
+        assert!(tree
+            .lookup_entry_by_path(format!("source/{excluded}"))
+            .unwrap()
+            .is_none());
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn rejects_a_symlink_inside_the_snapshot_descriptor() {
+    let storage = unique_root("descriptor-symlink-storage");
+    let workspace = unique_root("descriptor-symlink-workspace");
+    let outside = unique_root("descriptor-symlink-outside");
+    fs::write(workspace.join("Cargo.toml"), b"[package]\n").unwrap();
+    fs::write(outside.join("secret"), b"outside").unwrap();
+    symlink(outside.join("secret"), workspace.join("linked-secret")).unwrap();
+
+    let backup = ProtectedGitBackup::initialize(&storage, current_uid()).unwrap();
+    assert_eq!(
+        backup.commit_snapshot_from_descriptor(
+            &metadata(BackupTransition::Baseline, 0),
+            &open_directory(&workspace),
+        ),
+        Err(ProtectedGitBackupError::InvalidEntry)
+    );
+    assert!(gix::open(backup.repository_path())
+        .unwrap()
+        .try_find_reference(SNAPSHOT_REFERENCE)
+        .unwrap()
+        .is_none());
 }

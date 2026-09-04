@@ -1,5 +1,11 @@
 use std::ffi::{OsStr, OsString};
+#[cfg(unix)]
+use std::fs::OpenOptions;
 use std::io;
+#[cfg(unix)]
+use std::os::fd::OwnedFd;
+#[cfg(unix)]
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
@@ -240,15 +246,27 @@ fn limited_audit_plan(
             Some(Path::new(manifest_dir)),
         );
     }
+    let source_descriptor = open_source_descriptor(&discovery.project_root)?;
     Some(LimitedAuditPlan {
-        project_root: discovery.project_root,
+        project_root: discovery.project_root.clone(),
         observation: crate::limited_protocol::LimitedAuditObservation {
             project_identity_fingerprint,
             workspace_identity_fingerprint,
             compilation_fingerprint: sha256(&compilation),
             project_slug: crate_name.to_string(),
+            source_descriptor,
         },
     })
+}
+
+#[cfg(unix)]
+fn open_source_descriptor(path: &Path) -> Option<OwnedFd> {
+    OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(path)
+        .ok()
+        .map(Into::into)
 }
 
 #[cfg(unix)]

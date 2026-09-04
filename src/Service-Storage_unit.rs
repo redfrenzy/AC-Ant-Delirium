@@ -5,6 +5,8 @@ use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[cfg(unix)]
+use std::os::fd::{AsRawFd, OwnedFd};
+#[cfg(unix)]
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 
 use ac_ant_delirium::libres::Sha2_unit::sha256;
@@ -61,6 +63,7 @@ pub(crate) struct ProvisionalBootstrapResult {
     pub(crate) workspace_id: String,
     pub(crate) compile: IssuedLimitedCapability,
     pub(crate) projection: IssuedLimitedCapability,
+    pub(crate) backup_required: bool,
 }
 
 pub(crate) struct ManagedCapabilityGrantRequest {
@@ -109,6 +112,94 @@ impl ResolvedAuthorizedResource {
 impl ProtectedServiceStorage {
     pub(crate) fn registry(&self) -> &ProjectDatabase {
         &self.registry
+    }
+
+    #[cfg(unix)]
+    pub(crate) fn validate_workspace_descriptor(
+        &self,
+        peer_uid: u32,
+        project_id: &str,
+        workspace_id: &str,
+        descriptor: &OwnedFd,
+    ) -> Result<(), ()> {
+        let registration = self
+            .registry
+            .provisional_registration_for_scope(peer_uid, project_id, workspace_id)
+            .map_err(|_| ())?
+            .ok_or(())?;
+        let mut stat: libc::stat = unsafe { std::mem::zeroed() };
+        if unsafe { libc::fstat(descriptor.as_raw_fd(), &mut stat) } != 0
+            || stat.st_mode & libc::S_IFMT != libc::S_IFDIR
+        {
+            return Err(());
+        }
+        let mut material = b"antdelirium-provisional-workspace-identity-v2\0".to_vec();
+        material.extend_from_slice(&registration.project_identity_fingerprint);
+        material.extend_from_slice(b"inode\0");
+        material.extend_from_slice(&(stat.st_dev as u64).to_be_bytes());
+        material.extend_from_slice(&(stat.st_ino as u64).to_be_bytes());
+        if sha256(&material) != registration.workspace_identity_fingerprint {
+            return Err(());
+        }
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    pub(crate) fn commit_baseline_snapshot_from_descriptor(
+        &self,
+        authority: &VerifiedServiceAuthority,
+        peer_uid: u32,
+        project_id: &str,
+        workspace_id: &str,
+        compilation_fingerprint: &[u8; 32],
+        descriptor: &OwnedFd,
+    ) -> Result<crate::protected_git_backup::BackupCommitReceipt, ()> {
+        self.validate_workspace_descriptor(peer_uid, project_id, workspace_id, descriptor)?;
+        let project = self
+            .registry
+            .registered_projects()
+            .map_err(|_| ())?
+            .into_iter()
+            .find(|project| project.project_id == project_id)
+            .ok_or(())?;
+        validate_project_identity(&project).map_err(|_| ())?;
+        let project_root = self.projects_dir.join(&project.project_key);
+        require_owned_directory(&project_root, authority.effective_uid()).map_err(|_| ())?;
+        let database = ProjectDatabase::open_existing_at(&project_root).map_err(|_| ())?;
+        require_single_project(&database, &project).map_err(|_| ())?;
+        let state = database
+            .load_canonical_state(project_id, workspace_id)
+            .map_err(|_| ())?;
+        let current_task = state.current_task_id.as_deref().and_then(|current_id| {
+            state
+                .tasks
+                .iter()
+                .find(|task| task.task_id == current_id)
+                .map(|task| (task.task_id.clone(), task.task_revision))
+        });
+        if state.current_task_id.is_some() != current_task.is_some() {
+            return Err(());
+        }
+        let backup = crate::protected_git_backup::ProtectedGitBackup::initialize(
+            &project_root,
+            authority.effective_uid(),
+        )
+        .map_err(|_| ())?;
+        backup
+            .commit_snapshot_from_descriptor(
+                &crate::protected_git_backup::BackupCommitMetadata {
+                    transition: crate::protected_git_backup::BackupTransition::Baseline,
+                    project_id: project_id.to_string(),
+                    workspace_id: workspace_id.to_string(),
+                    task_id: current_task.as_ref().map(|task| task.0.clone()),
+                    task_revision: current_task.as_ref().map(|task| task.1),
+                    state_revision: state.state_revision,
+                    occurred_at_unix: trusted_service_unix_time().map_err(|_| ())?,
+                    observed_compilation_fingerprint: Some(lowercase_hex(compilation_fingerprint)),
+                },
+                descriptor,
+            )
+            .map_err(|_| ())
     }
 
     pub(crate) fn install_generic_task_package(
@@ -681,6 +772,14 @@ impl ProtectedServiceStorage {
             }
         };
         let now = trusted_service_unix_time().map_err(|_| ())?;
+        let project_root = self.projects_dir.join(&registration.project_key);
+        let backup_required = !crate::protected_git_backup::ProtectedGitBackup::initialize(
+            &project_root,
+            authority.effective_uid(),
+        )
+        .map_err(|_| ())?
+        .has_snapshot()
+        .map_err(|_| ())?;
         Ok(ProvisionalBootstrapResult {
             compile: self.issue_bootstrap_capability(
                 peer_uid,
@@ -696,6 +795,7 @@ impl ProtectedServiceStorage {
             )?,
             project_id: registration.project_id,
             workspace_id: registration.workspace_id,
+            backup_required,
         })
     }
 

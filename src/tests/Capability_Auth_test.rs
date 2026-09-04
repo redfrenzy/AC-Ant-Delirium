@@ -637,6 +637,42 @@ mod tests {
                     DROP INDEX capability_scope_idx;
                     DROP INDEX capability_subject_idx;
 
+                    DROP INDEX provisional_project_identity_idx;
+                    DROP INDEX provisional_project_peer_idx;
+                    ALTER TABLE provisional_project_registrations RENAME TO provisional_project_registrations_v11;
+                    CREATE TABLE provisional_project_registrations (
+                        peer_uid INTEGER NOT NULL CHECK (peer_uid >= 0),
+                        identity_fingerprint BLOB NOT NULL CHECK (length(identity_fingerprint) = 32),
+                        project_id TEXT NOT NULL UNIQUE REFERENCES projects(project_id) ON DELETE RESTRICT,
+                        workspace_id TEXT NOT NULL UNIQUE REFERENCES workspaces(workspace_id) ON DELETE RESTRICT,
+                        project_key TEXT NOT NULL UNIQUE,
+                        workspace_key TEXT NOT NULL,
+                        created_at_unix INTEGER NOT NULL CHECK (created_at_unix >= 0),
+                        PRIMARY KEY (peer_uid, identity_fingerprint)
+                    ) STRICT;
+                    INSERT INTO provisional_project_registrations(
+                        peer_uid,
+                        identity_fingerprint,
+                        project_id,
+                        workspace_id,
+                        project_key,
+                        workspace_key,
+                        created_at_unix
+                    )
+                    SELECT
+                        peer_uid,
+                        workspace_identity_fingerprint,
+                        project_id,
+                        workspace_id,
+                        project_key,
+                        workspace_key,
+                        created_at_unix
+                    FROM provisional_project_registrations_v11;
+                    DROP TABLE provisional_project_registrations_v11;
+                    DROP TABLE provisional_project_identities;
+                    CREATE INDEX provisional_project_peer_idx
+                    ON provisional_project_registrations(peer_uid, created_at_unix);
+
                     ALTER TABLE capability_request_receipts RENAME TO capability_request_receipts_v9;
                     ALTER TABLE revocations RENAME TO revocations_v9;
                     ALTER TABLE capability_grants RENAME TO capability_grants_v9;
@@ -681,7 +717,7 @@ mod tests {
                     CREATE INDEX capability_subject_idx ON capability_grants(subject_uid, actor_kind, revocation_epoch);
                     DROP INDEX tasks_plan_ordinal_idx;
                     ALTER TABLE tasks DROP COLUMN task_ordinal;
-                    DELETE FROM schema_migrations WHERE version IN (9, 10);
+                    DELETE FROM schema_migrations WHERE version IN (9, 10, 11);
                     PRAGMA user_version = 8;
                     "#,
                 )?;

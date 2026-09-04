@@ -2,8 +2,16 @@
 
 use std::collections::BTreeMap;
 use std::fs;
+#[cfg(unix)]
+use std::fs::File;
+#[cfg(unix)]
+use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 
+#[cfg(unix)]
+use std::ffi::CStr;
+#[cfg(unix)]
+use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 #[cfg(unix)]
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 
@@ -17,6 +25,8 @@ const SNAPSHOT_REFERENCE: &str = "refs/heads/snapshots";
 const MAX_SNAPSHOT_ENTRIES: usize = 100_000;
 const MAX_SINGLE_FILE_BYTES: usize = 64 * 1024 * 1024;
 const MAX_SNAPSHOT_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+const MAX_SNAPSHOT_DEPTH: usize = 64;
+const MAX_RELATIVE_PATH_BYTES: usize = 4096;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ProtectedGitBackupError {
@@ -65,6 +75,7 @@ pub(crate) struct BackupCommitMetadata {
     pub(crate) task_revision: Option<i64>,
     pub(crate) state_revision: i64,
     pub(crate) occurred_at_unix: i64,
+    pub(crate) observed_compilation_fingerprint: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -87,6 +98,7 @@ struct SnapshotMetadataDocument<'a> {
     state_revision: i64,
     occurred_at: String,
     source_fingerprint: &'a str,
+    observed_compilation_fingerprint: Option<&'a str>,
     entry_count: u64,
     byte_count: u64,
 }
@@ -164,6 +176,7 @@ impl ProtectedGitBackup {
             state_revision: metadata.state_revision,
             occurred_at: format!("unix:{}", metadata.occurred_at_unix),
             source_fingerprint: &source_fingerprint_hex,
+            observed_compilation_fingerprint: metadata.observed_compilation_fingerprint.as_deref(),
             entry_count,
             byte_count,
         };
@@ -245,6 +258,27 @@ impl ProtectedGitBackup {
         })
     }
 
+    pub(crate) fn has_snapshot(&self) -> Result<bool, ProtectedGitBackupError> {
+        require_owned_directory(&self.backup_root, self.expected_uid)?;
+        require_owned_directory(&self.repository_path, self.expected_uid)?;
+        let repository =
+            gix::open(&self.repository_path).map_err(|_| ProtectedGitBackupError::Repository)?;
+        repository
+            .try_find_reference(SNAPSHOT_REFERENCE)
+            .map(|reference| reference.is_some())
+            .map_err(|_| ProtectedGitBackupError::Repository)
+    }
+
+    #[cfg(unix)]
+    pub(crate) fn commit_snapshot_from_descriptor(
+        &self,
+        metadata: &BackupCommitMetadata,
+        source_descriptor: &OwnedFd,
+    ) -> Result<BackupCommitReceipt, ProtectedGitBackupError> {
+        let entries = snapshot_entries_from_descriptor(source_descriptor)?;
+        self.commit_snapshot(metadata, entries)
+    }
+
     #[cfg(test)]
     pub(crate) fn repository_path(&self) -> &Path {
         &self.repository_path
@@ -263,10 +297,21 @@ fn validate_metadata(metadata: &BackupCommitMetadata) -> Result<(), ProtectedGit
         || metadata.occurred_at_unix < 0
         || metadata.task_id.is_some() != metadata.task_revision.is_some()
         || (metadata.transition != BackupTransition::Baseline && metadata.task_id.is_none())
+        || metadata
+            .observed_compilation_fingerprint
+            .as_deref()
+            .is_some_and(|fingerprint| !valid_sha256_hex(fingerprint))
     {
         return Err(ProtectedGitBackupError::InvalidMetadata);
     }
     Ok(())
+}
+
+fn valid_sha256_hex(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 fn valid_opaque_id(value: &str, prefix: &str) -> bool {
@@ -345,12 +390,202 @@ fn validated_relative_components(path: &str) -> Result<Vec<String>, ProtectedGit
     if components.is_empty()
         || matches!(
             components[0].as_str(),
-            "target" | "guard" | "AC_Ant-Delirium_props"
+            "target" | "guard" | "plugins" | "AC_Ant-Delirium_props"
         )
     {
         return Err(ProtectedGitBackupError::InvalidEntry);
     }
     Ok(components)
+}
+
+#[cfg(unix)]
+struct DirectoryStream(*mut libc::DIR);
+
+#[cfg(unix)]
+impl DirectoryStream {
+    fn duplicate_from(raw_fd: i32) -> Result<Self, ProtectedGitBackupError> {
+        let duplicate = unsafe { libc::fcntl(raw_fd, libc::F_DUPFD_CLOEXEC, 3) };
+        if duplicate < 0 {
+            return Err(ProtectedGitBackupError::InvalidEntry);
+        }
+        let stream = unsafe { libc::fdopendir(duplicate) };
+        if stream.is_null() {
+            unsafe {
+                libc::close(duplicate);
+            }
+            return Err(ProtectedGitBackupError::InvalidEntry);
+        }
+        Ok(Self(stream))
+    }
+
+    fn raw_fd(&self) -> i32 {
+        unsafe { libc::dirfd(self.0) }
+    }
+}
+
+#[cfg(unix)]
+impl Drop for DirectoryStream {
+    fn drop(&mut self) {
+        unsafe {
+            libc::closedir(self.0);
+        }
+    }
+}
+
+#[cfg(unix)]
+fn snapshot_entries_from_descriptor(
+    source_descriptor: &OwnedFd,
+) -> Result<Vec<BackupSnapshotEntry>, ProtectedGitBackupError> {
+    let mut root_stat: libc::stat = unsafe { std::mem::zeroed() };
+    if unsafe { libc::fstat(source_descriptor.as_raw_fd(), &mut root_stat) } != 0
+        || root_stat.st_mode & libc::S_IFMT != libc::S_IFDIR
+    {
+        return Err(ProtectedGitBackupError::InvalidEntry);
+    }
+    let mut entries = Vec::new();
+    let mut total_bytes = 0_u64;
+    collect_directory_entries(
+        source_descriptor.as_raw_fd(),
+        "",
+        0,
+        &mut entries,
+        &mut total_bytes,
+    )?;
+    if entries.is_empty() {
+        return Err(ProtectedGitBackupError::InvalidEntry);
+    }
+    Ok(entries)
+}
+
+#[cfg(unix)]
+fn collect_directory_entries(
+    raw_fd: i32,
+    relative_prefix: &str,
+    depth: usize,
+    entries: &mut Vec<BackupSnapshotEntry>,
+    total_bytes: &mut u64,
+) -> Result<(), ProtectedGitBackupError> {
+    if depth > MAX_SNAPSHOT_DEPTH {
+        return Err(ProtectedGitBackupError::LimitExceeded);
+    }
+    let directory = DirectoryStream::duplicate_from(raw_fd)?;
+    loop {
+        let raw_entry = unsafe { libc::readdir(directory.0) };
+        if raw_entry.is_null() {
+            break;
+        }
+        let name_cstr = unsafe { CStr::from_ptr((*raw_entry).d_name.as_ptr()) };
+        let name_bytes = name_cstr.to_bytes();
+        if matches!(name_bytes, b"." | b"..") {
+            continue;
+        }
+        let name =
+            std::str::from_utf8(name_bytes).map_err(|_| ProtectedGitBackupError::InvalidEntry)?;
+        if relative_prefix.is_empty() && excluded_root_entry(name) {
+            continue;
+        }
+        if name.is_empty() || name.contains('/') || name.contains('\\') {
+            return Err(ProtectedGitBackupError::InvalidEntry);
+        }
+        let relative_path = if relative_prefix.is_empty() {
+            name.to_string()
+        } else {
+            format!("{relative_prefix}/{name}")
+        };
+        if relative_path.len() > MAX_RELATIVE_PATH_BYTES {
+            return Err(ProtectedGitBackupError::LimitExceeded);
+        }
+        let mut stat: libc::stat = unsafe { std::mem::zeroed() };
+        if unsafe {
+            libc::fstatat(
+                directory.raw_fd(),
+                name_cstr.as_ptr(),
+                &mut stat,
+                libc::AT_SYMLINK_NOFOLLOW,
+            )
+        } != 0
+        {
+            return Err(ProtectedGitBackupError::InvalidEntry);
+        }
+        match stat.st_mode & libc::S_IFMT {
+            libc::S_IFDIR => {
+                let child = unsafe {
+                    libc::openat(
+                        directory.raw_fd(),
+                        name_cstr.as_ptr(),
+                        libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+                    )
+                };
+                if child < 0 {
+                    return Err(ProtectedGitBackupError::InvalidEntry);
+                }
+                let child = unsafe { OwnedFd::from_raw_fd(child) };
+                collect_directory_entries(
+                    child.as_raw_fd(),
+                    &relative_path,
+                    depth + 1,
+                    entries,
+                    total_bytes,
+                )?;
+            }
+            libc::S_IFREG => {
+                if stat.st_size < 0 || stat.st_size as usize > MAX_SINGLE_FILE_BYTES {
+                    return Err(ProtectedGitBackupError::LimitExceeded);
+                }
+                let next_total = total_bytes
+                    .checked_add(stat.st_size as u64)
+                    .ok_or(ProtectedGitBackupError::LimitExceeded)?;
+                if next_total > MAX_SNAPSHOT_BYTES || entries.len() >= MAX_SNAPSHOT_ENTRIES {
+                    return Err(ProtectedGitBackupError::LimitExceeded);
+                }
+                let file_fd = unsafe {
+                    libc::openat(
+                        directory.raw_fd(),
+                        name_cstr.as_ptr(),
+                        libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+                    )
+                };
+                if file_fd < 0 {
+                    return Err(ProtectedGitBackupError::InvalidEntry);
+                }
+                let mut file = unsafe { File::from_raw_fd(file_fd) };
+                let opened = file
+                    .metadata()
+                    .map_err(|_| ProtectedGitBackupError::InvalidEntry)?;
+                if !opened.is_file()
+                    || opened.dev() != stat.st_dev as u64
+                    || opened.ino() != stat.st_ino as u64
+                    || opened.len() != stat.st_size as u64
+                {
+                    return Err(ProtectedGitBackupError::InvalidEntry);
+                }
+                let mut contents = Vec::with_capacity(stat.st_size as usize);
+                file.by_ref()
+                    .take(MAX_SINGLE_FILE_BYTES as u64 + 1)
+                    .read_to_end(&mut contents)
+                    .map_err(|_| ProtectedGitBackupError::InvalidEntry)?;
+                if contents.len() != stat.st_size as usize {
+                    return Err(ProtectedGitBackupError::InvalidEntry);
+                }
+                *total_bytes = next_total;
+                entries.push(BackupSnapshotEntry {
+                    relative_path,
+                    executable: stat.st_mode & 0o111 != 0,
+                    contents,
+                });
+            }
+            _ => return Err(ProtectedGitBackupError::InvalidEntry),
+        }
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn excluded_root_entry(name: &str) -> bool {
+    matches!(
+        name,
+        ".git" | "target" | "guard" | "plugins" | "AC_Ant-Delirium_props"
+    )
 }
 
 fn insert_entry(

@@ -622,6 +622,62 @@ impl ProjectDatabase {
             .map_err(Into::into)
     }
 
+    pub fn provisional_registration_for_scope(
+        &self,
+        peer_uid: u32,
+        project_id: &str,
+        workspace_id: &str,
+    ) -> TransactionalStorageResult<Option<ProvisionalProjectRegistration>> {
+        validate_storage_opaque_id(project_id, "prj_")?;
+        validate_storage_opaque_id(workspace_id, "wsp_")?;
+        let connection = self.open_connection(false)?;
+        let persisted: Option<(Vec<u8>, Vec<u8>, String, String, i64)> = connection
+            .query_row(
+                "SELECT project_identity_fingerprint, workspace_identity_fingerprint, project_key, workspace_key, created_at_unix FROM provisional_project_registrations WHERE peer_uid = ?1 AND project_id = ?2 AND workspace_id = ?3",
+                AC_params![i64::from(peer_uid), project_id, workspace_id],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                    ))
+                },
+            )
+            .optional()?;
+        let Some((
+            project_fingerprint,
+            workspace_fingerprint,
+            project_key,
+            workspace_key,
+            created_at_unix,
+        )) = persisted
+        else {
+            return Ok(None);
+        };
+        let project_identity_fingerprint = project_fingerprint.try_into().map_err(|_| {
+            TransactionalStorageError::Integrity(
+                "invalid persisted project identity fingerprint".to_string(),
+            )
+        })?;
+        let workspace_identity_fingerprint = workspace_fingerprint.try_into().map_err(|_| {
+            TransactionalStorageError::Integrity(
+                "invalid persisted workspace identity fingerprint".to_string(),
+            )
+        })?;
+        Ok(Some(ProvisionalProjectRegistration {
+            peer_uid,
+            project_identity_fingerprint,
+            workspace_identity_fingerprint,
+            project_id: project_id.to_string(),
+            workspace_id: workspace_id.to_string(),
+            project_key,
+            workspace_key,
+            created_at_unix,
+        }))
+    }
+
     pub fn provisional_project(
         &self,
         peer_uid: u32,
@@ -1420,6 +1476,22 @@ fn validate_required(field: &str, value: &str) -> TransactionalStorageResult<()>
         return Err(TransactionalStorageError::InvalidInput(format!(
             "{field} must not be empty"
         )));
+    }
+    Ok(())
+}
+
+fn validate_storage_opaque_id(value: &str, prefix: &str) -> TransactionalStorageResult<()> {
+    let token = value.strip_prefix(prefix).ok_or_else(|| {
+        TransactionalStorageError::InvalidInput("invalid opaque identifier".to_string())
+    })?;
+    if token.len() != 26
+        || !token.bytes().all(|byte| {
+            matches!(byte, b'0'..=b'9' | b'a'..=b'h' | b'j'..=b'k' | b'm'..=b'n' | b'p'..=b't' | b'v'..=b'z')
+        })
+    {
+        return Err(TransactionalStorageError::InvalidInput(
+            "invalid opaque identifier".to_string(),
+        ));
     }
     Ok(())
 }
