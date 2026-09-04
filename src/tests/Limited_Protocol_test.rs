@@ -196,6 +196,21 @@ fn first_compile_records_a_descriptor_bound_baseline_without_a_project_git_direc
     .unwrap();
     assert!(backup.has_snapshot().unwrap());
     assert!(!workspace_root.join(".git").exists());
+    let database =
+        ac_ant_delirium::structs::ProjectDatabase::open_existing_at(&protected_root).unwrap();
+    database
+        .with_immediate_transaction(|transaction| {
+            transaction.execute(
+                "DELETE FROM backup_checkpoints WHERE transition_kind = 'baseline' AND transition_id = 'baseline'",
+                [],
+            )?;
+            Ok(())
+        })
+        .unwrap();
+    assert!(database
+        .backup_checkpoint(&bootstrap.project_id, "baseline", "baseline")
+        .unwrap()
+        .is_none());
     let second_bootstrap = storage
         .bootstrap_provisional(
             &authority,
@@ -206,6 +221,10 @@ fn first_compile_records_a_descriptor_bound_baseline_without_a_project_git_direc
         )
         .unwrap();
     assert!(!second_bootstrap.backup_required);
+    assert!(database
+        .backup_checkpoint(&bootstrap.project_id, "baseline", "baseline")
+        .unwrap()
+        .is_some());
 
     std::fs::remove_dir_all(root).unwrap();
 }

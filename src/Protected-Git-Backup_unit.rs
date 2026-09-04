@@ -88,6 +88,12 @@ pub(crate) struct BackupCommitReceipt {
     pub(crate) byte_count: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RecoveredBackupCheckpoint {
+    pub(crate) metadata: BackupCommitMetadata,
+    pub(crate) receipt: BackupCommitReceipt,
+}
+
 #[derive(Debug, Serialize)]
 struct SnapshotMetadataDocument<'a> {
     contract_version: &'static str,
@@ -114,6 +120,7 @@ struct StoredSnapshotMetadata {
     task_id: Option<String>,
     task_revision: Option<i64>,
     state_revision: i64,
+    occurred_at: String,
     source_fingerprint: String,
     observed_compilation_fingerprint: Option<String>,
     transition_id: Option<String>,
@@ -295,6 +302,83 @@ impl ProtectedGitBackup {
             .try_find_reference(SNAPSHOT_REFERENCE)
             .map(|reference| reference.is_some())
             .map_err(|_| ProtectedGitBackupError::Repository)
+    }
+
+    pub(crate) fn recover_baseline_checkpoint(
+        &self,
+    ) -> Result<Option<RecoveredBackupCheckpoint>, ProtectedGitBackupError> {
+        require_owned_directory(&self.backup_root, self.expected_uid)?;
+        require_owned_directory(&self.repository_path, self.expected_uid)?;
+        let repository =
+            gix::open(&self.repository_path).map_err(|_| ProtectedGitBackupError::Repository)?;
+        let Some(reference) = repository
+            .try_find_reference(SNAPSHOT_REFERENCE)
+            .map_err(|_| ProtectedGitBackupError::Repository)?
+        else {
+            return Ok(None);
+        };
+        let mut next_commit = reference
+            .target()
+            .try_id()
+            .map(ToOwned::to_owned)
+            .ok_or(ProtectedGitBackupError::Repository)?;
+        loop {
+            let commit = repository
+                .find_object(next_commit)
+                .map_err(|_| ProtectedGitBackupError::Repository)?
+                .try_into_commit()
+                .map_err(|_| ProtectedGitBackupError::Repository)?;
+            let tree = commit
+                .tree()
+                .map_err(|_| ProtectedGitBackupError::Repository)?;
+            let stored = read_snapshot_metadata(&tree)?;
+            if stored.transition == BackupTransition::Baseline {
+                if stored.contract_version != "protected-git-snapshot-v1"
+                    || stored.transition_id.is_some()
+                    || stored.observed_compilation_fingerprint.is_none()
+                    || !valid_sha256_hex(&stored.source_fingerprint)
+                    || stored.entry_count == 0
+                    || stored.byte_count > MAX_SNAPSHOT_BYTES
+                {
+                    return Err(ProtectedGitBackupError::Commit);
+                }
+                let occurred_at_unix = stored
+                    .occurred_at
+                    .strip_prefix("unix:")
+                    .and_then(|value| value.parse::<i64>().ok())
+                    .ok_or(ProtectedGitBackupError::Commit)?;
+                let metadata = BackupCommitMetadata {
+                    transition: stored.transition,
+                    project_id: stored.project_id,
+                    workspace_id: stored.workspace_id,
+                    task_id: stored.task_id,
+                    task_revision: stored.task_revision,
+                    state_revision: stored.state_revision,
+                    occurred_at_unix,
+                    observed_compilation_fingerprint: stored.observed_compilation_fingerprint,
+                    transition_id: stored.transition_id,
+                };
+                validate_metadata(&metadata)?;
+                let parent_commit_id = commit.parent_ids().next().map(|id| id.to_string());
+                if parent_commit_id.is_some() {
+                    return Err(ProtectedGitBackupError::Commit);
+                }
+                return Ok(Some(RecoveredBackupCheckpoint {
+                    metadata,
+                    receipt: BackupCommitReceipt {
+                        commit_id: commit.id().to_string(),
+                        parent_commit_id,
+                        source_fingerprint: stored.source_fingerprint,
+                        entry_count: stored.entry_count,
+                        byte_count: stored.byte_count,
+                    },
+                }));
+            }
+            let Some(parent) = commit.parent_ids().next() else {
+                return Ok(None);
+            };
+            next_commit = parent.detach();
+        }
     }
 
     #[cfg(unix)]

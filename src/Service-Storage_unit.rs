@@ -988,13 +988,42 @@ impl ProtectedServiceStorage {
         };
         let now = trusted_service_unix_time().map_err(|_| ())?;
         let project_root = self.projects_dir.join(&registration.project_key);
-        let backup_required = !crate::protected_git_backup::ProtectedGitBackup::initialize(
+        let backup = crate::protected_git_backup::ProtectedGitBackup::initialize(
             &project_root,
             authority.effective_uid(),
         )
-        .map_err(|_| ())?
-        .has_snapshot()
         .map_err(|_| ())?;
+        let backup_required = !backup.has_snapshot().map_err(|_| ())?;
+        if !backup_required {
+            let database = ProjectDatabase::open_existing_at(&project_root).map_err(|_| ())?;
+            if database
+                .backup_checkpoint(&registration.project_id, "baseline", "baseline")
+                .map_err(|_| ())?
+                .is_none()
+            {
+                let recovered = backup
+                    .recover_baseline_checkpoint()
+                    .map_err(|_| ())?
+                    .ok_or(())?;
+                if recovered.metadata.project_id != registration.project_id
+                    || recovered.metadata.workspace_id != registration.workspace_id
+                {
+                    return Err(());
+                }
+                persist_backup_checkpoint(
+                    &database,
+                    "baseline",
+                    "baseline",
+                    &recovered.metadata.project_id,
+                    &recovered.metadata.workspace_id,
+                    recovered.metadata.task_id.as_deref(),
+                    recovered.metadata.task_revision,
+                    recovered.metadata.state_revision,
+                    recovered.metadata.occurred_at_unix,
+                    &recovered.receipt,
+                )?;
+            }
+        }
         Ok(ProvisionalBootstrapResult {
             compile: self.issue_bootstrap_capability(
                 peer_uid,

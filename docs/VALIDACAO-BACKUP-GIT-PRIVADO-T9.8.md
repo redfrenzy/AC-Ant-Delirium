@@ -60,6 +60,14 @@ Os incrementos `4c5532c` e `7a33ce9` completam os gatilhos locais:
 - IDs de transição são procurados em toda a cadeia de primeiro pai, portanto
   uma revisão de submissão anterior não captura por engano a fonte do HEAD.
 
+O incremento `dbc5c1a` introduziu o schema `storage-v12` e os recibos tipados
+`backup_checkpoints`. O incremento de recuperação seguinte passou a inspecionar
+o primeiro commit da cadeia quando o Git privado já contém o baseline, mas o
+respectivo recibo SQLite está ausente. O serviço valida contrato, IDs opacos,
+workspace, tarefa, revisões, fingerprint, limites, timestamp e a ausência de pai
+antes de reconstruir o recibo. Um baseline existente deixa de ser confundido
+com um ciclo completo: inconsistência ou corrupção falha fechada.
+
 O contrato `protected-git-snapshot-v1` contém somente transição, IDs opacos,
 revisões, horário lógico, fingerprint, contagem de entradas e bytes. Ele não
 contém path do projeto, path do state root, capability, segredo ou comando.
@@ -89,6 +97,9 @@ Resultado:
   na árvore do teste positivo;
 - uma fixture sem `.git` recebeu o baseline dentro do storage protegido sem
   criar `.git` ou outro estado Git no projeto;
+- a mesma fixture removeu somente o recibo `baseline` do SQLite, preservou o
+  commit Git e comprovou que o bootstrap seguinte restaurou o vínculo exato sem
+  solicitar nova cópia da fonte;
 - a matriz Cargo isola seu Cargo home e força endpoint indisponível, evitando
   que a instalação global contamine o cenário fail-open;
 - nenhuma configuração Cargo, serviço instalado ou projeto externo foi
@@ -97,8 +108,8 @@ Resultado:
 ## O que falta para concluir T9.8
 
 1. definir e validar a política definitiva de inclusão de arquivos do projeto;
-2. persistir no estado transacional o vínculo entre commit, projeto,
-   workspace, tarefa, revisão e fingerprint atual;
+2. concluir a recuperação das demais transições e a coordenação entre o
+   recibo transacional e a mudança de referência Git;
 3. derivar diff e contexto somente dos commits privados;
 4. testar concorrência, falha parcial, corrupção e recuperação;
 5. provar o ciclo completo instalado em fixture sem `.git`;

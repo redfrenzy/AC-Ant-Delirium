@@ -9,6 +9,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use ac_ant_delirium::libres::Sha2_unit::sha256;
 use ac_ant_delirium::libres::System_Random_unit::{fill_system_random, random_crockford_id};
+#[cfg(test)]
+use ac_ant_delirium::structs::BackupCheckpointStore;
 use ac_ant_delirium::structs::{
     AuditStore, AuthorizedReviewAssignment, AuthorizedReviewMetadata, AuthorizedSubmissionMetadata,
     CapabilityActor, CapabilityAuthorizationOutcome, CapabilityAuthorizationRequest,

@@ -177,6 +177,29 @@ fn commits_only_the_validated_source_tree_and_opens_a_history_chain() {
 }
 
 #[test]
+fn recovers_the_exact_baseline_binding_from_the_private_history() {
+    let root = unique_root("recover-baseline");
+    let backup = ProtectedGitBackup::initialize(&root, current_uid()).unwrap();
+    let expected_metadata = BackupCommitMetadata {
+        task_id: Some(TASK_ID.to_string()),
+        task_revision: Some(1),
+        ..metadata(BackupTransition::Baseline, 1)
+    };
+    let expected_receipt = backup
+        .commit_snapshot(
+            &expected_metadata,
+            vec![entry("src/lib.rs", b"pub fn baseline() {}\n")],
+        )
+        .unwrap();
+
+    let recovered = backup.recover_baseline_checkpoint().unwrap().unwrap();
+    assert_eq!(recovered.metadata, expected_metadata);
+    assert_eq!(recovered.receipt, expected_receipt);
+
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn rejects_paths_outside_the_closed_source_snapshot() {
     let root = unique_root("invalid-entry");
     let backup = ProtectedGitBackup::initialize(&root, current_uid()).unwrap();
