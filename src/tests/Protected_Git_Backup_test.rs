@@ -465,6 +465,14 @@ fn review_and_advance_reuse_the_protected_source_without_a_workspace_descriptor(
             .unwrap(),
         advance,
     );
+    let recovered = backup.recover_checkpoint_chain().unwrap();
+    assert_eq!(recovered.len(), 5);
+    assert_eq!(recovered[0].receipt.commit_id, baseline.commit_id);
+    assert_eq!(recovered[1].receipt.commit_id, submission.commit_id);
+    assert_eq!(recovered[2].receipt.commit_id, newer_submission.commit_id);
+    assert_eq!(recovered[3].receipt.commit_id, review.commit_id);
+    assert_eq!(recovered[4].receipt.commit_id, advance.commit_id);
+    assert_eq!(recovered[4].metadata.transition, BackupTransition::Advance);
 
     let repository = gix::open(backup.repository_path()).unwrap();
     let source_at = |commit_id: &str| {

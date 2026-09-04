@@ -769,7 +769,7 @@ fn agent_submission_and_assigned_review_are_scoped_immutable_and_audited_over_ad
                 project_id: bootstrap.project_id.clone(),
                 workspace_id: bootstrap.workspace_id.clone(),
                 task_id: task_id.to_string(),
-                submission_id,
+                submission_id: submission_id.clone(),
                 decision: "accepted".to_string(),
                 justification: "The immutable evidence satisfies the synthetic task.".to_string(),
             }),
@@ -782,6 +782,42 @@ fn agent_submission_and_assigned_review_are_scoped_immutable_and_audited_over_ad
     assert_eq!(replay.review_id.as_deref(), Some(review_id.as_str()));
     assert_eq!(replay.event_sequence, Some(3));
     assert_eq!(replay.deduplicated, Some(true));
+
+    assert!(database
+        .backup_checkpoint(&bootstrap.project_id, "submission", &submission_id)
+        .unwrap()
+        .is_some());
+    assert!(database
+        .backup_checkpoint(&bootstrap.project_id, "review", &review_id)
+        .unwrap()
+        .is_some());
+    database
+        .with_immediate_transaction(|transaction| {
+            transaction.execute(
+                "DELETE FROM backup_checkpoints WHERE transition_kind IN ('submission', 'review')",
+                [],
+            )?;
+            Ok(())
+        })
+        .unwrap();
+    let recovered_bootstrap = storage
+        .bootstrap_provisional(
+            &authority,
+            peer_uid,
+            &project_fingerprint,
+            &workspace_fingerprint,
+            "submission-cycle",
+        )
+        .unwrap();
+    assert!(!recovered_bootstrap.backup_required);
+    assert!(database
+        .backup_checkpoint(&bootstrap.project_id, "submission", &submission_id)
+        .unwrap()
+        .is_some());
+    assert!(database
+        .backup_checkpoint(&bootstrap.project_id, "review", &review_id)
+        .unwrap()
+        .is_some());
 
     let unassigned_capability_id = "cap_ffffffffffffffffffffffffff";
     let unassigned_capability_secret = [76_u8; 32];

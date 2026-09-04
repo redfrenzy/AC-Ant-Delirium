@@ -16,8 +16,9 @@ use ac_ant_delirium::structs::{
     CanonicalStateStore, CanonicalTaskAdvance, CanonicalTaskAdvanceOutcome, CanonicalTaskPackage,
     CapabilityActor, CapabilityChannel, CapabilityGrantAuditReceipt, CapabilityOperation,
     CapabilityRevocationAuditReceipt, NewAuditEvent, NewCapabilityGrant, ProjectDatabase,
-    ProvisionalProjectRegistration, ServiceSecurityAuditReceipt, StorageProject, StorageWorkspace,
-    TransactionalStorageError, AUDIT_EVENT_CONTRACT_VERSION, STORAGE_SCHEMA_VERSION,
+    ProvisionalProjectRegistration, ReviewStore, ServiceSecurityAuditReceipt, StorageProject,
+    StorageWorkspace, SubmissionStore, TransactionalStorageError, AUDIT_EVENT_CONTRACT_VERSION,
+    STORAGE_SCHEMA_VERSION,
 };
 
 use crate::service_authority::VerifiedServiceAuthority;
@@ -1010,30 +1011,92 @@ impl ProtectedServiceStorage {
         if !backup_required {
             let database = ProjectDatabase::open_existing_at(&project_root).map_err(|_| ())?;
             if database
-                .backup_checkpoint(&registration.project_id, "baseline", "baseline")
+                .backup_checkpoint_recovery_required(
+                    &registration.project_id,
+                    &registration.workspace_id,
+                )
                 .map_err(|_| ())?
-                .is_none()
             {
-                let recovered = backup
-                    .recover_baseline_checkpoint()
-                    .map_err(|_| ())?
-                    .ok_or(())?;
-                if recovered.metadata.project_id != registration.project_id
-                    || recovered.metadata.workspace_id != registration.workspace_id
-                {
-                    return Err(());
+                let canonical_state = database
+                    .load_canonical_state(&registration.project_id, &registration.workspace_id)
+                    .map_err(|_| ())?;
+                for recovered in backup.recover_checkpoint_chain().map_err(|_| ())? {
+                    if recovered.metadata.project_id != registration.project_id {
+                        return Err(());
+                    }
+                    if recovered.metadata.workspace_id != registration.workspace_id {
+                        continue;
+                    }
+                    let transition_kind = recovered.metadata.transition.as_str();
+                    let transition_id = recovered
+                        .metadata
+                        .transition_id
+                        .as_deref()
+                        .unwrap_or("baseline");
+                    let checkpoint_exists = database
+                        .backup_checkpoint(&registration.project_id, transition_kind, transition_id)
+                        .map_err(|_| ())?
+                        .is_some();
+                    if !checkpoint_exists {
+                        let domain_transition_exists = match recovered.metadata.transition {
+                            crate::protected_git_backup::BackupTransition::Baseline => true,
+                            crate::protected_git_backup::BackupTransition::Submission => database
+                                .submission_assignment(&registration.project_id, transition_id)
+                                .map_err(|_| ())?
+                                .is_some_and(|assignment| {
+                                    assignment.workspace_id == registration.workspace_id
+                                        && recovered.metadata.task_id.as_deref()
+                                            == Some(assignment.task_id.as_str())
+                                }),
+                            crate::protected_git_backup::BackupTransition::Review => database
+                                .review_assignment(&registration.project_id, transition_id)
+                                .map_err(|_| ())?
+                                .is_some_and(|assignment| {
+                                    assignment.workspace_id == registration.workspace_id
+                                        && recovered.metadata.task_id.as_deref()
+                                            == Some(assignment.task_id.as_str())
+                                }),
+                            crate::protected_git_backup::BackupTransition::Advance => {
+                                canonical_state
+                                    .tasks
+                                    .iter()
+                                    .find(|task| {
+                                        recovered.metadata.task_id.as_deref()
+                                            == Some(task.task_id.as_str())
+                                    })
+                                    .is_some_and(|task| {
+                                        canonical_state.state_revision
+                                            >= recovered.metadata.state_revision
+                                            && task.status == "completed"
+                                            && task.review_status == "accepted"
+                                    })
+                            }
+                        };
+                        if !domain_transition_exists {
+                            if recovered.metadata.transition
+                                == crate::protected_git_backup::BackupTransition::Advance
+                                && canonical_state.state_revision.checked_add(1)
+                                    == Some(recovered.metadata.state_revision)
+                                && canonical_state.current_task_id.as_deref()
+                                    == recovered.metadata.task_id.as_deref()
+                            {
+                                continue;
+                            }
+                            return Err(());
+                        }
+                    }
+                    persist_backup_checkpoint(
+                        &database,
+                        transition_kind,
+                        transition_id,
+                        &recovered.metadata.project_id,
+                        &recovered.metadata.workspace_id,
+                        recovered.metadata.task_id.as_deref(),
+                        recovered.metadata.task_revision,
+                        recovered.metadata.state_revision,
+                        &recovered.receipt,
+                    )?;
                 }
-                persist_backup_checkpoint(
-                    &database,
-                    "baseline",
-                    "baseline",
-                    &recovered.metadata.project_id,
-                    &recovered.metadata.workspace_id,
-                    recovered.metadata.task_id.as_deref(),
-                    recovered.metadata.task_revision,
-                    recovered.metadata.state_revision,
-                    &recovered.receipt,
-                )?;
             }
         }
         Ok(ProvisionalBootstrapResult {

@@ -360,6 +360,12 @@ pub trait ReviewStore {
         review: &NewReview,
         audit_event: &NewAuditEvent,
     ) -> TransactionalStorageResult<ReviewWriteOutcome>;
+
+    fn review_assignment(
+        &self,
+        project_id: &str,
+        review_id: &str,
+    ) -> TransactionalStorageResult<Option<SubmissionAssignment>>;
 }
 
 pub trait BackupCheckpointStore {
@@ -374,6 +380,12 @@ pub trait BackupCheckpointStore {
         transition_kind: &str,
         transition_id: &str,
     ) -> TransactionalStorageResult<Option<BackupCheckpointRecord>>;
+
+    fn backup_checkpoint_recovery_required(
+        &self,
+        project_id: &str,
+        workspace_id: &str,
+    ) -> TransactionalStorageResult<bool>;
 }
 
 pub trait AuditStore {

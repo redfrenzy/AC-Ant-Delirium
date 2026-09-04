@@ -745,6 +745,29 @@ impl ReviewStore for ProjectDatabase {
             })
         })
     }
+
+    fn review_assignment(
+        &self,
+        project_id: &str,
+        review_id: &str,
+    ) -> TransactionalStorageResult<Option<SubmissionAssignment>> {
+        validate_opaque_identifier(project_id, "prj_", "project_id")?;
+        validate_opaque_identifier(review_id, "rev_", "review_id")?;
+        let connection = self.open_connection(false)?;
+        Ok(connection
+            .query_row(
+                "SELECT s.project_id, s.workspace_id, s.task_id FROM reviews r JOIN submissions s ON s.project_id = r.project_id AND s.submission_id = r.submission_id WHERE r.project_id = ?1 AND r.review_id = ?2",
+                AC_params![project_id, review_id],
+                |row| {
+                    Ok(SubmissionAssignment {
+                        project_id: row.get(0)?,
+                        workspace_id: row.get(1)?,
+                        task_id: row.get(2)?,
+                    })
+                },
+            )
+            .optional()?)
+    }
 }
 
 impl BackupCheckpointStore for ProjectDatabase {
@@ -774,6 +797,22 @@ impl BackupCheckpointStore for ProjectDatabase {
                 backup_checkpoint_from_row,
             )
             .optional()?)
+    }
+
+    fn backup_checkpoint_recovery_required(
+        &self,
+        project_id: &str,
+        workspace_id: &str,
+    ) -> TransactionalStorageResult<bool> {
+        validate_opaque_identifier(project_id, "prj_", "project_id")?;
+        validate_opaque_identifier(workspace_id, "wsp_", "workspace_id")?;
+        let connection = self.open_connection(false)?;
+        let required = connection.query_row(
+            "SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM backup_checkpoints WHERE project_id = ?1 AND transition_kind = 'baseline' AND transition_id = 'baseline') OR EXISTS (SELECT 1 FROM submissions s WHERE s.project_id = ?1 AND s.workspace_id = ?2 AND NOT EXISTS (SELECT 1 FROM backup_checkpoints b WHERE b.project_id = s.project_id AND b.transition_kind = 'submission' AND b.transition_id = s.submission_id)) OR EXISTS (SELECT 1 FROM reviews r JOIN submissions s ON s.project_id = r.project_id AND s.submission_id = r.submission_id WHERE r.project_id = ?1 AND s.workspace_id = ?2 AND NOT EXISTS (SELECT 1 FROM backup_checkpoints b WHERE b.project_id = r.project_id AND b.transition_kind = 'review' AND b.transition_id = r.review_id)) THEN 1 ELSE 0 END",
+            AC_params![project_id, workspace_id],
+            |row| row.get::<_, i64>(0),
+        )?;
+        Ok(required == 1)
     }
 }
 

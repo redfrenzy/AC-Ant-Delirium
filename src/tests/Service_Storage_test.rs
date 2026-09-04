@@ -581,6 +581,20 @@ fn interrupted_advance_commit_is_reused_and_finalized_atomically() {
         .backup_checkpoint(&registration.project_id, "advance", &review.review_id)
         .unwrap()
         .is_none());
+    let restarted = storage
+        .bootstrap_provisional(
+            &authority,
+            1000,
+            &[44_u8; 32],
+            &[44_u8; 32],
+            "synthetic-project",
+        )
+        .unwrap();
+    assert!(!restarted.backup_required);
+    assert!(database
+        .backup_checkpoint(&registration.project_id, "advance", &review.review_id)
+        .unwrap()
+        .is_none());
     assert_eq!(
         database
             .load_canonical_state(&registration.project_id, &registration.workspace_id)
