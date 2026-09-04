@@ -49,7 +49,7 @@ chmod 0644 \
     "$service_dir/antdelirium-agent.socket" \
     "$service_dir/antdelirium-admin.socket"
 
-if rg -n '@[A-Z_]+@' "$service_dir" "$sysusers_dir" "$tmpfiles_dir" >/dev/null; then
+if grep -rnE '@[A-Z_]+@' "$service_dir" "$sysusers_dir" "$tmpfiles_dir" >/dev/null 2>&1; then
     fail 'an unresolved deployment placeholder remains.'
 fi
 

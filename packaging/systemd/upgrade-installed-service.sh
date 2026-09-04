@@ -132,7 +132,7 @@ systemctl is-active --quiet antdelirium.service
 systemctl is-active --quiet antdelirium-agent.socket
 systemctl is-active --quiet antdelirium-admin.socket
 
-validate_storage_v11_once() {
+validate_storage_v12_once() {
 python3 - "$state_root" "$backup_root/state" <<'PY'
 import glob
 import sqlite3
@@ -160,7 +160,7 @@ try:
         identity_table = connection.execute(
             "select count(*) from sqlite_schema where type='table' and name='provisional_project_identities'"
         ).fetchone()[0]
-        if version != 11:
+        if version != 12:
             failures.append("database-" + str(ordinal) + ":schema-version")
         if "task_ordinal" not in task_columns:
             failures.append("database-" + str(ordinal) + ":task-order")
@@ -210,7 +210,7 @@ try:
             (uid, fingerprint, fingerprint, project_id, workspace_id, project_key, workspace_key, created_at)
             for uid, fingerprint, project_id, workspace_id, project_key, workspace_key, created_at in previous_rows
         ]
-    elif previous_version == 11:
+    elif previous_version in (11, 12):
         expected_rows = previous_registry.execute(
             "select peer_uid, project_identity_fingerprint, workspace_identity_fingerprint, project_id, workspace_id, project_key, workspace_key, created_at_unix from provisional_project_registrations order by peer_uid, workspace_identity_fingerprint"
         ).fetchall()
@@ -239,7 +239,7 @@ PY
 
 storage_ready=false
 for ((attempt = 1; attempt <= 100; attempt++)); do
-    if validate_storage_v11_once >"$log_root/storage-validation.txt" 2>&1; then
+    if validate_storage_v12_once >"$log_root/storage-validation.txt" 2>&1; then
         storage_ready=true
         break
     fi
@@ -254,8 +254,8 @@ done
 sleep 1
 systemctl is-active --quiet antdelirium.service \
     || fail 'the upgraded service did not remain active after migration.'
-validate_storage_v11_once >"$log_root/storage-validation.txt" 2>&1 \
+validate_storage_v12_once >"$log_root/storage-validation.txt" 2>&1 \
     || fail 'protected storage did not remain valid after service stabilization.'
 
 upgrade_committed=true
-printf '%s\n' "AD-T86-UPGRADE: service upgraded to storage-v11; rollback backup retained under $backup_root"
+printf '%s\n' "AD-T86-UPGRADE: service upgraded to storage-v12; rollback backup retained under $backup_root"
