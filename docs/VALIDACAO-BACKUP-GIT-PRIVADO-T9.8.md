@@ -2,11 +2,13 @@
 
 ## Estado honesto
 
-Os commits `a8ba8e4` e `d9ea687` implementam o núcleo de armazenamento Git
-protegido e o primeiro checkpoint automático da T9.8. O `cargo check` comum já
-entrega o workspace por descritor ao serviço quando o projeto ainda não possui
-baseline; submissão, revisão e avanço ainda não criam seus checkpoints. Por
-isso T9.8 permanece aberta.
+Os commits `a8ba8e4`, `d9ea687`, `4c5532c` e `7a33ce9` implementam o núcleo de
+armazenamento Git protegido e os quatro checkpoints locais da T9.8. O
+`cargo check` comum entrega o workspace por descritor para o baseline; a
+submissão entrega nova imagem pelo mesmo canal; revisão e avanço reutilizam a
+árvore protegida associada à transição anterior sem receber acesso ao
+workspace. T9.8 permanece aberta pelos itens de integração e recuperação
+listados abaixo.
 
 ## O que foi implementado
 
@@ -44,6 +46,20 @@ O incremento `d9ea687` acrescenta o transporte e o baseline reais:
   fingerprint da compilação, e novos bootstraps deixam de solicitar o mesmo
   baseline depois que a referência privada existe.
 
+Os incrementos `4c5532c` e `7a33ce9` completam os gatilhos locais:
+
+- `submission.create` exige `source_descriptor=true` e um único descritor
+  `SCM_RIGHTS`; sem ele a requisição é rejeitada antes de escrever a submissão;
+- a imagem do código é gravada com `transition=submission` e o `submission_id`;
+- replay idêntico retorna o mesmo commit, enquanto o mesmo ID com fonte ou
+  metadados diferentes falha fechado;
+- a revisão localiza pelo histórico a submissão exata que avaliou, reutiliza
+  seu objeto `source/` e cria um commit apenas de metadados;
+- o avanço localiza a revisão exata e também reutiliza a mesma árvore, sem
+  abrir ou descobrir o projeto;
+- IDs de transição são procurados em toda a cadeia de primeiro pai, portanto
+  uma revisão de submissão anterior não captura por engano a fonte do HEAD.
+
 O contrato `protected-git-snapshot-v1` contém somente transição, IDs opacos,
 revisões, horário lógico, fingerprint, contagem de entradas e bytes. Ele não
 contém path do projeto, path do state root, capability, segredo ou comando.
@@ -60,10 +76,13 @@ cargo test --locked --offline --target x86_64-unknown-linux-gnu --test Rustc_Wra
 Resultado:
 
 - check sem warnings;
-- 197 testes de biblioteca, 315 testes de binário e 9 testes de integração
-  passaram; 8 testes instalados condicionais permaneceram ignorados;
-- sete testes focados do backup, 14 do protocolo limitado e o teste de vínculo
-  do descritor à identidade persistida passaram;
+- 197 testes de biblioteca, 316 testes de binário e 9 testes de integração
+  passaram no checkpoint de submissão; 8 testes instalados condicionais
+  permaneceram ignorados;
+- nove testes focados do backup, o ciclo limitado de submissão/revisão e o
+  teste de avanço CI com checkpoint passaram após o incremento de revisão;
+- os testes do protocolo limitado e o teste de vínculo do descritor à
+  identidade persistida passaram;
 - repositório pai deliberadamente presente não recebeu a referência privada;
 - dois commits sintéticos produziram parent chain e fingerprints distintos;
 - somente `source/Cargo.toml`, `source/src/lib.rs` e `snapshot.json` apareceram
@@ -78,10 +97,9 @@ Resultado:
 ## O que falta para concluir T9.8
 
 1. definir e validar a política definitiva de inclusão de arquivos do projeto;
-2. persistir o vínculo entre commit, projeto, workspace, tarefa, revisão e
-   fingerprint atual;
-3. criar checkpoints reais na submissão, revisão e avanço;
-4. derivar diff e contexto somente dos commits privados;
-5. testar concorrência, falha parcial, corrupção e recuperação;
-6. provar o ciclo completo instalado em fixture sem `.git`;
-7. integrar o commit atual à decisão local da T9.7.
+2. persistir no estado transacional o vínculo entre commit, projeto,
+   workspace, tarefa, revisão e fingerprint atual;
+3. derivar diff e contexto somente dos commits privados;
+4. testar concorrência, falha parcial, corrupção e recuperação;
+5. provar o ciclo completo instalado em fixture sem `.git`;
+6. integrar o commit atual à decisão local da T9.7.

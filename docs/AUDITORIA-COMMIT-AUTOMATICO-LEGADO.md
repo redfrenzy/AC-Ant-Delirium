@@ -80,7 +80,7 @@ Já estão implementados e validados:
 - revisão aceita obrigatória antes de avançar uma tarefa;
 - capability de avanço separada, que o agente não possui;
 - detecção de lacunas e rollback por checkpoint Ed25519 root-owned;
-- reconstrução das projeções públicas sem confiar no JSON local.
+- reconstrução das projeções públicas sem confiar no JSON local;
 - núcleo global de repositório Git bare aberto por raiz exata, sem descoberta
   ascendente e sem shell-out;
 - construção de commits encadeados exclusivamente a partir da árvore permitida
@@ -88,16 +88,20 @@ Já estão implementados e validados:
 - criação e recuperação do repositório privado durante o ciclo de storage de
   projetos novos e existentes.
 
-Ainda não estão implementados:
+Já foram portados para o fluxo global:
 
 - backup e commit Git automáticos no baseline e nas transições de submissão,
   revisão e avanço;
-- vínculo obrigatório entre checkpoint, `project_id`, `workspace_id`,
-  `task_id`, revisão canônica e fingerprint do código avaliado;
+- transporte do snapshot por descritor autenticado sem locator físico;
+- vínculo dentro de cada commit com IDs opacos, tarefa, revisão do estado e
+  fingerprint da fonte;
+- falha fechada e replay idempotente para a identidade de cada transição.
+
+Ainda não estão implementados:
+
+- vínculo transacional do recibo Git com o registro SQLite correspondente;
 - prova de que falha ao criar esse checkpoint impede o avanço ou o torna
   explicitamente incompleto e recuperável;
-- transporte automático do snapshot de código para o repositório privado sem
-  revelar a raiz protegida nem entregar um locator físico ao serviço;
 - geração de `implementation_context` e contexto de revisão a partir do diff
   entre commits do backup interno, inclusive quando o projeto não possui Git.
 
