@@ -211,7 +211,6 @@ impl ProtectedServiceStorage {
             current_task.as_ref().map(|task| task.0.as_str()),
             current_task.as_ref().map(|task| task.1),
             state.state_revision,
-            occurred_at_unix,
             &receipt,
         )?;
         Ok(receipt)
@@ -289,7 +288,6 @@ impl ProtectedServiceStorage {
             Some(task_id),
             Some(task_revision),
             state.state_revision,
-            occurred_at_unix,
             &receipt,
         )?;
         Ok(receipt)
@@ -359,7 +357,6 @@ impl ProtectedServiceStorage {
             Some(task_id),
             Some(task.task_revision),
             state.state_revision,
-            occurred_at_unix,
             &receipt,
         )?;
         Ok(receipt)
@@ -466,31 +463,30 @@ impl ProtectedServiceStorage {
         fingerprint_material.push(0);
         fingerprint_material.extend_from_slice(advance.review_id.as_bytes());
         fingerprint_material.extend_from_slice(&advance.expected_state_revision.to_be_bytes());
-        let event = NewAuditEvent {
-            contract_version: AUDIT_EVENT_CONTRACT_VERSION.to_string(),
-            event_id: random_crockford_id("evt_").map_err(|_| ())?,
-            project_id: advance.project_id.clone(),
-            workspace_id: Some(advance.workspace_id.clone()),
-            actor_kind: "ci".to_string(),
-            actor_subject_id: "authorized-state-transition".to_string(),
-            event_kind: "state_transitioned".to_string(),
-            outcome: "succeeded".to_string(),
-            occurred_at: format!("unix:{now}"),
-            fingerprint: lowercase_hex(&sha256(&fingerprint_material)),
-            correlation_id: random_crockford_id("ref_").map_err(|_| ())?,
-            resource_id: Some(advance.task_id.clone()),
-            payload: b"accepted assigned review advanced canonical task".to_vec(),
-        };
-        let outcome = database
-            .advance_accepted_task(advance, &event)
+        let target_state_revision = advance.expected_state_revision.checked_add(1).ok_or(())?;
+        let canonical_state = database
+            .load_canonical_state(&advance.project_id, &advance.workspace_id)
             .map_err(|_| ())?;
-        let task_revision = outcome
-            .state
+        if canonical_state.state_revision != advance.expected_state_revision
+            && canonical_state.state_revision != target_state_revision
+        {
+            return Err(());
+        }
+        let task = canonical_state
             .tasks
             .iter()
-            .find(|task| task.task_id == outcome.completed_task_id)
-            .map(|task| task.task_revision)
+            .find(|task| task.task_id == advance.task_id)
             .ok_or(())?;
+        if (canonical_state.state_revision == advance.expected_state_revision
+            && (canonical_state.current_task_id.as_deref() != Some(advance.task_id.as_str())
+                || task.status != "available"
+                || task.review_status != "not_required"))
+            || (canonical_state.state_revision == target_state_revision
+                && (task.status != "completed" || task.review_status != "accepted"))
+        {
+            return Err(());
+        }
+        let task_revision = task.task_revision;
         let project = self
             .registry
             .registered_projects()
@@ -514,7 +510,7 @@ impl ProtectedServiceStorage {
                     workspace_id: advance.workspace_id.clone(),
                     task_id: Some(advance.task_id.clone()),
                     task_revision: Some(task_revision),
-                    state_revision: outcome.state.state_revision,
+                    state_revision: target_state_revision,
                     occurred_at_unix: now,
                     observed_compilation_fingerprint: None,
                     transition_id: Some(advance.review_id.clone()),
@@ -523,19 +519,36 @@ impl ProtectedServiceStorage {
                 &advance.review_id,
             )
             .map_err(|_| ())?;
-        persist_backup_checkpoint(
-            &database,
+        let checkpoint = backup_checkpoint_record(
             "advance",
             &advance.review_id,
             &advance.project_id,
             &advance.workspace_id,
             Some(&advance.task_id),
             Some(task_revision),
-            outcome.state.state_revision,
-            now,
+            target_state_revision,
             &receipt,
         )?;
-        Ok(outcome)
+        let event_digest = sha256(&fingerprint_material);
+        let event_hex = lowercase_hex(&event_digest);
+        let event = NewAuditEvent {
+            contract_version: AUDIT_EVENT_CONTRACT_VERSION.to_string(),
+            event_id: format!("evt_{}", &event_hex[..26]),
+            project_id: advance.project_id.clone(),
+            workspace_id: Some(advance.workspace_id.clone()),
+            actor_kind: "ci".to_string(),
+            actor_subject_id: "authorized-state-transition".to_string(),
+            event_kind: "state_transitioned".to_string(),
+            outcome: "succeeded".to_string(),
+            occurred_at: format!("unix:{}", receipt.occurred_at_unix),
+            fingerprint: event_hex.clone(),
+            correlation_id: format!("ref_{}", &event_hex[26..52]),
+            resource_id: Some(advance.task_id.clone()),
+            payload: b"accepted assigned review advanced canonical task".to_vec(),
+        };
+        database
+            .advance_accepted_task_with_checkpoint(advance, &event, &checkpoint)
+            .map_err(|_| ())
     }
 
     fn open_registered_project(
@@ -1019,7 +1032,6 @@ impl ProtectedServiceStorage {
                     recovered.metadata.task_id.as_deref(),
                     recovered.metadata.task_revision,
                     recovered.metadata.state_revision,
-                    recovered.metadata.occurred_at_unix,
                     &recovered.receipt,
                 )?;
             }
@@ -1366,29 +1378,50 @@ fn persist_backup_checkpoint(
     task_id: Option<&str>,
     task_revision: Option<i64>,
     state_revision: i64,
-    occurred_at_unix: i64,
     receipt: &crate::protected_git_backup::BackupCommitReceipt,
 ) -> Result<(), ()> {
-    let entry_count = i64::try_from(receipt.entry_count).map_err(|_| ())?;
-    let byte_count = i64::try_from(receipt.byte_count).map_err(|_| ())?;
+    let checkpoint = backup_checkpoint_record(
+        transition_kind,
+        transition_id,
+        project_id,
+        workspace_id,
+        task_id,
+        task_revision,
+        state_revision,
+        receipt,
+    )?;
     database
-        .record_backup_checkpoint(&BackupCheckpointRecord {
-            transition_kind: transition_kind.to_string(),
-            transition_id: transition_id.to_string(),
-            project_id: project_id.to_string(),
-            workspace_id: workspace_id.to_string(),
-            task_id: task_id.map(str::to_string),
-            task_revision,
-            state_revision,
-            commit_id: receipt.commit_id.clone(),
-            parent_commit_id: receipt.parent_commit_id.clone(),
-            source_fingerprint: receipt.source_fingerprint.clone(),
-            entry_count,
-            byte_count,
-            recorded_at: format!("unix:{occurred_at_unix}"),
-        })
+        .record_backup_checkpoint(&checkpoint)
         .map(|_| ())
         .map_err(|_| ())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn backup_checkpoint_record(
+    transition_kind: &str,
+    transition_id: &str,
+    project_id: &str,
+    workspace_id: &str,
+    task_id: Option<&str>,
+    task_revision: Option<i64>,
+    state_revision: i64,
+    receipt: &crate::protected_git_backup::BackupCommitReceipt,
+) -> Result<BackupCheckpointRecord, ()> {
+    Ok(BackupCheckpointRecord {
+        transition_kind: transition_kind.to_string(),
+        transition_id: transition_id.to_string(),
+        project_id: project_id.to_string(),
+        workspace_id: workspace_id.to_string(),
+        task_id: task_id.map(str::to_string),
+        task_revision,
+        state_revision,
+        commit_id: receipt.commit_id.clone(),
+        parent_commit_id: receipt.parent_commit_id.clone(),
+        source_fingerprint: receipt.source_fingerprint.clone(),
+        entry_count: i64::try_from(receipt.entry_count).map_err(|_| ())?,
+        byte_count: i64::try_from(receipt.byte_count).map_err(|_| ())?,
+        recorded_at: format!("unix:{}", receipt.occurred_at_unix),
+    })
 }
 
 fn trusted_service_unix_time() -> Result<i64, ProtectedStorageError> {

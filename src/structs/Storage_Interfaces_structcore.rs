@@ -299,6 +299,26 @@ impl CanonicalStateStore for ProjectDatabase {
         advance: &CanonicalTaskAdvance,
         audit_event: &NewAuditEvent,
     ) -> TransactionalStorageResult<CanonicalTaskAdvanceOutcome> {
+        self.advance_accepted_task_transactional(advance, audit_event, None)
+    }
+
+    fn advance_accepted_task_with_checkpoint(
+        &self,
+        advance: &CanonicalTaskAdvance,
+        audit_event: &NewAuditEvent,
+        checkpoint: &BackupCheckpointRecord,
+    ) -> TransactionalStorageResult<CanonicalTaskAdvanceOutcome> {
+        self.advance_accepted_task_transactional(advance, audit_event, Some(checkpoint))
+    }
+}
+
+impl ProjectDatabase {
+    fn advance_accepted_task_transactional(
+        &self,
+        advance: &CanonicalTaskAdvance,
+        audit_event: &NewAuditEvent,
+        checkpoint: Option<&BackupCheckpointRecord>,
+    ) -> TransactionalStorageResult<CanonicalTaskAdvanceOutcome> {
         validate_task_advance(advance, audit_event)?;
         let expected_revision =
             advance
@@ -309,7 +329,13 @@ impl CanonicalStateStore for ProjectDatabase {
                         "canonical task advance revision overflow".to_string(),
                     )
                 })?;
+        if let Some(checkpoint) = checkpoint {
+            validate_advance_checkpoint(advance, expected_revision, checkpoint)?;
+        }
         self.with_immediate_transaction(|transaction| {
+            if let Some(checkpoint) = checkpoint {
+                record_backup_checkpoint_in_transaction(transaction, checkpoint)?;
+            }
             let audit = self.record_event_in_transaction(transaction, audit_event)?;
             let task = transaction.query_row(
                 "SELECT plan_id, task_ordinal, status, review_status FROM tasks WHERE project_id = ?1 AND task_id = ?2",
@@ -485,6 +511,27 @@ fn validate_task_advance(
     {
         return Err(TransactionalStorageError::InvalidInput(
             "canonical task advance audit binding is invalid".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_advance_checkpoint(
+    advance: &CanonicalTaskAdvance,
+    expected_revision: i64,
+    checkpoint: &BackupCheckpointRecord,
+) -> TransactionalStorageResult<()> {
+    validate_backup_checkpoint(checkpoint)?;
+    if checkpoint.transition_kind != "advance"
+        || checkpoint.transition_id != advance.review_id
+        || checkpoint.project_id != advance.project_id
+        || checkpoint.workspace_id != advance.workspace_id
+        || checkpoint.task_id.as_deref() != Some(advance.task_id.as_str())
+        || checkpoint.task_revision.is_none()
+        || checkpoint.state_revision != expected_revision
+    {
+        return Err(TransactionalStorageError::InvalidInput(
+            "advance checkpoint is not bound to the canonical transition".to_string(),
         ));
     }
     Ok(())
@@ -707,68 +754,7 @@ impl BackupCheckpointStore for ProjectDatabase {
     ) -> TransactionalStorageResult<bool> {
         validate_backup_checkpoint(checkpoint)?;
         self.with_immediate_transaction(|transaction| {
-            let existing = transaction
-                .query_row(
-                    "SELECT transition_kind, transition_id, project_id, workspace_id, task_id, task_revision, state_revision, commit_id, parent_commit_id, source_fingerprint, entry_count, byte_count, recorded_at FROM backup_checkpoints WHERE project_id = ?1 AND transition_kind = ?2 AND transition_id = ?3",
-                    AC_params![
-                        checkpoint.project_id,
-                        checkpoint.transition_kind,
-                        checkpoint.transition_id,
-                    ],
-                    backup_checkpoint_from_row,
-                )
-                .optional()?;
-            if let Some(existing) = existing {
-                if same_backup_checkpoint_binding(&existing, checkpoint) {
-                    return Ok(false);
-                }
-                return Err(TransactionalStorageError::Integrity(
-                    "backup checkpoint identity is already bound to different content".to_string(),
-                ));
-            }
-            let workspace_project = transaction.query_row(
-                "SELECT project_id FROM workspaces WHERE workspace_id = ?1 AND status = 'active'",
-                AC_params![checkpoint.workspace_id],
-                |row| row.get::<_, String>(0),
-            )?;
-            if workspace_project != checkpoint.project_id {
-                return Err(TransactionalStorageError::Integrity(
-                    "backup checkpoint workspace does not belong to the project".to_string(),
-                ));
-            }
-            if let Some(task_id) = checkpoint.task_id.as_deref() {
-                let task = transaction.query_row(
-                    "SELECT project_id, task_revision FROM tasks WHERE task_id = ?1",
-                    AC_params![task_id],
-                    |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
-                )?;
-                if task.0 != checkpoint.project_id
-                    || Some(task.1) != checkpoint.task_revision
-                {
-                    return Err(TransactionalStorageError::Integrity(
-                        "backup checkpoint task does not match canonical state".to_string(),
-                    ));
-                }
-            }
-            transaction.execute(
-                "INSERT INTO backup_checkpoints(transition_kind, transition_id, project_id, workspace_id, task_id, task_revision, state_revision, commit_id, parent_commit_id, source_fingerprint, entry_count, byte_count, recorded_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
-                AC_params![
-                    checkpoint.transition_kind,
-                    checkpoint.transition_id,
-                    checkpoint.project_id,
-                    checkpoint.workspace_id,
-                    checkpoint.task_id,
-                    checkpoint.task_revision,
-                    checkpoint.state_revision,
-                    checkpoint.commit_id,
-                    checkpoint.parent_commit_id,
-                    checkpoint.source_fingerprint,
-                    checkpoint.entry_count,
-                    checkpoint.byte_count,
-                    checkpoint.recorded_at,
-                ],
-            )?;
-            Ok(true)
+            record_backup_checkpoint_in_transaction(transaction, checkpoint)
         })
     }
 
@@ -789,6 +775,73 @@ impl BackupCheckpointStore for ProjectDatabase {
             )
             .optional()?)
     }
+}
+
+fn record_backup_checkpoint_in_transaction(
+    transaction: &AC_Transaction<'_>,
+    checkpoint: &BackupCheckpointRecord,
+) -> TransactionalStorageResult<bool> {
+    validate_backup_checkpoint(checkpoint)?;
+    let existing = transaction
+        .query_row(
+            "SELECT transition_kind, transition_id, project_id, workspace_id, task_id, task_revision, state_revision, commit_id, parent_commit_id, source_fingerprint, entry_count, byte_count, recorded_at FROM backup_checkpoints WHERE project_id = ?1 AND transition_kind = ?2 AND transition_id = ?3",
+            AC_params![
+                checkpoint.project_id,
+                checkpoint.transition_kind,
+                checkpoint.transition_id,
+            ],
+            backup_checkpoint_from_row,
+        )
+        .optional()?;
+    if let Some(existing) = existing {
+        if same_backup_checkpoint_binding(&existing, checkpoint) {
+            return Ok(false);
+        }
+        return Err(TransactionalStorageError::Integrity(
+            "backup checkpoint identity is already bound to different content".to_string(),
+        ));
+    }
+    let workspace_project = transaction.query_row(
+        "SELECT project_id FROM workspaces WHERE workspace_id = ?1 AND status = 'active'",
+        AC_params![checkpoint.workspace_id],
+        |row| row.get::<_, String>(0),
+    )?;
+    if workspace_project != checkpoint.project_id {
+        return Err(TransactionalStorageError::Integrity(
+            "backup checkpoint workspace does not belong to the project".to_string(),
+        ));
+    }
+    if let Some(task_id) = checkpoint.task_id.as_deref() {
+        let task = transaction.query_row(
+            "SELECT project_id, task_revision FROM tasks WHERE task_id = ?1",
+            AC_params![task_id],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
+        )?;
+        if task.0 != checkpoint.project_id || Some(task.1) != checkpoint.task_revision {
+            return Err(TransactionalStorageError::Integrity(
+                "backup checkpoint task does not match canonical state".to_string(),
+            ));
+        }
+    }
+    transaction.execute(
+        "INSERT INTO backup_checkpoints(transition_kind, transition_id, project_id, workspace_id, task_id, task_revision, state_revision, commit_id, parent_commit_id, source_fingerprint, entry_count, byte_count, recorded_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+        AC_params![
+            checkpoint.transition_kind,
+            checkpoint.transition_id,
+            checkpoint.project_id,
+            checkpoint.workspace_id,
+            checkpoint.task_id,
+            checkpoint.task_revision,
+            checkpoint.state_revision,
+            checkpoint.commit_id,
+            checkpoint.parent_commit_id,
+            checkpoint.source_fingerprint,
+            checkpoint.entry_count,
+            checkpoint.byte_count,
+            checkpoint.recorded_at,
+        ],
+    )?;
+    Ok(true)
 }
 
 fn same_backup_checkpoint_binding(

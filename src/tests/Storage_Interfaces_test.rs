@@ -11,12 +11,12 @@ mod tests {
     use crate::structs::{
         build_current_task_projection, materialize_limited_project_projections,
         AtomicProjectProjectionWriter, AuditStore, BackupCheckpointRecord, BackupCheckpointStore,
-        CanonicalGovernanceSnapshotRequest,
-        CanonicalStateStore, CanonicalStateTransition, CanonicalTaskAdvance, CanonicalTaskPackage,
-        CanonicalTaskPackageTask, CurrentTaskProjection, CurrentTaskProjectionDocument,
-        EventWriteOutcome, GovernanceErrorsProjection, GovernanceErrorsRefreshRequest,
-        NewAuditEvent, NewReview, NewSubmission, ProjectDatabase, ProjectProjectionWriter,
-        ProjectStateRoot, ProjectedCurrentTask, ProjectedGovernanceViolation, ProjectedQueueStatus,
+        CanonicalGovernanceSnapshotRequest, CanonicalStateStore, CanonicalStateTransition,
+        CanonicalTaskAdvance, CanonicalTaskPackage, CanonicalTaskPackageTask,
+        CurrentTaskProjection, CurrentTaskProjectionDocument, EventWriteOutcome,
+        GovernanceErrorsProjection, GovernanceErrorsRefreshRequest, NewAuditEvent, NewReview,
+        NewSubmission, ProjectDatabase, ProjectProjectionWriter, ProjectStateRoot,
+        ProjectedCurrentTask, ProjectedGovernanceViolation, ProjectedQueueStatus,
         ProjectedTaskAction, ProjectionArtifactKind, ProjectionMetadata, ReviewDecision,
         ReviewStore, StorageProject, StorageWorkspace, SubmissionStore, TransactionalStorageError,
         AGENT_PROJECTION_CONTRACT_VERSION, AUDIT_EVENT_CONTRACT_VERSION,
@@ -405,9 +405,51 @@ mod tests {
         let mut advance_event = audit_event(4, "state_transitioned", 19, Some(TASK_ID));
         advance_event.actor_kind = "ci".to_string();
         advance_event.actor_subject_id = "authorized-state-transition".to_string();
-        let outcome =
-            CanonicalStateStore::advance_accepted_task(&database, &advance, &advance_event)
-                .unwrap();
+        let invalid_review_id = "rev_99999999999999999999999999";
+        let invalid_advance = CanonicalTaskAdvance {
+            review_id: invalid_review_id.to_string(),
+            ..advance.clone()
+        };
+        let invalid_checkpoint = BackupCheckpointRecord {
+            transition_kind: "advance".to_string(),
+            transition_id: invalid_review_id.to_string(),
+            project_id: PROJECT_ID.to_string(),
+            workspace_id: WORKSPACE_ID.to_string(),
+            task_id: Some(TASK_ID.to_string()),
+            task_revision: Some(1),
+            state_revision: 2,
+            commit_id: "a".repeat(40),
+            parent_commit_id: Some("b".repeat(40)),
+            source_fingerprint: "c".repeat(64),
+            entry_count: 2,
+            byte_count: 41,
+            recorded_at: "unix:1788000000".to_string(),
+        };
+        assert!(CanonicalStateStore::advance_accepted_task_with_checkpoint(
+            &database,
+            &invalid_advance,
+            &advance_event,
+            &invalid_checkpoint,
+        )
+        .is_err());
+        assert!(database
+            .backup_checkpoint(PROJECT_ID, "advance", invalid_review_id)
+            .unwrap()
+            .is_none());
+        assert_eq!(database.event_count(PROJECT_ID).unwrap(), 3);
+
+        let checkpoint = BackupCheckpointRecord {
+            transition_id: review.review_id.clone(),
+            commit_id: "d".repeat(40),
+            ..invalid_checkpoint
+        };
+        let outcome = CanonicalStateStore::advance_accepted_task_with_checkpoint(
+            &database,
+            &advance,
+            &advance_event,
+            &checkpoint,
+        )
+        .unwrap();
         assert_eq!(outcome.audit, EventWriteOutcome::Inserted { sequence: 4 });
         assert_eq!(outcome.state.state_revision, 2);
         assert_eq!(outcome.completed_task_id, TASK_ID);
@@ -432,9 +474,19 @@ mod tests {
         let governance: serde_json::Value = serde_json::from_slice(&governance).unwrap();
         assert_eq!(governance["source_revision"], 2);
 
-        let replay =
-            CanonicalStateStore::advance_accepted_task(&database, &advance, &advance_event)
-                .unwrap();
+        assert_eq!(
+            database
+                .backup_checkpoint(PROJECT_ID, "advance", &review.review_id)
+                .unwrap(),
+            Some(checkpoint.clone())
+        );
+        let replay = CanonicalStateStore::advance_accepted_task_with_checkpoint(
+            &database,
+            &advance,
+            &advance_event,
+            &checkpoint,
+        )
+        .unwrap();
         assert_eq!(replay.audit, EventWriteOutcome::Duplicate { sequence: 4 });
         assert_eq!(replay.state, outcome.state);
 
@@ -983,11 +1035,7 @@ mod tests {
         assert!(database.record_backup_checkpoint(&checkpoint).unwrap());
         assert_eq!(
             database
-                .backup_checkpoint(
-                    PROJECT_ID,
-                    "submission",
-                    "sub_00000000000000000000000000",
-                )
+                .backup_checkpoint(PROJECT_ID, "submission", "sub_00000000000000000000000000",)
                 .unwrap(),
             Some(checkpoint.clone()),
         );

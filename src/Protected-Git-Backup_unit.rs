@@ -86,6 +86,7 @@ pub(crate) struct BackupCommitReceipt {
     pub(crate) source_fingerprint: String,
     pub(crate) entry_count: u64,
     pub(crate) byte_count: u64,
+    pub(crate) occurred_at_unix: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -290,6 +291,7 @@ impl ProtectedGitBackup {
             source_fingerprint: source_fingerprint_hex,
             entry_count,
             byte_count,
+            occurred_at_unix: metadata.occurred_at_unix,
         })
     }
 
@@ -371,6 +373,7 @@ impl ProtectedGitBackup {
                         source_fingerprint: stored.source_fingerprint,
                         entry_count: stored.entry_count,
                         byte_count: stored.byte_count,
+                        occurred_at_unix,
                     },
                 }));
             }
@@ -526,6 +529,7 @@ impl ProtectedGitBackup {
             source_fingerprint,
             entry_count,
             byte_count,
+            occurred_at_unix: metadata.occurred_at_unix,
         })
     }
 
@@ -644,6 +648,11 @@ fn existing_transition_receipt(
                 source_fingerprint: stored.source_fingerprint,
                 entry_count: stored.entry_count,
                 byte_count: stored.byte_count,
+                occurred_at_unix: stored
+                    .occurred_at
+                    .strip_prefix("unix:")
+                    .and_then(|value| value.parse::<i64>().ok())
+                    .ok_or(ProtectedGitBackupError::Commit)?,
             }));
         }
         let Some(parent) = commit.parent_ids().next() else {

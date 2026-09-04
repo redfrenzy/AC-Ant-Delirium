@@ -323,6 +323,13 @@ pub trait CanonicalStateStore {
         advance: &CanonicalTaskAdvance,
         audit_event: &NewAuditEvent,
     ) -> TransactionalStorageResult<CanonicalTaskAdvanceOutcome>;
+
+    fn advance_accepted_task_with_checkpoint(
+        &self,
+        advance: &CanonicalTaskAdvance,
+        audit_event: &NewAuditEvent,
+        checkpoint: &BackupCheckpointRecord,
+    ) -> TransactionalStorageResult<CanonicalTaskAdvanceOutcome>;
 }
 
 pub trait SubmissionStore {

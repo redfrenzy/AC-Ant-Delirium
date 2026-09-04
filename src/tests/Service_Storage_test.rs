@@ -4,12 +4,13 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use ac_ant_delirium::libres::Rusqlite_unit::AC_params;
 use ac_ant_delirium::libres::Sha2_unit::sha256;
 use ac_ant_delirium::structs::{
-    AuditStore, CanonicalStateStore, CanonicalTaskAdvance, CanonicalTaskPackage,
-    CanonicalTaskPackageTask, CapabilityActor, CapabilityAuthorizationOutcome,
-    CapabilityAuthorizationRequest, CapabilityChannel, CapabilityOperation, NewAuditEvent,
-    NewCapabilityGrant, NewCapabilityRevocation, NewReview, NewSubmission, ReviewDecision,
-    ReviewStore, StorageWorkspace, SubmissionStore, AUDIT_EVENT_CONTRACT_VERSION,
-    GOVERNANCE_TASK_PACKAGE_CONTRACT_VERSION, SUBMISSION_CONTRACT_VERSION,
+    AuditStore, BackupCheckpointStore, CanonicalStateStore, CanonicalTaskAdvance,
+    CanonicalTaskPackage, CanonicalTaskPackageTask, CapabilityActor,
+    CapabilityAuthorizationOutcome, CapabilityAuthorizationRequest, CapabilityChannel,
+    CapabilityOperation, NewAuditEvent, NewCapabilityGrant, NewCapabilityRevocation, NewReview,
+    NewSubmission, ReviewDecision, ReviewStore, StorageWorkspace, SubmissionStore,
+    AUDIT_EVENT_CONTRACT_VERSION, GOVERNANCE_TASK_PACKAGE_CONTRACT_VERSION,
+    SUBMISSION_CONTRACT_VERSION,
 };
 
 #[cfg(unix)]
@@ -417,7 +418,7 @@ fn agent_cannot_install_or_advance_canonical_tasks_and_each_attempt_is_journaled
 }
 
 #[test]
-fn exact_ci_state_transition_advances_only_an_accepted_reviewed_task() {
+fn interrupted_advance_commit_is_reused_and_finalized_atomically() {
     let root = unique_root("accepted-task-advance");
     let authority = authority();
     let storage = ProtectedServiceStorage::initialize(&authority, &root).unwrap();
@@ -559,6 +560,34 @@ fn exact_ci_state_transition_advances_only_an_accepted_reviewed_task() {
             &review.review_id,
         )
         .unwrap();
+    let interrupted_receipt = backup
+        .commit_snapshot_from_transition(
+            &crate::protected_git_backup::BackupCommitMetadata {
+                transition: crate::protected_git_backup::BackupTransition::Advance,
+                project_id: registration.project_id.clone(),
+                workspace_id: registration.workspace_id.clone(),
+                task_id: Some(TASK_ID.to_string()),
+                task_revision: Some(1),
+                state_revision: 2,
+                occurred_at_unix: 1_788_000_003,
+                observed_compilation_fingerprint: None,
+                transition_id: Some(review.review_id.clone()),
+            },
+            crate::protected_git_backup::BackupTransition::Review,
+            &review.review_id,
+        )
+        .unwrap();
+    assert!(database
+        .backup_checkpoint(&registration.project_id, "advance", &review.review_id)
+        .unwrap()
+        .is_none());
+    assert_eq!(
+        database
+            .load_canonical_state(&registration.project_id, &registration.workspace_id)
+            .unwrap()
+            .state_revision,
+        1
+    );
     let capability = authorize_capability(
         storage.registry(),
         CapabilityActor::Ci,
@@ -568,18 +597,15 @@ fn exact_ci_state_transition_advances_only_an_accepted_reviewed_task() {
         Some(&registration.workspace_id),
         Some(TASK_ID),
     );
+    let advance = CanonicalTaskAdvance {
+        project_id: registration.project_id.clone(),
+        workspace_id: registration.workspace_id.clone(),
+        task_id: TASK_ID.to_string(),
+        review_id: review.review_id.clone(),
+        expected_state_revision: 1,
+    };
     let advanced = storage
-        .advance_reviewed_task(
-            &authority,
-            &capability,
-            &CanonicalTaskAdvance {
-                project_id: registration.project_id,
-                workspace_id: registration.workspace_id,
-                task_id: TASK_ID.to_string(),
-                review_id: review.review_id,
-                expected_state_revision: 1,
-            },
-        )
+        .advance_reviewed_task(&authority, &capability, &advance)
         .unwrap();
     assert_eq!(advanced.audit.sequence(), 4);
     assert_eq!(advanced.state.state_revision, 2);
@@ -587,6 +613,22 @@ fn exact_ci_state_transition_advances_only_an_accepted_reviewed_task() {
     assert_eq!(advanced.next_task_id, None);
     assert_eq!(advanced.state.current_task_id, None);
     assert_eq!(advanced.state.active_plan_id, None);
+    let checkpoint = database
+        .backup_checkpoint(
+            &advanced.state.project_id,
+            "advance",
+            "rev_00000000000000000000000000",
+        )
+        .unwrap()
+        .unwrap();
+    assert_eq!(checkpoint.commit_id, interrupted_receipt.commit_id);
+    assert_eq!(checkpoint.recorded_at, "unix:1788000003");
+    let replay = storage
+        .advance_reviewed_task(&authority, &capability, &advance)
+        .unwrap();
+    assert_eq!(replay.state, advanced.state);
+    assert_eq!(replay.audit.sequence(), advanced.audit.sequence());
+    assert!(!replay.audit.inserted());
     let repository = gix::open(project_root.join("backup/repository.git")).unwrap();
     let commit = repository
         .find_reference("refs/heads/snapshots")
