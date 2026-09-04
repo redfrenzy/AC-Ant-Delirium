@@ -717,7 +717,8 @@ mod tests {
                     CREATE INDEX capability_subject_idx ON capability_grants(subject_uid, actor_kind, revocation_epoch);
                     DROP INDEX tasks_plan_ordinal_idx;
                     ALTER TABLE tasks DROP COLUMN task_ordinal;
-                    DELETE FROM schema_migrations WHERE version IN (9, 10, 11);
+                    DROP TABLE backup_checkpoints;
+                    DELETE FROM schema_migrations WHERE version IN (9, 10, 11, 12);
                     PRAGMA user_version = 8;
                     "#,
                 )?;

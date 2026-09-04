@@ -174,7 +174,8 @@ DROP TABLE provisional_project_identities;
                         "2026-08-27T00:00:00Z",
                     ],
                 )?;
-                transaction.execute("DELETE FROM schema_migrations WHERE version = 10", [])?;
+                transaction.execute("DROP TABLE backup_checkpoints", [])?;
+                transaction.execute("DELETE FROM schema_migrations WHERE version IN (10, 11, 12)", [])?;
                 transaction.pragma_update(None, "user_version", 9)?;
                 Ok(())
             })

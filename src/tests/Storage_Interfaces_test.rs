@@ -10,7 +10,8 @@ mod tests {
     use crate::libres::Rusqlite_unit::AC_params;
     use crate::structs::{
         build_current_task_projection, materialize_limited_project_projections,
-        AtomicProjectProjectionWriter, AuditStore, CanonicalGovernanceSnapshotRequest,
+        AtomicProjectProjectionWriter, AuditStore, BackupCheckpointRecord, BackupCheckpointStore,
+        CanonicalGovernanceSnapshotRequest,
         CanonicalStateStore, CanonicalStateTransition, CanonicalTaskAdvance, CanonicalTaskPackage,
         CanonicalTaskPackageTask, CurrentTaskProjection, CurrentTaskProjectionDocument,
         EventWriteOutcome, GovernanceErrorsProjection, GovernanceErrorsRefreshRequest,
@@ -955,6 +956,54 @@ mod tests {
         assert!(writer.write_current_task(&projection, &event).is_err());
         assert!(!state_root.todo_projection_path().exists());
         assert_eq!(database.event_count(PROJECT_ID).unwrap(), 0);
+        fs::remove_dir_all(root).expect("temporary directory should be removed");
+    }
+
+    #[test]
+    fn backup_checkpoint_binding_is_append_only_idempotent_and_queryable() {
+        let root = unique_temp_dir("backup-checkpoint-binding");
+        let (_state_root, database) = initialized(&root);
+        seed_plan_and_task(&database);
+        let checkpoint = BackupCheckpointRecord {
+            transition_kind: "submission".to_string(),
+            transition_id: "sub_00000000000000000000000000".to_string(),
+            project_id: PROJECT_ID.to_string(),
+            workspace_id: WORKSPACE_ID.to_string(),
+            task_id: Some(TASK_ID.to_string()),
+            task_revision: Some(1),
+            state_revision: 1,
+            commit_id: "a".repeat(40),
+            parent_commit_id: Some("b".repeat(40)),
+            source_fingerprint: "c".repeat(64),
+            entry_count: 2,
+            byte_count: 41,
+            recorded_at: "unix:1788000000".to_string(),
+        };
+
+        assert!(database.record_backup_checkpoint(&checkpoint).unwrap());
+        assert_eq!(
+            database
+                .backup_checkpoint(
+                    PROJECT_ID,
+                    "submission",
+                    "sub_00000000000000000000000000",
+                )
+                .unwrap(),
+            Some(checkpoint.clone()),
+        );
+        let mut replay = checkpoint.clone();
+        replay.recorded_at = "unix:1788000001".to_string();
+        assert!(!database.record_backup_checkpoint(&replay).unwrap());
+
+        let mut conflict = checkpoint;
+        conflict.commit_id = "d".repeat(40);
+        assert!(matches!(
+            database.record_backup_checkpoint(&conflict),
+            Err(TransactionalStorageError::Integrity(_)),
+        ));
+        assert!(database
+            .backup_checkpoint(PROJECT_ID, "review", "sub_00000000000000000000000000")
+            .is_err());
         fs::remove_dir_all(root).expect("temporary directory should be removed");
     }
 }

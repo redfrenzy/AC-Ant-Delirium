@@ -12,12 +12,12 @@ use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use ac_ant_delirium::libres::Sha2_unit::sha256;
 use ac_ant_delirium::libres::System_Random_unit::{fill_system_random, random_crockford_id};
 use ac_ant_delirium::structs::{
-    AuthorizedCapability, CanonicalMutationOutcome, CanonicalStateStore, CanonicalTaskAdvance,
-    CanonicalTaskAdvanceOutcome, CanonicalTaskPackage, CapabilityActor, CapabilityChannel,
-    CapabilityGrantAuditReceipt, CapabilityOperation, CapabilityRevocationAuditReceipt,
-    NewAuditEvent, NewCapabilityGrant, ProjectDatabase, ProvisionalProjectRegistration,
-    ServiceSecurityAuditReceipt, StorageProject, StorageWorkspace, TransactionalStorageError,
-    AUDIT_EVENT_CONTRACT_VERSION, STORAGE_SCHEMA_VERSION,
+    AuthorizedCapability, BackupCheckpointRecord, BackupCheckpointStore, CanonicalMutationOutcome,
+    CanonicalStateStore, CanonicalTaskAdvance, CanonicalTaskAdvanceOutcome, CanonicalTaskPackage,
+    CapabilityActor, CapabilityChannel, CapabilityGrantAuditReceipt, CapabilityOperation,
+    CapabilityRevocationAuditReceipt, NewAuditEvent, NewCapabilityGrant, ProjectDatabase,
+    ProvisionalProjectRegistration, ServiceSecurityAuditReceipt, StorageProject, StorageWorkspace,
+    TransactionalStorageError, AUDIT_EVENT_CONTRACT_VERSION, STORAGE_SCHEMA_VERSION,
 };
 
 use crate::service_authority::VerifiedServiceAuthority;
@@ -185,7 +185,8 @@ impl ProtectedServiceStorage {
             authority.effective_uid(),
         )
         .map_err(|_| ())?;
-        backup
+        let occurred_at_unix = trusted_service_unix_time().map_err(|_| ())?;
+        let receipt = backup
             .commit_snapshot_from_descriptor(
                 &crate::protected_git_backup::BackupCommitMetadata {
                     transition: crate::protected_git_backup::BackupTransition::Baseline,
@@ -194,13 +195,26 @@ impl ProtectedServiceStorage {
                     task_id: current_task.as_ref().map(|task| task.0.clone()),
                     task_revision: current_task.as_ref().map(|task| task.1),
                     state_revision: state.state_revision,
-                    occurred_at_unix: trusted_service_unix_time().map_err(|_| ())?,
+                    occurred_at_unix,
                     observed_compilation_fingerprint: Some(lowercase_hex(compilation_fingerprint)),
                     transition_id: None,
                 },
                 descriptor,
             )
-            .map_err(|_| ())
+            .map_err(|_| ())?;
+        persist_backup_checkpoint(
+            &database,
+            "baseline",
+            "baseline",
+            project_id,
+            workspace_id,
+            current_task.as_ref().map(|task| task.0.as_str()),
+            current_task.as_ref().map(|task| task.1),
+            state.state_revision,
+            occurred_at_unix,
+            &receipt,
+        )?;
+        Ok(receipt)
     }
 
     #[cfg(unix)]
@@ -249,7 +263,8 @@ impl ProtectedServiceStorage {
         if !backup.has_snapshot().map_err(|_| ())? {
             return Err(());
         }
-        backup
+        let occurred_at_unix = trusted_service_unix_time().map_err(|_| ())?;
+        let receipt = backup
             .commit_snapshot_from_descriptor(
                 &crate::protected_git_backup::BackupCommitMetadata {
                     transition: crate::protected_git_backup::BackupTransition::Submission,
@@ -258,13 +273,26 @@ impl ProtectedServiceStorage {
                     task_id: Some(task_id.to_string()),
                     task_revision: Some(task_revision),
                     state_revision: state.state_revision,
-                    occurred_at_unix: trusted_service_unix_time().map_err(|_| ())?,
+                    occurred_at_unix,
                     observed_compilation_fingerprint: None,
                     transition_id: Some(submission_id.to_string()),
                 },
                 descriptor,
             )
-            .map_err(|_| ())
+            .map_err(|_| ())?;
+        persist_backup_checkpoint(
+            &database,
+            "submission",
+            submission_id,
+            project_id,
+            workspace_id,
+            Some(task_id),
+            Some(task_revision),
+            state.state_revision,
+            occurred_at_unix,
+            &receipt,
+        )?;
+        Ok(receipt)
     }
 
     pub(crate) fn commit_review_snapshot(
@@ -304,7 +332,8 @@ impl ProtectedServiceStorage {
             authority.effective_uid(),
         )
         .map_err(|_| ())?;
-        backup
+        let occurred_at_unix = trusted_service_unix_time().map_err(|_| ())?;
+        let receipt = backup
             .commit_snapshot_from_transition(
                 &crate::protected_git_backup::BackupCommitMetadata {
                     transition: crate::protected_git_backup::BackupTransition::Review,
@@ -313,14 +342,27 @@ impl ProtectedServiceStorage {
                     task_id: Some(task_id.to_string()),
                     task_revision: Some(task.task_revision),
                     state_revision: state.state_revision,
-                    occurred_at_unix: trusted_service_unix_time().map_err(|_| ())?,
+                    occurred_at_unix,
                     observed_compilation_fingerprint: None,
                     transition_id: Some(review_id.to_string()),
                 },
                 crate::protected_git_backup::BackupTransition::Submission,
                 submission_id,
             )
-            .map_err(|_| ())
+            .map_err(|_| ())?;
+        persist_backup_checkpoint(
+            &database,
+            "review",
+            review_id,
+            project_id,
+            workspace_id,
+            Some(task_id),
+            Some(task.task_revision),
+            state.state_revision,
+            occurred_at_unix,
+            &receipt,
+        )?;
+        Ok(receipt)
     }
 
     pub(crate) fn install_generic_task_package(
@@ -464,7 +506,7 @@ impl ProtectedServiceStorage {
             authority.effective_uid(),
         )
         .map_err(|_| ())?;
-        backup
+        let receipt = backup
             .commit_snapshot_from_transition(
                 &crate::protected_git_backup::BackupCommitMetadata {
                     transition: crate::protected_git_backup::BackupTransition::Advance,
@@ -481,6 +523,18 @@ impl ProtectedServiceStorage {
                 &advance.review_id,
             )
             .map_err(|_| ())?;
+        persist_backup_checkpoint(
+            &database,
+            "advance",
+            &advance.review_id,
+            &advance.project_id,
+            &advance.workspace_id,
+            Some(&advance.task_id),
+            Some(task_revision),
+            outcome.state.state_revision,
+            now,
+            &receipt,
+        )?;
         Ok(outcome)
     }
 
@@ -1271,6 +1325,41 @@ fn lowercase_hex(input: &[u8]) -> String {
         output.push(HEX[(byte & 0x0f) as usize] as char);
     }
     output
+}
+
+#[allow(clippy::too_many_arguments)]
+fn persist_backup_checkpoint(
+    database: &ProjectDatabase,
+    transition_kind: &str,
+    transition_id: &str,
+    project_id: &str,
+    workspace_id: &str,
+    task_id: Option<&str>,
+    task_revision: Option<i64>,
+    state_revision: i64,
+    occurred_at_unix: i64,
+    receipt: &crate::protected_git_backup::BackupCommitReceipt,
+) -> Result<(), ()> {
+    let entry_count = i64::try_from(receipt.entry_count).map_err(|_| ())?;
+    let byte_count = i64::try_from(receipt.byte_count).map_err(|_| ())?;
+    database
+        .record_backup_checkpoint(&BackupCheckpointRecord {
+            transition_kind: transition_kind.to_string(),
+            transition_id: transition_id.to_string(),
+            project_id: project_id.to_string(),
+            workspace_id: workspace_id.to_string(),
+            task_id: task_id.map(str::to_string),
+            task_revision,
+            state_revision,
+            commit_id: receipt.commit_id.clone(),
+            parent_commit_id: receipt.parent_commit_id.clone(),
+            source_fingerprint: receipt.source_fingerprint.clone(),
+            entry_count,
+            byte_count,
+            recorded_at: format!("unix:{occurred_at_unix}"),
+        })
+        .map(|_| ())
+        .map_err(|_| ())
 }
 
 fn trusted_service_unix_time() -> Result<i64, ProtectedStorageError> {

@@ -6,15 +6,15 @@ use crate::libres::Rusqlite_unit::{AC_OptionalExtension, AC_Transaction, AC_para
 use super::{
     encode_canonical_task_projection_payload, materialize_project_guard,
     validate_serialized_public_document, AssignedSubmission, AtomicProjectProjectionWriter,
-    AuditStore, CanonicalMutationOutcome, CanonicalStateSnapshot, CanonicalStateStore,
-    CanonicalStateTransition, CanonicalTaskAdvance, CanonicalTaskAdvanceOutcome,
-    CanonicalTaskPackage, CanonicalTaskProjectionPayload, CanonicalTaskProjectionRef,
-    CanonicalTaskState, CurrentTaskProjection, EventWriteOutcome, GovernanceErrorsProjection,
-    NewAuditEvent, NewReview, NewSubmission, ProjectDatabase, ProjectProjectionWriter,
-    ProjectStateRoot, ProjectedTaskAction, ProjectionArtifactKind, ProjectionMetadata,
-    ProjectionWriteReceipt, ReviewStore, ReviewWriteOutcome, StorageProject, StorageWorkspace,
-    SubmissionAssignment, SubmissionStore, SubmissionWriteOutcome, TransactionalStorageError,
-    TransactionalStorageResult, AGENT_PROJECTION_CONTRACT_VERSION,
+    AuditStore, BackupCheckpointRecord, BackupCheckpointStore, CanonicalMutationOutcome,
+    CanonicalStateSnapshot, CanonicalStateStore, CanonicalStateTransition, CanonicalTaskAdvance,
+    CanonicalTaskAdvanceOutcome, CanonicalTaskPackage, CanonicalTaskProjectionPayload,
+    CanonicalTaskProjectionRef, CanonicalTaskState, CurrentTaskProjection, EventWriteOutcome,
+    GovernanceErrorsProjection, NewAuditEvent, NewReview, NewSubmission, ProjectDatabase,
+    ProjectProjectionWriter, ProjectStateRoot, ProjectedTaskAction, ProjectionArtifactKind,
+    ProjectionMetadata, ProjectionWriteReceipt, ReviewStore, ReviewWriteOutcome, StorageProject,
+    StorageWorkspace, SubmissionAssignment, SubmissionStore, SubmissionWriteOutcome,
+    TransactionalStorageError, TransactionalStorageResult, AGENT_PROJECTION_CONTRACT_VERSION,
     CANONICAL_STATE_CONTRACT_VERSION, CANONICAL_TASK_PROJECTION_PAYLOAD_VERSION,
     GOVERNANCE_TASK_PACKAGE_CONTRACT_VERSION, SUBMISSION_CONTRACT_VERSION,
 };
@@ -698,6 +698,192 @@ impl ReviewStore for ProjectDatabase {
             })
         })
     }
+}
+
+impl BackupCheckpointStore for ProjectDatabase {
+    fn record_backup_checkpoint(
+        &self,
+        checkpoint: &BackupCheckpointRecord,
+    ) -> TransactionalStorageResult<bool> {
+        validate_backup_checkpoint(checkpoint)?;
+        self.with_immediate_transaction(|transaction| {
+            let existing = transaction
+                .query_row(
+                    "SELECT transition_kind, transition_id, project_id, workspace_id, task_id, task_revision, state_revision, commit_id, parent_commit_id, source_fingerprint, entry_count, byte_count, recorded_at FROM backup_checkpoints WHERE project_id = ?1 AND transition_kind = ?2 AND transition_id = ?3",
+                    AC_params![
+                        checkpoint.project_id,
+                        checkpoint.transition_kind,
+                        checkpoint.transition_id,
+                    ],
+                    backup_checkpoint_from_row,
+                )
+                .optional()?;
+            if let Some(existing) = existing {
+                if same_backup_checkpoint_binding(&existing, checkpoint) {
+                    return Ok(false);
+                }
+                return Err(TransactionalStorageError::Integrity(
+                    "backup checkpoint identity is already bound to different content".to_string(),
+                ));
+            }
+            let workspace_project = transaction.query_row(
+                "SELECT project_id FROM workspaces WHERE workspace_id = ?1 AND status = 'active'",
+                AC_params![checkpoint.workspace_id],
+                |row| row.get::<_, String>(0),
+            )?;
+            if workspace_project != checkpoint.project_id {
+                return Err(TransactionalStorageError::Integrity(
+                    "backup checkpoint workspace does not belong to the project".to_string(),
+                ));
+            }
+            if let Some(task_id) = checkpoint.task_id.as_deref() {
+                let task = transaction.query_row(
+                    "SELECT project_id, task_revision FROM tasks WHERE task_id = ?1",
+                    AC_params![task_id],
+                    |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
+                )?;
+                if task.0 != checkpoint.project_id
+                    || Some(task.1) != checkpoint.task_revision
+                {
+                    return Err(TransactionalStorageError::Integrity(
+                        "backup checkpoint task does not match canonical state".to_string(),
+                    ));
+                }
+            }
+            transaction.execute(
+                "INSERT INTO backup_checkpoints(transition_kind, transition_id, project_id, workspace_id, task_id, task_revision, state_revision, commit_id, parent_commit_id, source_fingerprint, entry_count, byte_count, recorded_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                AC_params![
+                    checkpoint.transition_kind,
+                    checkpoint.transition_id,
+                    checkpoint.project_id,
+                    checkpoint.workspace_id,
+                    checkpoint.task_id,
+                    checkpoint.task_revision,
+                    checkpoint.state_revision,
+                    checkpoint.commit_id,
+                    checkpoint.parent_commit_id,
+                    checkpoint.source_fingerprint,
+                    checkpoint.entry_count,
+                    checkpoint.byte_count,
+                    checkpoint.recorded_at,
+                ],
+            )?;
+            Ok(true)
+        })
+    }
+
+    fn backup_checkpoint(
+        &self,
+        project_id: &str,
+        transition_kind: &str,
+        transition_id: &str,
+    ) -> TransactionalStorageResult<Option<BackupCheckpointRecord>> {
+        validate_opaque_identifier(project_id, "prj_", "project_id")?;
+        validate_backup_transition_identity(transition_kind, transition_id)?;
+        let connection = self.open_connection(false)?;
+        Ok(connection
+            .query_row(
+                "SELECT transition_kind, transition_id, project_id, workspace_id, task_id, task_revision, state_revision, commit_id, parent_commit_id, source_fingerprint, entry_count, byte_count, recorded_at FROM backup_checkpoints WHERE project_id = ?1 AND transition_kind = ?2 AND transition_id = ?3",
+                AC_params![project_id, transition_kind, transition_id],
+                backup_checkpoint_from_row,
+            )
+            .optional()?)
+    }
+}
+
+fn same_backup_checkpoint_binding(
+    left: &BackupCheckpointRecord,
+    right: &BackupCheckpointRecord,
+) -> bool {
+    left.transition_kind == right.transition_kind
+        && left.transition_id == right.transition_id
+        && left.project_id == right.project_id
+        && left.workspace_id == right.workspace_id
+        && left.task_id == right.task_id
+        && left.task_revision == right.task_revision
+        && left.state_revision == right.state_revision
+        && left.commit_id == right.commit_id
+        && left.parent_commit_id == right.parent_commit_id
+        && left.source_fingerprint == right.source_fingerprint
+        && left.entry_count == right.entry_count
+        && left.byte_count == right.byte_count
+}
+
+fn backup_checkpoint_from_row(
+    row: &crate::libres::Rusqlite_unit::AC_Row<'_>,
+) -> Result<BackupCheckpointRecord, crate::libres::Rusqlite_unit::AC_Error> {
+    Ok(BackupCheckpointRecord {
+        transition_kind: row.get(0)?,
+        transition_id: row.get(1)?,
+        project_id: row.get(2)?,
+        workspace_id: row.get(3)?,
+        task_id: row.get(4)?,
+        task_revision: row.get(5)?,
+        state_revision: row.get(6)?,
+        commit_id: row.get(7)?,
+        parent_commit_id: row.get(8)?,
+        source_fingerprint: row.get(9)?,
+        entry_count: row.get(10)?,
+        byte_count: row.get(11)?,
+        recorded_at: row.get(12)?,
+    })
+}
+
+fn validate_backup_checkpoint(
+    checkpoint: &BackupCheckpointRecord,
+) -> TransactionalStorageResult<()> {
+    validate_backup_transition_identity(&checkpoint.transition_kind, &checkpoint.transition_id)?;
+    validate_opaque_identifier(&checkpoint.project_id, "prj_", "project_id")?;
+    validate_opaque_identifier(&checkpoint.workspace_id, "wsp_", "workspace_id")?;
+    if let Some(task_id) = checkpoint.task_id.as_deref() {
+        validate_opaque_identifier(task_id, "tsk_", "task_id")?;
+    }
+    if checkpoint.task_id.is_some() != checkpoint.task_revision.is_some()
+        || checkpoint
+            .task_revision
+            .is_some_and(|revision| revision < 1)
+        || checkpoint.state_revision < 0
+        || checkpoint.entry_count < 1
+        || checkpoint.byte_count < 0
+        || !valid_lowercase_hex(&checkpoint.commit_id, 40)
+        || checkpoint
+            .parent_commit_id
+            .as_deref()
+            .is_some_and(|id| !valid_lowercase_hex(id, 40))
+    {
+        return Err(TransactionalStorageError::InvalidInput(
+            "backup checkpoint metadata is invalid".to_string(),
+        ));
+    }
+    validate_fingerprint(&checkpoint.source_fingerprint)?;
+    validate_required("recorded_at", &checkpoint.recorded_at)
+}
+
+fn validate_backup_transition_identity(
+    transition_kind: &str,
+    transition_id: &str,
+) -> TransactionalStorageResult<()> {
+    let valid = match transition_kind {
+        "baseline" => transition_id == "baseline",
+        "submission" => validate_opaque_identifier(transition_id, "sub_", "transition_id").is_ok(),
+        "review" | "advance" => {
+            validate_opaque_identifier(transition_id, "rev_", "transition_id").is_ok()
+        }
+        _ => false,
+    };
+    if !valid {
+        return Err(TransactionalStorageError::InvalidInput(
+            "backup checkpoint transition identity is invalid".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn valid_lowercase_hex(value: &str, expected_length: usize) -> bool {
+    value.len() == expected_length
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 impl AuditStore for ProjectDatabase {

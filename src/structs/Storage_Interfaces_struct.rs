@@ -104,6 +104,23 @@ pub struct CanonicalTaskAdvanceOutcome {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BackupCheckpointRecord {
+    pub transition_kind: String,
+    pub transition_id: String,
+    pub project_id: String,
+    pub workspace_id: String,
+    pub task_id: Option<String>,
+    pub task_revision: Option<i64>,
+    pub state_revision: i64,
+    pub commit_id: String,
+    pub parent_commit_id: Option<String>,
+    pub source_fingerprint: String,
+    pub entry_count: i64,
+    pub byte_count: i64,
+    pub recorded_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NewSubmission {
     pub contract_version: String,
     pub submission_id: String,
@@ -336,6 +353,20 @@ pub trait ReviewStore {
         review: &NewReview,
         audit_event: &NewAuditEvent,
     ) -> TransactionalStorageResult<ReviewWriteOutcome>;
+}
+
+pub trait BackupCheckpointStore {
+    fn record_backup_checkpoint(
+        &self,
+        checkpoint: &BackupCheckpointRecord,
+    ) -> TransactionalStorageResult<bool>;
+
+    fn backup_checkpoint(
+        &self,
+        project_id: &str,
+        transition_kind: &str,
+        transition_id: &str,
+    ) -> TransactionalStorageResult<Option<BackupCheckpointRecord>>;
 }
 
 pub trait AuditStore {
