@@ -84,6 +84,14 @@ commit `advance` ainda pendente não é promovido pelo bootstrap e permanece par
 a retomada atômica da própria transição. Commits de outros workspaces do mesmo
 projeto são preservados sem misturar seus recibos.
 
+O incremento `355e4ce` eliminou a ordem SQLite-antes-do-Git de submissões e
+revisões. Cada operação cria ou reutiliza primeiro seu commit privado e depois
+confirma registro imutável, evento e recibo numa única transação SQLite. IDs
+novos são determinísticos pelo payload; replays de dados anteriores consultam o
+ID já persistido. Se o processo parar antes da transação, resta somente um
+commit não canônico reutilizável; ele não vira submissão, revisão ou conclusão
+durante o bootstrap.
+
 O contrato `protected-git-snapshot-v1` contém somente transição, IDs opacos,
 revisões, horário lógico, fingerprint, contagem de entradas e bytes. Ele não
 contém path do projeto, path do state root, capability, segredo ou comando.
@@ -126,6 +134,9 @@ Resultado:
   commits, e comprovou a reconstrução exata dos dois no bootstrap seguinte;
 - o caminho de reinício encontrou um `advance` ainda sem estado canônico e
   comprovou que não o registrou antecipadamente;
+- o ciclo ADP/1 preparou separadamente commits de submissão e revisão, confirmou
+  ausência de domínio e recibo no SQLite e depois reutilizou os mesmos commits
+  para publicar cada trio registro/evento/recibo atomicamente;
 - a matriz Cargo isola seu Cargo home e força endpoint indisponível, evitando
   que a instalação global contamine o cenário fail-open;
 - nenhuma configuração Cargo, serviço instalado ou projeto externo foi
@@ -134,9 +145,7 @@ Resultado:
 ## O que falta para concluir T9.8
 
 1. definir e validar a política definitiva de inclusão de arquivos do projeto;
-2. tratar sem depender do retry do cliente a interrupção de uma submissão entre
-   seu registro SQLite e a criação do commit Git;
-3. derivar diff e contexto somente dos commits privados;
-4. testar concorrência e corrupção das transições ainda abertas;
-5. provar o ciclo completo instalado em fixture sem `.git`;
-6. integrar o commit atual à decisão local da T9.7.
+2. derivar diff e contexto somente dos commits privados;
+3. testar concorrência e corrupção das transições ainda abertas;
+4. provar o ciclo completo instalado em fixture sem `.git`;
+5. integrar o commit atual à decisão local da T9.7.
