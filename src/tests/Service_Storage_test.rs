@@ -374,6 +374,7 @@ fn agent_cannot_install_or_advance_canonical_tasks_and_each_attempt_is_journaled
                 review_id: "rev_00000000000000000000000000".to_string(),
                 expected_state_revision: 0,
             },
+            &[],
         )
         .is_err());
     assert_eq!(
@@ -421,7 +422,12 @@ fn agent_cannot_install_or_advance_canonical_tasks_and_each_attempt_is_journaled
 fn interrupted_advance_commit_is_reused_and_finalized_atomically() {
     let root = unique_root("accepted-task-advance");
     let authority = authority();
-    let storage = ProtectedServiceStorage::initialize(&authority, &root).unwrap();
+    let storage = ProtectedServiceStorage::initialize_with_protected_gate(
+        &authority,
+        &root,
+        Some(crate::protected_gate::test_verifier()),
+    )
+    .unwrap();
     let registration = storage
         .create_provisional_registration(
             &authority,
@@ -581,7 +587,12 @@ fn interrupted_advance_commit_is_reused_and_finalized_atomically() {
         )
         .unwrap();
     assert!(database
-        .backup_checkpoint(&registration.project_id, "advance", &review.review_id)
+        .backup_checkpoint(
+            &registration.project_id,
+            &registration.workspace_id,
+            "advance",
+            &review.review_id,
+        )
         .unwrap()
         .is_none());
     let restarted = storage
@@ -595,7 +606,12 @@ fn interrupted_advance_commit_is_reused_and_finalized_atomically() {
         .unwrap();
     assert!(!restarted.backup_required);
     assert!(database
-        .backup_checkpoint(&registration.project_id, "advance", &review.review_id)
+        .backup_checkpoint(
+            &registration.project_id,
+            &registration.workspace_id,
+            "advance",
+            &review.review_id,
+        )
         .unwrap()
         .is_none());
     assert_eq!(
@@ -621,8 +637,67 @@ fn interrupted_advance_commit_is_reused_and_finalized_atomically() {
         review_id: review.review_id.clone(),
         expected_state_revision: 1,
     };
+    let wrapper_sha256 = storage
+        .protected_gate
+        .as_ref()
+        .unwrap()
+        .trusted_wrapper_sha256()
+        .to_string();
+    let gate =
+        crate::protected_gate::sign_test_gate(&crate::protected_gate::ProtectedGateBinding {
+            project_id: &registration.project_id,
+            workspace_id: &registration.workspace_id,
+            task_id: TASK_ID,
+            task_revision: 1,
+            state_revision: 1,
+            review_id: &review.review_id,
+            source_fingerprint: &review_checkpoint.source_fingerprint,
+            wrapper_sha256: &wrapper_sha256,
+        });
+    let public_guard = root.join("untrusted-public-project/guard");
+    fs::create_dir_all(&public_guard).unwrap();
+    let public_errors = public_guard.join("governance_error.json");
+    fs::write(
+        &public_errors,
+        br#"{"violations":[],"implemented":true,"decision":"passed"}"#,
+    )
+    .unwrap();
+    assert!(storage
+        .advance_reviewed_task(&authority, &capability, &advance, &[])
+        .is_err());
+    assert_eq!(
+        database
+            .load_canonical_state(&registration.project_id, &registration.workspace_id)
+            .unwrap()
+            .state_revision,
+        1
+    );
+    fs::write(&public_errors, br#"{"violations":[]}"#).unwrap();
+    let wrong_source = "c".repeat(64);
+    let wrong_gate =
+        crate::protected_gate::sign_test_gate(&crate::protected_gate::ProtectedGateBinding {
+            project_id: &registration.project_id,
+            workspace_id: &registration.workspace_id,
+            task_id: TASK_ID,
+            task_revision: 1,
+            state_revision: 1,
+            review_id: &review.review_id,
+            source_fingerprint: &wrong_source,
+            wrapper_sha256: &wrapper_sha256,
+        });
+    assert!(storage
+        .advance_reviewed_task(&authority, &capability, &advance, &wrong_gate)
+        .is_err());
+    assert_eq!(
+        database
+            .load_canonical_state(&registration.project_id, &registration.workspace_id)
+            .unwrap()
+            .state_revision,
+        1
+    );
+    fs::remove_file(&public_errors).unwrap();
     let advanced = storage
-        .advance_reviewed_task(&authority, &capability, &advance)
+        .advance_reviewed_task(&authority, &capability, &advance, &gate)
         .unwrap();
     assert_eq!(advanced.audit.sequence(), 4);
     assert_eq!(advanced.state.state_revision, 2);
@@ -633,6 +708,7 @@ fn interrupted_advance_commit_is_reused_and_finalized_atomically() {
     let checkpoint = database
         .backup_checkpoint(
             &advanced.state.project_id,
+            &registration.workspace_id,
             "advance",
             "rev_00000000000000000000000000",
         )
@@ -641,7 +717,7 @@ fn interrupted_advance_commit_is_reused_and_finalized_atomically() {
     assert_eq!(checkpoint.commit_id, interrupted_receipt.commit_id);
     assert_eq!(checkpoint.recorded_at, "unix:1788000003");
     let replay = storage
-        .advance_reviewed_task(&authority, &capability, &advance)
+        .advance_reviewed_task(&authority, &capability, &advance, &gate)
         .unwrap();
     assert_eq!(replay.state, advanced.state);
     assert_eq!(replay.audit.sequence(), advanced.audit.sequence());
@@ -783,6 +859,60 @@ fn provisional_bootstrap_shares_project_and_separates_workspaces() {
         .registry()
         .contains_resource_scope(&linked.project_id, Some(&linked.workspace_id), None)
         .unwrap());
+    let registration = storage
+        .registry()
+        .provisional_registration(authority.effective_uid(), &[52_u8; 32])
+        .unwrap()
+        .unwrap();
+    let protected_root = storage.projects_dir.join(registration.project_key);
+    crate::protected_git_backup::ProtectedGitBackup::initialize(
+        &protected_root,
+        authority.effective_uid(),
+    )
+    .unwrap()
+    .commit_snapshot(
+        &crate::protected_git_backup::BackupCommitMetadata {
+            transition: crate::protected_git_backup::BackupTransition::Baseline,
+            project_id: main.project_id.clone(),
+            workspace_id: main.workspace_id.clone(),
+            task_id: None,
+            task_revision: None,
+            state_revision: 0,
+            occurred_at_unix: 1_788_566_400,
+            observed_compilation_fingerprint: Some("a".repeat(64)),
+            transition_id: None,
+        },
+        vec![crate::protected_git_backup::BackupSnapshotEntry {
+            relative_path: "src/lib.rs".to_string(),
+            executable: false,
+            contents: b"pub fn main_workspace() {}\n".to_vec(),
+        }],
+    )
+    .unwrap();
+    assert!(
+        !storage
+            .bootstrap_provisional(
+                &authority,
+                authority.effective_uid(),
+                &project_fingerprint,
+                &[52_u8; 32],
+                "shared-project",
+            )
+            .unwrap()
+            .backup_required
+    );
+    assert!(
+        storage
+            .bootstrap_provisional(
+                &authority,
+                authority.effective_uid(),
+                &project_fingerprint,
+                &[53_u8; 32],
+                "shared-project",
+            )
+            .unwrap()
+            .backup_required
+    );
     assert!(storage
         .bootstrap_provisional(
             &authority,
@@ -896,6 +1026,137 @@ fn symlinked_service_root_is_rejected_without_touching_its_target() {
     ));
     assert_eq!(fs::read_dir(&target).unwrap().count(), 0);
     fs::remove_dir_all(parent).expect("fixture cleanup");
+}
+
+#[cfg(unix)]
+#[test]
+fn concurrent_submission_checkpoints_reuse_one_private_git_commit() {
+    let root = unique_root("concurrent-submission-checkpoint");
+    let workspace = root.join("workspace");
+    fs::create_dir(&workspace).unwrap();
+    fs::create_dir(workspace.join("src")).unwrap();
+    fs::write(workspace.join("Cargo.toml"), b"[package]\n").unwrap();
+    fs::write(
+        workspace.join("src/lib.rs"),
+        b"pub fn value() -> u8 { 1 }\n",
+    )
+    .unwrap();
+    let state_root = root.join("state");
+    fs::create_dir(&state_root).unwrap();
+    let authority = authority();
+    let storage = ProtectedServiceStorage::initialize(&authority, &state_root).unwrap();
+    let peer_uid = authority.effective_uid();
+    let project_fingerprint = [91_u8; 32];
+    let workspace_fingerprint = workspace_fingerprint(&project_fingerprint, &workspace);
+    let registration = storage
+        .bootstrap_provisional(
+            &authority,
+            peer_uid,
+            &project_fingerprint,
+            &workspace_fingerprint,
+            "concurrent-project",
+        )
+        .unwrap();
+    let database = storage
+        .open_registered_project(&authority, &registration.project_id)
+        .unwrap();
+    let package = CanonicalTaskPackage {
+        contract_version: GOVERNANCE_TASK_PACKAGE_CONTRACT_VERSION.to_string(),
+        project_id: registration.project_id.clone(),
+        workspace_id: registration.workspace_id.clone(),
+        plan_id: PLAN_ID.to_string(),
+        expected_state_revision: 0,
+        tasks: vec![CanonicalTaskPackageTask {
+            task_id: TASK_ID.to_string(),
+            task_revision: 1,
+            objective: "Serialize protected Git transitions.".to_string(),
+            acceptance_criteria: vec!["One commit is reused.".to_string()],
+            relevant_paths: vec!["src/lib.rs".to_string()],
+        }],
+    };
+    CanonicalStateStore::install_task_package(
+        &database,
+        &package,
+        &NewAuditEvent {
+            contract_version: AUDIT_EVENT_CONTRACT_VERSION.to_string(),
+            event_id: "evt_91919191919191919191919191".to_string(),
+            project_id: registration.project_id.clone(),
+            workspace_id: Some(registration.workspace_id.clone()),
+            actor_kind: "operator".to_string(),
+            actor_subject_id: "authorized-state-admin".to_string(),
+            event_kind: "state_transitioned".to_string(),
+            outcome: "succeeded".to_string(),
+            occurred_at: "2026-09-04T00:00:00Z".to_string(),
+            fingerprint: "9".repeat(64),
+            correlation_id: "ref_91919191919191919191919191".to_string(),
+            resource_id: Some(PLAN_ID.to_string()),
+            payload: b"task package installed".to_vec(),
+        },
+    )
+    .unwrap();
+    storage
+        .commit_baseline_snapshot_from_descriptor(
+            &authority,
+            peer_uid,
+            &registration.project_id,
+            &registration.workspace_id,
+            &[92_u8; 32],
+            &open_directory(&workspace),
+        )
+        .unwrap();
+    fs::write(
+        workspace.join("src/lib.rs"),
+        b"pub fn value() -> u8 { 2 }\n",
+    )
+    .unwrap();
+
+    let barrier = std::sync::Barrier::new(8);
+    let receipts = std::thread::scope(|scope| {
+        let handles = (0..8)
+            .map(|_| {
+                scope.spawn(|| {
+                    let descriptor = open_directory(&workspace);
+                    barrier.wait();
+                    storage.commit_submission_snapshot_from_descriptor(
+                        &authority,
+                        peer_uid,
+                        &registration.project_id,
+                        &registration.workspace_id,
+                        TASK_ID,
+                        1,
+                        "sub_91919191919191919191919191",
+                        &descriptor,
+                    )
+                })
+            })
+            .collect::<Vec<_>>();
+        handles
+            .into_iter()
+            .map(|handle| handle.join().unwrap().unwrap())
+            .collect::<Vec<_>>()
+    });
+    assert!(receipts
+        .iter()
+        .all(|receipt| receipt.commit_id == receipts[0].commit_id));
+    let project_key = storage
+        .registry()
+        .provisional_registration(peer_uid, &workspace_fingerprint)
+        .unwrap()
+        .unwrap()
+        .project_key;
+    let project_root = storage.projects_dir.join(project_key);
+    let chain = crate::protected_git_backup::ProtectedGitBackup::initialize(
+        &project_root,
+        authority.effective_uid(),
+    )
+    .unwrap()
+    .recover_checkpoint_chain()
+    .unwrap();
+    assert_eq!(chain.len(), 2);
+    assert_eq!(
+        chain[1].metadata.transition,
+        crate::protected_git_backup::BackupTransition::Submission
+    );
 }
 
 #[cfg(unix)]

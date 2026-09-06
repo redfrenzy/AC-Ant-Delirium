@@ -19,6 +19,8 @@ from typing import Any
 POLICY_CONTRACT = "protected-branch-policy-v1"
 ATTESTATION_CONTRACT = "protected-branch-attestation-v1"
 ENVELOPE_CONTRACT = "signed-protected-branch-attestation-v1"
+TASK_ATTESTATION_CONTRACT = "protected-task-gate-attestation-v1"
+TASK_ENVELOPE_CONTRACT = "signed-protected-task-gate-attestation-v1"
 INTEGRITY_ENVELOPE_CONTRACT = "signed-integrity-checkpoint-v1"
 INTEGRITY_CONTRACT = "integrity-checkpoint-v1"
 SHA256_KEYS = {"wrapper_sha256", "source_sha256"}
@@ -67,6 +69,16 @@ def valid_sha256(value: Any) -> bool:
         isinstance(value, str)
         and len(value) == 64
         and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def valid_opaque_id(value: Any, prefix: str) -> bool:
+    alphabet = set("0123456789abcdefghjkmnpqrstvwxyz")
+    return (
+        isinstance(value, str)
+        and value.startswith(prefix)
+        and len(value) == len(prefix) + 26
+        and all(character in alphabet for character in value[len(prefix):])
     )
 
 
@@ -231,7 +243,7 @@ def load_integrity_checkpoint(path: Path, public_key: Path) -> tuple[dict[str, A
         raise GateFailure("invalid integrity checkpoint epoch")
     if checkpoint.get("authority_key_sha256") != public_key_sha256(public_key):
         raise GateFailure("integrity authority key differs")
-    if checkpoint.get("storage_schema_version") != 10:
+    if checkpoint.get("storage_schema_version") != 13:
         raise GateFailure("invalid integrity checkpoint schema")
     previous = checkpoint.get("previous_checkpoint_sha256")
     if previous is not None and not valid_sha256(previous):
@@ -258,7 +270,7 @@ def load_integrity_checkpoint(path: Path, public_key: Path) -> tuple[dict[str, A
             not isinstance(logical_id, str)
             or not logical_id
             or logical_id in logical_ids
-            or database["schema_version"] != 10
+            or database["schema_version"] != 13
             or not valid_sha256(database["semantic_sha256"])
             or any(not isinstance(database[key], list) for key in (
                 "projects", "event_streams", "governance_snapshots"
@@ -407,6 +419,55 @@ def verify(args: argparse.Namespace) -> int:
     return 1 if blocking else 0
 
 
+def evaluate_task(args: argparse.Namespace) -> int:
+    policy, policy_payload = load_policy(Path(args.policy))
+    evidence, evidence_payload = load_mechanical_evidence(Path(args.mechanical_evidence))
+    checkpoint, integrity_payload = load_integrity_checkpoint(
+        Path(args.integrity_envelope), Path(args.integrity_public_key)
+    )
+    for value, prefix in (
+        (args.project_id, "prj_"),
+        (args.workspace_id, "wsp_"),
+        (args.task_id, "tsk_"),
+        (args.review_id, "rev_"),
+    ):
+        if not valid_opaque_id(value, prefix):
+            raise GateFailure("invalid task gate binding")
+    if args.task_revision < 1 or args.state_revision < 0:
+        raise GateFailure("invalid task gate revision")
+    if evidence["source_sha256"] != args.source_fingerprint:
+        raise GateFailure("protected compilation source differs from reviewed source")
+    attestation = {
+        "blocking_violations": [],
+        "checkpoint_epoch": checkpoint["epoch"],
+        "contract_version": TASK_ATTESTATION_CONTRACT,
+        "decision": "passed",
+        "integrity_envelope_sha256": sha256_hex(integrity_payload),
+        "mechanical_evidence_sha256": sha256_hex(evidence_payload),
+        "policy_sha256": sha256_hex(policy_payload),
+        "project_id": args.project_id,
+        "review_id": args.review_id,
+        "source_fingerprint": args.source_fingerprint,
+        "state_revision": args.state_revision,
+        "task_id": args.task_id,
+        "task_revision": args.task_revision,
+        "workspace_id": args.workspace_id,
+        "wrapper_sha256": evidence["wrapper_sha256"],
+    }
+    signature = openssl_sign(Path(args.attestation_private_key), canonical_json(attestation))
+    atomic_write(
+        Path(args.output),
+        canonical_json({
+            "attestation": attestation,
+            "contract_version": TASK_ENVELOPE_CONTRACT,
+            "signature_base64": base64.b64encode(signature).decode("ascii"),
+        }),
+    )
+    print("decision=passed")
+    print(f"checkpoint_epoch={checkpoint['epoch']}")
+    return 0
+
+
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(add_help=False)
     subparsers = parser.add_subparsers(dest="mode", required=True)
@@ -423,13 +484,31 @@ def parse_arguments() -> argparse.Namespace:
     verify_parser.add_argument("--policy", required=True)
     verify_parser.add_argument("--envelope", required=True)
     verify_parser.add_argument("--attestation-public-key", required=True)
+    task_parser = subparsers.add_parser("task-evaluate", add_help=False)
+    task_parser.add_argument("--policy", required=True)
+    task_parser.add_argument("--mechanical-evidence", required=True)
+    task_parser.add_argument("--integrity-envelope", required=True)
+    task_parser.add_argument("--integrity-public-key", required=True)
+    task_parser.add_argument("--attestation-private-key", required=True)
+    task_parser.add_argument("--output", required=True)
+    task_parser.add_argument("--project-id", required=True)
+    task_parser.add_argument("--workspace-id", required=True)
+    task_parser.add_argument("--task-id", required=True)
+    task_parser.add_argument("--task-revision", required=True, type=int)
+    task_parser.add_argument("--state-revision", required=True, type=int)
+    task_parser.add_argument("--review-id", required=True)
+    task_parser.add_argument("--source-fingerprint", required=True)
     return parser.parse_args()
 
 
 def main() -> int:
     try:
         arguments = parse_arguments()
-        return evaluate(arguments) if arguments.mode == "evaluate" else verify(arguments)
+        if arguments.mode == "evaluate":
+            return evaluate(arguments)
+        if arguments.mode == "task-evaluate":
+            return evaluate_task(arguments)
+        return verify(arguments)
     except GateFailure as error:
         print(f"protected-branch-authority: {error}", file=sys.stderr)
         return 2

@@ -15,21 +15,15 @@ pub(crate) enum InvocationProfile {
     Service,
 }
 
-/// Internal behavior selected before any legacy argument parser runs.
+/// Internal behavior selected before any argument parser runs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum InternalBinaryMode {
     AgentCli,
-    WrapperPending {
-        route: WrapperRoute,
-    },
+    WrapperPending { route: WrapperRoute },
     WrapperRejected,
     ReviewerPending,
     OperatorPending,
     ServicePending,
-    #[allow(dead_code)]
-    LegacyAgentCliRollback,
-    #[allow(dead_code)]
-    LegacyGuardRollback,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -52,14 +46,11 @@ pub(crate) fn run_authoritative_binary() {
         InternalBinaryMode::ReviewerPending => crate::reviewer_cli::run_reviewer_cli(),
         InternalBinaryMode::OperatorPending => crate::cargo_installer::run_operator_mode(&args),
         InternalBinaryMode::ServicePending => crate::service_authority::run_service_mode(),
-        InternalBinaryMode::LegacyAgentCliRollback => crate::run_legacy_cli_mode(),
-        InternalBinaryMode::LegacyGuardRollback => crate::legacy_guard_mode::run_rollback(),
     }
 }
 
 /// Classifies an invocation without consulting cwd, process name, user-controlled profile flags,
-/// or protected state. A requested privileged profile reaches only a closed placeholder until its
-/// authenticated handler exists; it never falls through to the mature legacy parser.
+/// or protected state. A requested privileged profile reaches only its authenticated handler.
 pub(crate) fn classify_invocation(
     args: &[OsString],
     wrapper_depth: Option<&OsStr>,
@@ -216,29 +207,6 @@ mod tests {
             assert_ne!(
                 classify_invocation(&args(&[command]), None).mode,
                 InternalBinaryMode::AgentCli
-            );
-        }
-    }
-
-    #[test]
-    fn legacy_entrypoints_remain_compiled_only_as_internal_rollback_modes() {
-        assert_eq!(
-            InternalBinaryMode::LegacyAgentCliRollback,
-            InternalBinaryMode::LegacyAgentCliRollback
-        );
-        assert_eq!(
-            InternalBinaryMode::LegacyGuardRollback,
-            InternalBinaryMode::LegacyGuardRollback
-        );
-    }
-
-    #[test]
-    fn legacy_runtime_source_has_no_predictable_global_log_files() {
-        let legacy_runtime = include_str!("Main-Logic_unitcore.rs");
-        for forbidden in ["/tmp/delirium_", "delirium_debug.log", "delirium_error.log"] {
-            assert!(
-                !legacy_runtime.contains(forbidden),
-                "legacy runtime still exposes predictable log: {forbidden}"
             );
         }
     }

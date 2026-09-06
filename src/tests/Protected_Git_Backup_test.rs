@@ -1,4 +1,6 @@
 use super::*;
+#[cfg(unix)]
+use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -186,6 +188,31 @@ fn commits_only_the_validated_source_tree_and_opens_a_history_chain() {
 }
 
 #[test]
+fn keeps_one_private_baseline_for_each_workspace_of_the_same_project() {
+    let root = unique_root("workspace-baselines");
+    let backup = ProtectedGitBackup::initialize(&root, current_uid()).unwrap();
+    let first = metadata(BackupTransition::Baseline, 0);
+    let mut second = first.clone();
+    second.workspace_id = "wsp_00000000000000000000000001".to_string();
+    second.occurred_at_unix += 1;
+
+    backup
+        .commit_snapshot(&first, vec![entry("src/lib.rs", b"pub fn first() {}\n")])
+        .unwrap();
+    backup
+        .commit_snapshot(&second, vec![entry("src/lib.rs", b"pub fn second() {}\n")])
+        .unwrap();
+
+    assert!(backup
+        .has_workspace_baseline(PROJECT_ID, WORKSPACE_ID)
+        .unwrap());
+    assert!(backup
+        .has_workspace_baseline(PROJECT_ID, &second.workspace_id)
+        .unwrap());
+    assert_eq!(backup.recover_checkpoint_chain().unwrap().len(), 2);
+}
+
+#[test]
 fn recovers_the_exact_baseline_binding_from_the_private_history() {
     let root = unique_root("recover-baseline");
     let backup = ProtectedGitBackup::initialize(&root, current_uid()).unwrap();
@@ -280,6 +307,34 @@ fn open_directory(path: &Path) -> OwnedFd {
         .open(path)
         .unwrap()
         .into()
+}
+
+#[cfg(unix)]
+#[test]
+fn sealed_source_archive_round_trips_and_rejects_unsealed_files() {
+    let workspace = unique_root("sealed-archive");
+    fs::create_dir_all(workspace.join("src")).unwrap();
+    fs::write(workspace.join("Cargo.toml"), b"[package]\nname='sealed'\n").unwrap();
+    fs::write(workspace.join("src/lib.rs"), b"pub fn sealed() {}\n").unwrap();
+
+    let archive = create_sealed_snapshot_archive(&open_directory(&workspace)).unwrap();
+    let entries = snapshot_entries_from_archive_descriptor(&archive).unwrap();
+    assert_eq!(entries.len(), 2);
+    assert!(entries
+        .iter()
+        .any(|entry| entry.relative_path == "Cargo.toml"));
+    assert!(entries
+        .iter()
+        .any(|entry| entry.relative_path == "src/lib.rs"));
+
+    let unsealed: OwnedFd = std::fs::File::open(workspace.join("Cargo.toml"))
+        .unwrap()
+        .into();
+    assert_eq!(
+        snapshot_entries_from_archive_descriptor(&unsealed),
+        Err(ProtectedGitBackupError::InvalidEntry)
+    );
+    fs::remove_dir_all(workspace).unwrap();
 }
 
 #[cfg(unix)]
@@ -629,6 +684,20 @@ fn derives_a_bounded_source_context_only_from_private_commit_trees() {
             },
         ]
     );
+    assert!(context.valid_for_submission_scope(
+        PROJECT_ID,
+        WORKSPACE_ID,
+        TASK_ID,
+        "sub_00000000000000000000000000"
+    ));
+    let mut invalid_context = context.clone();
+    invalid_context.changes[0].relative_path = "/private/source".to_string();
+    assert!(!invalid_context.valid_for_submission_scope(
+        PROJECT_ID,
+        WORKSPACE_ID,
+        TASK_ID,
+        "sub_00000000000000000000000000"
+    ));
     let encoded = serde_json::to_string(&context).unwrap();
     assert!(!encoded.contains(storage.to_string_lossy().as_ref()));
     assert!(!encoded.contains("repository.git"));
@@ -705,6 +774,92 @@ fn bounds_the_rendered_change_list_without_losing_the_total_count() {
     assert!(context.changes_truncated);
 }
 
+#[test]
+fn recovery_recomputes_the_source_fingerprint_instead_of_trusting_snapshot_json() {
+    let storage = unique_root("forged-source-fingerprint");
+    let backup = ProtectedGitBackup::initialize(&storage, current_uid()).unwrap();
+    backup
+        .commit_snapshot(
+            &metadata(BackupTransition::Baseline, 0),
+            vec![entry("src/lib.rs", b"pub fn value() -> u8 { 1 }\n")],
+        )
+        .unwrap();
+    backup
+        .commit_snapshot(
+            &metadata(BackupTransition::Submission, 1),
+            vec![entry("src/lib.rs", b"pub fn value() -> u8 { 2 }\n")],
+        )
+        .unwrap();
+
+    let repository = gix::open(backup.repository_path()).unwrap();
+    let head = repository
+        .find_reference(SNAPSHOT_REFERENCE)
+        .unwrap()
+        .peel_to_commit()
+        .unwrap();
+    let parent = head.id().detach();
+    let tree = head.tree().unwrap();
+    let source_id = tree
+        .lookup_entry_by_path("source")
+        .unwrap()
+        .unwrap()
+        .oid()
+        .to_owned();
+    let snapshot = tree
+        .lookup_entry_by_path("snapshot.json")
+        .unwrap()
+        .unwrap()
+        .object()
+        .unwrap()
+        .into_blob()
+        .data
+        .clone();
+    let mut snapshot: serde_json::Value = serde_json::from_slice(&snapshot).unwrap();
+    snapshot["source_fingerprint"] = "f".repeat(64).into();
+    let metadata_id = repository
+        .write_blob(&serde_json::to_vec(&snapshot).unwrap())
+        .unwrap()
+        .detach();
+    let forged_tree = repository
+        .write_object(&gix::objs::Tree {
+            entries: vec![
+                gix::objs::tree::Entry {
+                    mode: gix::objs::tree::EntryKind::Blob.into(),
+                    filename: b"snapshot.json".to_vec().into(),
+                    oid: metadata_id,
+                },
+                gix::objs::tree::Entry {
+                    mode: gix::objs::tree::EntryKind::Tree.into(),
+                    filename: b"source".to_vec().into(),
+                    oid: source_id,
+                },
+            ],
+        })
+        .unwrap()
+        .detach();
+    let signature_time = "1788000001 +0000";
+    let signature = gix::actor::SignatureRef {
+        name: b"AntDelirium".as_bstr(),
+        email: b"protected@antdelirium.invalid".as_bstr(),
+        time: signature_time,
+    };
+    repository
+        .commit_as(
+            signature,
+            signature,
+            SNAPSHOT_REFERENCE,
+            "forged snapshot metadata",
+            forged_tree,
+            [parent],
+        )
+        .unwrap();
+
+    assert_eq!(
+        backup.recover_checkpoint_chain(),
+        Err(ProtectedGitBackupError::Commit)
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn rejects_a_symlink_inside_the_snapshot_descriptor() {
@@ -728,4 +883,40 @@ fn rejects_a_symlink_inside_the_snapshot_descriptor() {
         .try_find_reference(SNAPSHOT_REFERENCE)
         .unwrap()
         .is_none());
+}
+
+#[cfg(unix)]
+#[test]
+fn protected_authority_fingerprint_matches_the_private_backup() {
+    let storage = unique_root("fingerprint-parity-storage");
+    let workspace = unique_root("fingerprint-parity-workspace");
+    fs::create_dir_all(workspace.join("src/nested")).unwrap();
+    fs::create_dir_all(workspace.join("target")).unwrap();
+    fs::create_dir_all(workspace.join("guard")).unwrap();
+    fs::write(workspace.join("Cargo.toml"), b"[package]\nname='parity'\n").unwrap();
+    fs::write(workspace.join("src/lib.rs"), b"pub fn parity() {}\n").unwrap();
+    fs::write(workspace.join("src/nested/data.txt"), b"included\n").unwrap();
+    fs::write(workspace.join("target/ignored"), b"ignored\n").unwrap();
+    fs::write(workspace.join("guard/ignored.json"), b"{}\n").unwrap();
+
+    let backup = ProtectedGitBackup::initialize(&storage, current_uid()).unwrap();
+    let receipt = backup
+        .commit_snapshot_from_descriptor(
+            &metadata(BackupTransition::Baseline, 0),
+            &open_directory(&workspace),
+        )
+        .unwrap();
+    let helper = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("packaging/ci/protected-source-fingerprint.py");
+    let output = Command::new("python3")
+        .arg("-B")
+        .arg(helper)
+        .arg(&workspace)
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap().trim(),
+        receipt.source_fingerprint
+    );
 }

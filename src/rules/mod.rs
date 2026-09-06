@@ -88,9 +88,6 @@ pub fn get_full_axioms() -> Vec<Box<dyn GovernanceAxiom>> {
         axiom_sanitization::Restricted_Tokens_Axiom_unit::RestrictedTokensAxiom::default(),
     ));
     catalog.push(Box::new(
-        axiom_sanitization::Super_Block_Axiom_unit::SuperBlockAxiom::default(),
-    ));
-    catalog.push(Box::new(
         axiom_sanitization::Allowed_Crates_Axiom_unit::AllowedCratesAxiom::default(),
     ));
     catalog.push(Box::new(

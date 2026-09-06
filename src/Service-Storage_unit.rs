@@ -52,6 +52,8 @@ pub(crate) struct ProtectedServiceStorage {
     migration_staging_dir: PathBuf,
     registry: ProjectDatabase,
     bootstrap_lock: Mutex<()>,
+    backup_transition_lock: Mutex<()>,
+    protected_gate: Option<crate::protected_gate::ProtectedGateVerifier>,
 }
 
 pub(crate) struct IssuedLimitedCapability {
@@ -145,7 +147,7 @@ impl ProtectedServiceStorage {
         Ok(())
     }
 
-    #[cfg(unix)]
+    #[cfg(all(unix, test))]
     pub(crate) fn commit_baseline_snapshot_from_descriptor(
         &self,
         authority: &VerifiedServiceAuthority,
@@ -155,7 +157,54 @@ impl ProtectedServiceStorage {
         compilation_fingerprint: &[u8; 32],
         descriptor: &OwnedFd,
     ) -> Result<crate::protected_git_backup::BackupCommitReceipt, ()> {
+        self.commit_baseline_snapshot(
+            authority,
+            peer_uid,
+            project_id,
+            workspace_id,
+            compilation_fingerprint,
+            descriptor,
+            None,
+        )
+    }
+
+    #[cfg(unix)]
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn commit_baseline_snapshot_from_transferred_descriptors(
+        &self,
+        authority: &VerifiedServiceAuthority,
+        peer_uid: u32,
+        project_id: &str,
+        workspace_id: &str,
+        compilation_fingerprint: &[u8; 32],
+        workspace_descriptor: &OwnedFd,
+        archive_descriptor: &OwnedFd,
+    ) -> Result<crate::protected_git_backup::BackupCommitReceipt, ()> {
+        self.commit_baseline_snapshot(
+            authority,
+            peer_uid,
+            project_id,
+            workspace_id,
+            compilation_fingerprint,
+            workspace_descriptor,
+            Some(archive_descriptor),
+        )
+    }
+
+    #[cfg(unix)]
+    #[allow(clippy::too_many_arguments)]
+    fn commit_baseline_snapshot(
+        &self,
+        authority: &VerifiedServiceAuthority,
+        peer_uid: u32,
+        project_id: &str,
+        workspace_id: &str,
+        compilation_fingerprint: &[u8; 32],
+        descriptor: &OwnedFd,
+        archive_descriptor: Option<&OwnedFd>,
+    ) -> Result<crate::protected_git_backup::BackupCommitReceipt, ()> {
         self.validate_workspace_descriptor(peer_uid, project_id, workspace_id, descriptor)?;
+        let _backup_guard = self.backup_transition_lock.lock().map_err(|_| ())?;
         let project = self
             .registry
             .registered_projects()
@@ -187,22 +236,22 @@ impl ProtectedServiceStorage {
         )
         .map_err(|_| ())?;
         let occurred_at_unix = trusted_service_unix_time().map_err(|_| ())?;
-        let receipt = backup
-            .commit_snapshot_from_descriptor(
-                &crate::protected_git_backup::BackupCommitMetadata {
-                    transition: crate::protected_git_backup::BackupTransition::Baseline,
-                    project_id: project_id.to_string(),
-                    workspace_id: workspace_id.to_string(),
-                    task_id: current_task.as_ref().map(|task| task.0.clone()),
-                    task_revision: current_task.as_ref().map(|task| task.1),
-                    state_revision: state.state_revision,
-                    occurred_at_unix,
-                    observed_compilation_fingerprint: Some(lowercase_hex(compilation_fingerprint)),
-                    transition_id: None,
-                },
-                descriptor,
-            )
-            .map_err(|_| ())?;
+        let metadata = crate::protected_git_backup::BackupCommitMetadata {
+            transition: crate::protected_git_backup::BackupTransition::Baseline,
+            project_id: project_id.to_string(),
+            workspace_id: workspace_id.to_string(),
+            task_id: current_task.as_ref().map(|task| task.0.clone()),
+            task_revision: current_task.as_ref().map(|task| task.1),
+            state_revision: state.state_revision,
+            occurred_at_unix,
+            observed_compilation_fingerprint: Some(lowercase_hex(compilation_fingerprint)),
+            transition_id: None,
+        };
+        let receipt = match archive_descriptor {
+            Some(archive) => backup.commit_snapshot_from_archive_descriptor(&metadata, archive),
+            None => backup.commit_snapshot_from_descriptor(&metadata, descriptor),
+        }
+        .map_err(|_| ())?;
         persist_backup_checkpoint(
             &database,
             "baseline",
@@ -217,7 +266,7 @@ impl ProtectedServiceStorage {
         Ok(receipt)
     }
 
-    #[cfg(unix)]
+    #[cfg(all(unix, test))]
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn commit_submission_snapshot_from_descriptor(
         &self,
@@ -230,7 +279,62 @@ impl ProtectedServiceStorage {
         submission_id: &str,
         descriptor: &OwnedFd,
     ) -> Result<BackupCheckpointRecord, ()> {
+        self.commit_submission_snapshot(
+            authority,
+            peer_uid,
+            project_id,
+            workspace_id,
+            task_id,
+            task_revision,
+            submission_id,
+            descriptor,
+            None,
+        )
+    }
+
+    #[cfg(unix)]
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn commit_submission_snapshot_from_transferred_descriptors(
+        &self,
+        authority: &VerifiedServiceAuthority,
+        peer_uid: u32,
+        project_id: &str,
+        workspace_id: &str,
+        task_id: &str,
+        task_revision: i64,
+        submission_id: &str,
+        workspace_descriptor: &OwnedFd,
+        archive_descriptor: &OwnedFd,
+    ) -> Result<BackupCheckpointRecord, ()> {
+        self.commit_submission_snapshot(
+            authority,
+            peer_uid,
+            project_id,
+            workspace_id,
+            task_id,
+            task_revision,
+            submission_id,
+            workspace_descriptor,
+            Some(archive_descriptor),
+        )
+    }
+
+    #[cfg(unix)]
+    #[allow(clippy::too_many_arguments)]
+    fn commit_submission_snapshot(
+        &self,
+        authority: &VerifiedServiceAuthority,
+        peer_uid: u32,
+        project_id: &str,
+        workspace_id: &str,
+        task_id: &str,
+        task_revision: i64,
+        submission_id: &str,
+        descriptor: &OwnedFd,
+        archive_descriptor: Option<&OwnedFd>,
+    ) -> Result<BackupCheckpointRecord, ()> {
         self.validate_workspace_descriptor(peer_uid, project_id, workspace_id, descriptor)?;
+        let _backup_guard = self.backup_transition_lock.lock().map_err(|_| ())?;
         let project = self
             .registry
             .registered_projects()
@@ -264,22 +368,22 @@ impl ProtectedServiceStorage {
             return Err(());
         }
         let occurred_at_unix = trusted_service_unix_time().map_err(|_| ())?;
-        let receipt = backup
-            .commit_snapshot_from_descriptor(
-                &crate::protected_git_backup::BackupCommitMetadata {
-                    transition: crate::protected_git_backup::BackupTransition::Submission,
-                    project_id: project_id.to_string(),
-                    workspace_id: workspace_id.to_string(),
-                    task_id: Some(task_id.to_string()),
-                    task_revision: Some(task_revision),
-                    state_revision: state.state_revision,
-                    occurred_at_unix,
-                    observed_compilation_fingerprint: None,
-                    transition_id: Some(submission_id.to_string()),
-                },
-                descriptor,
-            )
-            .map_err(|_| ())?;
+        let metadata = crate::protected_git_backup::BackupCommitMetadata {
+            transition: crate::protected_git_backup::BackupTransition::Submission,
+            project_id: project_id.to_string(),
+            workspace_id: workspace_id.to_string(),
+            task_id: Some(task_id.to_string()),
+            task_revision: Some(task_revision),
+            state_revision: state.state_revision,
+            occurred_at_unix,
+            observed_compilation_fingerprint: None,
+            transition_id: Some(submission_id.to_string()),
+        };
+        let receipt = match archive_descriptor {
+            Some(archive) => backup.commit_snapshot_from_archive_descriptor(&metadata, archive),
+            None => backup.commit_snapshot_from_descriptor(&metadata, descriptor),
+        }
+        .map_err(|_| ())?;
         backup_checkpoint_record(
             "submission",
             submission_id,
@@ -301,6 +405,7 @@ impl ProtectedServiceStorage {
         submission_id: &str,
         review_id: &str,
     ) -> Result<BackupCheckpointRecord, ()> {
+        let _backup_guard = self.backup_transition_lock.lock().map_err(|_| ())?;
         let project = self
             .registry
             .registered_projects()
@@ -431,6 +536,7 @@ impl ProtectedServiceStorage {
         authority: &VerifiedServiceAuthority,
         capability: &AuthorizedCapability,
         advance: &CanonicalTaskAdvance,
+        protected_gate_envelope: &[u8],
     ) -> Result<CanonicalTaskAdvanceOutcome, ()> {
         let now = trusted_service_unix_time().map_err(|_| ())?;
         let authorized = capability.actor() == CapabilityActor::Ci
@@ -447,6 +553,8 @@ impl ProtectedServiceStorage {
             self.audit_rejected_authorized_request_at(capability, now)?;
             return Err(());
         }
+
+        let _backup_guard = self.backup_transition_lock.lock().map_err(|_| ())?;
 
         let database = self.open_registered_project(authority, &advance.project_id)?;
         let mut fingerprint_material = Vec::new();
@@ -499,6 +607,37 @@ impl ProtectedServiceStorage {
             authority.effective_uid(),
         )
         .map_err(|_| ())?;
+        let review_checkpoint = database
+            .backup_checkpoint(
+                &advance.project_id,
+                &advance.workspace_id,
+                "review",
+                &advance.review_id,
+            )
+            .map_err(|_| ())?
+            .ok_or(())?;
+        if review_checkpoint.task_id.as_deref() != Some(advance.task_id.as_str())
+            || review_checkpoint.task_revision != Some(task_revision)
+            || review_checkpoint.state_revision != advance.expected_state_revision
+        {
+            return Err(());
+        }
+        let protected_gate = self.protected_gate.as_ref().ok_or(())?;
+        protected_gate
+            .verify(
+                protected_gate_envelope,
+                &crate::protected_gate::ProtectedGateBinding {
+                    project_id: &advance.project_id,
+                    workspace_id: &advance.workspace_id,
+                    task_id: &advance.task_id,
+                    task_revision,
+                    state_revision: advance.expected_state_revision,
+                    review_id: &advance.review_id,
+                    source_fingerprint: &review_checkpoint.source_fingerprint,
+                    wrapper_sha256: protected_gate.trusted_wrapper_sha256(),
+                },
+            )
+            .map_err(|_| ())?;
         let receipt = backup
             .commit_snapshot_from_transition(
                 &crate::protected_git_backup::BackupCommitMetadata {
@@ -572,13 +711,64 @@ impl ProtectedServiceStorage {
         require_database_ownership(&database, authority.effective_uid()).map_err(|_| ())?;
         Ok(database)
     }
+
+    pub(crate) fn submission_source_context(
+        &self,
+        authority: &VerifiedServiceAuthority,
+        project_id: &str,
+        workspace_id: &str,
+        task_id: &str,
+        submission_id: &str,
+    ) -> Result<crate::protected_git_backup::ProtectedSourceContext, ()> {
+        let _backup_guard = self.backup_transition_lock.lock().map_err(|_| ())?;
+        let mut matches = self
+            .registry
+            .registered_projects()
+            .map_err(|_| ())?
+            .into_iter()
+            .filter(|project| project.project_id == project_id);
+        let project = matches.next().ok_or(())?;
+        if matches.next().is_some() {
+            return Err(());
+        }
+        validate_project_identity(&project).map_err(|_| ())?;
+        let project_root = self.projects_dir.join(&project.project_key);
+        require_owned_directory(&project_root, authority.effective_uid()).map_err(|_| ())?;
+        let backup = crate::protected_git_backup::ProtectedGitBackup::initialize(
+            &project_root,
+            authority.effective_uid(),
+        )
+        .map_err(|_| ())?;
+        let context = backup
+            .source_context_for_transition(
+                crate::protected_git_backup::BackupTransition::Submission,
+                submission_id,
+            )
+            .map_err(|_| ())?;
+        if context.project_id != project_id
+            || context.workspace_id != workspace_id
+            || context.task_id.as_deref() != Some(task_id)
+            || context.transition_id.as_deref() != Some(submission_id)
+        {
+            return Err(());
+        }
+        Ok(context)
+    }
 }
 
 pub(crate) fn initialize_configured_service_storage(
     authority: &VerifiedServiceAuthority,
 ) -> Result<ProtectedServiceStorage, ()> {
+    let protected_gate =
+        crate::protected_gate::ProtectedGateVerifier::from_installed_authority().map_err(|_| ())?;
     configured_state_directory()
-        .and_then(|root| ProtectedServiceStorage::initialize(authority, &root))
+        .and_then(|root| {
+            ProtectedServiceStorage::initialize_with_protected_gate(
+                authority,
+                &root,
+                Some(protected_gate),
+            )
+        })
         .map_err(|_| ())
 }
 
@@ -600,9 +790,18 @@ fn parse_state_directory(raw: &OsStr) -> Result<PathBuf, ProtectedStorageError> 
 }
 
 impl ProtectedServiceStorage {
+    #[allow(dead_code)]
     pub(crate) fn initialize(
         authority: &VerifiedServiceAuthority,
         root: &Path,
+    ) -> Result<Self, ProtectedStorageError> {
+        Self::initialize_with_protected_gate(authority, root, None)
+    }
+
+    pub(crate) fn initialize_with_protected_gate(
+        authority: &VerifiedServiceAuthority,
+        root: &Path,
+        protected_gate: Option<crate::protected_gate::ProtectedGateVerifier>,
     ) -> Result<Self, ProtectedStorageError> {
         require_owned_directory(root, authority.effective_uid())?;
         let registry_dir = private_child_directory(root, REGISTRY_DIR_NAME, authority)?;
@@ -622,6 +821,8 @@ impl ProtectedServiceStorage {
             migration_staging_dir,
             registry,
             bootstrap_lock: Mutex::new(()),
+            backup_transition_lock: Mutex::new(()),
+            protected_gate,
         };
         storage.recover_registered_projects(authority)?;
         Ok(storage)
@@ -967,6 +1168,7 @@ impl ProtectedServiceStorage {
             return Err(());
         }
         let _guard = self.bootstrap_lock.lock().map_err(|_| ())?;
+        let _backup_guard = self.backup_transition_lock.lock().map_err(|_| ())?;
         let registration = match self
             .registry
             .provisional_registration(peer_uid, workspace_identity_fingerprint)
@@ -1003,7 +1205,9 @@ impl ProtectedServiceStorage {
             authority.effective_uid(),
         )
         .map_err(|_| ())?;
-        let backup_required = !backup.has_snapshot().map_err(|_| ())?;
+        let backup_required = !backup
+            .has_workspace_baseline(&registration.project_id, &registration.workspace_id)
+            .map_err(|_| ())?;
         if !backup_required {
             let database = ProjectDatabase::open_existing_at(&project_root).map_err(|_| ())?;
             if database
@@ -1030,7 +1234,12 @@ impl ProtectedServiceStorage {
                         .as_deref()
                         .unwrap_or("baseline");
                     let checkpoint_exists = database
-                        .backup_checkpoint(&registration.project_id, transition_kind, transition_id)
+                        .backup_checkpoint(
+                            &registration.project_id,
+                            &registration.workspace_id,
+                            transition_kind,
+                            transition_id,
+                        )
                         .map_err(|_| ())?
                         .is_some();
                     if !checkpoint_exists {

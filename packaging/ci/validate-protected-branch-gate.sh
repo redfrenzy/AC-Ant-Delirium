@@ -72,12 +72,12 @@ checkpoint = {
         "governance_snapshots": [],
         "logical_id": "registry",
         "projects": [],
-        "schema_version": 10,
+        "schema_version": 13,
         "semantic_sha256": "1" * 64,
     }],
     "epoch": 7,
     "previous_checkpoint_sha256": "2" * 64,
-    "storage_schema_version": 10,
+    "storage_schema_version": 13,
 }
 payload = json.dumps(
     checkpoint, ensure_ascii=True, allow_nan=False, sort_keys=True, separators=(",", ":")

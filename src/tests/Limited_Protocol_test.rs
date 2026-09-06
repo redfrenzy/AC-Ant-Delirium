@@ -5,7 +5,7 @@ use std::ffi::OsStr;
 #[cfg(unix)]
 use std::os::fd::{AsRawFd, OwnedFd};
 #[cfg(unix)]
-use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 #[cfg(unix)]
 use std::os::unix::net::UnixStream;
 
@@ -65,6 +65,7 @@ fn source_descriptor_transport_preserves_identity_and_close_on_exec() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join(format!("target/lp/fd-{}", random_request_id().unwrap()));
     std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(root.join("source.rs"), b"fn main() {}\n").unwrap();
     let descriptor: OwnedFd = std::fs::OpenOptions::new()
         .read(true)
         .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
@@ -72,19 +73,31 @@ fn source_descriptor_transport_preserves_identity_and_close_on_exec() {
         .unwrap()
         .into();
     let source_metadata = std::fs::metadata(&root).unwrap();
+    let archive = crate::protected_git_backup::create_sealed_snapshot_archive(&descriptor).unwrap();
     let (sender, receiver) = UnixStream::pair().unwrap();
 
-    send_descriptor(&sender, &descriptor).unwrap();
-    let received = receive_descriptor(&receiver).unwrap();
+    send_source_snapshot_descriptors(&sender, &descriptor, &archive).unwrap();
+    let received = receive_source_snapshot_descriptors(&receiver).unwrap();
     let mut received_stat: libc::stat = unsafe { std::mem::zeroed() };
     assert_eq!(
-        unsafe { libc::fstat(received.as_raw_fd(), &mut received_stat) },
+        unsafe {
+            libc::fstat(
+                received.workspace_descriptor.as_raw_fd(),
+                &mut received_stat,
+            )
+        },
         0
     );
     assert_eq!(received_stat.st_dev as u64, source_metadata.dev());
     assert_eq!(received_stat.st_ino as u64, source_metadata.ino());
     assert_ne!(
-        unsafe { libc::fcntl(received.as_raw_fd(), libc::F_GETFD) } & libc::FD_CLOEXEC,
+        unsafe { libc::fcntl(received.workspace_descriptor.as_raw_fd(), libc::F_GETFD,) }
+            & libc::FD_CLOEXEC,
+        0
+    );
+    assert_ne!(
+        unsafe { libc::fcntl(received.archive_descriptor.as_raw_fd(), libc::F_GETFD) }
+            & libc::FD_CLOEXEC,
         0
     );
 
@@ -157,6 +170,14 @@ fn first_compile_records_a_descriptor_bound_baseline_without_a_project_git_direc
         .unwrap()
         .into();
     let request_id = random_request_id().unwrap();
+    let archive = crate::protected_git_backup::create_sealed_snapshot_archive(&descriptor).unwrap();
+    std::fs::set_permissions(&workspace_root, std::fs::Permissions::from_mode(0o000)).unwrap();
+    let direct_walk_after_permission_boundary =
+        crate::protected_git_backup::create_sealed_snapshot_archive(&descriptor);
+    let transferred = TransferredSourceSnapshot {
+        workspace_descriptor: descriptor,
+        archive_descriptor: archive,
+    };
     let payload = serde_json::to_vec(&LimitedRequest {
         message_type: "request".to_string(),
         wire_version: LIMITED_WIRE_VERSION.to_string(),
@@ -178,9 +199,11 @@ fn first_compile_records_a_descriptor_bound_baseline_without_a_project_git_direc
         &authentication,
         &authority,
         &storage,
-        Some(&descriptor),
-    )
-    .unwrap();
+        Some(&transferred),
+    );
+    std::fs::set_permissions(&workspace_root, std::fs::Permissions::from_mode(0o700)).unwrap();
+    assert!(direct_walk_after_permission_boundary.is_err());
+    let response = response.unwrap();
     assert_eq!(response.result.unwrap().backup_recorded, Some(true));
 
     let registration = storage
@@ -208,7 +231,12 @@ fn first_compile_records_a_descriptor_bound_baseline_without_a_project_git_direc
         })
         .unwrap();
     assert!(database
-        .backup_checkpoint(&bootstrap.project_id, "baseline", "baseline")
+        .backup_checkpoint(
+            &bootstrap.project_id,
+            &bootstrap.workspace_id,
+            "baseline",
+            "baseline",
+        )
         .unwrap()
         .is_none());
     let second_bootstrap = storage
@@ -222,7 +250,12 @@ fn first_compile_records_a_descriptor_bound_baseline_without_a_project_git_direc
         .unwrap();
     assert!(!second_bootstrap.backup_required);
     assert!(database
-        .backup_checkpoint(&bootstrap.project_id, "baseline", "baseline")
+        .backup_checkpoint(
+            &bootstrap.project_id,
+            &bootstrap.workspace_id,
+            "baseline",
+            "baseline",
+        )
         .unwrap()
         .is_some());
 
@@ -641,19 +674,29 @@ fn agent_submission_and_assigned_review_are_scoped_immutable_and_audited_over_ad
         )
         .unwrap();
     assert!(database
-        .backup_checkpoint(&bootstrap.project_id, "submission", &expected_submission_id,)
+        .backup_checkpoint(
+            &bootstrap.project_id,
+            &bootstrap.workspace_id,
+            "submission",
+            &expected_submission_id,
+        )
         .unwrap()
         .is_none());
     assert_eq!(
         SubmissionStore::submission_count(&database, &bootstrap.project_id).unwrap(),
         0,
     );
+    let source_archive =
+        crate::protected_git_backup::create_sealed_snapshot_archive(&source_descriptor).unwrap();
     let response = limited_response_for_payload_with_descriptor(
         &submission_payload,
         &authentication,
         &authority,
         &storage,
-        Some(&source_descriptor),
+        Some(&TransferredSourceSnapshot {
+            workspace_descriptor: source_descriptor,
+            archive_descriptor: source_archive,
+        }),
     )
     .unwrap()
     .result
@@ -670,7 +713,12 @@ fn agent_submission_and_assigned_review_are_scoped_immutable_and_audited_over_ad
     );
     assert_eq!(
         database
-            .backup_checkpoint(&bootstrap.project_id, "submission", &submission_id)
+            .backup_checkpoint(
+                &bootstrap.project_id,
+                &bootstrap.workspace_id,
+                "submission",
+                &submission_id,
+            )
             .unwrap()
             .unwrap()
             .commit_id,
@@ -725,6 +773,22 @@ fn agent_submission_and_assigned_review_are_scoped_immutable_and_audited_over_ad
     assert_eq!(
         read_response.submission_id.as_deref(),
         Some(submission_id.as_str())
+    );
+    let source_context = read_response.source_context.unwrap();
+    assert_eq!(
+        source_context.contract_version,
+        "protected-source-context-v1"
+    );
+    assert_eq!(source_context.project_id, bootstrap.project_id);
+    assert_eq!(source_context.workspace_id, bootstrap.workspace_id);
+    assert_eq!(source_context.task_id.as_deref(), Some(task_id));
+    assert_eq!(source_context.changed_file_count, 1);
+    assert!(!source_context.changes_truncated);
+    assert_eq!(source_context.changes.len(), 1);
+    assert_eq!(source_context.changes[0].relative_path, "src/lib.rs");
+    assert_eq!(
+        source_context.changes[0].kind,
+        crate::protected_git_backup::ProtectedSourceChangeKind::Modified
     );
     let assigned = read_response.assigned_submission.unwrap();
     assert_eq!(assigned.task_id, task_id);
@@ -783,7 +847,12 @@ fn agent_submission_and_assigned_review_are_scoped_immutable_and_audited_over_ad
         .unwrap()
         .is_none());
     assert!(database
-        .backup_checkpoint(&bootstrap.project_id, "review", &expected_review_id)
+        .backup_checkpoint(
+            &bootstrap.project_id,
+            &bootstrap.workspace_id,
+            "review",
+            &expected_review_id,
+        )
         .unwrap()
         .is_none());
     let review_response = execute_typed_limited_request_with_id(
@@ -818,7 +887,12 @@ fn agent_submission_and_assigned_review_are_scoped_immutable_and_audited_over_ad
     assert_eq!(review_response.deduplicated, Some(false));
     assert_eq!(
         database
-            .backup_checkpoint(&bootstrap.project_id, "review", &review_id)
+            .backup_checkpoint(
+                &bootstrap.project_id,
+                &bootstrap.workspace_id,
+                "review",
+                &review_id,
+            )
             .unwrap()
             .unwrap()
             .commit_id,
@@ -855,11 +929,21 @@ fn agent_submission_and_assigned_review_are_scoped_immutable_and_audited_over_ad
     assert_eq!(replay.deduplicated, Some(true));
 
     assert!(database
-        .backup_checkpoint(&bootstrap.project_id, "submission", &submission_id)
+        .backup_checkpoint(
+            &bootstrap.project_id,
+            &bootstrap.workspace_id,
+            "submission",
+            &submission_id,
+        )
         .unwrap()
         .is_some());
     assert!(database
-        .backup_checkpoint(&bootstrap.project_id, "review", &review_id)
+        .backup_checkpoint(
+            &bootstrap.project_id,
+            &bootstrap.workspace_id,
+            "review",
+            &review_id,
+        )
         .unwrap()
         .is_some());
     database
@@ -882,11 +966,21 @@ fn agent_submission_and_assigned_review_are_scoped_immutable_and_audited_over_ad
         .unwrap();
     assert!(!recovered_bootstrap.backup_required);
     assert!(database
-        .backup_checkpoint(&bootstrap.project_id, "submission", &submission_id)
+        .backup_checkpoint(
+            &bootstrap.project_id,
+            &bootstrap.workspace_id,
+            "submission",
+            &submission_id,
+        )
         .unwrap()
         .is_some());
     assert!(database
-        .backup_checkpoint(&bootstrap.project_id, "review", &review_id)
+        .backup_checkpoint(
+            &bootstrap.project_id,
+            &bootstrap.workspace_id,
+            "review",
+            &review_id,
+        )
         .unwrap()
         .is_some());
 

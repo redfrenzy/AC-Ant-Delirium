@@ -287,16 +287,6 @@ pub fn all_rule_docs() -> &'static [RuleDoc] {
             example: None,
         },
         RuleDoc {
-            id: "super_block",
-            name: "Super Block",
-            category: "sanitization",
-            summary: "Protects critical governance assets before the normal audit starts, including build.rs hook order and filesystem hardening for the shared guard and plugin package.",
-            detection_model: "The rule runs as a preflight before the file sweep. It validates that configured protected files exist, satisfy the expected owner/readonly policy, and that each protected build.rs calls the standardized guard as the first operational statement inside fn main().",
-            failure_semantics: "An enforced violation means the build-governance chain can be bypassed or rewritten before the audit executes. Watch-level findings mean the project is drifting around sensitive assets and should be corrected before the safety boundary erodes further.",
-            remediation: "Restore the standardized guard, call it first inside each protected build.rs, and lock the protected files to the owner and readonly policy declared in hierarchy.super_block.",
-            example: Some("If build.rs starts with project-specific logic before ant_delirium_build_guard::run(...), move the guard call to the first executable statement and lock the guard/TOML files read-only."),
-        },
-        RuleDoc {
             id: "dependency_purification",
             name: "Dependency Purification",
             category: "dependency_governance",
@@ -322,10 +312,6 @@ pub fn all_api_docs() -> &'static [ApiDoc] {
         ApiDoc {
             path: "hierarchy.installation.api",
             body: "Use direct binary commands for plugin operations such as `<plugin-binary> --installation`, `<plugin-binary> --plugin.help`, `<plugin-binary> config init`, `<plugin-binary> swarm status`, `<plugin-binary> --help.feedback`, and `<plugin-binary> --feedback \"...\" --context <taxonomy.path>`. Use `--api <root>...` only for project taxonomy commands such as `<plugin-binary> --api hierarchy.installation` and `<plugin-binary> --api hierarchy.dependency_governance.allowed_crates`.",
-        },
-        ApiDoc {
-            path: "hierarchy.installation.security",
-            body: "Treat `build.rs`, `AC_Ant-Delirium_props/ant_delirium_build_guard.rs`, the plugin binary, and the external TOML configuration as controlled assets. The recommended model is root-owned or equivalent superuser-controlled readonly locking for enforced files declared under `hierarchy.super_block`, while secondary watch files remain observable but less strict.",
         },
         ApiDoc {
             path: "hierarchy.installation.context",
@@ -356,10 +342,6 @@ pub fn all_api_docs() -> &'static [ApiDoc] {
             body: "Use direct binary commands for plugin operations such as `<plugin-binary> --installation`, `<plugin-binary> --plugin.help`, `<plugin-binary> config init`, `<plugin-binary> swarm status`, `<plugin-binary> --help.feedback`, and `<plugin-binary> --feedback \"...\" --context <taxonomy.path>`. Use `--api <root>...` only for project taxonomy commands such as `<plugin-binary> --api rules.installation` and `<plugin-binary> --api rules.dependency_governance.allowed_crates`.",
         },
         ApiDoc {
-            path: "rules.installation.security",
-            body: "Treat `build.rs`, `AC_Ant-Delirium_props/ant_delirium_build_guard.rs`, the plugin binary, and the external TOML configuration as controlled assets. The recommended model is root-owned or equivalent superuser-controlled readonly locking for enforced files declared under `rules.super_block`, while secondary watch files remain observable but less strict.",
-        },
-        ApiDoc {
             path: "rules.installation.context",
             body: "The active plugin writes context.json with the repository root, current workspace, and plugin location so each agent can reason about its own execution boundary.",
         },
@@ -386,10 +368,6 @@ pub fn all_api_docs() -> &'static [ApiDoc] {
         ApiDoc {
             path: "regras.installation.api",
             body: "Use comandos diretos do plugin para operacoes do proprio plugin, como `<plugin-binary> --installation`, `<plugin-binary> --plugin.help`, `<plugin-binary> config init`, `<plugin-binary> swarm status`, `<plugin-binary> --help.feedback` e `<plugin-binary> --feedback \"...\" --context <taxonomy.path>`. Use `--api <root>...` apenas para comandos da taxonomia do projeto, como `<plugin-binary> --api regras.installation` e `<plugin-binary> --api regras.dependency_governance.allowed_crates`.",
-        },
-        ApiDoc {
-            path: "regras.installation.security",
-            body: "Trate `build.rs`, `AC_Ant-Delirium_props/ant_delirium_build_guard.rs`, o binario do plugin e a configuracao TOML externa como ativos controlados. O modelo recomendado e travar os arquivos enforced de `regras.super_block` como somente leitura sob controle de superusuario, enquanto arquivos watch permanecem apenas monitorados.",
         },
         ApiDoc {
             path: "regras.installation.context",

@@ -393,6 +393,7 @@ fn accepted_task_advance_is_closed_and_requires_exact_ci_scope() {
             task_id: "tsk_00000000000000000000000000".to_string(),
             review_id: "rev_00000000000000000000000000".to_string(),
             expected_state_revision: 1,
+            protected_gate: serde_json::json!({}),
         }),
     };
 

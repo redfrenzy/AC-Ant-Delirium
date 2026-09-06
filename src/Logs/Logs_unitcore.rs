@@ -14,8 +14,7 @@ use crate::structs::{
 
 use super::{GovernanceArtifactPaths, GovernanceErrorsProjectionTarget};
 
-const ORDERED_AXIOM_IDS: [&str; 24] = [
-    "super_block",
+const ORDERED_AXIOM_IDS: [&str; 23] = [
     "max_nesting",
     "max_params",
     "logical_density",
@@ -1207,12 +1206,6 @@ fn classify_priority_fallback(rule_id: &str) -> (&'static str, &'static str) {
         || rule_id.contains(".identity.manifest_anchoring")
         || rule_id.contains(".identity.recursion.jurisdiction")
     {
-        return ("P0", "error");
-    }
-    if rule_id.contains(".super_block.watch.") {
-        return ("P1", "warning");
-    }
-    if rule_id.contains(".super_block.enforced.") {
         return ("P0", "error");
     }
     if rule_id.contains(".sanitization.") || rule_id.contains(".dependency_governance.") {

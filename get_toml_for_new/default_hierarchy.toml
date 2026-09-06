@@ -28,20 +28,6 @@ libres = []
 wrapper_boundary_contract = "explicit_ac_alias"
 restricted_tokens = { "panic!" = "Security: Use Result.", "unwrap" = "Security: Use expect()." }
 
-[hierarchy.super_block]
-info = "Critical build-hook and plugin assets that should be protected before normal audit starts."
-enabled = true
-abort_on_violation = true
-guard_path = "AC_Ant-Delirium_props/ant_delirium_build_guard.rs"
-guard_call = "ant_delirium_build_guard::run("
-guard_symbol = "ant_delirium_build_guard"
-guard_owner = "root"
-guard_readonly = true
-enforced_files = ["build.rs", "AC_Ant-Delirium_props/ant_delirium_build_guard.rs", "../plugins/__ANT_DELIRIUM_PROJECT__/bin/__ANT_DELIRIUM_PLUGIN_BINARY__", "../plugins/__ANT_DELIRIUM_PROJECT__/bin/__ANT_DELIRIUM_GUARD_BINARY__", "../plugins/__ANT_DELIRIUM_PROJECT__/ant_delirium_config/default_hierarchy.toml", "../plugins/__ANT_DELIRIUM_PROJECT__/ant_delirium_config/default_rules.toml"]
-enforced_owner = "root"
-enforced_readonly = true
-watch_files = ["../plugins/__ANT_DELIRIUM_PROJECT__/connected.json", "../plugins/__ANT_DELIRIUM_PROJECT__/governance.json", "../plugins/__ANT_DELIRIUM_PROJECT__/messages.json", "../plugins/__ANT_DELIRIUM_PROJECT__/feedback.json", "../plugins/__ANT_DELIRIUM_PROJECT__/manager_tasks.json", "../plugins/__ANT_DELIRIUM_PROJECT__/task_orchestrator.json", "../plugins/__ANT_DELIRIUM_PROJECT__/plan"]
-
 [hierarchy.files]
 info = "Default file-governance branch applied to governed Rust files before specialization by DNA."
 max_nesting = 3

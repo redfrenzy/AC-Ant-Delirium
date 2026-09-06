@@ -98,9 +98,7 @@ fn only_the_direct_agent_version_form_is_public() {
             InternalBinaryMode::ReviewerPending
             | InternalBinaryMode::OperatorPending
             | InternalBinaryMode::ServicePending => PublicError::Authorization,
-            InternalBinaryMode::AgentCli
-            | InternalBinaryMode::LegacyAgentCliRollback
-            | InternalBinaryMode::LegacyGuardRollback => {
+            InternalBinaryMode::AgentCli => {
                 panic!("version probe reached an unexpected mode")
             }
         };

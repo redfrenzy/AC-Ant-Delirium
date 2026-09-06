@@ -58,9 +58,11 @@ fn execute(args: &[OsString], context: &ReviewerContext) -> Result<String, Publi
                 .map_err(map_protocol_error)?;
                 let payload =
                     String::from_utf8(receipt.payload).map_err(|_| PublicError::Protocol)?;
+                let source_context =
+                    String::from_utf8(receipt.source_context).map_err(|_| PublicError::Protocol)?;
                 return Ok(format!(
-                    "antdelirium[AD-ASSIGNMENT]: {}\n{}",
-                    receipt.submission_id, payload
+                    "antdelirium[AD-ASSIGNMENT]: {}\n{}\nantdelirium[AD-SOURCE-CONTEXT]:\n{}",
+                    receipt.submission_id, payload, source_context
                 ));
             }
             #[cfg(not(unix))]

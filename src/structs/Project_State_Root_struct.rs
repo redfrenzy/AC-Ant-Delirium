@@ -321,20 +321,12 @@ impl ProjectStateRoot {
         Self::props_dir_for(&self.project_root)
     }
 
-    pub fn build_guard_path(&self) -> PathBuf {
-        Self::build_guard_path_for(&self.project_root)
-    }
-
     pub fn hooks_dir(&self) -> PathBuf {
         Self::hooks_dir_for(&self.project_root)
     }
 
     pub fn orchestration_dir(&self) -> PathBuf {
         Self::orchestration_dir_for(&self.project_root)
-    }
-
-    pub fn build_guard_path_for(project_root: &Path) -> PathBuf {
-        Self::props_dir_for(project_root).join("ant_delirium_build_guard.rs")
     }
 
     pub fn hooks_dir_for(project_root: &Path) -> PathBuf {

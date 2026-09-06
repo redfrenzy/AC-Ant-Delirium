@@ -404,6 +404,7 @@ pub trait BackupCheckpointStore {
     fn backup_checkpoint(
         &self,
         project_id: &str,
+        workspace_id: &str,
         transition_kind: &str,
         transition_id: &str,
     ) -> TransactionalStorageResult<Option<BackupCheckpointRecord>>;

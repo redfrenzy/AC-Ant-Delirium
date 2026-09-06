@@ -1,5 +1,4 @@
 use crate::parser::CodeScanner;
-use crate::rules::axiom_sanitization::Super_Block_Axiom_unit::Super_Block_Axiom_unitcore;
 use crate::rules::get_full_axioms;
 use crate::structs::{AuditConfig, AuditContext, AuditResult, AuditViolation, SearchFiles};
 use std::collections::BTreeMap;
@@ -26,18 +25,7 @@ impl SwarmEngine {
         let axioms = get_full_axioms();
         let mut per_axiom_counts: BTreeMap<String, usize> = BTreeMap::new();
         let mut per_axiom_millis: BTreeMap<String, u128> = BTreeMap::new();
-        let mut config_preflight = Self::validate_rule_priority_conflicts(config);
-        let preflight = Super_Block_Axiom_unitcore::run_preflight(config);
-        let preflight_enforced = preflight
-            .violations
-            .iter()
-            .filter(|violation| violation.rule_id.contains(".super_block.enforced."))
-            .count();
-        let preflight_watch = preflight
-            .violations
-            .iter()
-            .filter(|violation| violation.rule_id.contains(".super_block.watch."))
-            .count();
+        let config_preflight = Self::validate_rule_priority_conflicts(config);
         let jurisdiction_start = Instant::now();
         let mut jurisdiction =
             SearchFiles::resolve_jurisdiction(&config.hierarchy, SearchFiles::ID);
@@ -49,14 +37,8 @@ impl SwarmEngine {
             "[SWARM] Iniciando patrulha massiva com {} axiomas.",
             axioms.len()
         )];
-        if !preflight.violations.is_empty() {
-            logs.push(format!(
-                "[SWARM][super_block] preflight encontrou {} enforced violation(s) e {} watch violation(s).",
-                preflight_enforced, preflight_watch
-            ));
-        }
         let has_config_priority_conflict = !config_preflight.is_empty();
-        if preflight.abort_scan || has_config_priority_conflict {
+        if has_config_priority_conflict {
             logs.push(
                 "[SWARM] Preflight abortado antes da patrulha de arquivos por violacao critica de configuracao."
                     .to_string(),
@@ -67,7 +49,6 @@ impl SwarmEngine {
                         .to_string(),
                 );
             }
-            config_preflight.extend(preflight.violations);
             return AuditResult {
                 violations: config_preflight,
                 logs,
@@ -75,7 +56,6 @@ impl SwarmEngine {
         }
         let mut all_violations = Vec::new();
         all_violations.extend(config_preflight);
-        all_violations.extend(preflight.violations);
         let tag_separator = Self::resolve_tag_separator(config);
         let prepared_project =
             Swarm_Engine_unitcore::prepare_project_context(config, &jurisdiction, &tag_separator);

@@ -12,6 +12,7 @@ anchor_root=/var/lib/antdelirium-integrity
 private_key="$anchor_root/authority-private.pem"
 public_key="$anchor_root/authority-public.pem"
 envelope="$anchor_root/checkpoint-envelope.json"
+readiness_probe="$script_dir/probe-installed-service-ready.py"
 run_id=$(date -u +%Y%m%dT%H%M%SZ)
 log_root="$repository_root/target/t96-installed-integrity-logs/$run_id"
 units_stopped=false
@@ -74,6 +75,8 @@ done
 [[ -f /usr/libexec/antdelirium/antdelirium \
     && ! -L /usr/libexec/antdelirium/antdelirium ]] \
     || fail 'the installed AntDelirium service binary is unavailable.'
+[[ -f "$readiness_probe" && ! -L "$readiness_probe" ]] \
+    || fail 'the reviewed service readiness probe is unavailable.'
 
 jq -e '
     .contract_version == "integrity-authority-bundle-v1" and
@@ -160,6 +163,8 @@ systemctl start antdelirium.service
 systemctl is-active --quiet antdelirium.service
 systemctl is-active --quiet antdelirium-agent.socket
 systemctl is-active --quiet antdelirium-admin.socket
+python3 -B "$readiness_probe" /run/antdelirium-admin/admin.sock \
+    || fail 'the checkpointed service did not complete its administrative protocol startup.'
 units_stopped=false
 
 printf '%s\n' 'AD-T96-INSTALLED: external key isolation and signed protected-state checkpoint passed.'

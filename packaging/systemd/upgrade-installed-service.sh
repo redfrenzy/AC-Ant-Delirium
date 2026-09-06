@@ -8,6 +8,9 @@ bundle_manifest="$bundle_root/system-installation-bundle-v1.json"
 staged_binary="$bundle_root/usr/libexec/antdelirium/antdelirium"
 installed_binary=/usr/libexec/antdelirium/antdelirium
 state_root=/var/lib/antdelirium
+gate_public_pem=/var/lib/antdelirium-branch-gate/authority-public.pem
+gate_public_der=/usr/lib/antdelirium/protected-gate-public.der
+readiness_probe="$script_dir/probe-installed-service-ready.py"
 backup_parent=/var/lib/antdelirium-upgrade-backups
 run_id=$(date -u +%Y%m%dT%H%M%SZ)
 backup_root="$backup_parent/$run_id"
@@ -73,10 +76,19 @@ finish() {
 }
 trap finish EXIT
 
-for command in systemctl journalctl jq sha256sum install cp mv python3 cmp sleep tee getent stat; do
+for command in systemctl journalctl jq sha256sum install cp mv python3 cmp sleep tee getent stat openssl; do
     command -v "$command" >/dev/null 2>&1 \
         || fail "required command is unavailable: $command"
 done
+[[ -f "$readiness_probe" && ! -L "$readiness_probe" ]] \
+    || fail 'the reviewed service readiness probe is unavailable.'
+[[ -f "$gate_public_pem" && ! -L "$gate_public_pem" ]] \
+    || fail 'the protected gate authority must be installed before this upgrade.'
+openssl pkey -pubin -in "$gate_public_pem" -outform DER \
+    -out "$log_root/protected-gate-public.der" 2>"$log_root/protected-gate-public.err"
+install -m 0644 -o root -g root "$log_root/protected-gate-public.der" "$gate_public_der"
+[[ $(stat -c '%u:%g:%a:%s' "$gate_public_der") == '0:0:644:44' ]] \
+    || fail 'the installed protected gate public key is invalid.'
 [[ -f "$bundle_manifest" && -f "$staged_binary" ]] \
     || fail 'render the project-local installation bundle before running sudo.'
 [[ -f "$installed_binary" && ! -L "$installed_binary" ]] \
@@ -131,6 +143,8 @@ systemctl start antdelirium.service
 systemctl is-active --quiet antdelirium.service
 systemctl is-active --quiet antdelirium-agent.socket
 systemctl is-active --quiet antdelirium-admin.socket
+python3 -B "$readiness_probe" /run/antdelirium-admin/admin.sock \
+    || fail 'the upgraded service did not complete its administrative protocol startup.'
 
 validate_storage_v12_once() {
 python3 - "$state_root" "$backup_root/state" <<'PY'
@@ -160,7 +174,12 @@ try:
         identity_table = connection.execute(
             "select count(*) from sqlite_schema where type='table' and name='provisional_project_identities'"
         ).fetchone()[0]
-        if version != 12:
+        checkpoint_primary_key = {
+            row[1]: row[5]
+            for row in connection.execute("pragma table_info(backup_checkpoints)")
+            if row[5] > 0
+        }
+        if version != 13:
             failures.append("database-" + str(ordinal) + ":schema-version")
         if "task_ordinal" not in task_columns:
             failures.append("database-" + str(ordinal) + ":task-order")
@@ -177,6 +196,13 @@ try:
             failures.append("database-" + str(ordinal) + ":identity-columns")
         if identity_table != 1:
             failures.append("database-" + str(ordinal) + ":project-identity-table")
+        if checkpoint_primary_key != {
+            "project_id": 1,
+            "workspace_id": 2,
+            "transition_kind": 3,
+            "transition_id": 4,
+        }:
+            failures.append("database-" + str(ordinal) + ":workspace-checkpoint-key")
         if foreign_key_errors:
             failures.append("database-" + str(ordinal) + ":foreign-key-check")
         if quick_check != "ok":
@@ -210,7 +236,7 @@ try:
             (uid, fingerprint, fingerprint, project_id, workspace_id, project_key, workspace_key, created_at)
             for uid, fingerprint, project_id, workspace_id, project_key, workspace_key, created_at in previous_rows
         ]
-    elif previous_version in (11, 12):
+    elif previous_version in (11, 12, 13):
         expected_rows = previous_registry.execute(
             "select peer_uid, project_identity_fingerprint, workspace_identity_fingerprint, project_id, workspace_id, project_key, workspace_key, created_at_unix from provisional_project_registrations order by peer_uid, workspace_identity_fingerprint"
         ).fetchall()
@@ -258,4 +284,4 @@ validate_storage_v12_once >"$log_root/storage-validation.txt" 2>&1 \
     || fail 'protected storage did not remain valid after service stabilization.'
 
 upgrade_committed=true
-printf '%s\n' "AD-T86-UPGRADE: service upgraded to storage-v12; rollback backup retained under $backup_root"
+printf '%s\n' "AD-T86-UPGRADE: service upgraded to storage-v13; rollback backup retained under $backup_root"

@@ -248,6 +248,7 @@ struct TaskAdvanceBody {
     task_id: String,
     review_id: String,
     expected_state_revision: i64,
+    protected_gate: Value,
 }
 
 impl From<TaskAdvanceBody> for CanonicalTaskAdvance {
@@ -1469,9 +1470,11 @@ pub(crate) fn serve_administrative_request(
             })
         }
         AdministrativeBody::TaskAdvance(body) => {
+            let protected_gate = serde_json::to_vec(&body.protected_gate)
+                .map_err(|_| AdministrativeProtocolError::Envelope)?;
             let advance = CanonicalTaskAdvance::from(body);
             let outcome = storage
-                .advance_reviewed_task(authority, &capability, &advance)
+                .advance_reviewed_task(authority, &capability, &advance, &protected_gate)
                 .map_err(|_| AdministrativeProtocolError::Authorization)?;
             AdministrativeResult::TaskAdvance(TaskAdvanceReceipt {
                 contract_version: "governance-task-advance-receipt-v1".to_string(),
@@ -1693,7 +1696,8 @@ fn validate_request(
                 && valid_opaque_id(&body.workspace_id, "wsp_")
                 && valid_opaque_id(&body.task_id, "tsk_")
                 && valid_opaque_id(&body.review_id, "rev_")
-                && body.expected_state_revision >= 0 =>
+                && body.expected_state_revision >= 0
+                && body.protected_gate.is_object() =>
         {
             Ok(())
         }

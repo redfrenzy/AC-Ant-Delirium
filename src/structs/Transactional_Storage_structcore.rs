@@ -536,6 +536,37 @@ CREATE INDEX backup_checkpoints_task_idx
 ON backup_checkpoints(project_id, workspace_id, task_id, state_revision);
 "#;
 
+const STORAGE_SCHEMA_V13: &str = r#"
+ALTER TABLE backup_checkpoints RENAME TO backup_checkpoints_v12;
+
+CREATE TABLE backup_checkpoints (
+    transition_kind TEXT NOT NULL CHECK (transition_kind IN ('baseline', 'submission', 'review', 'advance')),
+    transition_id TEXT NOT NULL,
+    project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE RESTRICT,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(workspace_id) ON DELETE RESTRICT,
+    task_id TEXT REFERENCES tasks(task_id) ON DELETE RESTRICT,
+    task_revision INTEGER CHECK (task_revision >= 1),
+    state_revision INTEGER NOT NULL CHECK (state_revision >= 0),
+    commit_id TEXT NOT NULL UNIQUE CHECK (length(commit_id) = 40 AND commit_id NOT GLOB '*[^0-9a-f]*'),
+    parent_commit_id TEXT CHECK (parent_commit_id IS NULL OR (length(parent_commit_id) = 40 AND parent_commit_id NOT GLOB '*[^0-9a-f]*')),
+    source_fingerprint TEXT NOT NULL CHECK (length(source_fingerprint) = 64 AND source_fingerprint NOT GLOB '*[^0-9a-f]*'),
+    entry_count INTEGER NOT NULL CHECK (entry_count >= 1),
+    byte_count INTEGER NOT NULL CHECK (byte_count >= 0),
+    recorded_at TEXT NOT NULL,
+    PRIMARY KEY (project_id, workspace_id, transition_kind, transition_id),
+    CHECK ((task_id IS NULL) = (task_revision IS NULL)),
+    CHECK ((transition_kind = 'baseline' AND transition_id = 'baseline') OR
+           (transition_kind = 'submission' AND transition_id GLOB 'sub_*') OR
+           (transition_kind IN ('review', 'advance') AND transition_id GLOB 'rev_*'))
+) STRICT;
+
+INSERT INTO backup_checkpoints SELECT * FROM backup_checkpoints_v12;
+DROP TABLE backup_checkpoints_v12;
+
+CREATE INDEX backup_checkpoints_task_idx
+ON backup_checkpoints(project_id, workspace_id, task_id, state_revision);
+"#;
+
 impl From<AC_Error> for TransactionalStorageError {
     fn from(error: AC_Error) -> Self {
         Self::Database(error.to_string())
@@ -1175,6 +1206,15 @@ impl ProjectDatabase {
                 AC_params!["storage-v12-protected-git-checkpoints"],
             )?;
             transaction.pragma_update(None, "user_version", 12)?;
+            version = 12;
+        }
+        if version == 12 {
+            transaction.execute_batch(STORAGE_SCHEMA_V13)?;
+            transaction.execute(
+                "INSERT INTO schema_migrations(version, applied_at) VALUES (13, ?1)",
+                AC_params!["storage-v13-workspace-backup-checkpoints"],
+            )?;
+            transaction.pragma_update(None, "user_version", 13)?;
         }
         transaction.commit()?;
         Ok(())

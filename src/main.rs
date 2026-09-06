@@ -1,11 +1,5 @@
 #![allow(non_snake_case)]
 
-#[path = "Agent-Runtime_unit.rs"]
-mod agent_runtime;
-
-#[path = "Git_unit.rs"]
-mod git_unit;
-
 #[path = "Agent-Cli_unit.rs"]
 mod agent_cli;
 
@@ -33,6 +27,9 @@ mod service_storage;
 
 #[path = "Protected-Git-Backup_unit.rs"]
 mod protected_git_backup;
+
+#[path = "Protected-Gate_unit.rs"]
+mod protected_gate;
 
 #[path = "Service-Provisioning_unit.rs"]
 mod service_provisioning;
@@ -78,17 +75,6 @@ mod legacy_cutover;
 
 #[path = "Administrative-Protocol_unit.rs"]
 mod administrative_protocol;
-
-mod legacy_guard_mode {
-    include!("../get_toml_for_new/ant_delirium_build_guard.rs");
-
-    pub(super) fn run_rollback() -> ! {
-        main();
-        std::process::exit(1);
-    }
-}
-
-include!("Main-Logic_unit.rs");
 
 fn main() {
     binary_mode::run_authoritative_binary();

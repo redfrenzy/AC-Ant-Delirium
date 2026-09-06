@@ -21,7 +21,6 @@ manifest_anchoring	ManifestAnchoringAxiom Identity Auditor
 name_separator	NameSeparatorAxiom Identity Auditor
 repository_anchor	RepositoryAnchorAxiom Identity Auditor
 restricted_tokens	RestrictedTokensAxiom Sanitization Auditor
-super_block	SuperBlockAxiom Governance Hardening Auditor
 allowed_crates	AllowedCratesAxiom Sanitization Auditor
 strict_wrapper_boundary	StrictWrapperBoundaryAxiom Sanitization Auditor
 token_sanitization	TokenSanitizationAxiom Sanitization Auditor

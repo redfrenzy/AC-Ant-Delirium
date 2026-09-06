@@ -1,7 +1,6 @@
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::Path;
-use std::process::Command;
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -12,8 +11,6 @@ use super::{ProjectGuardBootstrapError, ProjectGuardBootstrapReceipt, ProjectSta
 
 const LOCAL_IGNORE_CONTENT: &[u8] = b"/to-do_list.json\n/governance_error.json\n/.gitignore\n";
 const LOCAL_IGNORE_NAME: &str = ".gitignore";
-const TODO_PROJECTION_RELATIVE: &str = "guard/to-do_list.json";
-const GOVERNANCE_PROJECTION_RELATIVE: &str = "guard/governance_error.json";
 const ATOMIC_CREATE_ATTEMPTS: usize = 8;
 
 pub fn materialize_project_guard(
@@ -21,7 +18,6 @@ pub fn materialize_project_guard(
 ) -> Result<ProjectGuardBootstrapReceipt, ProjectGuardBootstrapError> {
     let project_root = state_root.project_root();
     require_regular_directory(project_root, ProjectGuardBootstrapError::InvalidProjectRoot)?;
-    let git_repository = detect_project_git_repository(project_root)?;
     let guard_directory = state_root.project_guard_dir();
     let local_ignore = guard_directory.join(LOCAL_IGNORE_NAME);
     let guard_exists = path_exists_without_following(&guard_directory)?;
@@ -38,45 +34,15 @@ pub fn materialize_project_guard(
         }
     }
 
-    let ignored_before = if git_repository {
-        if projection_is_tracked(project_root, TODO_PROJECTION_RELATIVE)?
-            || projection_is_tracked(project_root, GOVERNANCE_PROJECTION_RELATIVE)?
-        {
-            return Err(ProjectGuardBootstrapError::TrackedProjection);
-        }
-        projections_are_ignored(project_root)?
-    } else {
-        false
-    };
     let guard_directory_created = materialize_guard_directory(&guard_directory)?;
-
-    if !git_repository {
-        return Ok(ProjectGuardBootstrapReceipt {
-            guard_directory_created,
-            git_repository: false,
-            projections_ignored: false,
-            local_ignore_created: false,
-        });
-    }
 
     if path_exists_without_following(&local_ignore)? {
         require_regular_file(
             &local_ignore,
             ProjectGuardBootstrapError::InvalidLocalIgnore,
         )?;
-        let projections_ignored = projections_are_ignored(project_root)?;
         return Ok(ProjectGuardBootstrapReceipt {
             guard_directory_created,
-            git_repository: true,
-            projections_ignored,
-            local_ignore_created: false,
-        });
-    }
-    if ignored_before {
-        return Ok(ProjectGuardBootstrapReceipt {
-            guard_directory_created,
-            git_repository: true,
-            projections_ignored: true,
             local_ignore_created: false,
         });
     }
@@ -86,29 +52,10 @@ pub fn materialize_project_guard(
         &local_ignore,
         ProjectGuardBootstrapError::InvalidLocalIgnore,
     )?;
-    let projections_ignored = projections_are_ignored(project_root)?;
-    if !projections_ignored {
-        return Err(ProjectGuardBootstrapError::GitInspection);
-    }
     Ok(ProjectGuardBootstrapReceipt {
         guard_directory_created,
-        git_repository: true,
-        projections_ignored,
         local_ignore_created,
     })
-}
-
-fn detect_project_git_repository(project_root: &Path) -> Result<bool, ProjectGuardBootstrapError> {
-    let git_metadata = project_root.join(".git");
-    let metadata = match fs::symlink_metadata(git_metadata) {
-        Ok(metadata) => metadata,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-        Err(_) => return Err(ProjectGuardBootstrapError::Filesystem),
-    };
-    if metadata.file_type().is_symlink() || (!metadata.is_dir() && !metadata.is_file()) {
-        return Err(ProjectGuardBootstrapError::InvalidGitMetadata);
-    }
-    Ok(true)
 }
 
 fn materialize_guard_directory(guard_directory: &Path) -> Result<bool, ProjectGuardBootstrapError> {
@@ -125,56 +72,6 @@ fn materialize_guard_directory(guard_directory: &Path) -> Result<bool, ProjectGu
             Ok(false)
         }
         Err(_) => Err(ProjectGuardBootstrapError::Filesystem),
-    }
-}
-
-fn projections_are_ignored(project_root: &Path) -> Result<bool, ProjectGuardBootstrapError> {
-    Ok(git_path_is_ignored(project_root, TODO_PROJECTION_RELATIVE)?
-        && git_path_is_ignored(project_root, GOVERNANCE_PROJECTION_RELATIVE)?)
-}
-
-fn git_path_is_ignored(
-    project_root: &Path,
-    relative_path: &str,
-) -> Result<bool, ProjectGuardBootstrapError> {
-    let output = Command::new("git")
-        .env("GIT_OPTIONAL_LOCKS", "0")
-        .arg("--no-optional-locks")
-        .arg("-C")
-        .arg(project_root)
-        .arg("check-ignore")
-        .arg("--quiet")
-        .arg("--no-index")
-        .arg("--")
-        .arg(relative_path)
-        .output()
-        .map_err(|_| ProjectGuardBootstrapError::GitInspection)?;
-    match output.status.code() {
-        Some(0) => Ok(true),
-        Some(1) => Ok(false),
-        _ => Err(ProjectGuardBootstrapError::GitInspection),
-    }
-}
-
-fn projection_is_tracked(
-    project_root: &Path,
-    relative_path: &str,
-) -> Result<bool, ProjectGuardBootstrapError> {
-    let output = Command::new("git")
-        .env("GIT_OPTIONAL_LOCKS", "0")
-        .arg("--no-optional-locks")
-        .arg("-C")
-        .arg(project_root)
-        .arg("ls-files")
-        .arg("--error-unmatch")
-        .arg("--")
-        .arg(relative_path)
-        .output()
-        .map_err(|_| ProjectGuardBootstrapError::GitInspection)?;
-    match output.status.code() {
-        Some(0) => Ok(true),
-        Some(1) => Ok(false),
-        _ => Err(ProjectGuardBootstrapError::GitInspection),
     }
 }
 

@@ -5,7 +5,7 @@ use std::fs;
 #[cfg(unix)]
 use std::fs::File;
 #[cfg(unix)]
-use std::io::Read;
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Component, Path, PathBuf};
 
 #[cfg(unix)]
@@ -38,6 +38,8 @@ const MAX_SNAPSHOT_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 const MAX_SNAPSHOT_DEPTH: usize = 64;
 const MAX_RELATIVE_PATH_BYTES: usize = 4096;
 const MAX_SOURCE_CONTEXT_CHANGES: usize = 512;
+#[cfg(unix)]
+const SNAPSHOT_ARCHIVE_MAGIC: [u8; 8] = *b"ADSNP001";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ProtectedGitBackupError {
@@ -106,7 +108,7 @@ pub(crate) struct RecoveredBackupCheckpoint {
     pub(crate) receipt: BackupCommitReceipt,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum ProtectedSourceChangeKind {
     Added,
@@ -115,15 +117,17 @@ pub(crate) enum ProtectedSourceChangeKind {
     ModeChanged,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct ProtectedSourceChange {
     pub(crate) relative_path: String,
     pub(crate) kind: ProtectedSourceChangeKind,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct ProtectedSourceContext {
-    pub(crate) contract_version: &'static str,
+    pub(crate) contract_version: String,
     pub(crate) project_id: String,
     pub(crate) workspace_id: String,
     pub(crate) task_id: Option<String>,
@@ -140,6 +144,44 @@ pub(crate) struct ProtectedSourceContext {
 struct ProtectedSourceFile {
     object_id: String,
     mode: u16,
+    executable: bool,
+    byte_count: u64,
+    contents_sha256: [u8; 32],
+}
+
+impl ProtectedSourceContext {
+    pub(crate) fn valid_for_submission_scope(
+        &self,
+        project_id: &str,
+        workspace_id: &str,
+        task_id: &str,
+        submission_id: &str,
+    ) -> bool {
+        if self.contract_version != "protected-source-context-v1"
+            || self.project_id != project_id
+            || self.workspace_id != workspace_id
+            || self.task_id.as_deref() != Some(task_id)
+            || self.task_revision.is_none_or(|revision| revision <= 0)
+            || self.transition != BackupTransition::Submission
+            || self.transition_id.as_deref() != Some(submission_id)
+            || !valid_sha256_hex(&self.source_fingerprint)
+            || self.changes.len() > MAX_SOURCE_CONTEXT_CHANGES
+            || self.changed_file_count < self.changes.len() as u64
+            || self.changes_truncated != (self.changed_file_count > self.changes.len() as u64)
+        {
+            return false;
+        }
+        let mut previous_path: Option<&str> = None;
+        for change in &self.changes {
+            if previous_path.is_some_and(|previous| previous >= change.relative_path.as_str())
+                || validated_relative_components(&change.relative_path).is_err()
+            {
+                return false;
+            }
+            previous_path = Some(&change.relative_path);
+        }
+        true
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -357,6 +399,18 @@ impl ProtectedGitBackup {
             .map_err(|_| ProtectedGitBackupError::Repository)
     }
 
+    pub(crate) fn has_workspace_baseline(
+        &self,
+        project_id: &str,
+        workspace_id: &str,
+    ) -> Result<bool, ProtectedGitBackupError> {
+        Ok(self.recover_checkpoint_chain()?.iter().any(|checkpoint| {
+            checkpoint.metadata.transition == BackupTransition::Baseline
+                && checkpoint.metadata.project_id == project_id
+                && checkpoint.metadata.workspace_id == workspace_id
+        }))
+    }
+
     pub(crate) fn recover_checkpoint_chain(
         &self,
     ) -> Result<Vec<RecoveredBackupCheckpoint>, ProtectedGitBackupError> {
@@ -419,6 +473,7 @@ impl ProtectedGitBackup {
             {
                 return Err(ProtectedGitBackupError::Commit);
             }
+            validated_stored_source_inventory(&repository, &tree, &stored)?;
             let occurred_at_unix = stored
                 .occurred_at
                 .strip_prefix("unix:")
@@ -525,10 +580,7 @@ impl ProtectedGitBackup {
             transition_id: stored.transition_id.clone(),
         })
         .map_err(|_| ProtectedGitBackupError::Commit)?;
-        let current_source = source_file_inventory(&tree)?;
-        if current_source.len() as u64 != stored.entry_count {
-            return Err(ProtectedGitBackupError::Commit);
-        }
+        let current_source = validated_stored_source_inventory(&repository, &tree, &stored)?;
         let previous_source = previous_workspace_source_inventory(
             &repository,
             &commit,
@@ -570,7 +622,7 @@ impl ProtectedGitBackup {
             }
         }
         Ok(ProtectedSourceContext {
-            contract_version: "protected-source-context-v1",
+            contract_version: "protected-source-context-v1".to_string(),
             project_id: stored.project_id,
             workspace_id: stored.workspace_id,
             task_id: stored.task_id,
@@ -591,6 +643,16 @@ impl ProtectedGitBackup {
         source_descriptor: &OwnedFd,
     ) -> Result<BackupCommitReceipt, ProtectedGitBackupError> {
         let entries = snapshot_entries_from_descriptor(source_descriptor)?;
+        self.commit_snapshot(metadata, entries)
+    }
+
+    #[cfg(unix)]
+    pub(crate) fn commit_snapshot_from_archive_descriptor(
+        &self,
+        metadata: &BackupCommitMetadata,
+        archive_descriptor: &OwnedFd,
+    ) -> Result<BackupCommitReceipt, ProtectedGitBackupError> {
+        let entries = snapshot_entries_from_archive_descriptor(archive_descriptor)?;
         self.commit_snapshot(metadata, entries)
     }
 
@@ -794,6 +856,7 @@ fn find_transition_commit_id(
 }
 
 fn source_file_inventory(
+    repository: &gix::Repository,
     commit_tree: &gix::Tree<'_>,
 ) -> Result<BTreeMap<String, ProtectedSourceFile>, ProtectedGitBackupError> {
     let source_tree = commit_tree
@@ -827,12 +890,23 @@ fn source_file_inventory(
             .to_string();
         validated_relative_components(&relative_path)
             .map_err(|_| ProtectedGitBackupError::Commit)?;
+        let blob = repository
+            .find_object(entry.oid)
+            .map_err(|_| ProtectedGitBackupError::Repository)?
+            .try_into_blob()
+            .map_err(|_| ProtectedGitBackupError::Commit)?;
+        if blob.data.len() > MAX_SINGLE_FILE_BYTES {
+            return Err(ProtectedGitBackupError::Commit);
+        }
         if inventory
             .insert(
                 relative_path,
                 ProtectedSourceFile {
                     object_id: entry.oid.to_string(),
                     mode: entry.mode.value(),
+                    executable: entry.mode.kind() == gix::objs::tree::EntryKind::BlobExecutable,
+                    byte_count: blob.data.len() as u64,
+                    contents_sha256: sha256(&blob.data),
                 },
             )
             .is_some()
@@ -841,6 +915,38 @@ fn source_file_inventory(
         }
     }
     if inventory.is_empty() || inventory.len() > MAX_SNAPSHOT_ENTRIES {
+        return Err(ProtectedGitBackupError::Commit);
+    }
+    Ok(inventory)
+}
+
+fn validated_stored_source_inventory(
+    repository: &gix::Repository,
+    commit_tree: &gix::Tree<'_>,
+    stored: &StoredSnapshotMetadata,
+) -> Result<BTreeMap<String, ProtectedSourceFile>, ProtectedGitBackupError> {
+    let inventory = source_file_inventory(repository, commit_tree)?;
+    if inventory.len() as u64 != stored.entry_count {
+        return Err(ProtectedGitBackupError::Commit);
+    }
+    let mut fingerprint = b"antdelirium-protected-source-snapshot-v1\0".to_vec();
+    let mut byte_count = 0_u64;
+    for (path, file) in &inventory {
+        byte_count = byte_count
+            .checked_add(file.byte_count)
+            .ok_or(ProtectedGitBackupError::Commit)?;
+        if byte_count > MAX_SNAPSHOT_BYTES {
+            return Err(ProtectedGitBackupError::Commit);
+        }
+        fingerprint.extend_from_slice(&(path.len() as u64).to_be_bytes());
+        fingerprint.extend_from_slice(path.as_bytes());
+        fingerprint.push(u8::from(file.executable));
+        fingerprint.extend_from_slice(&file.byte_count.to_be_bytes());
+        fingerprint.extend_from_slice(&file.contents_sha256);
+    }
+    if byte_count != stored.byte_count
+        || lowercase_hex(&sha256(&fingerprint)) != stored.source_fingerprint
+    {
         return Err(ProtectedGitBackupError::Commit);
     }
     Ok(inventory)
@@ -873,10 +979,7 @@ fn previous_workspace_source_inventory(
             return Err(ProtectedGitBackupError::Commit);
         }
         if stored.workspace_id == workspace_id {
-            let inventory = source_file_inventory(&tree)?;
-            if inventory.len() as u64 != stored.entry_count {
-                return Err(ProtectedGitBackupError::Commit);
-            }
+            let inventory = validated_stored_source_inventory(repository, &tree, &stored)?;
             return Ok(Some(inventory));
         }
         let mut parent_ids = commit.parent_ids();
@@ -1158,6 +1261,166 @@ fn snapshot_entries_from_descriptor(
     Ok(entries)
 }
 
+#[cfg(target_os = "linux")]
+pub(crate) fn create_sealed_snapshot_archive(
+    source_descriptor: &OwnedFd,
+) -> Result<OwnedFd, ProtectedGitBackupError> {
+    let entries = snapshot_entries_from_descriptor(source_descriptor)?;
+    let name = b"antdelirium-source-snapshot\0";
+    let raw_fd = unsafe {
+        libc::memfd_create(
+            name.as_ptr().cast(),
+            libc::MFD_CLOEXEC | libc::MFD_ALLOW_SEALING,
+        )
+    };
+    if raw_fd < 0 {
+        return Err(ProtectedGitBackupError::InvalidEntry);
+    }
+    let mut archive = unsafe { File::from_raw_fd(raw_fd) };
+    archive
+        .write_all(&SNAPSHOT_ARCHIVE_MAGIC)
+        .and_then(|_| archive.write_all(&(entries.len() as u64).to_be_bytes()))
+        .map_err(|_| ProtectedGitBackupError::InvalidEntry)?;
+    for entry in entries {
+        let path = entry.relative_path.as_bytes();
+        let path_len =
+            u32::try_from(path.len()).map_err(|_| ProtectedGitBackupError::LimitExceeded)?;
+        let content_len = u64::try_from(entry.contents.len())
+            .map_err(|_| ProtectedGitBackupError::LimitExceeded)?;
+        archive
+            .write_all(&path_len.to_be_bytes())
+            .and_then(|_| archive.write_all(path))
+            .and_then(|_| archive.write_all(&[u8::from(entry.executable)]))
+            .and_then(|_| archive.write_all(&content_len.to_be_bytes()))
+            .and_then(|_| archive.write_all(&entry.contents))
+            .map_err(|_| ProtectedGitBackupError::InvalidEntry)?;
+    }
+    archive
+        .flush()
+        .and_then(|_| archive.seek(SeekFrom::Start(0)).map(|_| ()))
+        .map_err(|_| ProtectedGitBackupError::InvalidEntry)?;
+    let seals = libc::F_SEAL_SEAL | libc::F_SEAL_SHRINK | libc::F_SEAL_GROW | libc::F_SEAL_WRITE;
+    if unsafe { libc::fcntl(archive.as_raw_fd(), libc::F_ADD_SEALS, seals) } < 0 {
+        return Err(ProtectedGitBackupError::InvalidEntry);
+    }
+    Ok(archive.into())
+}
+
+#[cfg(all(unix, not(target_os = "linux")))]
+pub(crate) fn create_sealed_snapshot_archive(
+    _source_descriptor: &OwnedFd,
+) -> Result<OwnedFd, ProtectedGitBackupError> {
+    Err(ProtectedGitBackupError::InvalidEntry)
+}
+
+#[cfg(unix)]
+fn snapshot_entries_from_archive_descriptor(
+    archive_descriptor: &OwnedFd,
+) -> Result<Vec<BackupSnapshotEntry>, ProtectedGitBackupError> {
+    let mut stat: libc::stat = unsafe { std::mem::zeroed() };
+    if unsafe { libc::fstat(archive_descriptor.as_raw_fd(), &mut stat) } != 0
+        || stat.st_mode & libc::S_IFMT != libc::S_IFREG
+    {
+        return Err(ProtectedGitBackupError::InvalidEntry);
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let required =
+            libc::F_SEAL_SEAL | libc::F_SEAL_SHRINK | libc::F_SEAL_GROW | libc::F_SEAL_WRITE;
+        let seals = unsafe { libc::fcntl(archive_descriptor.as_raw_fd(), libc::F_GET_SEALS) };
+        if seals < 0 || seals & required != required {
+            return Err(ProtectedGitBackupError::InvalidEntry);
+        }
+    }
+    let duplicate =
+        unsafe { libc::fcntl(archive_descriptor.as_raw_fd(), libc::F_DUPFD_CLOEXEC, 3) };
+    if duplicate < 0 {
+        return Err(ProtectedGitBackupError::InvalidEntry);
+    }
+    let mut archive = unsafe { File::from_raw_fd(duplicate) };
+    archive
+        .seek(SeekFrom::Start(0))
+        .map_err(|_| ProtectedGitBackupError::InvalidEntry)?;
+    let mut magic = [0_u8; SNAPSHOT_ARCHIVE_MAGIC.len()];
+    archive
+        .read_exact(&mut magic)
+        .map_err(|_| ProtectedGitBackupError::InvalidEntry)?;
+    if magic != SNAPSHOT_ARCHIVE_MAGIC {
+        return Err(ProtectedGitBackupError::InvalidEntry);
+    }
+    let entry_count = read_archive_u64(&mut archive)?;
+    if entry_count == 0 || entry_count > MAX_SNAPSHOT_ENTRIES as u64 {
+        return Err(ProtectedGitBackupError::LimitExceeded);
+    }
+    let mut entries = Vec::with_capacity(entry_count as usize);
+    let mut total_bytes = 0_u64;
+    for _ in 0..entry_count {
+        let path_len = read_archive_u32(&mut archive)? as usize;
+        if path_len == 0 || path_len > MAX_RELATIVE_PATH_BYTES {
+            return Err(ProtectedGitBackupError::LimitExceeded);
+        }
+        let mut path = vec![0_u8; path_len];
+        archive
+            .read_exact(&mut path)
+            .map_err(|_| ProtectedGitBackupError::InvalidEntry)?;
+        let relative_path =
+            String::from_utf8(path).map_err(|_| ProtectedGitBackupError::InvalidEntry)?;
+        let mut executable = [0_u8; 1];
+        archive
+            .read_exact(&mut executable)
+            .map_err(|_| ProtectedGitBackupError::InvalidEntry)?;
+        let executable = match executable[0] {
+            0 => false,
+            1 => true,
+            _ => return Err(ProtectedGitBackupError::InvalidEntry),
+        };
+        let content_len = read_archive_u64(&mut archive)?;
+        if content_len > MAX_SINGLE_FILE_BYTES as u64 {
+            return Err(ProtectedGitBackupError::LimitExceeded);
+        }
+        total_bytes = total_bytes
+            .checked_add(content_len)
+            .filter(|total| *total <= MAX_SNAPSHOT_BYTES)
+            .ok_or(ProtectedGitBackupError::LimitExceeded)?;
+        let mut contents = vec![0_u8; content_len as usize];
+        archive
+            .read_exact(&mut contents)
+            .map_err(|_| ProtectedGitBackupError::InvalidEntry)?;
+        entries.push(BackupSnapshotEntry {
+            relative_path,
+            executable,
+            contents,
+        });
+    }
+    let mut trailing = [0_u8; 1];
+    if archive
+        .read(&mut trailing)
+        .map_err(|_| ProtectedGitBackupError::InvalidEntry)?
+        != 0
+    {
+        return Err(ProtectedGitBackupError::InvalidEntry);
+    }
+    Ok(entries)
+}
+
+#[cfg(unix)]
+fn read_archive_u32(archive: &mut File) -> Result<u32, ProtectedGitBackupError> {
+    let mut bytes = [0_u8; 4];
+    archive
+        .read_exact(&mut bytes)
+        .map_err(|_| ProtectedGitBackupError::InvalidEntry)?;
+    Ok(u32::from_be_bytes(bytes))
+}
+
+#[cfg(unix)]
+fn read_archive_u64(archive: &mut File) -> Result<u64, ProtectedGitBackupError> {
+    let mut bytes = [0_u8; 8];
+    archive
+        .read_exact(&mut bytes)
+        .map_err(|_| ProtectedGitBackupError::InvalidEntry)?;
+    Ok(u64::from_be_bytes(bytes))
+}
+
 #[cfg(unix)]
 fn collect_directory_entries(
     raw_fd: i32,
@@ -1261,7 +1524,7 @@ fn collect_directory_entries(
                     return Err(ProtectedGitBackupError::InvalidEntry);
                 }
                 let mut contents = Vec::with_capacity(stat.st_size as usize);
-                file.by_ref()
+                Read::by_ref(&mut file)
                     .take(MAX_SINGLE_FILE_BYTES as u64 + 1)
                     .read_to_end(&mut contents)
                     .map_err(|_| ProtectedGitBackupError::InvalidEntry)?;

@@ -718,7 +718,7 @@ mod tests {
                     DROP INDEX tasks_plan_ordinal_idx;
                     ALTER TABLE tasks DROP COLUMN task_ordinal;
                     DROP TABLE backup_checkpoints;
-                    DELETE FROM schema_migrations WHERE version IN (9, 10, 11, 12);
+                    DELETE FROM schema_migrations WHERE version IN (9, 10, 11, 12, 13);
                     PRAGMA user_version = 8;
                     "#,
                 )?;

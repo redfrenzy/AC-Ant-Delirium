@@ -28,7 +28,6 @@ pub mod Search_Engine_test;
 pub mod State_Root_Parity_test;
 pub mod Storage_Interfaces_test;
 pub mod Submission_Request_test;
-pub mod Super_Block_Axiom_test;
 pub mod Swarm_Engine_test;
 pub mod Transactional_Storage_test;
 pub mod Type_Logic_Axiom_test;

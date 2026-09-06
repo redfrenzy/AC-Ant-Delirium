@@ -6,6 +6,7 @@ repository_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
 installed_binary=/usr/libexec/antdelirium/antdelirium
 state_credential=/var/lib/antdelirium-operator/state.cred
 admin_socket=/run/antdelirium-admin/admin.sock
+readiness_probe="$script_dir/probe-installed-service-ready.py"
 run_id=$(date -u +%Y%m%dT%H%M%SZ)-${BASHPID:-$$}
 log_root="$repository_root/target/t8g-task-cycle-logs/$run_id"
 secret_root="/run/antdelirium-task-cycle-$run_id"
@@ -66,8 +67,10 @@ elif [[ $# -ne 2 ]]; then
 fi
 [[ "$target_project" == "$repository_root"/target/* && -d "$target_project" && ! -L "$target_project" ]] \
     || fail 'the project must be a non-symlink synthetic directory under this repository target.'
+[[ ! -e "$target_project/.git" && ! -L "$target_project/.git" ]] \
+    || fail 'the private-backup proof requires a synthetic project without project-local Git metadata.'
 
-for command in systemd-creds setpriv jq install id tee od tr getent cut sed tail; do
+for command in systemd-creds setpriv jq install id tee od tr getent cut sed tail awk; do
     command -v "$command" >/dev/null 2>&1 \
         || fail "required command is unavailable: $command"
 done
@@ -77,6 +80,10 @@ cargo_binary="$invoking_home/.cargo/bin/cargo"
 [[ -x "$installed_binary" && ! -L "$installed_binary" ]] \
     || fail 'the installed AntDelirium binary is unavailable.'
 [[ -S "$admin_socket" ]] || fail 'the installed administrative socket is unavailable.'
+[[ -f "$readiness_probe" && ! -L "$readiness_probe" ]] \
+    || fail 'the reviewed service readiness probe is unavailable.'
+python3 -B "$readiness_probe" "$admin_socket" \
+    || fail 'the installed service did not complete its administrative protocol startup.'
 if [[ -z "$resume_task_id" ]]; then
     [[ -f "$state_credential" && ! -L "$state_credential" ]] \
         || fail 'the encrypted StateAdmin descriptor is unavailable.'
@@ -174,6 +181,10 @@ else
     printf '%s\n' 'AD-T8G-CYCLE: resuming after the previously installed synthetic task.'
 fi
 
+source_evidence="$target_project/src/main.rs"
+[[ -f "$source_evidence" && ! -L "$source_evidence" ]] \
+    || fail 'the maintained synthetic Rust source is unavailable.'
+
 printf '%s\n' 'AD-T8G-CYCLE: refreshing public projections through an ordinary cargo check.'
 install -d -m 0700 -o "$invoking_uid" -g "$invoking_gid" "$log_root/cargo-target"
 (
@@ -201,6 +212,22 @@ done
 projection_matches_task \
     || fail 'cargo check did not refresh the installed canonical task within five seconds.'
 
+printf '%s\n' 'AD-T8G-CYCLE: changing and compiling the maintained fixture after its private baseline.'
+printf '\n// AntDelirium installed private-backup proof: %s\n' "$run_id" \
+    | setpriv --reuid="$invoking_uid" --regid="$invoking_gid" --init-groups \
+        --no-new-privs --inh-caps=-all --ambient-caps=-all --bounding-set=-all \
+        tee -a "$source_evidence" >/dev/null
+(
+    cd "$target_project"
+    setpriv --reuid="$invoking_uid" --regid="$invoking_gid" --init-groups \
+        --no-new-privs --inh-caps=-all --ambient-caps=-all --bounding-set=-all \
+        --reset-env env \
+        HOME="$invoking_home" \
+        CARGO_HOME="$invoking_home/.cargo" \
+        CARGO_TARGET_DIR="$log_root/cargo-target" \
+        "$cargo_binary" check
+)
+
 printf '%s\n' 'AD-T8G-CYCLE: submitting evidence through the unchanged agent API.'
 agent_output=$(bash "$script_dir/run-agent-submission.sh" \
     --project-root "$target_project" -- \
@@ -212,8 +239,39 @@ submission_id=$(printf '%s\n' "$agent_output" \
 [[ -n "$submission_id" ]] || fail 'the agent did not return an opaque submission receipt.'
 
 printf '%s\n' 'AD-T8G-CYCLE: reading only the assigned submission.'
-bash "$script_dir/run-reviewer-operation.sh" \
-    --project-root "$target_project" -- assigned "$submission_id"
+assignment_output=$(bash "$script_dir/run-reviewer-operation.sh" \
+    --project-root "$target_project" -- assigned "$submission_id")
+printf '%s\n' "$assignment_output"
+source_context="$log_root/source-context.json"
+printf '%s\n' "$assignment_output" | awk '
+    /^antdelirium\[AD-SOURCE-CONTEXT\]:$/ { capture = 1; next }
+    capture && /^AD-T8G-REVIEWER:/ { exit }
+    capture { print }
+' >"$source_context"
+jq -e \
+    --arg project "$project_id" \
+    --arg workspace "$workspace_id" \
+    --arg task "$task_id" \
+    --arg submission "$submission_id" '
+    .contract_version == "protected-source-context-v1" and
+    .project_id == $project and
+    .workspace_id == $workspace and
+    .task_id == $task and
+    .task_revision == 1 and
+    .transition == "submission" and
+    .transition_id == $submission and
+    (.source_fingerprint | test("^[0-9a-f]{64}$")) and
+    .changed_file_count >= 1 and
+    (.changes_truncated | type == "boolean") and
+    ([.changes[] | select(
+        .relative_path == "src/main.rs" and .kind == "modified"
+    )] | length) == 1 and
+    ([.changes[].relative_path | select(
+        startswith("/") or contains("\\") or
+        (split("/") | any(. == ".." or . == ".git"))
+    )] | length) == 0
+' "$source_context" >/dev/null \
+    || fail 'the assigned reviewer did not receive a valid redacted private source context.'
 
 printf '%s\n' 'AD-T8G-CYCLE: accepting the assigned submission without implicit advancement.'
 review_output=$(bash "$script_dir/run-reviewer-operation.sh" \
@@ -261,6 +319,8 @@ printf '%s\n' 'AD-T8G-CYCLE: proving that an ordinary fully cached cargo check r
 )
 projection_matches_completion \
     || fail 'the cached cargo check changed or regressed the completed projection.'
+[[ ! -e "$target_project/.git" && ! -L "$target_project/.git" ]] \
+    || fail 'the installed cycle created forbidden project-local Git metadata.'
 
 {
     printf 'contract=antdelirium-installed-task-cycle-evidence-v1\n'
@@ -270,11 +330,15 @@ projection_matches_completion \
     printf 'cargo_projection_refresh=pass\n'
     printf 'agent_submission=pass\n'
     printf 'assigned_submission_read=pass\n'
+    printf 'reviewer_source_context=pass\n'
+    printf 'reviewer_source_change=src/main.rs:modified\n'
     printf 'assigned_review_decision=pass\n'
     printf 'scoped_ci_state_transition=pass\n'
     printf 'supervised_projection_refresh=pass\n'
     printf 'cached_cargo_check=pass\n'
     printf 'protected_history_sequence=pass\n'
+    printf 'private_checkpoint_cycle=baseline,submission,review,advance\n'
+    printf 'project_local_git=absent\n'
     printf 'canonical_task_advanced=yes\n'
     printf 'canonical_plan_completed=yes\n'
 } >"$log_root/acceptance.env"

@@ -100,7 +100,7 @@ CREATE TABLE governance_snapshots(
     payload BLOB NOT NULL,
     PRIMARY KEY(project_id, workspace_id)
 );
-PRAGMA user_version = 10;
+PRAGMA user_version = 13;
 """
 
 registry = sqlite3.connect(root / "registry/state/state.db")
@@ -160,6 +160,72 @@ python3 -B "$authority" seal \
     --private-key "$private_key" \
     --public-key "$public_key" >"$log_root/epoch-1.out"
 cp "$project_database" "$log_root/project-epoch-1.db"
+
+printf '%s\n' 'AD-T96-INTEGRITY: extending a valid storage-v10 anchor across the reviewed schema upgrade.'
+upgrade_anchor="$log_root/schema-upgrade-authority"
+mkdir -m 0700 "$upgrade_anchor"
+cp "$private_key" "$upgrade_anchor/authority-private.pem"
+cp "$public_key" "$upgrade_anchor/authority-public.pem"
+chmod 0600 "$upgrade_anchor/authority-private.pem"
+chmod 0644 "$upgrade_anchor/authority-public.pem"
+python3 - "$envelope" "$upgrade_anchor/checkpoint.json" <<'PY'
+import json
+import pathlib
+import sys
+
+envelope = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="ascii"))
+checkpoint = envelope["checkpoint"]
+checkpoint["storage_schema_version"] = 10
+for database in checkpoint["databases"]:
+    database["schema_version"] = 10
+pathlib.Path(sys.argv[2]).write_text(
+    json.dumps(checkpoint, ensure_ascii=True, sort_keys=True, separators=(",", ":")) + "\n",
+    encoding="ascii",
+)
+PY
+openssl pkeyutl -sign \
+    -inkey "$upgrade_anchor/authority-private.pem" \
+    -rawin \
+    -in "$upgrade_anchor/checkpoint.json" \
+    -out "$upgrade_anchor/checkpoint.sig"
+python3 - "$upgrade_anchor/checkpoint.json" "$upgrade_anchor/checkpoint.sig" \
+    "$upgrade_anchor/checkpoint-envelope.json" <<'PY'
+import base64
+import json
+import pathlib
+import sys
+
+checkpoint = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="ascii"))
+signature = base64.b64encode(pathlib.Path(sys.argv[2]).read_bytes()).decode("ascii")
+envelope = {
+    "contract_version": "signed-integrity-checkpoint-v1",
+    "checkpoint": checkpoint,
+    "signature_base64": signature,
+}
+pathlib.Path(sys.argv[3]).write_text(
+    json.dumps(envelope, ensure_ascii=True, sort_keys=True, separators=(",", ":")) + "\n",
+    encoding="ascii",
+)
+PY
+chmod 0600 "$upgrade_anchor/checkpoint-envelope.json"
+python3 -B "$authority" seal \
+    --state-root "$state_root" \
+    --anchor-root "$upgrade_anchor" \
+    --private-key "$upgrade_anchor/authority-private.pem" \
+    --public-key "$upgrade_anchor/authority-public.pem" \
+    >"$log_root/schema-upgrade.out"
+python3 -B "$authority" verify \
+    --state-root "$state_root" \
+    --anchor-root "$upgrade_anchor" \
+    --public-key "$upgrade_anchor/authority-public.pem" \
+    >"$log_root/schema-upgrade-verify.out"
+jq -e '
+    .checkpoint.epoch == 2 and
+    .checkpoint.storage_schema_version == 13 and
+    (.checkpoint.previous_checkpoint_sha256 | test("^[0-9a-f]{64}$")) and
+    all(.checkpoint.databases[]; .schema_version == 13)
+' "$upgrade_anchor/checkpoint-envelope.json" >/dev/null \
+    || fail 'the signed storage schema transition was not anchored correctly.'
 
 python3 - "$project_database" <<'PY'
 import sqlite3

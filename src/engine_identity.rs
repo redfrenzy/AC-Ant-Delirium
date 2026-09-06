@@ -9,7 +9,6 @@ pub const DEFAULT_PLUGIN_BINARY_NAME: &str = "ac_ant_delirium";
 pub const DEFAULT_GUARD_BINARY_NAME: &str = "guard";
 pub const DEFAULT_RUNTIME_LOCK_NAME: &str = ".ac_ant_delirium_runtime.lock";
 pub const DEFAULT_CONFIG_DIR_NAME: &str = "ant_delirium_config";
-pub const DEFAULT_GUARD_RELATIVE_PATH: &str = "AC_Ant-Delirium_props/ant_delirium_build_guard.rs";
 pub const DEFAULT_PLUGIN_BINARY_PLACEHOLDER: &str = "__ANT_DELIRIUM_PLUGIN_BINARY__";
 pub const DEFAULT_BINARY_DISPLAY_PLACEHOLDER: &str = "__ANT_DELIRIUM_BINARY_DISPLAY__";
 pub const DEFAULT_PLUGIN_PACKAGE_PLACEHOLDER: &str = "__ANT_DELIRIUM_PLUGIN_PACKAGE__";

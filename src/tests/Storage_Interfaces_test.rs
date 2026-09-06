@@ -433,7 +433,7 @@ mod tests {
         )
         .is_err());
         assert!(database
-            .backup_checkpoint(PROJECT_ID, "advance", invalid_review_id)
+            .backup_checkpoint(PROJECT_ID, WORKSPACE_ID, "advance", invalid_review_id)
             .unwrap()
             .is_none());
         assert_eq!(database.event_count(PROJECT_ID).unwrap(), 3);
@@ -476,7 +476,7 @@ mod tests {
 
         assert_eq!(
             database
-                .backup_checkpoint(PROJECT_ID, "advance", &review.review_id)
+                .backup_checkpoint(PROJECT_ID, WORKSPACE_ID, "advance", &review.review_id)
                 .unwrap(),
             Some(checkpoint.clone())
         );
@@ -619,7 +619,12 @@ mod tests {
         assert_eq!(inserted.event_sequence(), 1);
         assert_eq!(
             database
-                .backup_checkpoint(PROJECT_ID, "submission", &submission.submission_id)
+                .backup_checkpoint(
+                    PROJECT_ID,
+                    WORKSPACE_ID,
+                    "submission",
+                    &submission.submission_id,
+                )
                 .unwrap(),
             Some(checkpoint.clone())
         );
@@ -1068,7 +1073,12 @@ mod tests {
         assert!(database.record_backup_checkpoint(&checkpoint).unwrap());
         assert_eq!(
             database
-                .backup_checkpoint(PROJECT_ID, "submission", "sub_00000000000000000000000000",)
+                .backup_checkpoint(
+                    PROJECT_ID,
+                    WORKSPACE_ID,
+                    "submission",
+                    "sub_00000000000000000000000000",
+                )
                 .unwrap(),
             Some(checkpoint.clone()),
         );
@@ -1083,8 +1093,83 @@ mod tests {
             Err(TransactionalStorageError::Integrity(_)),
         ));
         assert!(database
-            .backup_checkpoint(PROJECT_ID, "review", "sub_00000000000000000000000000")
+            .backup_checkpoint(
+                PROJECT_ID,
+                WORKSPACE_ID,
+                "review",
+                "sub_00000000000000000000000000",
+            )
             .is_err());
+        fs::remove_dir_all(root).expect("temporary directory should be removed");
+    }
+
+    #[test]
+    fn baseline_checkpoint_identity_is_scoped_to_each_workspace() {
+        let root = unique_temp_dir("workspace-baseline-checkpoints");
+        let (_state_root, database) = initialized(&root);
+        let second_workspace_id = "wsp_00000000000000000000000001";
+        CanonicalStateStore::register_workspace(
+            &database,
+            &StorageWorkspace {
+                workspace_id: second_workspace_id.to_string(),
+                project_id: PROJECT_ID.to_string(),
+                workspace_key: "workspace-key-v2".to_string(),
+                created_at: "2026-09-05T00:00:00Z".to_string(),
+            },
+        )
+        .unwrap();
+        database
+            .initialize_empty_governance_snapshot(
+                PROJECT_ID,
+                second_workspace_id,
+                "2026-09-05T00:00:00Z",
+            )
+            .unwrap();
+
+        let first = BackupCheckpointRecord {
+            transition_kind: "baseline".to_string(),
+            transition_id: "baseline".to_string(),
+            project_id: PROJECT_ID.to_string(),
+            workspace_id: WORKSPACE_ID.to_string(),
+            task_id: None,
+            task_revision: None,
+            state_revision: 0,
+            commit_id: "a".repeat(40),
+            parent_commit_id: None,
+            source_fingerprint: "b".repeat(64),
+            entry_count: 1,
+            byte_count: 10,
+            recorded_at: "unix:1788566400".to_string(),
+        };
+        let second = BackupCheckpointRecord {
+            workspace_id: second_workspace_id.to_string(),
+            commit_id: "c".repeat(40),
+            parent_commit_id: Some(first.commit_id.clone()),
+            source_fingerprint: "d".repeat(64),
+            ..first.clone()
+        };
+
+        assert!(database.record_backup_checkpoint(&first).unwrap());
+        assert!(database.record_backup_checkpoint(&second).unwrap());
+        assert_eq!(
+            database
+                .backup_checkpoint(PROJECT_ID, WORKSPACE_ID, "baseline", "baseline")
+                .unwrap(),
+            Some(first),
+        );
+        assert_eq!(
+            database
+                .backup_checkpoint(PROJECT_ID, second_workspace_id, "baseline", "baseline")
+                .unwrap(),
+            Some(second),
+        );
+        assert!(!database
+            .backup_checkpoint_recovery_required(PROJECT_ID, WORKSPACE_ID)
+            .unwrap());
+        assert!(!database
+            .backup_checkpoint_recovery_required(PROJECT_ID, second_workspace_id)
+            .unwrap());
+
         fs::remove_dir_all(root).expect("temporary directory should be removed");
     }
 }

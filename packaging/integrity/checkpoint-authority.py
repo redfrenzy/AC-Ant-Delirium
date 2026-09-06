@@ -24,7 +24,8 @@ from typing import Any, Iterable
 
 CONTRACT_VERSION = "integrity-checkpoint-v1"
 ENVELOPE_CONTRACT_VERSION = "signed-integrity-checkpoint-v1"
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 13
+SUPPORTED_SIGNED_SCHEMA_VERSIONS = frozenset((10, 11, 12, 13))
 CHAIN_SEED = hashlib.sha256(b"antdelirium-event-chain-v1\0").digest()
 SNAPSHOT_CONTRACT_VERSION = "canonical-governance-snapshot-v1"
 
@@ -460,7 +461,66 @@ def load_checkpoint(envelope_path: Path, public_key: Path) -> dict[str, Any]:
         raise IntegrityFailure("signed checkpoint contract is unsupported")
     if checkpoint.get("authority_key_sha256") != public_key_sha256(public_key):
         raise IntegrityFailure("signed checkpoint authority changed")
+    validate_checkpoint_structure(checkpoint)
     return checkpoint
+
+
+def valid_sha256(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def validate_checkpoint_structure(checkpoint: dict[str, Any]) -> None:
+    if set(checkpoint) != {
+        "contract_version",
+        "epoch",
+        "previous_checkpoint_sha256",
+        "authority_key_sha256",
+        "storage_schema_version",
+        "database_count",
+        "databases",
+    }:
+        raise IntegrityFailure("signed checkpoint shape is invalid")
+    epoch = checkpoint["epoch"]
+    schema_version = checkpoint["storage_schema_version"]
+    databases = checkpoint["databases"]
+    if type(epoch) is not int or epoch < 1:
+        raise IntegrityFailure("signed checkpoint epoch is invalid")
+    if schema_version not in SUPPORTED_SIGNED_SCHEMA_VERSIONS:
+        raise IntegrityFailure("signed checkpoint storage schema is unsupported")
+    previous_digest = checkpoint["previous_checkpoint_sha256"]
+    if (epoch == 1 and previous_digest is not None) or (
+        epoch > 1 and not valid_sha256(previous_digest)
+    ):
+        raise IntegrityFailure("signed checkpoint chain link is invalid")
+    if not valid_sha256(checkpoint["authority_key_sha256"]):
+        raise IntegrityFailure("signed checkpoint authority digest is invalid")
+    if not isinstance(databases, list) or type(checkpoint["database_count"]) is not int:
+        raise IntegrityFailure("signed checkpoint database inventory is invalid")
+    if checkpoint["database_count"] != len(databases):
+        raise IntegrityFailure("signed checkpoint database count is invalid")
+    for database in databases:
+        if not isinstance(database, dict) or set(database) != {
+            "logical_id",
+            "schema_version",
+            "semantic_sha256",
+            "projects",
+            "event_streams",
+            "governance_snapshots",
+        }:
+            raise IntegrityFailure("signed checkpoint database entry is invalid")
+        if database["schema_version"] != schema_version:
+            raise IntegrityFailure("signed checkpoint schema inventory is inconsistent")
+        if not isinstance(database["logical_id"], str) or not valid_sha256(
+            database["semantic_sha256"]
+        ):
+            raise IntegrityFailure("signed checkpoint database identity is invalid")
+        for field in ("projects", "event_streams", "governance_snapshots"):
+            if not isinstance(database[field], list):
+                raise IntegrityFailure("signed checkpoint database markers are invalid")
 
 
 def keyed(items: list[dict[str, Any]], fields: tuple[str, ...]) -> dict[tuple[Any, ...], dict[str, Any]]:
@@ -474,6 +534,12 @@ def keyed(items: list[dict[str, Any]], fields: tuple[str, ...]) -> dict[tuple[An
 
 
 def compare_monotonic(previous: dict[str, Any], current: dict[str, Any]) -> None:
+    previous_schema = previous["storage_schema_version"]
+    current_schema = current["storage_schema_version"]
+    if previous_schema > current_schema:
+        raise IntegrityFailure("storage schema rollback detected")
+    if previous_schema not in SUPPORTED_SIGNED_SCHEMA_VERSIONS:
+        raise IntegrityFailure("signed checkpoint storage schema is unsupported")
     previous_databases = keyed(previous["databases"], ("logical_id",))
     current_databases = keyed(current["databases"], ("logical_id",))
     if not previous_databases.keys() <= current_databases.keys():
@@ -481,7 +547,7 @@ def compare_monotonic(previous: dict[str, Any], current: dict[str, Any]) -> None
 
     for database_key, old_database in previous_databases.items():
         new_database = current_databases[database_key]
-        if old_database["schema_version"] != new_database["schema_version"]:
+        if old_database["schema_version"] > new_database["schema_version"]:
             raise IntegrityFailure("storage schema rollback detected")
 
         old_projects = keyed(old_database["projects"], ("project_id",))
@@ -535,8 +601,10 @@ def compare_monotonic(previous: dict[str, Any], current: dict[str, Any]) -> None
             new_database["event_streams"],
             new_database["governance_snapshots"],
         )
-        if old_markers == new_markers and (
-            old_database["semantic_sha256"] != new_database["semantic_sha256"]
+        if (
+            old_database["schema_version"] == new_database["schema_version"]
+            and old_markers == new_markers
+            and old_database["semantic_sha256"] != new_database["semantic_sha256"]
         ):
             raise IntegrityFailure("protected state changed without an authoritative sequence")
 

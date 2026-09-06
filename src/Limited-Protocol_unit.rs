@@ -48,6 +48,21 @@ pub(crate) enum LimitedProtocolError {
     Entropy,
 }
 
+#[cfg(unix)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum LimitedAuditStage {
+    Bootstrap,
+    CompilationObservation,
+    ProjectionRefresh,
+}
+
+#[cfg(unix)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct LimitedAuditCycleError {
+    pub(crate) stage: LimitedAuditStage,
+    pub(crate) source: LimitedProtocolError,
+}
+
 #[derive(Serialize)]
 #[serde(deny_unknown_fields)]
 struct ClientHello<'a> {
@@ -102,6 +117,12 @@ pub(crate) struct LimitedAuditObservation {
     pub(crate) source_descriptor: OwnedFd,
 }
 
+#[cfg(unix)]
+struct TransferredSourceSnapshot {
+    workspace_descriptor: OwnedFd,
+    archive_descriptor: OwnedFd,
+}
+
 pub(crate) struct LimitedProjectionDocuments {
     pub(crate) current_task: Vec<u8>,
     pub(crate) governance_errors: Vec<u8>,
@@ -117,6 +138,7 @@ struct AgentSubmissionCapabilityBundle {
 pub(crate) struct AssignedSubmissionReceipt {
     pub(crate) submission_id: String,
     pub(crate) payload: Vec<u8>,
+    pub(crate) source_context: Vec<u8>,
 }
 
 pub(crate) struct AssignedReviewReceipt {
@@ -233,6 +255,8 @@ struct LimitedResponseResult {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     assigned_submission: Option<SubmissionWireBody>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    source_context: Option<crate::protected_git_backup::ProtectedSourceContext>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     event_sequence: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     review_id: Option<String>,
@@ -275,13 +299,26 @@ pub(crate) fn run_limited_audit_cycle(
     endpoint: &OsStr,
     observation: &LimitedAuditObservation,
     inherited: Option<LimitedCapabilityBundle>,
-) -> Result<LimitedProjectionDocuments, LimitedProtocolError> {
+) -> Result<LimitedProjectionDocuments, LimitedAuditCycleError> {
     let capabilities = match inherited {
         Some(capabilities) => capabilities,
-        None => bootstrap_capabilities(endpoint, observation)?,
+        None => bootstrap_capabilities(endpoint, observation).map_err(|source| {
+            LimitedAuditCycleError {
+                stage: LimitedAuditStage::Bootstrap,
+                source,
+            }
+        })?,
     };
-    observe_compilation(endpoint, observation, &capabilities)?;
-    refresh_projections(endpoint, &capabilities)
+    observe_compilation(endpoint, observation, &capabilities).map_err(|source| {
+        LimitedAuditCycleError {
+            stage: LimitedAuditStage::CompilationObservation,
+            source,
+        }
+    })?;
+    refresh_projections(endpoint, &capabilities).map_err(|source| LimitedAuditCycleError {
+        stage: LimitedAuditStage::ProjectionRefresh,
+        source,
+    })
 }
 
 #[cfg(unix)]
@@ -411,17 +448,21 @@ fn observe_compilation(
         source_descriptor: descriptor.as_ref().map(|_| true),
         ..LimitedRequestBody::default()
     };
-    let connection = connect_limited_service(endpoint)?;
     let response = match descriptor.as_ref() {
-        Some(descriptor) => request_for_connection_with_descriptor(
-            connection,
-            "compile.observe",
-            Some(capabilities.compile.clone()),
-            body,
-            descriptor,
-        )?,
+        Some(descriptor) => {
+            let archive = crate::protected_git_backup::create_sealed_snapshot_archive(descriptor)
+                .map_err(|_| LimitedProtocolError::Envelope)?;
+            request_for_connection_with_descriptor(
+                connect_limited_service(endpoint)?,
+                "compile.observe",
+                Some(capabilities.compile.clone()),
+                body,
+                descriptor,
+                &archive,
+            )?
+        }
         None => request_for_connection(
-            connection,
+            connect_limited_service(endpoint)?,
             "compile.observe",
             Some(capabilities.compile.clone()),
             body,
@@ -516,7 +557,8 @@ fn request_for_connection_with_descriptor(
     operation: &str,
     capability: Option<WireCapability>,
     body: LimitedRequestBody,
-    descriptor: &OwnedFd,
+    workspace_descriptor: &OwnedFd,
+    archive_descriptor: &OwnedFd,
 ) -> Result<LimitedResponse, LimitedProtocolError> {
     let request_id = random_request_id()?;
     let request = LimitedRequest {
@@ -529,7 +571,7 @@ fn request_for_connection_with_descriptor(
         body,
     };
     write_stream_frame(&mut connection.stream, &request)?;
-    send_descriptor(&connection.stream, descriptor)?;
+    send_source_snapshot_descriptors(&connection.stream, workspace_descriptor, archive_descriptor)?;
     let payload =
         read_stream_frame_with_timeout(&mut connection.stream, REQUEST_RESPONSE_DEADLINE)?;
     validate_limited_response(&payload, &request_id)
@@ -542,7 +584,8 @@ fn request_for_connection_with_descriptor_and_id(
     capability: Option<WireCapability>,
     body: LimitedRequestBody,
     request_id: String,
-    descriptor: &OwnedFd,
+    workspace_descriptor: &OwnedFd,
+    archive_descriptor: &OwnedFd,
 ) -> Result<LimitedResponse, LimitedProtocolError> {
     let request = LimitedRequest {
         message_type: "request".to_string(),
@@ -554,14 +597,18 @@ fn request_for_connection_with_descriptor_and_id(
         body,
     };
     write_stream_frame(&mut connection.stream, &request)?;
-    send_descriptor(&connection.stream, descriptor)?;
+    send_source_snapshot_descriptors(&connection.stream, workspace_descriptor, archive_descriptor)?;
     let payload =
         read_stream_frame_with_timeout(&mut connection.stream, REQUEST_RESPONSE_DEADLINE)?;
     validate_limited_response(&payload, &request_id)
 }
 
 #[cfg(unix)]
-fn send_descriptor(stream: &UnixStream, descriptor: &OwnedFd) -> Result<(), LimitedProtocolError> {
+fn send_source_snapshot_descriptors(
+    stream: &UnixStream,
+    workspace_descriptor: &OwnedFd,
+    archive_descriptor: &OwnedFd,
+) -> Result<(), LimitedProtocolError> {
     let deadline = std::time::Instant::now() + REQUEST_RESPONSE_DEADLINE;
     let mut marker = [b'D'];
     let mut io = libc::iovec {
@@ -569,8 +616,8 @@ fn send_descriptor(stream: &UnixStream, descriptor: &OwnedFd) -> Result<(), Limi
         iov_len: marker.len(),
     };
     let mut control = [0_usize; 8];
-    let control_bytes =
-        unsafe { libc::CMSG_SPACE(std::mem::size_of::<libc::c_int>() as libc::c_uint) as usize };
+    let descriptor_bytes = 2 * std::mem::size_of::<libc::c_int>();
+    let control_bytes = unsafe { libc::CMSG_SPACE(descriptor_bytes as libc::c_uint) as usize };
     if control_bytes > std::mem::size_of_val(&control) {
         return Err(LimitedProtocolError::Transport);
     }
@@ -584,11 +631,12 @@ fn send_descriptor(stream: &UnixStream, descriptor: &OwnedFd) -> Result<(), Limi
         return Err(LimitedProtocolError::Transport);
     }
     unsafe {
-        (*header).cmsg_len =
-            libc::CMSG_LEN(std::mem::size_of::<libc::c_int>() as libc::c_uint) as usize;
+        (*header).cmsg_len = libc::CMSG_LEN(descriptor_bytes as libc::c_uint) as usize;
         (*header).cmsg_level = libc::SOL_SOCKET;
         (*header).cmsg_type = libc::SCM_RIGHTS;
-        *(libc::CMSG_DATA(header).cast::<libc::c_int>()) = descriptor.as_raw_fd();
+        let descriptors = libc::CMSG_DATA(header).cast::<libc::c_int>();
+        *descriptors = workspace_descriptor.as_raw_fd();
+        *descriptors.add(1) = archive_descriptor.as_raw_fd();
     }
     loop {
         wait_for(stream.as_raw_fd(), libc::POLLOUT, deadline)?;
@@ -604,7 +652,9 @@ fn send_descriptor(stream: &UnixStream, descriptor: &OwnedFd) -> Result<(), Limi
 }
 
 #[cfg(unix)]
-fn receive_descriptor(stream: &UnixStream) -> Result<OwnedFd, LimitedProtocolError> {
+fn receive_source_snapshot_descriptors(
+    stream: &UnixStream,
+) -> Result<TransferredSourceSnapshot, LimitedProtocolError> {
     let deadline = std::time::Instant::now() + REQUEST_RESPONSE_DEADLINE;
     let mut marker = [0_u8; 1];
     let mut io = libc::iovec {
@@ -639,28 +689,38 @@ fn receive_descriptor(stream: &UnixStream) -> Result<OwnedFd, LimitedProtocolErr
         || unsafe { (*header).cmsg_type } != libc::SCM_RIGHTS
         || unsafe { (*header).cmsg_len }
             != unsafe {
-                libc::CMSG_LEN(std::mem::size_of::<libc::c_int>() as libc::c_uint) as usize
+                libc::CMSG_LEN((2 * std::mem::size_of::<libc::c_int>()) as libc::c_uint) as usize
             }
         || !unsafe { libc::CMSG_NXTHDR(&message, header) }.is_null()
     {
         close_received_descriptors(&message);
         return Err(LimitedProtocolError::Envelope);
     }
-    let raw_fd = unsafe { *(libc::CMSG_DATA(header).cast::<libc::c_int>()) };
-    if raw_fd < 3 {
-        if raw_fd >= 0 {
-            unsafe {
-                libc::close(raw_fd);
+    let raw_descriptors = unsafe { libc::CMSG_DATA(header).cast::<libc::c_int>() };
+    let workspace_fd = unsafe { *raw_descriptors };
+    let archive_fd = unsafe { *raw_descriptors.add(1) };
+    if workspace_fd < 3 || archive_fd < 3 || workspace_fd == archive_fd {
+        for raw_fd in [workspace_fd, archive_fd] {
+            if raw_fd >= 0 {
+                unsafe {
+                    libc::close(raw_fd);
+                }
             }
         }
         return Err(LimitedProtocolError::Envelope);
     }
-    let descriptor = unsafe { OwnedFd::from_raw_fd(raw_fd) };
-    let flags = unsafe { libc::fcntl(descriptor.as_raw_fd(), libc::F_GETFD) };
-    if flags < 0 || flags & libc::FD_CLOEXEC == 0 {
-        return Err(LimitedProtocolError::Transport);
+    let workspace_descriptor = unsafe { OwnedFd::from_raw_fd(workspace_fd) };
+    let archive_descriptor = unsafe { OwnedFd::from_raw_fd(archive_fd) };
+    for descriptor in [&workspace_descriptor, &archive_descriptor] {
+        let flags = unsafe { libc::fcntl(descriptor.as_raw_fd(), libc::F_GETFD) };
+        if flags < 0 || flags & libc::FD_CLOEXEC == 0 {
+            return Err(LimitedProtocolError::Transport);
+        }
     }
-    Ok(descriptor)
+    Ok(TransferredSourceSnapshot {
+        workspace_descriptor,
+        archive_descriptor,
+    })
 }
 
 #[cfg(unix)]
@@ -718,8 +778,10 @@ pub(crate) fn create_agent_submission(
     source_descriptor: &OwnedFd,
 ) -> Result<AgentSubmissionReceipt, LimitedProtocolError> {
     let bundle = read_agent_submission_capability_from_descriptor(capability_fd)?;
+    let archive = crate::protected_git_backup::create_sealed_snapshot_archive(source_descriptor)
+        .map_err(|_| LimitedProtocolError::Envelope)?;
     let connection = connect_limited_service(endpoint)?;
-    create_agent_submission_for_connection(connection, bundle, request, source_descriptor)
+    create_agent_submission_for_connection(connection, bundle, request, source_descriptor, &archive)
 }
 
 #[cfg(unix)]
@@ -728,6 +790,7 @@ fn create_agent_submission_for_connection(
     bundle: AgentSubmissionCapabilityBundle,
     request: &SubmissionCreateRequest,
     source_descriptor: &OwnedFd,
+    archive_descriptor: &OwnedFd,
 ) -> Result<AgentSubmissionReceipt, LimitedProtocolError> {
     let evidence = request
         .evidence
@@ -759,6 +822,7 @@ fn create_agent_submission_for_connection(
         },
         request.request_id.clone(),
         source_descriptor,
+        archive_descriptor,
     )?;
     let result = response.result.ok_or(LimitedProtocolError::Envelope)?;
     if result.backup_recorded != Some(true) {
@@ -901,12 +965,21 @@ pub(crate) fn read_assigned_submission(
     let submission = result
         .assigned_submission
         .ok_or(LimitedProtocolError::Envelope)?;
+    let source_context = result
+        .source_context
+        .filter(|context| {
+            context.valid_for_submission_scope(project_id, workspace_id, task_id, submission_id)
+        })
+        .ok_or(LimitedProtocolError::Envelope)?;
     submission_from_wire(&submission)?;
     let payload =
         serde_json::to_vec_pretty(&submission).map_err(|_| LimitedProtocolError::Envelope)?;
+    let source_context =
+        serde_json::to_vec_pretty(&source_context).map_err(|_| LimitedProtocolError::Envelope)?;
     Ok(AssignedSubmissionReceipt {
         submission_id: returned_id,
         payload,
+        source_context,
     })
 }
 
@@ -1033,7 +1106,7 @@ pub(crate) fn serve_limited_request(
         return Err(LimitedProtocolError::Envelope);
     }
     let descriptor = descriptor_requested
-        .then(|| receive_descriptor(stream))
+        .then(|| receive_source_snapshot_descriptors(stream))
         .transpose()?;
     let response = limited_response_for_payload_with_descriptor(
         &payload,
@@ -1061,7 +1134,7 @@ fn limited_response_for_payload_with_descriptor(
     authentication: &ConnectionAuthentication,
     authority: &VerifiedServiceAuthority,
     storage: &ProtectedServiceStorage,
-    source_descriptor: Option<&OwnedFd>,
+    source_descriptor: Option<&TransferredSourceSnapshot>,
 ) -> Result<LimitedResponse, LimitedProtocolError> {
     let request: LimitedRequest =
         serde_json::from_slice(payload).map_err(|_| LimitedProtocolError::Envelope)?;
@@ -1164,7 +1237,7 @@ fn handle_compile_request(
     authority: &VerifiedServiceAuthority,
     storage: &ProtectedServiceStorage,
     request: &LimitedRequest,
-    source_descriptor: Option<&OwnedFd>,
+    source_descriptor: Option<&TransferredSourceSnapshot>,
 ) -> Result<LimitedResponseResult, LimitedProtocolError> {
     if request.body.project_identity_fingerprint.is_some()
         || request.body.workspace_identity_fingerprint.is_some()
@@ -1195,7 +1268,7 @@ fn handle_compile_request(
     let backup_recorded = match source_descriptor {
         Some(descriptor) => {
             storage
-                .commit_baseline_snapshot_from_descriptor(
+                .commit_baseline_snapshot_from_transferred_descriptors(
                     authority,
                     authentication.peer_uid(),
                     resource.project_id(),
@@ -1203,7 +1276,8 @@ fn handle_compile_request(
                         .workspace_id()
                         .ok_or(LimitedProtocolError::Envelope)?,
                     &compilation_fingerprint,
-                    descriptor,
+                    &descriptor.workspace_descriptor,
+                    &descriptor.archive_descriptor,
                 )
                 .map_err(|_| LimitedProtocolError::Envelope)?;
             Some(true)
@@ -1294,7 +1368,7 @@ fn handle_submission_request(
     authority: &VerifiedServiceAuthority,
     storage: &ProtectedServiceStorage,
     request: &LimitedRequest,
-    source_descriptor: Option<&OwnedFd>,
+    source_descriptor: Option<&TransferredSourceSnapshot>,
 ) -> Result<LimitedResponseResult, LimitedProtocolError> {
     if request.body.project_identity_fingerprint.is_some()
         || request.body.workspace_identity_fingerprint.is_some()
@@ -1330,7 +1404,7 @@ fn handle_submission_request(
         .map_err(|_| LimitedProtocolError::Envelope)?
         .unwrap_or_else(|| format!("sub_{}", &fingerprint[..26]));
     let checkpoint = storage
-        .commit_submission_snapshot_from_descriptor(
+        .commit_submission_snapshot_from_transferred_descriptors(
             authority,
             authentication.peer_uid(),
             &wire.project_id,
@@ -1338,7 +1412,12 @@ fn handle_submission_request(
             &wire.task_id,
             wire.task_revision,
             &submission_id,
-            source_descriptor.ok_or(LimitedProtocolError::Envelope)?,
+            &source_descriptor
+                .ok_or(LimitedProtocolError::Envelope)?
+                .workspace_descriptor,
+            &source_descriptor
+                .ok_or(LimitedProtocolError::Envelope)?
+                .archive_descriptor,
         )
         .map_err(|_| LimitedProtocolError::Envelope)?;
     let event = NewAuditEvent {
@@ -1428,9 +1507,19 @@ fn handle_assigned_submission_request(
     {
         return Err(LimitedProtocolError::Envelope);
     }
+    let source_context = storage
+        .submission_source_context(
+            authority,
+            &query.project_id,
+            &query.workspace_id,
+            &query.task_id,
+            &query.submission_id,
+        )
+        .map_err(|_| LimitedProtocolError::Envelope)?;
     Ok(LimitedResponseResult {
         submission_id: Some(query.submission_id.clone()),
         assigned_submission: Some(submission),
+        source_context: Some(source_context),
         ..LimitedResponseResult::default()
     })
 }

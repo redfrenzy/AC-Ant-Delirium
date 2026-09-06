@@ -16,6 +16,7 @@ use crate::public_output::{OutputRouter, PublicError};
 pub(crate) const WRAPPER_DEPTH_ENV: &str = "ANTDELIRIUM_WRAPPER_DEPTH";
 const LIMITED_SOCKET_ENV: &str = "ANTDELIRIUM_LIMITED_SOCKET";
 const LIMITED_CAPABILITY_FD_ENV: &str = "ANTDELIRIUM_LIMITED_CAPABILITY_FD";
+const SUPERVISOR_DIAGNOSTIC_FD_ENV: &str = "ANTDELIRIUM_SUPERVISOR_DIAGNOSTIC_FD";
 
 /// Determines whether governance may run before delegation. A recursive entry
 /// is never allowed to enter governance again; T6.2 will use `DelegationOnly`
@@ -56,6 +57,7 @@ struct LimitedAuditPlan {
 #[cfg(unix)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AuditOnlyFailureClass {
+    PlanUnavailable,
     EndpointConfiguration,
     ServiceUnavailable,
     Temporary,
@@ -63,6 +65,85 @@ enum AuditOnlyFailureClass {
     Internal,
     ProjectionMaterialization,
 }
+
+#[cfg(unix)]
+impl AuditOnlyFailureClass {
+    fn diagnostic_record(self) -> &'static [u8] {
+        match self {
+            Self::PlanUnavailable => b"audit=plan-unavailable\n",
+            Self::EndpointConfiguration => b"audit=endpoint-configuration\n",
+            Self::ServiceUnavailable => b"audit=service-unavailable\n",
+            Self::Temporary => b"audit=temporary-failure\n",
+            Self::Protocol => b"audit=protocol-failure\n",
+            Self::Internal => b"audit=internal-failure\n",
+            Self::ProjectionMaterialization => b"audit=projection-materialization-failure\n",
+        }
+    }
+}
+
+#[cfg(unix)]
+fn staged_audit_failure_diagnostic(
+    stage: crate::limited_protocol::LimitedAuditStage,
+    class: AuditOnlyFailureClass,
+) -> &'static [u8] {
+    use crate::limited_protocol::LimitedAuditStage;
+
+    match (stage, class) {
+        (LimitedAuditStage::Bootstrap, AuditOnlyFailureClass::EndpointConfiguration) => {
+            b"audit=bootstrap-endpoint-configuration\n"
+        }
+        (LimitedAuditStage::Bootstrap, AuditOnlyFailureClass::ServiceUnavailable) => {
+            b"audit=bootstrap-service-unavailable\n"
+        }
+        (LimitedAuditStage::Bootstrap, AuditOnlyFailureClass::Temporary) => {
+            b"audit=bootstrap-temporary-failure\n"
+        }
+        (LimitedAuditStage::Bootstrap, AuditOnlyFailureClass::Protocol) => {
+            b"audit=bootstrap-protocol-failure\n"
+        }
+        (LimitedAuditStage::Bootstrap, AuditOnlyFailureClass::Internal) => {
+            b"audit=bootstrap-internal-failure\n"
+        }
+        (
+            LimitedAuditStage::CompilationObservation,
+            AuditOnlyFailureClass::EndpointConfiguration,
+        ) => b"audit=compile-observe-endpoint-configuration\n",
+        (LimitedAuditStage::CompilationObservation, AuditOnlyFailureClass::ServiceUnavailable) => {
+            b"audit=compile-observe-service-unavailable\n"
+        }
+        (LimitedAuditStage::CompilationObservation, AuditOnlyFailureClass::Temporary) => {
+            b"audit=compile-observe-temporary-failure\n"
+        }
+        (LimitedAuditStage::CompilationObservation, AuditOnlyFailureClass::Protocol) => {
+            b"audit=compile-observe-protocol-failure\n"
+        }
+        (LimitedAuditStage::CompilationObservation, AuditOnlyFailureClass::Internal) => {
+            b"audit=compile-observe-internal-failure\n"
+        }
+        (LimitedAuditStage::ProjectionRefresh, AuditOnlyFailureClass::EndpointConfiguration) => {
+            b"audit=projection-refresh-endpoint-configuration\n"
+        }
+        (LimitedAuditStage::ProjectionRefresh, AuditOnlyFailureClass::ServiceUnavailable) => {
+            b"audit=projection-refresh-service-unavailable\n"
+        }
+        (LimitedAuditStage::ProjectionRefresh, AuditOnlyFailureClass::Temporary) => {
+            b"audit=projection-refresh-temporary-failure\n"
+        }
+        (LimitedAuditStage::ProjectionRefresh, AuditOnlyFailureClass::Protocol) => {
+            b"audit=projection-refresh-protocol-failure\n"
+        }
+        (LimitedAuditStage::ProjectionRefresh, AuditOnlyFailureClass::Internal) => {
+            b"audit=projection-refresh-internal-failure\n"
+        }
+        (_, AuditOnlyFailureClass::PlanUnavailable) => b"audit=plan-unavailable\n",
+        (_, AuditOnlyFailureClass::ProjectionMaterialization) => {
+            b"audit=projection-materialization-failure\n"
+        }
+    }
+}
+
+#[cfg(unix)]
+const AUDIT_SUCCESS_DIAGNOSTIC: &[u8] = b"audit=pass\n";
 
 #[cfg(unix)]
 fn classify_limited_audit_failure(
@@ -143,13 +224,24 @@ fn run_primary_workspace_member(
 fn spawn_audit_only_worker(args: &[OsString], context: &CargoCompilationContext) {
     let endpoint = std::env::var_os(LIMITED_SOCKET_ENV);
     let capability_fd = inherited_capability_descriptor();
+    let diagnostic_fd = inherited_supervisor_diagnostic_descriptor();
     let Some(endpoint) = endpoint else {
+        write_audit_diagnostic(
+            diagnostic_fd,
+            AuditOnlyFailureClass::EndpointConfiguration.diagnostic_record(),
+        );
         close_inherited_descriptor(capability_fd);
+        close_inherited_descriptor(diagnostic_fd);
         return;
     };
     let child = unsafe { libc::fork() };
     if child < 0 {
+        write_audit_diagnostic(
+            diagnostic_fd,
+            AuditOnlyFailureClass::Internal.diagnostic_record(),
+        );
         close_inherited_descriptor(capability_fd);
+        close_inherited_descriptor(diagnostic_fd);
         return;
     }
     if child == 0 {
@@ -162,30 +254,43 @@ fn spawn_audit_only_worker(args: &[OsString], context: &CargoCompilationContext)
             crate::limited_protocol::read_capability_bundle_from_descriptor(raw_fd).ok()
         });
         let Some(plan) = limited_audit_plan(args, context) else {
+            write_audit_diagnostic(
+                diagnostic_fd,
+                AuditOnlyFailureClass::PlanUnavailable.diagnostic_record(),
+            );
+            close_inherited_descriptor(diagnostic_fd);
             unsafe {
                 libc::_exit(0);
             }
         };
-        let degradation = match crate::limited_protocol::run_limited_audit_cycle(
+        let diagnostic = match crate::limited_protocol::run_limited_audit_cycle(
             endpoint.as_os_str(),
             &plan.observation,
             inherited,
         ) {
-            Ok(documents) => ac_ant_delirium::structs::materialize_limited_project_projections(
-                &plan.project_root,
-                &documents.current_task,
-                &documents.governance_errors,
-            )
-            .err()
-            .map(|_| AuditOnlyFailureClass::ProjectionMaterialization),
-            Err(error) => Some(classify_limited_audit_failure(error)),
+            Ok(documents) => {
+                match ac_ant_delirium::structs::materialize_limited_project_projections(
+                    &plan.project_root,
+                    &documents.current_task,
+                    &documents.governance_errors,
+                ) {
+                    Ok(()) => AUDIT_SUCCESS_DIAGNOSTIC,
+                    Err(_) => AuditOnlyFailureClass::ProjectionMaterialization.diagnostic_record(),
+                }
+            }
+            Err(error) => staged_audit_failure_diagnostic(
+                error.stage,
+                classify_limited_audit_failure(error.source),
+            ),
         };
-        let _ = std::hint::black_box(degradation);
+        write_audit_diagnostic(diagnostic_fd, diagnostic);
+        close_inherited_descriptor(diagnostic_fd);
         unsafe {
             libc::_exit(0);
         }
     }
     close_inherited_descriptor(capability_fd);
+    close_inherited_descriptor(diagnostic_fd);
 }
 
 #[cfg(unix)]
@@ -195,6 +300,33 @@ fn inherited_capability_descriptor() -> Option<i32> {
         .filter(|value| !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()))
         .and_then(|value| value.parse::<i32>().ok())
         .filter(|raw_fd| *raw_fd >= 3)
+}
+
+#[cfg(unix)]
+fn inherited_supervisor_diagnostic_descriptor() -> Option<i32> {
+    std::env::var(SUPERVISOR_DIAGNOSTIC_FD_ENV)
+        .ok()
+        .filter(|value| !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()))
+        .and_then(|value| value.parse::<i32>().ok())
+        .filter(|raw_fd| *raw_fd >= 3 && unsafe { libc::fcntl(*raw_fd, libc::F_GETFD) } >= 0)
+}
+
+#[cfg(unix)]
+fn write_audit_diagnostic(raw_fd: Option<i32>, mut record: &[u8]) {
+    let Some(raw_fd) = raw_fd else {
+        return;
+    };
+    while !record.is_empty() {
+        let written = unsafe { libc::write(raw_fd, record.as_ptr().cast(), record.len()) };
+        if written > 0 {
+            record = &record[written as usize..];
+            continue;
+        }
+        if written < 0 && io::Error::last_os_error().kind() == io::ErrorKind::Interrupted {
+            continue;
+        }
+        break;
+    }
 }
 
 #[cfg(unix)]
@@ -478,6 +610,7 @@ fn compiler_command(args: &[OsString], route: WrapperRoute) -> Option<Command> {
         .env(WRAPPER_DEPTH_ENV, next_depth)
         .env_remove(LIMITED_SOCKET_ENV)
         .env_remove(LIMITED_CAPABILITY_FD_ENV)
+        .env_remove(SUPERVISOR_DIAGNOSTIC_FD_ENV)
         .stdin(Stdio::inherit())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
@@ -746,7 +879,11 @@ mod tests {
                 depth,
                 Some((OsStr::new(WRAPPER_DEPTH_ENV), Some(OsStr::new("1"))))
             );
-            for removed in [LIMITED_SOCKET_ENV, LIMITED_CAPABILITY_FD_ENV] {
+            for removed in [
+                LIMITED_SOCKET_ENV,
+                LIMITED_CAPABILITY_FD_ENV,
+                SUPERVISOR_DIAGNOSTIC_FD_ENV,
+            ] {
                 assert_eq!(
                     command
                         .get_envs()
@@ -815,6 +952,62 @@ mod tests {
         assert_ne!(
             AuditOnlyFailureClass::Protocol,
             AuditOnlyFailureClass::ProjectionMaterialization
+        );
+        for record in [
+            AuditOnlyFailureClass::PlanUnavailable.diagnostic_record(),
+            AuditOnlyFailureClass::EndpointConfiguration.diagnostic_record(),
+            AuditOnlyFailureClass::ServiceUnavailable.diagnostic_record(),
+            AuditOnlyFailureClass::Temporary.diagnostic_record(),
+            AuditOnlyFailureClass::Protocol.diagnostic_record(),
+            AuditOnlyFailureClass::Internal.diagnostic_record(),
+            AuditOnlyFailureClass::ProjectionMaterialization.diagnostic_record(),
+            AUDIT_SUCCESS_DIAGNOSTIC,
+        ] {
+            let record = std::str::from_utf8(record).expect("ASCII diagnostic record");
+            assert!(record.starts_with("audit="));
+            assert!(record.ends_with('\n'));
+            assert!(!record.contains('/'));
+            assert!(!record.contains('\\'));
+        }
+        for stage in [
+            crate::limited_protocol::LimitedAuditStage::Bootstrap,
+            crate::limited_protocol::LimitedAuditStage::CompilationObservation,
+            crate::limited_protocol::LimitedAuditStage::ProjectionRefresh,
+        ] {
+            for class in [
+                AuditOnlyFailureClass::EndpointConfiguration,
+                AuditOnlyFailureClass::ServiceUnavailable,
+                AuditOnlyFailureClass::Temporary,
+                AuditOnlyFailureClass::Protocol,
+                AuditOnlyFailureClass::Internal,
+            ] {
+                let record = staged_audit_failure_diagnostic(stage, class);
+                let record = std::str::from_utf8(record).expect("ASCII staged diagnostic");
+                assert!(record.starts_with("audit="));
+                assert!(record.ends_with('\n'));
+                assert!(!record.contains('/'));
+                assert!(!record.contains('\\'));
+            }
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn supervisor_diagnostic_writes_only_the_closed_record() {
+        let mut descriptors = [-1; 2];
+        assert_eq!(unsafe { libc::pipe(descriptors.as_mut_ptr()) }, 0);
+        write_audit_diagnostic(
+            Some(descriptors[1]),
+            AuditOnlyFailureClass::Protocol.diagnostic_record(),
+        );
+        close_inherited_descriptor(Some(descriptors[1]));
+
+        let mut buffer = [0_u8; 64];
+        let count = unsafe { libc::read(descriptors[0], buffer.as_mut_ptr().cast(), buffer.len()) };
+        close_inherited_descriptor(Some(descriptors[0]));
+        assert_eq!(
+            &buffer[..count as usize],
+            AuditOnlyFailureClass::Protocol.diagnostic_record()
         );
     }
 

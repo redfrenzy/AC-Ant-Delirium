@@ -956,16 +956,18 @@ impl BackupCheckpointStore for ProjectDatabase {
     fn backup_checkpoint(
         &self,
         project_id: &str,
+        workspace_id: &str,
         transition_kind: &str,
         transition_id: &str,
     ) -> TransactionalStorageResult<Option<BackupCheckpointRecord>> {
         validate_opaque_identifier(project_id, "prj_", "project_id")?;
+        validate_opaque_identifier(workspace_id, "wsp_", "workspace_id")?;
         validate_backup_transition_identity(transition_kind, transition_id)?;
         let connection = self.open_connection(false)?;
         Ok(connection
             .query_row(
-                "SELECT transition_kind, transition_id, project_id, workspace_id, task_id, task_revision, state_revision, commit_id, parent_commit_id, source_fingerprint, entry_count, byte_count, recorded_at FROM backup_checkpoints WHERE project_id = ?1 AND transition_kind = ?2 AND transition_id = ?3",
-                AC_params![project_id, transition_kind, transition_id],
+                "SELECT transition_kind, transition_id, project_id, workspace_id, task_id, task_revision, state_revision, commit_id, parent_commit_id, source_fingerprint, entry_count, byte_count, recorded_at FROM backup_checkpoints WHERE project_id = ?1 AND workspace_id = ?2 AND transition_kind = ?3 AND transition_id = ?4",
+                AC_params![project_id, workspace_id, transition_kind, transition_id],
                 backup_checkpoint_from_row,
             )
             .optional()?)
@@ -980,7 +982,7 @@ impl BackupCheckpointStore for ProjectDatabase {
         validate_opaque_identifier(workspace_id, "wsp_", "workspace_id")?;
         let connection = self.open_connection(false)?;
         let required = connection.query_row(
-            "SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM backup_checkpoints WHERE project_id = ?1 AND transition_kind = 'baseline' AND transition_id = 'baseline') OR EXISTS (SELECT 1 FROM submissions s WHERE s.project_id = ?1 AND s.workspace_id = ?2 AND NOT EXISTS (SELECT 1 FROM backup_checkpoints b WHERE b.project_id = s.project_id AND b.transition_kind = 'submission' AND b.transition_id = s.submission_id)) OR EXISTS (SELECT 1 FROM reviews r JOIN submissions s ON s.project_id = r.project_id AND s.submission_id = r.submission_id WHERE r.project_id = ?1 AND s.workspace_id = ?2 AND NOT EXISTS (SELECT 1 FROM backup_checkpoints b WHERE b.project_id = r.project_id AND b.transition_kind = 'review' AND b.transition_id = r.review_id)) THEN 1 ELSE 0 END",
+            "SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM backup_checkpoints WHERE project_id = ?1 AND workspace_id = ?2 AND transition_kind = 'baseline' AND transition_id = 'baseline') OR EXISTS (SELECT 1 FROM submissions s WHERE s.project_id = ?1 AND s.workspace_id = ?2 AND NOT EXISTS (SELECT 1 FROM backup_checkpoints b WHERE b.project_id = s.project_id AND b.workspace_id = s.workspace_id AND b.transition_kind = 'submission' AND b.transition_id = s.submission_id)) OR EXISTS (SELECT 1 FROM reviews r JOIN submissions s ON s.project_id = r.project_id AND s.submission_id = r.submission_id WHERE r.project_id = ?1 AND s.workspace_id = ?2 AND NOT EXISTS (SELECT 1 FROM backup_checkpoints b WHERE b.project_id = r.project_id AND b.workspace_id = s.workspace_id AND b.transition_kind = 'review' AND b.transition_id = r.review_id)) THEN 1 ELSE 0 END",
             AC_params![project_id, workspace_id],
             |row| row.get::<_, i64>(0),
         )?;
@@ -995,9 +997,10 @@ fn record_backup_checkpoint_in_transaction(
     validate_backup_checkpoint(checkpoint)?;
     let existing = transaction
         .query_row(
-            "SELECT transition_kind, transition_id, project_id, workspace_id, task_id, task_revision, state_revision, commit_id, parent_commit_id, source_fingerprint, entry_count, byte_count, recorded_at FROM backup_checkpoints WHERE project_id = ?1 AND transition_kind = ?2 AND transition_id = ?3",
+            "SELECT transition_kind, transition_id, project_id, workspace_id, task_id, task_revision, state_revision, commit_id, parent_commit_id, source_fingerprint, entry_count, byte_count, recorded_at FROM backup_checkpoints WHERE project_id = ?1 AND workspace_id = ?2 AND transition_kind = ?3 AND transition_id = ?4",
             AC_params![
                 checkpoint.project_id,
+                checkpoint.workspace_id,
                 checkpoint.transition_kind,
                 checkpoint.transition_id,
             ],

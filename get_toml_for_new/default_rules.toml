@@ -94,19 +94,6 @@ manifest
 operation_zone
 restricted_tokens
 
-[hierarchy.sanitization.super_block]
-super_block.enabled
-super_block.abort_on_violation
-super_block.guard_path
-super_block.guard_call
-super_block.guard_symbol
-super_block.guard_owner
-super_block.guard_readonly
-super_block.enforced_files
-super_block.enforced_owner
-super_block.enforced_readonly
-super_block.watch_files
-
 [hierarchy.dependency_governance.allowed_crates]
 operation_zone
 libres

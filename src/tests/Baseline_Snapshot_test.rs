@@ -24,7 +24,7 @@ mod tests {
             actual.push('\n');
         }
 
-        assert_eq!(axioms.len(), 27, "the public governance catalog changed");
+        assert_eq!(axioms.len(), 26, "the public governance catalog changed");
         assert_eq!(actual, AXIOM_CATALOG_V1);
     }
 }

@@ -12,6 +12,7 @@ installed_policy=/usr/lib/antdelirium/protected-branch-policy-v1.json
 anchor_root=/var/lib/antdelirium-branch-gate
 private_key="$anchor_root/authority-private.pem"
 public_key="$anchor_root/authority-public.pem"
+installed_public_key=/usr/lib/antdelirium/protected-gate-public.der
 run_id=$(date -u +%Y%m%dT%H%M%SZ)
 public_log_root="$repository_root/target/t97-installed-branch-authority-logs/$run_id"
 private_log_root="$anchor_root/validation/$run_id"
@@ -130,6 +131,15 @@ if runuser -u antdelirium -- test -r "$private_key" \
     || runuser -u "$invoking_user" -- test -w "$anchor_root"; then
     fail 'an untrusted identity can access the protected branch signing authority.'
 fi
+
+openssl pkey -pubin -in "$public_key" -outform DER \
+    -out "$private_log_root/protected-gate-public.der" 2>"$private_log_root/public-der.err"
+install -m 0644 -o root -g root \
+    "$private_log_root/protected-gate-public.der" "$installed_public_key"
+[[ $(stat -c '%a %U:%G' "$installed_public_key") == '644 root:root' ]] \
+    || fail 'installed protected gate public key metadata is invalid.'
+[[ $(stat -c '%s' "$installed_public_key") == 44 ]] \
+    || fail 'installed protected gate public key has an invalid encoding.'
 
 printf '%s\n' 'antdelirium-protected-branch-key-check-v1' >"$anchor_root/challenge"
 openssl pkeyutl -sign -inkey "$private_key" -rawin \

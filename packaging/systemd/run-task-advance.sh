@@ -14,6 +14,8 @@ log_root="$repository_root/target/t8g-task-advance-launcher-logs/$run_id"
 admin_plain=
 capability_plain=
 advance_plain=
+gate_plain=
+mechanical_evidence=
 admin_fd=
 output_fd=
 advance_fd=
@@ -73,6 +75,8 @@ cleanup() {
     [[ -z "$admin_plain" ]] || rm -f -- "$admin_plain"
     [[ -z "$capability_plain" ]] || rm -f -- "$capability_plain"
     [[ -z "$advance_plain" ]] || rm -f -- "$advance_plain"
+    [[ -z "$gate_plain" ]] || rm -f -- "$gate_plain"
+    [[ -z "$mechanical_evidence" ]] || rm -f -- "$mechanical_evidence"
     rmdir -- "$secret_root" 2>/dev/null || true
     {
         printf 'contract=antdelirium-task-advance-launcher-v1\n'
@@ -93,8 +97,12 @@ cleanup() {
 invoking_user=${SUDO_USER:-}
 [[ -n "$invoking_user" && "$invoking_user" != root ]] \
     || fail 'SUDO_USER must identify the non-root CI subject.'
-invoking_uid=$(id -u "$invoking_user")
-invoking_gid=$(id -g "$invoking_user")
+passwd_record=$(getent passwd "$invoking_user") \
+    || fail 'the invoking CI subject has no passwd record.'
+IFS=: read -r _passwd_name _passwd_secret invoking_uid invoking_gid \
+    _passwd_gecos invoking_home _passwd_shell <<<"$passwd_record"
+[[ "$invoking_home" == /* && -d "$invoking_home" && ! -L "$invoking_home" ]] \
+    || fail 'the invoking CI subject home is unavailable or unsafe.'
 
 [[ $# -eq 4 && ${1:-} == '--project-root' && -n ${2:-} && ${3:-} == '--review-id' ]] \
     || fail 'use --project-root <absolute-project> --review-id <accepted-review-id>.'
@@ -105,7 +113,7 @@ review_id=$4
 [[ "$review_id" =~ ^rev_[0-9a-hjkmnp-tv-z]{26}$ ]] \
     || fail 'the accepted review identifier is invalid.'
 
-for command in systemd-creds setpriv jq install id tee; do
+for command in systemd-creds setpriv jq install getent tee sha256sum grep python3 sleep readlink; do
     command -v "$command" >/dev/null 2>&1 \
         || fail "required command is unavailable: $command"
 done
@@ -131,12 +139,134 @@ project_id=$(jq -r '.project_ref' "$projection")
 workspace_id=$(jq -r '.workspace_ref' "$projection")
 task_id=$(jq -r '.task.task_id' "$projection")
 state_revision=$(jq -r '.source_revision' "$projection")
+task_revision=$(jq -r '.task.task_revision' "$projection")
+[[ "$task_revision" =~ ^[1-9][0-9]*$ ]] \
+    || fail 'the public current-task projection has an invalid task revision.'
 
 umask 077
 install -d -m 0755 "$log_root"
 install -d -m 0700 "$secret_root"
 exec > >(tee -a "$log_root/supervisor.log") 2>&1
 trap cleanup EXIT
+
+printf '%s\n' 'AD-T8G-ADVANCE: sealing the current protected state before evaluation.'
+bash "$script_dir/checkpoint-installed-integrity.sh" --apply
+sleep 1
+
+installed_authority=/usr/libexec/antdelirium/protected-branch-authority.py
+installed_policy=/usr/lib/antdelirium/protected-branch-policy-v1.json
+integrity_envelope=/var/lib/antdelirium-integrity/checkpoint-envelope.json
+integrity_public_key=/var/lib/antdelirium-integrity/authority-public.pem
+gate_private_key=/var/lib/antdelirium-branch-gate/authority-private.pem
+fingerprint_tool="$repository_root/packaging/ci/protected-source-fingerprint.py"
+cargo_binary="$invoking_home/.cargo/bin/cargo"
+rustc_binary="$invoking_home/.cargo/bin/rustc"
+for input in "$installed_authority" "$installed_policy" "$integrity_envelope" \
+    "$integrity_public_key" "$gate_private_key" "$fingerprint_tool"; do
+    [[ -f "$input" && ! -L "$input" ]] \
+        || fail 'the protected task gate authority is incomplete.'
+done
+rustup_proxy="$invoking_home/.cargo/bin/rustup"
+[[ -f "$rustup_proxy" && ! -L "$rustup_proxy" && -x "$rustup_proxy" ]] \
+    || fail 'the operator Rustup proxy target is unavailable or unsafe.'
+for tool in "$cargo_binary" "$rustc_binary"; do
+    [[ -L "$tool" && -x "$tool" ]] \
+        || fail 'the operator Cargo toolchain proxy is unavailable or unsafe.'
+    resolved_tool=$(readlink -f -- "$tool") \
+        || fail 'the operator Cargo toolchain proxy cannot be resolved.'
+    [[ "$resolved_tool" == "$rustup_proxy" ]] \
+        || fail 'the operator Cargo toolchain proxy does not resolve to the configured Rustup installation.'
+done
+
+protected_target="$log_root/protected-cargo-target"
+install -d -m 0700 -o "$invoking_uid" -g "$invoking_gid" "$protected_target"
+source_before=$(python3 -B "$fingerprint_tool" "$target_project") \
+    || fail 'the reviewed source fingerprint could not be computed.'
+wrapper_sha256=$(sha256sum "$installed_binary" | cut -d ' ' -f 1)
+trusted_rustc_config="build.rustc=\"$rustc_binary\""
+trusted_outer_wrapper_config='build.rustc-wrapper=""'
+trusted_workspace_wrapper_config="build.rustc-workspace-wrapper=\"$installed_binary\""
+printf '%s\n' 'AD-T8G-ADVANCE: compiling the reviewed source with the protected wrapper and a clean target.'
+(
+    cd -- "$target_project"
+    setpriv --reuid="$invoking_uid" --regid="$invoking_gid" --init-groups \
+        --no-new-privs --inh-caps=-all --ambient-caps=-all --bounding-set=-all \
+        --reset-env env \
+        HOME="$invoking_home" \
+        CARGO_HOME="$invoking_home/.cargo" \
+        CARGO_TARGET_DIR="$protected_target" \
+        ANTDELIRIUM_LIMITED_SOCKET="$limited_socket" \
+        "$cargo_binary" \
+        --config "$trusted_rustc_config" \
+        --config "$trusted_outer_wrapper_config" \
+        --config "$trusted_workspace_wrapper_config" \
+        -vv check
+) >"$log_root/protected-check.stdout" 2>"$log_root/protected-check.stderr" \
+    || fail 'the protected clean cargo check failed.'
+grep -F -q -- "$installed_binary" "$log_root/protected-check.stderr" \
+    || fail 'the protected clean cargo check did not invoke the installed wrapper.'
+grep -F -q -- 'CARGO_PRIMARY_PACKAGE=1' "$log_root/protected-check.stderr" \
+    || fail 'the protected clean cargo check did not compile a primary package.'
+(
+    cd -- "$target_project"
+    setpriv --reuid="$invoking_uid" --regid="$invoking_gid" --init-groups \
+        --no-new-privs --inh-caps=-all --ambient-caps=-all --bounding-set=-all \
+        --reset-env env \
+        HOME="$invoking_home" \
+        CARGO_HOME="$invoking_home/.cargo" \
+        CARGO_TARGET_DIR="$protected_target" \
+        ANTDELIRIUM_LIMITED_SOCKET="$limited_socket" \
+        "$cargo_binary" \
+        --config "$trusted_rustc_config" \
+        --config "$trusted_outer_wrapper_config" \
+        --config "$trusted_workspace_wrapper_config" \
+        -vv check
+) >"$log_root/protected-cache.stdout" 2>"$log_root/protected-cache.stderr" \
+    || fail 'the protected cached cargo check failed.'
+if grep -F -q -- 'CARGO_PRIMARY_PACKAGE=1' "$log_root/protected-cache.stderr"; then
+    fail 'the protected cached cargo check unexpectedly recompiled a primary package.'
+fi
+source_after=$(python3 -B "$fingerprint_tool" "$target_project") \
+    || fail 'the reviewed source fingerprint could not be revalidated.'
+[[ "$source_before" == "$source_after" ]] \
+    || fail 'the project source changed during the protected gate.'
+
+mechanical_evidence="$secret_root/ci-gate-evidence-v1.json"
+jq -n \
+    --arg wrapper "$wrapper_sha256" \
+    --arg source "$source_after" \
+    '{
+        schema_version: "ci-gate-evidence-v1",
+        result: "passed",
+        authority_mode: "protected-digest",
+        wrapper_sha256: $wrapper,
+        source_sha256: $source,
+        clean_target: true,
+        primary_wrapper_participation: "verified",
+        local_wrapper_override: "superseded",
+        cached_followup: "passed-without-primary-recompile",
+        signature: "none-local-mechanics-only"
+    }' >"$mechanical_evidence"
+chmod 0600 "$mechanical_evidence"
+
+gate_plain="$secret_root/protected-task-gate.json"
+python3 -B "$installed_authority" task-evaluate \
+    --policy "$installed_policy" \
+    --mechanical-evidence "$mechanical_evidence" \
+    --integrity-envelope "$integrity_envelope" \
+    --integrity-public-key "$integrity_public_key" \
+    --attestation-private-key "$gate_private_key" \
+    --output "$gate_plain" \
+    --project-id "$project_id" \
+    --workspace-id "$workspace_id" \
+    --task-id "$task_id" \
+    --task-revision "$task_revision" \
+    --state-revision "$state_revision" \
+    --review-id "$review_id" \
+    --source-fingerprint "$source_after" \
+    >"$log_root/protected-task-gate.out" \
+    || fail 'the protected authority refused the task decision.'
+chmod 0600 "$gate_plain"
 
 admin_plain="$secret_root/installation.json"
 systemd-creds --name=antdelirium-operator-installation-v1 decrypt \
@@ -180,7 +310,7 @@ jq -e '
 ' "$capability_plain" >/dev/null || fail 'the generated CI descriptor is invalid.'
 
 advance_plain="$secret_root/advance.json"
-jq -n \
+jq -n --slurpfile protected_gate "$gate_plain" \
     --arg project "$project_id" \
     --arg workspace "$workspace_id" \
     --arg task "$task_id" \
@@ -192,7 +322,8 @@ jq -n \
         workspace_id: $workspace,
         task_id: $task,
         review_id: $review,
-        expected_state_revision: $revision
+        expected_state_revision: $revision,
+        protected_gate: $protected_gate[0]
     }' >"$advance_plain"
 chmod 0600 "$advance_plain"
 exec {ci_fd}<"$capability_plain"
