@@ -213,6 +213,33 @@ fn keeps_one_private_baseline_for_each_workspace_of_the_same_project() {
 }
 
 #[test]
+fn recovers_past_a_validated_duplicate_baseline_without_exposing_it_as_canonical() {
+    let root = unique_root("duplicate-baseline-compatibility");
+    let backup = ProtectedGitBackup::initialize(&root, current_uid()).unwrap();
+    let first = metadata(BackupTransition::Baseline, 0);
+    let mut duplicate = first.clone();
+    duplicate.occurred_at_unix += 1;
+    duplicate.observed_compilation_fingerprint = Some("b".repeat(64));
+
+    let canonical = backup
+        .commit_snapshot(&first, vec![entry("src/lib.rs", b"pub fn first() {}\n")])
+        .unwrap();
+    backup
+        .commit_snapshot(
+            &duplicate,
+            vec![entry("src/lib.rs", b"pub fn corrected() {}\n")],
+        )
+        .unwrap();
+
+    let recovered = backup.recover_checkpoint_chain().unwrap();
+    assert_eq!(recovered.len(), 1);
+    assert_eq!(recovered[0].receipt.commit_id, canonical.commit_id);
+    assert!(backup
+        .has_workspace_baseline(PROJECT_ID, WORKSPACE_ID)
+        .unwrap());
+}
+
+#[test]
 fn recovers_the_exact_baseline_binding_from_the_private_history() {
     let root = unique_root("recover-baseline");
     let backup = ProtectedGitBackup::initialize(&root, current_uid()).unwrap();

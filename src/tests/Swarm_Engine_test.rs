@@ -202,12 +202,14 @@ requirements = ["operation_zone"]
             .find(|v| v.rule_id.contains("rule_priority_conflict"))
             .expect("rule priority conflict violation should exist");
         assert!(
-            conflict.message.contains("default_rules.toml"),
-            "conflict message should direct user to fix TOML"
+            conflict
+                .message
+                .contains("Protected rule priority conflict"),
+            "conflict message should identify the protected policy failure"
         );
         assert!(
-            conflict.message.contains("assign a different priority"),
-            "conflict message should explain why and how to fix"
+            conflict.message.contains("Ask the operator"),
+            "conflict message should direct the agent to the operator"
         );
     }
 

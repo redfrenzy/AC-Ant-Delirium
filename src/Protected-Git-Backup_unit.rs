@@ -496,8 +496,9 @@ impl ProtectedGitBackup {
                 return Err(ProtectedGitBackupError::Commit);
             }
             let new_workspace = initialized_workspaces.insert(metadata.workspace_id.clone());
+            let duplicate_baseline =
+                !new_workspace && metadata.transition == BackupTransition::Baseline;
             if (new_workspace && metadata.transition != BackupTransition::Baseline)
-                || (!new_workspace && metadata.transition == BackupTransition::Baseline)
                 || (metadata.transition == BackupTransition::Baseline
                     && metadata.observed_compilation_fingerprint.is_none())
                 || (ordinal == 0 && metadata.transition != BackupTransition::Baseline)
@@ -509,6 +510,13 @@ impl ProtectedGitBackup {
                 return Err(ProtectedGitBackupError::Commit);
             }
             previous_commit_id = Some(commit.id().to_string());
+            // A short-lived storage-v13 build committed every compile as another
+            // baseline before the database rejected the duplicate identity. Keep
+            // validating and traversing that immutable Git object, but do not
+            // expose it as a second canonical checkpoint.
+            if duplicate_baseline {
+                continue;
+            }
             recovered.push(RecoveredBackupCheckpoint {
                 metadata,
                 receipt: BackupCommitReceipt {
@@ -653,6 +661,14 @@ impl ProtectedGitBackup {
         archive_descriptor: &OwnedFd,
     ) -> Result<BackupCommitReceipt, ProtectedGitBackupError> {
         let entries = snapshot_entries_from_archive_descriptor(archive_descriptor)?;
+        self.commit_snapshot(metadata, entries)
+    }
+
+    pub(crate) fn commit_snapshot_entries(
+        &self,
+        metadata: &BackupCommitMetadata,
+        entries: Vec<BackupSnapshotEntry>,
+    ) -> Result<BackupCommitReceipt, ProtectedGitBackupError> {
         self.commit_snapshot(metadata, entries)
     }
 
@@ -1314,7 +1330,7 @@ pub(crate) fn create_sealed_snapshot_archive(
 }
 
 #[cfg(unix)]
-fn snapshot_entries_from_archive_descriptor(
+pub(crate) fn snapshot_entries_from_archive_descriptor(
     archive_descriptor: &OwnedFd,
 ) -> Result<Vec<BackupSnapshotEntry>, ProtectedGitBackupError> {
     let mut stat: libc::stat = unsafe { std::mem::zeroed() };

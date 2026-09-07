@@ -1,4 +1,4 @@
-# Remoção do build hook de plugin — T10.3 parcial
+# Remoção do build hook de plugin — evidência da T10.3
 
 Data da prova: 1 de setembro de 2026.
 
@@ -52,10 +52,9 @@ external_project_access=forbidden
 validation=pass
 ```
 
-## Limite
+## Fechamento
 
-Esta é uma parte da T10.3, não sua conclusão. O runtime legado ainda contém
-mensagens e templates da instalação antiga porque permanece compilado como
-rollback até a T10.2. Eles devem ser removidos estruturalmente com o módulo,
-não reescritos um a um antes de sua retirada. A pasta pública `guard/` e seus
-dois JSONs não pertencem ao legado removível.
+Esta prova foi a primeira parte da T10.3. A T10.2 removeu estruturalmente o
+runtime, as mensagens e os templates da instalação antiga. A validação final
+confirmou a API pública fechada, o ELF sem localizadores protegidos e a pasta
+`guard/` contendo somente seus dois JSONs públicos.

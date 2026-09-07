@@ -108,10 +108,12 @@ fn resolve_expected_jurisdiction_root(
     jurisdiction: &str,
     observed_path: &str,
 ) -> String {
-    let project_root = ctx.config.project_root_path();
-    let observed_absolute = ctx.config.resolve_project_path(observed_path);
-    let package_root =
-        resolve_nearest_package_root(&observed_absolute, &project_root).unwrap_or(project_root);
+    let package_root = resolve_nearest_package_root(ctx, observed_path).unwrap_or_else(|| {
+        let project_root = ctx.config.project_root_path();
+        let observed_absolute = ctx.config.resolve_project_path(observed_path);
+        resolve_nearest_physical_package_root(&observed_absolute, &project_root)
+            .unwrap_or(project_root)
+    });
     let candidate = Path::new(jurisdiction);
     let resolved = if candidate.is_absolute() {
         candidate.to_path_buf()
@@ -156,21 +158,41 @@ fn normalize_relative_project_path(path: &str) -> String {
 }
 
 fn resolve_nearest_package_root(
+    ctx: &AuditContext<'_>,
+    observed_path: &str,
+) -> Option<std::path::PathBuf> {
+    let mut current = Path::new(observed_path)
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_default();
+    loop {
+        let manifest = current
+            .join("Cargo.toml")
+            .to_string_lossy()
+            .replace('\\', "/");
+        if ctx.project_contains_path(&manifest) {
+            return Some(current);
+        }
+        if current.as_os_str().is_empty() || !current.pop() {
+            break;
+        }
+    }
+    None
+}
+
+fn resolve_nearest_physical_package_root(
     observed_absolute: &Path,
     project_root: &Path,
 ) -> Option<std::path::PathBuf> {
     let mut current = observed_absolute.parent()?.to_path_buf();
-
     loop {
         if current.join("Cargo.toml").is_file() {
             return Some(current);
         }
-
         if current == project_root || !current.starts_with(project_root) || !current.pop() {
             break;
         }
     }
-
     None
 }
 

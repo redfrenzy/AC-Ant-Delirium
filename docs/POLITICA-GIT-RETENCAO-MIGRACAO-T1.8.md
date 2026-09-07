@@ -13,50 +13,23 @@ Esta política fecha quatro decisões:
 3. migração exige operador autorizado e verificação independente;
 4. cutover nunca remove o original e mantém rollback mínimo de 30 dias.
 
-## Política Git de `guard/`
+## Política Git de `guard/` — decisão final
 
-### Regra padrão
+`guard/to-do_list.json` e `guard/governance_error.json` são derivados do estado
+protegido e não são autoridade. O AntDelirium não detecta repositório, não lê
+metadados Git e não altera `.gitignore`, `.git/info/exclude`, configuração ou
+index do projeto. A decisão de ignorar ou versionar projeções pertence ao
+operador.
 
-`guard/to-do_list.json` e `guard/governance_error.json` são derivados do estado protegido. Commitá-los criaria diffs ruidosos, conflitos entre worktrees e histórico de tarefas que não é autoridade. Portanto eles ficam ignorados por padrão.
-
-O AntDelirium não altera automaticamente:
-
-- `.gitignore` da raiz;
-- `.git/info/exclude`;
-- `core.excludesFile` ou configuração Git global/local;
-- index com `git add`, `git rm --cached`, `assume-unchanged` ou `skip-worktree`.
-
-Quando o projeto está em Git e nenhuma regra existente ignora as projeções, o writer pode criar somente:
-
-```gitignore
-/to-do_list.json
-/governance_error.json
-/.gitignore
-```
-
-em `guard/.gitignore`. Os padrões são relativos à própria pasta e ignoram exatamente os dois JSONs e o arquivo gerado. Não se usa `*`, `guard/**` nem outro wildcard que esconda arquivos inesperados.
-
-### Comportamento diante do estado existente
-
-| Estado encontrado | Ação |
-|---|---|
-| regra existente já ignora ambos os JSONs | preservar; não criar nem editar outra regra |
-| `guard/.gitignore` inexistente e projeções não ignoradas | criar o arquivo mínimo acima atomicamente |
-| `guard/.gitignore` existente | nunca sobrescrever; validar e respeitar a decisão do projeto |
-| projeção já rastreada pelo Git | nunca desindexar automaticamente; bloquear rollout protegido até operador corrigir |
-| audit-only com projeção rastreada | atualizar por compatibilidade e emitir aviso único ao operador |
-| arquivo inesperado em `guard/` | preservar, não ignorar e registrar desvio; nunca apagar automaticamente |
-| projeto sem Git | não criar `.gitignore`; gerar somente os dois JSONs |
-
-O operador pode versionar intencionalmente o `guard/.gitignore` mínimo. O AntDelirium nunca versiona as projeções nem assume consentimento a partir de um repositório limpo.
-
-### Conteúdo permitido
-
-Em operação normal, `guard/` contém:
+O bootstrap cria somente `guard/` vazio. Após a projeção, a pasta contém
+exatamente:
 
 - `to-do_list.json`;
-- `governance_error.json`;
-- opcionalmente o `.gitignore` mínimo.
+- `governance_error.json`.
+
+Esta decisão final substitui a política intermediária T1.8 que gerava um
+`guard/.gitignore` mínimo. Ela evita que o AntDelirium interfira no Git do
+projeto governado e foi comprovada na aceitação instalada final.
 
 Nenhum binário, plano, histórico, login, TOML, token, socket, script ou arquivo de estado é permitido. A presença de outro item é desvio de configuração, não autorização para removê-lo.
 
@@ -213,9 +186,11 @@ Rollback não tenta fazer merge automático de dois writers. Se o replay compat�
 - depois da janela, pode ser arquivado de forma recuperável, nunca apagado automaticamente;
 - nenhuma projeção, erro ou binário distribuído contém o path físico da origem ou do archive.
 
-## Spike Git executado
+## Spike Git histórico
 
-Num repositório temporário, o `.gitignore` autocontido com os três padrões exatos:
+Antes da decisão final, um repositório temporário validou a alternativa de
+`.gitignore` autocontido. Esse resultado é somente histórico e não descreve o
+produto atual. O experimento:
 
 - manteve `.gitignore`, `to-do_list.json` e `governance_error.json` ignorados;
 - não alterou configuração nem `.gitignore` raiz;
@@ -225,7 +200,7 @@ O teste rejeitou a alternativa `*`, pois ela esconderia qualquer conteúdo inesp
 
 ## Consequências para implementação
 
-- T5.1 está implementada em [`materialize_project_guard`](../src/structs/Project_Guard_Bootstrap_structcore.rs): valida a raiz e objetos sem seguir symlinks, bloqueia projeção rastreada, preserva regras existentes e cria atomicamente apenas o ignore mínimo quando necessário. O construtor do writer exige esse bootstrap antes de qualquer projeção.
+- T5.1 está implementada em [`materialize_project_guard`](../src/structs/Project_Guard_Bootstrap_structcore.rs): valida a raiz sem seguir symlink, não consulta Git e cria somente o diretório vazio. O construtor do writer exige esse bootstrap antes de qualquer projeção.
 - T5.6 trata item inesperado como desvio sem apagá-lo.
 - T7 implementa quarantine/retire/archive como estados, não remoção direta.
 - T8 usa `migration-manifest-v1`, approvals e rollback point.

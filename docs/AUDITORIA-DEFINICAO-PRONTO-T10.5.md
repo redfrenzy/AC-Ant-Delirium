@@ -1,10 +1,10 @@
-# Auditoria da definição de pronto — T10.5 parcial
+# Auditoria da definição de pronto — T10.5 concluída
 
 ## Resultado atual
 
-A definição de pronto foi conferida item por item depois da matriz T10.4. Vinte
-e um de vinte e quatro requisitos possuem evidência suficiente; três permanecem abertos. Por
-isso T10.5 e o gate final do produto não estão concluídos.
+A definição de pronto foi conferida item por item depois da matriz T10.4 e da
+retirada T10.2/T10.3. Os vinte e quatro requisitos possuem evidência suficiente;
+T10.5 e o gate final do produto estão concluídos.
 
 Esta auditoria trata somente o AntDelirium. AutoBrowser e qualquer migração de
 projeto externo estão fora do gate.
@@ -18,8 +18,8 @@ projeto externo estão fora do gate.
 | MSRV declarado e Cargo compatível | comprovado | `rust-version = 1.88`; Cargo/rustc 1.97.1 prontos, acima do piso Cargo 1.50 |
 | delegação transparente ao `rustc` real | comprovado | matrizes T6.1–T6.6 e T10.4 |
 | estado de projetos novos fora do repositório | comprovado | aceitação instalada T8G/T10.4 e serviço dedicado |
-| nenhum binário/guard exigido em `plugins/` | comprovado no fluxo atual | build hook ativo removido; templates compilados de rollback ainda saem em T10.2/T10.3 |
-| somente duas projeções locais encontráveis | comprovado | `to-do_list.json` e `governance_error.json`; `.gitignore` é política Git, não projeção |
+| nenhum binário/guard exigido em `plugins/` | comprovado | build hook, runtime de pass-through e templates compilados do guard antigo removidos em T10.2/T10.3 |
+| somente duas projeções locais encontráveis | comprovado | `to-do_list.json` e `governance_error.json`; a aceitação instalada rejeita qualquer terceira entrada |
 | projeções sem paths externos ou nomes administrativos | comprovado | T5.2–T5.7, T9.5 e T10.4 |
 | agente sem leitura/escrita dos planos autoritativos | comprovado no host/sandbox testado | T9.4–T9.6; não é promessa contra o mesmo usuário sem sandbox |
 | submissão não implementa, revisa ou aprova tarefa | comprovado | T8G.3 e ciclo instalado com authorities distintas |
@@ -33,21 +33,16 @@ projeto externo estão fora do gate.
 | concorrência atômica e recuperável | comprovado | storage transacional, builds paralelos e rollback instalado |
 | agente recebe ações de código, não edição de JSON | comprovado | API limitada e projeções com ação/evidência |
 | documentação não promete proteção contornável pelo mesmo usuário | comprovado | limites locais/host/CI declarados e não objetivos mantidos |
-| autoridade local contra bypass intencional | **pendente** | política, assinatura e autoridade estão instaladas, mas a transição canônica ainda não exige auditoria atual e sem violações |
-| backup Git automático por ciclo de tarefa | **pendente** | transações, journals e checkpoint Ed25519 existem; ainda faltam o Git privado global, commits de baseline/submissão/revisão/avanço, contexto derivado do diff interno e paridade de recuperação do backup legado |
-| implantação genérica com rollback sem projeto externo | comprovado | T8G.1–T8G.4, storage-v11 e T10.4 |
-| toda a suíte do AntDelirium verde no estado final | **pendente** | testes focados e matrizes T10.4 passaram; a suíte integral final deve rodar depois de T10.2/T10.3 para validar o produto sem rollback compilado |
+| autoridade local contra bypass intencional | comprovado | T9.7 exige decisão protegida atual, assinada e sem violações antes da transição canônica; projeção local editada não concede autoridade |
+| backup Git automático por ciclo de tarefa | comprovado | T9.8 mantém Git bare privado com commits de baseline, submissão, revisão e avanço, contexto derivado dos commits e recuperação reentrante, sem consultar `.git` do projeto |
+| implantação genérica com rollback sem projeto externo | comprovado | T8G.1–T8G.4, storage-v13, T10.4 e aceitação instalada final |
+| toda a suíte do AntDelirium verde no estado final | comprovado | `make ci`: 183 testes da biblioteca, 190 do binário, 9 de integração e auditoria ELF passaram sem falhas; 8 testes de migração externa permaneceram ignorados por serem não objetivos |
 
 ## Dependências restantes
 
-1. portar e validar backup, commit, diff e recuperação Git na T9.8;
-2. integrar o commit/fingerprint à transição canônica local e concluir T9.7;
-3. criar a referência recuperável do release e executar a remoção inventariada
-   em T10.2;
-4. retirar mensagens/templates exclusivos do rollback e concluir T10.3;
-5. executar `make ci`, a matriz final e a auditoria ELF no estado definitivo;
-6. atualizar esta auditoria, marcar T10.5 e fechar o gate final somente se tudo
-   permanecer verde.
+Nenhuma dependência do gate do produto permanece aberta. Migrações de projetos
+externos e configuração de branch protection no provedor continuam fora do
+escopo do AntDelirium.
 
 ## Não objetivos preservados
 

@@ -1,6 +1,7 @@
 use crate::parser::CodeScanner;
 use crate::structs::{
-    AuditConfig, AuditContext, AuditViolation, GovernanceAxiom, ProjectContext, ProjectFileContext,
+    AuditConfig, AuditContext, AuditSourceFile, AuditViolation, GovernanceAxiom, ProjectContext,
+    ProjectFileContext,
 };
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -101,6 +102,37 @@ pub(crate) fn prepare_project_context(
         context,
         path_index_millis,
         file_read_millis,
+        taxonomy_millis,
+    }
+}
+
+pub(crate) fn prepare_source_context(
+    config: &AuditConfig,
+    sources: &[AuditSourceFile],
+    tag_separator: &str,
+) -> PreparedProject {
+    let path_index_start = Instant::now();
+    let mut context = ProjectContext::default();
+    for source in sources {
+        context.register_known_path(&source.path);
+    }
+    let path_index_millis = path_index_start.elapsed().as_millis();
+    let taxonomy_start = Instant::now();
+    for source in sources {
+        let (detected_dna, taxonomy_path) =
+            resolve_file_taxonomy(config, &source.path, tag_separator);
+        context.insert_loaded_file(ProjectFileContext::new(
+            source.path.clone(),
+            source.content.clone(),
+            detected_dna,
+            taxonomy_path,
+        ));
+    }
+    let taxonomy_millis = taxonomy_start.elapsed().as_millis();
+    PreparedProject {
+        context,
+        path_index_millis,
+        file_read_millis: 0,
         taxonomy_millis,
     }
 }

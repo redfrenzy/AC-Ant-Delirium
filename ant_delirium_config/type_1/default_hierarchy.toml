@@ -14,7 +14,7 @@ test_case_mapping = true
 inheritance_visibility = true
 root_manifest = true
 root_md_pairing = true
-repository = "/home/dracker/aesthetic-core"
+repository = ""
 max_nesting = 3
 max_params = 5
 logical_density = 40
@@ -42,20 +42,6 @@ info = "Runtime target mapping used by the hierarchy engine to connect abstract 
 core =  ["src/exemples_error/type1"]
 tests = "src/tests"
 macros = "src/macros"
-
-[hierarchy.installation]
-
-[hierarchy.installation.config]
-
-[hierarchy.installation.build]
-
-[hierarchy.installation.build.strict]
-
-[hierarchy.installation.api]
-
-[hierarchy.installation.shadow_context]
-
-[hierarchy.installation.security]
 
 [hierarchy.files.unit]
 info = "Public-facing unit DNA. A unit file acts as the visible orchestration layer of a feature and is expected to expose public declarations or stable entry points. This branch keeps stricter structural limits than the root because unit files should stay shallow, reviewable, and heavily documented. Use this node when explaining the contract of top-level feature APIs."
@@ -218,15 +204,3 @@ info = "Explain why this helper exists in macrocore and what expansion concern i
 [hierarchy.files.macro.macrocore.documentation.usage]
 min = 64
 info = "Explain how this macrocore helper is invoked or consumed by the parent macro layer."
-
-[hierarchy.orchestration]
-min_passing_grade = 7.0
-
-[hierarchy.orchestration.cargo_warning]
-enabled = true
-manifest = "AC_Ant-Delirium_props/Logs/artifacts/to-do_list_manifest.json"
-pending_template = "[Plan {plan_id}] {pending_tasks} tasks pending ({mode} mode). Manifest: {manifest}. ({instruction})"
-generation_template = "[Plan {plan_id}] Task Generation Mode Active. Manifest: {manifest}. Create specific implementation tasks with ./guard --api 'hierarchy.task.[{plan_id}].add_task=Write a complete task prompt here', then close task generation with ./guard --api 'hierarchy.task.[{plan_id}].needs_more_tasks=false'. Do not edit task_orchestrator.json or plan JSON files directly."
-implementation_instruction = "Complete a task using: ./guard --api 'hierarchy.task.[{plan_id}].[TASK_ID].implemented=true Your explanation here'"
-plan_review_instruction = "Audit a task using: ./guard --api 'hierarchy.task.[{plan_id}].[TASK_ID].task_reviewed=true Your explanation here'"
-implementation_review_instruction = "Review a task using: ./guard --api 'hierarchy.task.[{plan_id}].[TASK_ID].review_status=approved Your explanation here' or use rejected"

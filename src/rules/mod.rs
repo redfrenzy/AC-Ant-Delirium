@@ -1,5 +1,3 @@
-#[allow(non_snake_case)]
-pub mod Rule_Docs_unit;
 pub mod axiom_identity;
 pub mod axiom_pedagogical;
 pub mod axiom_sanitization;

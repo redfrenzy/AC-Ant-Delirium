@@ -1,6 +1,6 @@
 use crate::libres::Rusqlite_unit::{AC_OptionalExtension, AC_Transaction, AC_params};
 use crate::libres::Sha2_unit::sha256;
-use crate::libres::System_Random_unit::random_crockford_id;
+use crate::libres::System_Random_unit::{crockford_id, random_crockford_id};
 
 use super::{
     reject_protected_administrative_references, reject_public_path_references,
@@ -8,6 +8,7 @@ use super::{
     GovernanceErrorsProjectionDocument, ProjectedGovernanceViolation, TransactionalStorageError,
     TransactionalStorageResult, AGENT_PROJECTION_CONTRACT_VERSION,
 };
+use super::{sanitize_public_text, AuditViolation};
 use super::{
     AtomicProjectProjectionWriter, CanonicalGovernanceSnapshotRequest, EventWriteOutcome,
     GovernanceErrorsRefreshRequest, NewAuditEvent, ProjectDatabase, ProjectProjectionWriter,
@@ -35,6 +36,70 @@ pub(super) fn build_governance_errors_projection(
 
 pub(super) fn is_agent_correctable_violation_path(path: &str) -> bool {
     validate_agent_visible_project_path(path, "violation path").is_ok()
+}
+
+pub(super) fn project_audit_violations(
+    project_id: &str,
+    workspace_id: &str,
+    violations: &[AuditViolation],
+) -> TransactionalStorageResult<Vec<ProjectedGovernanceViolation>> {
+    validate_text(project_id, 1, 255, "project_id")?;
+    validate_text(workspace_id, 1, 255, "workspace_id")?;
+    let mut projected = Vec::new();
+    for violation in violations
+        .iter()
+        .filter(|violation| is_agent_correctable_violation_path(&violation.file_path))
+    {
+        if projected.len() >= 4_096 {
+            return Err(invalid(
+                "canonical governance snapshot exceeds the violation limit",
+            ));
+        }
+        let mut item = ProjectedGovernanceViolation {
+            violation_id: String::new(),
+            rule_id: violation.rule_id.clone(),
+            summary: sanitize_public_text(&violation.message),
+            path: violation.file_path.clone(),
+            line: violation.line.max(1),
+            quick_fix: violation.quick_fix.as_deref().map(sanitize_public_text),
+            public_rule_reference: "hierarchy.rule.related".to_string(),
+        };
+        item.violation_id = stable_audit_violation_id(project_id, workspace_id, &item)?;
+        validate_violation(&item)?;
+        projected.push(item);
+    }
+    Ok(projected)
+}
+
+fn stable_audit_violation_id(
+    project_id: &str,
+    workspace_id: &str,
+    violation: &ProjectedGovernanceViolation,
+) -> TransactionalStorageResult<String> {
+    let mut identity = Vec::new();
+    for field in [
+        project_id,
+        workspace_id,
+        &violation.rule_id,
+        &violation.summary,
+        &violation.path,
+        violation.quick_fix.as_deref().unwrap_or_default(),
+        &violation.public_rule_reference,
+    ] {
+        let length = u64::try_from(field.len())
+            .map_err(|_| invalid("violation identity field exceeds its contract"))?;
+        identity.extend_from_slice(&length.to_le_bytes());
+        identity.extend_from_slice(field.as_bytes());
+    }
+    identity.extend_from_slice(
+        &u64::try_from(violation.line)
+            .map_err(|_| invalid("violation line exceeds its contract"))?
+            .to_le_bytes(),
+    );
+    let digest = sha256(&identity);
+    let mut opaque = [0_u8; 16];
+    opaque.copy_from_slice(&digest[..16]);
+    Ok(crockford_id("vio_", &opaque))
 }
 
 pub(super) fn replace_canonical_governance_snapshot(

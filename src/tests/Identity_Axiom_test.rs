@@ -157,7 +157,7 @@ mod tests {
 
     #[test]
     fn dna_suffix_ignores_generic_rust_entrypoints() {
-        let config = config();
+        let config = AuditConfig::default();
         let source = "pub fn main() {}";
         let functions = CodeScanner::scan_blocks(source);
         let mut violations = Vec::new();
@@ -369,12 +369,19 @@ mod tests {
 
     #[test]
     fn repository_anchor_flags_absolute_path_outside_repository() {
-        let config = config();
+        let mut config = config();
+        config
+            .hierarchy
+            .nodes
+            .get_mut("hierarchy")
+            .expect("root hierarchy should exist")
+            .properties
+            .insert("repository".to_string(), "/governed/repository".to_string());
         let source = "pub fn repo_anchor() {}";
         let functions = CodeScanner::scan_blocks(source);
         let mut violations = Vec::new();
         let mut ctx = AuditContext {
-            file_path: "/tmp/repository_anchor_outside.rs",
+            file_path: "/outside/repository_anchor.rs",
             source,
             functions: &functions,
             config: &config,

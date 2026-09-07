@@ -816,6 +816,56 @@ fn provisional_bootstrap_is_uid_scoped_deduplicated_and_projection_ready() {
 }
 
 #[test]
+fn provisional_bootstrap_never_claims_an_unrelated_legacy_candidate() {
+    let root = unique_root("provisional-does-not-claim-candidate");
+    let authority = authority();
+    let storage = ProtectedServiceStorage::initialize(&authority, &root).unwrap();
+    let candidate = StorageProject {
+        project_id: "prj_11111111111111111111111111".to_string(),
+        project_key: "legacy-candidate--11111111111111111111111111".to_string(),
+        created_at: "2026-09-07T00:00:00Z".to_string(),
+    };
+    let candidate_database = storage
+        .materialize_project(&authority, &candidate)
+        .expect("unrelated candidate fixture");
+    let candidate_workspace = StorageWorkspace {
+        workspace_id: "wsp_11111111111111111111111111".to_string(),
+        project_id: candidate.project_id.clone(),
+        workspace_key: "workspace--11111111111111111111111111".to_string(),
+        created_at: "2026-09-07T00:00:00Z".to_string(),
+    };
+    CanonicalStateStore::register_workspace(&candidate_database, &candidate_workspace)
+        .expect("candidate project workspace");
+    CanonicalStateStore::register_workspace(storage.registry(), &candidate_workspace)
+        .expect("candidate registry workspace");
+
+    let bootstrap = storage
+        .bootstrap_provisional(
+            &authority,
+            authority.effective_uid(),
+            &[61_u8; 32],
+            &[62_u8; 32],
+            "new-rust-project",
+        )
+        .expect("new project bootstrap");
+
+    assert_ne!(bootstrap.project_id, candidate.project_id);
+    assert_ne!(bootstrap.workspace_id, candidate_workspace.workspace_id);
+    assert_eq!(storage.registry().registered_projects().unwrap().len(), 2);
+    assert_eq!(
+        storage
+            .registry()
+            .provisional_registration(authority.effective_uid(), &[62_u8; 32])
+            .unwrap()
+            .unwrap()
+            .project_id,
+        bootstrap.project_id
+    );
+
+    fs::remove_dir_all(root).expect("fixture cleanup");
+}
+
+#[test]
 fn provisional_bootstrap_shares_project_and_separates_workspaces() {
     let root = unique_root("project-workspace-identities");
     let authority = authority();

@@ -1,6 +1,8 @@
 use crate::parser::CodeScanner;
 use crate::rules::get_full_axioms;
-use crate::structs::{AuditConfig, AuditContext, AuditResult, AuditViolation, SearchFiles};
+use crate::structs::{
+    AuditConfig, AuditContext, AuditResult, AuditSourceFile, AuditViolation, SearchFiles,
+};
 use std::collections::BTreeMap;
 use std::env;
 use std::time::Instant;
@@ -22,10 +24,6 @@ impl SwarmEngine {
             })
             .unwrap_or(false);
         let audit_start = Instant::now();
-        let axioms = get_full_axioms();
-        let mut per_axiom_counts: BTreeMap<String, usize> = BTreeMap::new();
-        let mut per_axiom_millis: BTreeMap<String, u128> = BTreeMap::new();
-        let config_preflight = Self::validate_rule_priority_conflicts(config);
         let jurisdiction_start = Instant::now();
         let mut jurisdiction =
             SearchFiles::resolve_jurisdiction(&config.hierarchy, SearchFiles::ID);
@@ -33,35 +31,81 @@ impl SwarmEngine {
         jurisdiction.sort();
         jurisdiction.dedup();
         let jurisdiction_len = jurisdiction.len();
+        let tag_separator = Self::resolve_tag_separator(config);
+        let prepared_project =
+            Swarm_Engine_unitcore::prepare_project_context(config, &jurisdiction, &tag_separator);
+        Self::audit_prepared(
+            config,
+            prepared_project,
+            jurisdiction_len,
+            resolve_jurisdiction_millis,
+            profile_enabled,
+            audit_start,
+            false,
+        )
+    }
+
+    /// Audits a validated in-memory project snapshot. The protected service uses
+    /// this entrypoint so the governed project's physical location never becomes
+    /// part of the canonical result or the agent-visible projection.
+    pub fn audit_sources(config: &AuditConfig, sources: &[AuditSourceFile]) -> AuditResult {
+        let audit_start = Instant::now();
+        let profile_enabled = false;
+        let tag_separator = Self::resolve_tag_separator(config);
+        let prepared_project =
+            Swarm_Engine_unitcore::prepare_source_context(config, sources, &tag_separator);
+        Self::audit_prepared(
+            config,
+            prepared_project,
+            sources.len(),
+            0,
+            profile_enabled,
+            audit_start,
+            true,
+        )
+    }
+
+    fn audit_prepared(
+        config: &AuditConfig,
+        prepared_project: Swarm_Engine_unitcore::PreparedProject,
+        jurisdiction_len: usize,
+        resolve_jurisdiction_millis: u128,
+        profile_enabled: bool,
+        audit_start: Instant,
+        rust_sources_only: bool,
+    ) -> AuditResult {
+        let axioms = get_full_axioms();
+        let mut per_axiom_counts: BTreeMap<String, usize> = BTreeMap::new();
+        let mut per_axiom_millis: BTreeMap<String, u128> = BTreeMap::new();
+        let config_preflight = Self::validate_rule_priority_conflicts(config);
         let mut logs = vec![format!(
             "[SWARM] Iniciando patrulha massiva com {} axiomas.",
             axioms.len()
         )];
-        let has_config_priority_conflict = !config_preflight.is_empty();
-        if has_config_priority_conflict {
+        if !config_preflight.is_empty() {
             logs.push(
                 "[SWARM] Preflight abortado antes da patrulha de arquivos por violacao critica de configuracao."
                     .to_string(),
             );
-            if has_config_priority_conflict {
-                logs.push(
-                    "[SWARM] Preflight abortado por conflito de prioridade em default_rules.toml."
-                        .to_string(),
-                );
-            }
+            logs.push(
+                "[SWARM] Preflight abortado por conflito na política de regras protegida."
+                    .to_string(),
+            );
             return AuditResult {
                 violations: config_preflight,
                 logs,
             };
         }
         let mut all_violations = Vec::new();
-        all_violations.extend(config_preflight);
-        let tag_separator = Self::resolve_tag_separator(config);
-        let prepared_project =
-            Swarm_Engine_unitcore::prepare_project_context(config, &jurisdiction, &tag_separator);
         let mut scan_blocks_millis = 0u128;
 
-        for file in prepared_project.context.files.iter() {
+        for file in prepared_project.context.files.iter().filter(|file| {
+            !rust_sources_only
+                || std::path::Path::new(&file.path)
+                    .extension()
+                    .and_then(|extension| extension.to_str())
+                    == Some("rs")
+        }) {
             let scan_start = Instant::now();
             let functions = CodeScanner::scan_blocks(&file.content);
             scan_blocks_millis += scan_start.elapsed().as_millis();
@@ -191,20 +235,17 @@ impl SwarmEngine {
             rules.sort();
             let joined = rules.join(", ");
             violations.push(AuditViolation {
-                file_path: "ant_delirium_config/default_rules.toml".to_string(),
+                file_path: "guard/governance_error.json".to_string(),
                 line: 1,
                 rule_id: "hierarchy.sanitization.rule_priority_conflict".to_string(),
                 message: format!(
-                    "Priority conflict detected in default_rules.toml: {} rules share priority '{}': {}. The engine requires unique rule priorities to produce a deterministic fix order (P0.xxxx/P1.xxxx). Open the TOML and assign a different priority to each listed rule according to your desired correction order.",
+                    "Protected rule priority conflict: {} rules share priority '{}': {}. Ask the operator to restore a deterministic priority order.",
                     rules.len(),
                     priority,
                     joined
                 ),
-                snippet: Some(format!("priority = {}", priority)),
-                quick_fix: Some(
-                    "// [CONFIG] Edit default_rules.toml and choose unique `priority` values for each conflicting rule."
-                        .to_string(),
-                ),
+                snippet: None,
+                quick_fix: None,
                 detected_dna: "rules".to_string(),
                 taxonomy_path: "hierarchy.sanitization.rule_priority_conflict".to_string(),
             });

@@ -157,9 +157,9 @@ fn compile_toml_to_rust(content: &str, output: &mut String) {
                     output.push_str(&format!("    hierarchy.nodes.get_mut(\"{}\").map(|n| n.properties.insert(\"{}\".to_string(), \"{}\".to_string()));\n", current_node, key, val));
                 }
             } else {
-                // Registro de Requerimento (Stage 2)
-                let full_path = format!("{}.{}", current_node, trimmed);
-                output.push_str(&format!("    hierarchy.nodes.entry(\"{}\".to_string()).or_insert_with(crate::structs::DynamicNode::default).properties.insert(\"is_requirement\".to_string(), \"true\".to_string());\n", full_path));
+                // Preserve the same requirement representation produced by the
+                // runtime TOML parser: requirements belong to the rule node.
+                output.push_str(&format!("    hierarchy.nodes.entry(\"{}\".to_string()).or_insert_with(crate::structs::DynamicNode::default).properties.insert(\"requirement::{}\".to_string(), \"true\".to_string());\n", current_node, trimmed));
             }
         }
     }

@@ -102,6 +102,7 @@ ci:
 	bash -n packaging/systemd/validate-installed-identity-matrix.sh
 	bash -n packaging/systemd/upgrade-installed-service.sh
 	bash -n packaging/systemd/diagnose-capability-upgrade.sh
+	bash -n packaging/systemd/diagnose-installed-association-regression.sh
 	bash -n packaging/systemd/manage-ci-attestation-capability.sh
 	bash -n packaging/systemd/run-agent-submission.sh
 	bash -n packaging/systemd/run-reviewer-operation.sh

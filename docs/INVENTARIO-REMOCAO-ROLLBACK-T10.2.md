@@ -2,20 +2,19 @@
 
 ## Objetivo
 
-Este documento fixa a fronteira da T10.2 antes de qualquer exclusão. O nome
+Este documento registra a fronteira aplicada pela T10.2. O nome
 `legacy` também é usado por recursos atuais de migração; portanto a remoção não
 pode ser feita por busca textual, prefixo de arquivo ou diretório inteiro.
 
 O ponto de recuperação revisado antes da retirada é o commit
-`de355fe78ca958988b8c00ebf14d442e182df1f2`. A exclusão estrutural só pode ser
-executada depois de G9 comprovar o enforcement local da T9.7 e a substituição
-do commit automático na T9.8. Repositório remoto e branch protection não são
-pré-requisitos do produto. Até lá, este inventário não autoriza apagar nem
-desativar o rollback compilado.
+`de355fe78ca958988b8c00ebf14d442e182df1f2`. A exclusão estrutural foi executada
+depois de G9 comprovar o enforcement local da T9.7 e a substituição do commit
+automático na T9.8. Repositório remoto e branch protection não são
+pré-requisitos do produto.
 
-## Remoção autorizada depois de G9
+## Remoção aplicada depois de G9
 
-### Entradas compiladas do runtime antigo
+### Entradas removidas do runtime antigo
 
 - `src/Agent-Runtime_unit.rs` e `src/Agent-Runtime_unitcore.rs`;
 - `src/Main-Logic_unit.rs` e `src/Main-Logic_unitcore.rs`;
@@ -37,13 +36,9 @@ as funções e superfícies legadas dessas rotas:
 O módulo de backup Git privado e `gix` devem permanecer. `Git_unit` pode ser
 refatorado ou renomeado, mas a funcionalidade não sai; somente os entrypoints,
 shell-outs e handlers inseguros são retirados.
-Embora a implementação atual seja silenciosa e insegura, ela é a única
-evidência compilada da semântica histórica de backup automático por tarefa.
+Esses componentes não permanecem no produto nem no ELF único.
 
-Esses componentes não possuem rota pública hoje. Eles existem somente para
-recuperar o comportamento anterior dentro do ELF único.
-
-### Contrato Super Block ligado ao guard local
+### Contrato Super Block removido do guard local
 
 O antigo `Super Block` ainda descreve e verifica um `build.rs` que chama um
 guard copiado para o projeto, binários dentro de `plugins/` e TOMLs externos.
@@ -73,10 +68,10 @@ A pasta `guard/` não é o binário antigo. Ela é a superfície pública e
 encontrável do projeto e deve continuar contendo:
 
 - `guard/to-do_list.json`;
-- `guard/governance_error.json`;
-- `guard/.gitignore`.
+- `guard/governance_error.json`.
 
-Nenhum passo da T10.2 pode renomear, excluir ou ocultar esses arquivos.
+Nenhum passo da T10.2 pode renomear, excluir ou ocultar esses dois arquivos. A
+pasta não recebe uma terceira entrada gerada pelo AntDelirium.
 
 ### Migração, armazenamento e rollback atuais
 

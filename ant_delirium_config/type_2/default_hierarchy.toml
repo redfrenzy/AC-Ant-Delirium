@@ -13,7 +13,7 @@ doc_tags = true
 inheritance_visibility = true
 root_manifest = true
 root_md_pairing = true
-repository = "/home/dracker/aesthetic-core"
+repository = ""
 max_nesting = 3
 max_params = 5
 logical_density = 40
@@ -38,20 +38,6 @@ md_pairing = true
 core =  ["src/exemples_error/type2"]
 tests = "src/tests"
 macros = "src/macros"
-
-[rules.installation]
-
-[rules.installation.config]
-
-[rules.installation.build]
-
-[rules.installation.build.strict]
-
-[rules.installation.api]
-
-[rules.installation.shadow_context]
-
-[rules.installation.security]
 
 [rules.fichiers.unite]
 jurisdiction = "src"
@@ -171,15 +157,3 @@ info = "Explain why this internal macrocore helper exists."
 [rules.fichiers.macro.macrocore.documentation.usage]
 min = 64
 info = "Explain how this internal macrocore helper is used by the parent macro."
-
-[rules.orchestration]
-min_passing_grade = 7.0
-
-[rules.orchestration.cargo_warning]
-enabled = true
-manifest = "AC_Ant-Delirium_props/Logs/artifacts/to-do_list_manifest.json"
-pending_template = "[Plan {plan_id}] {pending_tasks} tasks pending ({mode} mode). Manifest: {manifest}. ({instruction})"
-generation_template = "[Plan {plan_id}] Task Generation Mode Active. Manifest: {manifest}. Create specific implementation tasks with ./guard --api 'hierarchy.task.[{plan_id}].add_task=Write a complete task prompt here', then close task generation with ./guard --api 'hierarchy.task.[{plan_id}].needs_more_tasks=false'. Do not edit task_orchestrator.json or plan JSON files directly."
-implementation_instruction = "Complete a task using: ./guard --api 'hierarchy.task.[{plan_id}].[TASK_ID].implemented=true Your explanation here'"
-plan_review_instruction = "Audit a task using: ./guard --api 'hierarchy.task.[{plan_id}].[TASK_ID].task_reviewed=true Your explanation here'"
-implementation_review_instruction = "Review a task using: ./guard --api 'hierarchy.task.[{plan_id}].[TASK_ID].review_status=approved Your explanation here' or use rejected"

@@ -12,11 +12,12 @@ use ac_ant_delirium::libres::System_Random_unit::{fill_system_random, random_cro
 #[cfg(test)]
 use ac_ant_delirium::structs::BackupCheckpointStore;
 use ac_ant_delirium::structs::{
-    AuditStore, AuthorizedReviewAssignment, AuthorizedReviewMetadata, AuthorizedSubmissionMetadata,
+    project_audit_violations, AuditConfig, AuditSourceFile, AuditStore, AuthorizedReviewAssignment,
+    AuthorizedReviewMetadata, AuthorizedSubmissionMetadata, CanonicalGovernanceSnapshotRequest,
     CapabilityActor, CapabilityAuthorizationOutcome, CapabilityAuthorizationRequest,
-    CapabilityChannel, CapabilityOperation, EventWriteOutcome, NewAuditEvent, ReviewDecision,
-    ReviewStore, ReviewWriteOutcome, SubmissionCreateRequest, SubmissionEvidence, SubmissionStore,
-    SubmissionWriteOutcome, AUDIT_EVENT_CONTRACT_VERSION,
+    CapabilityChannel, CapabilityOperation, EventWriteOutcome, HierarchyConfig, NewAuditEvent,
+    ReviewDecision, ReviewStore, ReviewWriteOutcome, SubmissionCreateRequest, SubmissionEvidence,
+    SubmissionStore, SubmissionWriteOutcome, AUDIT_EVENT_CONTRACT_VERSION,
 };
 use serde::{Deserialize, Serialize};
 
@@ -438,41 +439,26 @@ fn observe_compilation(
     observation: &LimitedAuditObservation,
     capabilities: &LimitedCapabilityBundle,
 ) -> Result<(), LimitedProtocolError> {
-    let descriptor = capabilities
-        .backup_required
-        .then_some(&observation.source_descriptor);
+    let descriptor = &observation.source_descriptor;
     let body = LimitedRequestBody {
         project_id: Some(capabilities.project_id.clone()),
         workspace_id: Some(capabilities.workspace_id.clone()),
         compilation_fingerprint: Some(encode_base64url(&observation.compilation_fingerprint)),
-        source_descriptor: descriptor.as_ref().map(|_| true),
+        source_descriptor: Some(true),
         ..LimitedRequestBody::default()
     };
-    let response = match descriptor.as_ref() {
-        Some(descriptor) => {
-            let archive = crate::protected_git_backup::create_sealed_snapshot_archive(descriptor)
-                .map_err(|_| LimitedProtocolError::Envelope)?;
-            request_for_connection_with_descriptor(
-                connect_limited_service(endpoint)?,
-                "compile.observe",
-                Some(capabilities.compile.clone()),
-                body,
-                descriptor,
-                &archive,
-            )?
-        }
-        None => request_for_connection(
-            connect_limited_service(endpoint)?,
-            "compile.observe",
-            Some(capabilities.compile.clone()),
-            body,
-        )?,
-    };
+    let archive = crate::protected_git_backup::create_sealed_snapshot_archive(descriptor)
+        .map_err(|_| LimitedProtocolError::Envelope)?;
+    let response = request_for_connection_with_descriptor(
+        connect_limited_service(endpoint)?,
+        "compile.observe",
+        Some(capabilities.compile.clone()),
+        body,
+        descriptor,
+        &archive,
+    )?;
     let result = response.result.ok_or(LimitedProtocolError::Envelope)?;
-    if result.deduplicated.is_none()
-        || (descriptor.is_some() && result.backup_recorded != Some(true))
-        || (descriptor.is_none() && result.backup_recorded.is_some())
-    {
+    if result.deduplicated.is_none() || result.backup_recorded != Some(true) {
         return Err(LimitedProtocolError::Envelope);
     }
     Ok(())
@@ -1245,8 +1231,8 @@ fn handle_compile_request(
         || request.body.submission.is_some()
         || request.body.submission_query.is_some()
         || request.body.review.is_some()
-        || request.body.source_descriptor == Some(false)
-        || (request.body.source_descriptor == Some(true)) != source_descriptor.is_some()
+        || request.body.source_descriptor != Some(true)
+        || source_descriptor.is_none()
     {
         return Err(LimitedProtocolError::Envelope);
     }
@@ -1265,25 +1251,46 @@ fn handle_compile_request(
         CapabilityOperation::CompileObserve,
     )?;
     let now = trusted_unix_time()?;
-    let backup_recorded = match source_descriptor {
-        Some(descriptor) => {
-            storage
-                .commit_baseline_snapshot_from_transferred_descriptors(
-                    authority,
-                    authentication.peer_uid(),
-                    resource.project_id(),
-                    resource
-                        .workspace_id()
-                        .ok_or(LimitedProtocolError::Envelope)?,
-                    &compilation_fingerprint,
-                    &descriptor.workspace_descriptor,
-                    &descriptor.archive_descriptor,
-                )
-                .map_err(|_| LimitedProtocolError::Envelope)?;
-            Some(true)
-        }
-        None => None,
+    let descriptor = source_descriptor.ok_or(LimitedProtocolError::Envelope)?;
+    let workspace_id = resource
+        .workspace_id()
+        .ok_or(LimitedProtocolError::Envelope)?;
+    let entries = crate::protected_git_backup::snapshot_entries_from_archive_descriptor(
+        &descriptor.archive_descriptor,
+    )
+    .map_err(|_| LimitedProtocolError::Envelope)?;
+    let sources = audit_sources_from_snapshot(&entries);
+    let mut hierarchy = HierarchyConfig::load_static();
+    hierarchy.attach_runtime_project_root(".");
+    let config = AuditConfig {
+        hierarchy,
+        ..AuditConfig::default()
     };
+    let audit =
+        ac_ant_delirium::engine::Swarm_Engine_unit::SwarmEngine::audit_sources(&config, &sources);
+    let projected =
+        project_audit_violations(resource.project_id(), workspace_id, &audit.violations)
+            .map_err(|_| LimitedProtocolError::Envelope)?;
+    storage
+        .commit_baseline_snapshot_from_transferred_entries(
+            authority,
+            authentication.peer_uid(),
+            resource.project_id(),
+            workspace_id,
+            &compilation_fingerprint,
+            &descriptor.workspace_descriptor,
+            entries,
+        )
+        .map_err(|_| LimitedProtocolError::Envelope)?;
+    resource
+        .database()
+        .replace_canonical_governance_snapshot(&CanonicalGovernanceSnapshotRequest {
+            project_id: resource.project_id().to_string(),
+            workspace_id: workspace_id.to_string(),
+            observed_at: format!("unix:{now}"),
+            violations: projected,
+        })
+        .map_err(|_| LimitedProtocolError::Envelope)?;
     let event = NewAuditEvent {
         contract_version: AUDIT_EVENT_CONTRACT_VERSION.to_string(),
         event_id: random_crockford_id("evt_").map_err(|_| LimitedProtocolError::Entropy)?,
@@ -1308,9 +1315,34 @@ fn handle_compile_request(
             matches!(outcome, CapabilityAuthorizationOutcome::Replay(_))
                 || matches!(write, EventWriteOutcome::Duplicate { .. }),
         ),
-        backup_recorded,
+        backup_recorded: Some(true),
         ..LimitedResponseResult::default()
     })
+}
+
+#[cfg(unix)]
+fn audit_sources_from_snapshot(
+    entries: &[crate::protected_git_backup::BackupSnapshotEntry],
+) -> Vec<AuditSourceFile> {
+    entries
+        .iter()
+        .filter(|entry| {
+            matches!(
+                std::path::Path::new(&entry.relative_path)
+                    .extension()
+                    .and_then(|extension| extension.to_str()),
+                Some("rs" | "md" | "json" | "toml")
+            )
+        })
+        .filter_map(|entry| {
+            String::from_utf8(entry.contents.clone())
+                .ok()
+                .map(|content| AuditSourceFile {
+                    path: entry.relative_path.clone(),
+                    content,
+                })
+        })
+        .collect()
 }
 
 #[cfg(unix)]

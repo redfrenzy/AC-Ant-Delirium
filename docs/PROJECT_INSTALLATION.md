@@ -28,24 +28,11 @@ make release-nondisclosure
 
 Antes de um `ProjectProjectionWriter` poder ser construído, a fronteira
 `lifecycle-v1` materializa `<project-root>/guard/` de forma idempotente. Ela
-exige uma raiz de projeto regular, rejeita symlinks em `guard/` e
-`guard/.gitignore` e nunca altera `.gitignore` raiz, configuração Git ou index.
-
-Em projeto Git, uma projeção já rastreada bloqueia o bootstrap. Se regras
-existentes já ignoram os dois JSONs, elas são preservadas. Caso contrário, e
-somente se `guard/.gitignore` ainda não existir, o bootstrap cria atomicamente o
-arquivo autocontido mínimo:
-
-```gitignore
-/to-do_list.json
-/governance_error.json
-/.gitignore
-```
-
-Um `guard/.gitignore` preexistente pertence ao projeto e nunca é sobrescrito,
-mesmo quando não ignora as projeções. Em projeto sem Git, cria-se somente a
-pasta vazia. A T5.1 não gera os JSONs; as fronteiras internas de projeção de
-tarefa e de erros foram implementadas, respectivamente, nas T5.2 e T5.3.
+exige uma raiz de projeto regular, rejeita symlinks em `guard/` e não consulta
+nem altera metadados, configuração ou index Git do projeto. O bootstrap cria
+somente a pasta vazia; os writers materializam depois exatamente
+`to-do_list.json` e `governance_error.json`. Qualquer política para ignorar
+esses arquivos pertence ao operador do projeto, não ao AntDelirium.
 
 ## Projeção canônica da tarefa atual
 

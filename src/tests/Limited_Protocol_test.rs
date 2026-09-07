@@ -279,6 +279,18 @@ fn bootstrap_compile_and_projection_complete_one_typed_limited_exchange() {
         nonce % 1_000_000_000_000_u128,
     ));
     std::fs::create_dir_all(&root).unwrap();
+    let workspace_root = root.join("workspace");
+    std::fs::create_dir_all(workspace_root.join("src")).unwrap();
+    std::fs::write(
+        workspace_root.join("Cargo.toml"),
+        b"[package]\nname = \"typed-cycle\"\nversion = \"0.1.0\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        workspace_root.join("src/lib.rs"),
+        b"pub fn governed() { Some(1).unwrap(); }\n",
+    )
+    .unwrap();
     let authority = crate::service_authority::VerifiedServiceAuthority::for_current_test_process()
         .expect("Linux effective uid");
     let storage_root = root.join("service-state");
@@ -287,6 +299,14 @@ fn bootstrap_compile_and_projection_complete_one_typed_limited_exchange() {
         crate::service_storage::ProtectedServiceStorage::initialize(&authority, &storage_root)
             .unwrap();
     let peer_uid = unsafe { libc::geteuid() };
+    let project_fingerprint = [31_u8; 32];
+    let workspace_metadata = std::fs::metadata(&workspace_root).unwrap();
+    let mut workspace_material = b"antdelirium-provisional-workspace-identity-v2\0".to_vec();
+    workspace_material.extend_from_slice(&project_fingerprint);
+    workspace_material.extend_from_slice(b"inode\0");
+    workspace_material.extend_from_slice(&workspace_metadata.dev().to_be_bytes());
+    workspace_material.extend_from_slice(&workspace_metadata.ino().to_be_bytes());
+    let workspace_fingerprint = sha256(&workspace_material);
     let bootstrap_authentication =
         crate::service_authentication::ConnectionAuthentication::for_test(peer_uid, [1_u8; 32]);
     let bootstrap = execute_typed_limited_request(
@@ -296,8 +316,8 @@ fn bootstrap_compile_and_projection_complete_one_typed_limited_exchange() {
         "project.bootstrap.observe",
         None,
         LimitedRequestBody {
-            project_identity_fingerprint: Some(encode_base64url(&[31_u8; 32])),
-            workspace_identity_fingerprint: Some(encode_base64url(&[32_u8; 32])),
+            project_identity_fingerprint: Some(encode_base64url(&project_fingerprint)),
+            workspace_identity_fingerprint: Some(encode_base64url(&workspace_fingerprint)),
             project_slug: Some("typed-cycle".to_string()),
             ..LimitedRequestBody::default()
         },
@@ -305,19 +325,42 @@ fn bootstrap_compile_and_projection_complete_one_typed_limited_exchange() {
     let capabilities = bootstrap.result.unwrap().capability_bundle.unwrap();
     let compile_authentication =
         crate::service_authentication::ConnectionAuthentication::for_test(peer_uid, [2_u8; 32]);
-    let compile = execute_typed_limited_request(
-        &compile_authentication,
-        &authority,
-        &storage,
-        "compile.observe",
-        Some(capabilities.compile.clone()),
-        LimitedRequestBody {
+    let compile_request_id = random_request_id().unwrap();
+    let compile_payload = serde_json::to_vec(&LimitedRequest {
+        message_type: "request".to_string(),
+        wire_version: LIMITED_WIRE_VERSION.to_string(),
+        request_id: compile_request_id,
+        connection_nonce: encode_base64url(compile_authentication.connection_nonce()),
+        operation: "compile.observe".to_string(),
+        capability: Some(capabilities.compile.clone()),
+        body: LimitedRequestBody {
             project_id: Some(capabilities.project_id.clone()),
             workspace_id: Some(capabilities.workspace_id.clone()),
             compilation_fingerprint: Some(encode_base64url(&[32_u8; 32])),
+            source_descriptor: Some(true),
             ..LimitedRequestBody::default()
         },
-    );
+    })
+    .unwrap();
+    let workspace_descriptor: OwnedFd = std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(&workspace_root)
+        .unwrap()
+        .into();
+    let archive =
+        crate::protected_git_backup::create_sealed_snapshot_archive(&workspace_descriptor).unwrap();
+    let compile = limited_response_for_payload_with_descriptor(
+        &compile_payload,
+        &compile_authentication,
+        &authority,
+        &storage,
+        Some(&TransferredSourceSnapshot {
+            workspace_descriptor,
+            archive_descriptor: archive,
+        }),
+    )
+    .unwrap();
     assert_eq!(compile.result.unwrap().deduplicated, Some(false));
     let projection_authentication =
         crate::service_authentication::ConnectionAuthentication::for_test(peer_uid, [3_u8; 32]);
@@ -336,25 +379,106 @@ fn bootstrap_compile_and_projection_complete_one_typed_limited_exchange() {
     .result
     .unwrap();
     assert!(projection.current_task.unwrap().contains("\"task\": null"));
-    assert!(projection
-        .governance_errors
+    let governance_errors = projection.governance_errors.unwrap();
+    assert!(governance_errors.contains("\"violations\": ["));
+    assert!(
+        governance_errors.contains("restricted_tokens"),
+        "{governance_errors}"
+    );
+    assert!(governance_errors.contains("src/lib.rs"));
+    let projected: serde_json::Value = serde_json::from_str(&governance_errors).unwrap();
+    assert!(projected["violations"]
+        .as_array()
         .unwrap()
-        .contains("\"violations\": ["));
+        .iter()
+        .all(|violation| violation["path"]
+            .as_str()
+            .is_some_and(|path| path.ends_with(".rs"))));
+    assert!(!governance_errors.contains(&root.to_string_lossy().to_string()));
+
+    std::fs::write(
+        workspace_root.join("src/lib.rs"),
+        b"pub fn governed() { let _ = Some(1); }\n",
+    )
+    .unwrap();
+    let corrected_authentication =
+        crate::service_authentication::ConnectionAuthentication::for_test(peer_uid, [4_u8; 32]);
+    let corrected_payload = serde_json::to_vec(&LimitedRequest {
+        message_type: "request".to_string(),
+        wire_version: LIMITED_WIRE_VERSION.to_string(),
+        request_id: random_request_id().unwrap(),
+        connection_nonce: encode_base64url(corrected_authentication.connection_nonce()),
+        operation: "compile.observe".to_string(),
+        capability: Some(capabilities.compile.clone()),
+        body: LimitedRequestBody {
+            project_id: Some(capabilities.project_id.clone()),
+            workspace_id: Some(capabilities.workspace_id.clone()),
+            compilation_fingerprint: Some(encode_base64url(&[33_u8; 32])),
+            source_descriptor: Some(true),
+            ..LimitedRequestBody::default()
+        },
+    })
+    .unwrap();
+    let corrected_workspace_descriptor: OwnedFd = std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(&workspace_root)
+        .unwrap()
+        .into();
+    let corrected_archive = crate::protected_git_backup::create_sealed_snapshot_archive(
+        &corrected_workspace_descriptor,
+    )
+    .unwrap();
+    let corrected_compile = limited_response_for_payload_with_descriptor(
+        &corrected_payload,
+        &corrected_authentication,
+        &authority,
+        &storage,
+        Some(&TransferredSourceSnapshot {
+            workspace_descriptor: corrected_workspace_descriptor,
+            archive_descriptor: corrected_archive,
+        }),
+    )
+    .unwrap();
+    assert_eq!(
+        corrected_compile.result.unwrap().backup_recorded,
+        Some(true)
+    );
+    let corrected_projection_authentication =
+        crate::service_authentication::ConnectionAuthentication::for_test(peer_uid, [5_u8; 32]);
+    let corrected_projection = execute_typed_limited_request(
+        &corrected_projection_authentication,
+        &authority,
+        &storage,
+        "projection.refresh",
+        Some(capabilities.projection.clone()),
+        LimitedRequestBody {
+            project_id: Some(capabilities.project_id.clone()),
+            workspace_id: Some(capabilities.workspace_id.clone()),
+            ..LimitedRequestBody::default()
+        },
+    )
+    .result
+    .unwrap()
+    .governance_errors
+    .unwrap();
+    assert!(!corrected_projection.contains("restricted_tokens"));
+    assert!(!corrected_projection.contains("token_sanitization"));
 
     let registration = storage
         .registry()
-        .provisional_registration(peer_uid, &[32_u8; 32])
+        .provisional_registration(peer_uid, &workspace_fingerprint)
         .unwrap()
         .unwrap();
     let database = ProjectDatabase::open_existing_at(
         &storage_root.join("projects").join(registration.project_key),
     )
     .unwrap();
-    assert_eq!(
+    assert!(
         database
             .audit_event_count(&registration.project_id)
-            .unwrap(),
-        1
+            .unwrap()
+            >= 2
     );
     std::fs::remove_dir_all(root).unwrap();
 }

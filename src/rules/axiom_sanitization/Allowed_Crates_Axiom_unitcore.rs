@@ -55,12 +55,25 @@ fn patrol_project_cargo_manifests(
     resolved_path: &str,
     allowed: &[String],
 ) {
-    let root = ctx.config.project_root_path();
-    let manifests = collect_project_manifests(&root);
-    for manifest in manifests {
-        let Ok(source) = fs::read_to_string(root.join(&manifest)) else {
-            continue;
-        };
+    let mut manifests = ctx
+        .project
+        .files
+        .iter()
+        .filter(|file| file.path.ends_with("Cargo.toml"))
+        .map(|file| (file.path.clone(), file.content.clone()))
+        .collect::<Vec<_>>();
+    if manifests.is_empty() {
+        let root = ctx.config.project_root_path();
+        manifests = collect_project_manifests(&root)
+            .into_iter()
+            .filter_map(|manifest| {
+                fs::read_to_string(root.join(&manifest))
+                    .ok()
+                    .map(|source| (manifest, source))
+            })
+            .collect();
+    }
+    for (manifest, source) in manifests {
         patrol_cargo_dependencies_for_manifest(
             ctx,
             identity_path,
@@ -70,6 +83,52 @@ fn patrol_project_cargo_manifests(
             &source,
         );
     }
+}
+
+fn collect_project_manifests(root: &Path) -> Vec<String> {
+    let mut out = Vec::new();
+    collect_project_manifests_recursive(root, root, &mut out);
+    out.sort();
+    out.dedup();
+    out
+}
+
+fn collect_project_manifests_recursive(current: &Path, root: &Path, out: &mut Vec<String>) {
+    if !current.starts_with(root) || !current.exists() || should_skip_manifest_walk(current, root) {
+        return;
+    }
+    if current.is_file() {
+        if current.file_name().and_then(|value| value.to_str()) == Some("Cargo.toml") {
+            out.push(relative_path_string(current, root));
+        }
+        return;
+    }
+    let Ok(entries) = fs::read_dir(current) else {
+        return;
+    };
+    for entry in entries.filter_map(Result::ok) {
+        collect_project_manifests_recursive(&entry.path(), root, out);
+    }
+}
+
+fn should_skip_manifest_walk(path: &Path, root: &Path) -> bool {
+    let relative = relative_path_string(path, root);
+    matches!(relative.as_str(), ".git" | "target" | "guard" | "plugins")
+        || relative.starts_with(".git/")
+        || relative.starts_with("target/")
+        || relative.starts_with("guard/")
+        || relative.starts_with("plugins/")
+        || relative == "AC_Ant-Delirium_props"
+        || relative.starts_with("AC_Ant-Delirium_props/")
+        || relative == "src/Logs"
+        || relative.starts_with("src/Logs/")
+}
+
+fn relative_path_string(path: &Path, root: &Path) -> String {
+    path.strip_prefix(root)
+        .ok()
+        .map(|value| value.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_else(|| path.to_string_lossy().replace('\\', "/"))
 }
 
 fn patrol_cargo_dependencies(
@@ -187,65 +246,6 @@ fn patrol_cargo_dependencies_for_manifest(
             });
         }
     }
-}
-
-fn collect_project_manifests(root: &Path) -> Vec<String> {
-    let mut out = Vec::new();
-    collect_project_manifests_recursive(root, root, &mut out);
-    out.sort();
-    out.dedup();
-    out
-}
-
-fn collect_project_manifests_recursive(current: &Path, root: &Path, out: &mut Vec<String>) {
-    if !current.starts_with(root) || !current.exists() {
-        return;
-    }
-    if should_skip_manifest_walk(current, root) {
-        return;
-    }
-    if current.is_file() {
-        if current.file_name().and_then(|v| v.to_str()) == Some("Cargo.toml") {
-            out.push(relative_path_string(current, root));
-        }
-        return;
-    }
-    if !current.is_dir() {
-        return;
-    }
-    let Ok(entries) = fs::read_dir(current) else {
-        return;
-    };
-    for entry in entries.filter_map(|value| value.ok()) {
-        let path = entry.path();
-        collect_project_manifests_recursive(&path, root, out);
-    }
-}
-
-fn should_skip_manifest_walk(path: &Path, root: &Path) -> bool {
-    let rel = path
-        .strip_prefix(root)
-        .ok()
-        .map(|v| v.to_string_lossy().replace('\\', "/"))
-        .unwrap_or_default();
-    if rel.is_empty() {
-        return false;
-    }
-    rel == ".git"
-        || rel.starts_with(".git/")
-        || rel == "target"
-        || rel.starts_with("target/")
-        || rel == "AC_Ant-Delirium_props"
-        || rel.starts_with("AC_Ant-Delirium_props/")
-        || rel == "src/Logs"
-        || rel.starts_with("src/Logs/")
-}
-
-fn relative_path_string(path: &Path, root: &Path) -> String {
-    path.strip_prefix(root)
-        .ok()
-        .map(|v| v.to_string_lossy().replace('\\', "/"))
-        .unwrap_or_else(|| path.to_string_lossy().replace('\\', "/"))
 }
 
 fn patrol_external_usage_outside_libres(

@@ -170,7 +170,7 @@ impl ProtectedServiceStorage {
 
     #[cfg(unix)]
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn commit_baseline_snapshot_from_transferred_descriptors(
+    pub(crate) fn commit_baseline_snapshot_from_transferred_entries(
         &self,
         authority: &VerifiedServiceAuthority,
         peer_uid: u32,
@@ -178,20 +178,81 @@ impl ProtectedServiceStorage {
         workspace_id: &str,
         compilation_fingerprint: &[u8; 32],
         workspace_descriptor: &OwnedFd,
-        archive_descriptor: &OwnedFd,
+        entries: Vec<crate::protected_git_backup::BackupSnapshotEntry>,
     ) -> Result<crate::protected_git_backup::BackupCommitReceipt, ()> {
-        self.commit_baseline_snapshot(
-            authority,
+        self.validate_workspace_descriptor(
             peer_uid,
             project_id,
             workspace_id,
-            compilation_fingerprint,
             workspace_descriptor,
-            Some(archive_descriptor),
+        )?;
+        let _backup_guard = self.backup_transition_lock.lock().map_err(|_| ())?;
+        let project = self
+            .registry
+            .registered_projects()
+            .map_err(|_| ())?
+            .into_iter()
+            .find(|project| project.project_id == project_id)
+            .ok_or(())?;
+        validate_project_identity(&project).map_err(|_| ())?;
+        let project_root = self.projects_dir.join(&project.project_key);
+        require_owned_directory(&project_root, authority.effective_uid()).map_err(|_| ())?;
+        let database = ProjectDatabase::open_existing_at(&project_root).map_err(|_| ())?;
+        require_single_project(&database, &project).map_err(|_| ())?;
+        let state = database
+            .load_canonical_state(project_id, workspace_id)
+            .map_err(|_| ())?;
+        let current_task = state.current_task_id.as_deref().and_then(|current_id| {
+            state
+                .tasks
+                .iter()
+                .find(|task| task.task_id == current_id)
+                .map(|task| (task.task_id.clone(), task.task_revision))
+        });
+        if state.current_task_id.is_some() != current_task.is_some() {
+            return Err(());
+        }
+        let backup = crate::protected_git_backup::ProtectedGitBackup::initialize(
+            &project_root,
+            authority.effective_uid(),
         )
+        .map_err(|_| ())?;
+        if let Some(checkpoint) = database
+            .backup_checkpoint(project_id, workspace_id, "baseline", "baseline")
+            .map_err(|_| ())?
+        {
+            return backup_receipt_from_checkpoint(&checkpoint);
+        }
+        let occurred_at_unix = trusted_service_unix_time().map_err(|_| ())?;
+        let metadata = crate::protected_git_backup::BackupCommitMetadata {
+            transition: crate::protected_git_backup::BackupTransition::Baseline,
+            project_id: project_id.to_string(),
+            workspace_id: workspace_id.to_string(),
+            task_id: current_task.as_ref().map(|task| task.0.clone()),
+            task_revision: current_task.as_ref().map(|task| task.1),
+            state_revision: state.state_revision,
+            occurred_at_unix,
+            observed_compilation_fingerprint: Some(lowercase_hex(compilation_fingerprint)),
+            transition_id: None,
+        };
+        let receipt = backup
+            .commit_snapshot_entries(&metadata, entries)
+            .map_err(|_| ())?;
+        persist_backup_checkpoint(
+            &database,
+            "baseline",
+            "baseline",
+            project_id,
+            workspace_id,
+            current_task.as_ref().map(|task| task.0.as_str()),
+            current_task.as_ref().map(|task| task.1),
+            state.state_revision,
+            &receipt,
+        )?;
+        Ok(receipt)
     }
 
-    #[cfg(unix)]
+    #[cfg(all(unix, test))]
     #[allow(clippy::too_many_arguments)]
     fn commit_baseline_snapshot(
         &self,
@@ -1198,6 +1259,7 @@ impl ProtectedServiceStorage {
                 )?
             }
         };
+
         let now = trusted_service_unix_time().map_err(|_| ())?;
         let project_root = self.projects_dir.join(&registration.project_key);
         let backup = crate::protected_git_backup::ProtectedGitBackup::initialize(
@@ -1680,6 +1742,24 @@ fn backup_checkpoint_record(
         entry_count: i64::try_from(receipt.entry_count).map_err(|_| ())?,
         byte_count: i64::try_from(receipt.byte_count).map_err(|_| ())?,
         recorded_at: format!("unix:{}", receipt.occurred_at_unix),
+    })
+}
+
+fn backup_receipt_from_checkpoint(
+    checkpoint: &BackupCheckpointRecord,
+) -> Result<crate::protected_git_backup::BackupCommitReceipt, ()> {
+    let occurred_at_unix = checkpoint
+        .recorded_at
+        .strip_prefix("unix:")
+        .and_then(|value| value.parse::<i64>().ok())
+        .ok_or(())?;
+    Ok(crate::protected_git_backup::BackupCommitReceipt {
+        commit_id: checkpoint.commit_id.clone(),
+        parent_commit_id: checkpoint.parent_commit_id.clone(),
+        source_fingerprint: checkpoint.source_fingerprint.clone(),
+        entry_count: u64::try_from(checkpoint.entry_count).map_err(|_| ())?,
+        byte_count: u64::try_from(checkpoint.byte_count).map_err(|_| ())?,
+        occurred_at_unix,
     })
 }
 

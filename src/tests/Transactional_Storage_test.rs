@@ -13,8 +13,9 @@ mod tests {
     use crate::libres::Rusqlite_unit::AC_params;
     use crate::structs::{
         atomic_replace, recover_atomic_temporary_files, EventWriteOutcome, NewAuditEvent,
-        ProjectDatabase, ProjectStateRoot, StorageProject, TransactionalStorageError,
-        TransactionalStorageResult, AUDIT_EVENT_CONTRACT_VERSION, STORAGE_SCHEMA_VERSION,
+        ProjectDatabase, ProjectStateRoot, ProvisionalProjectRegistration, StorageProject,
+        TransactionalStorageError, TransactionalStorageResult, AUDIT_EVENT_CONTRACT_VERSION,
+        STORAGE_SCHEMA_VERSION,
     };
 
     fn unique_temp_dir(label: &str) -> PathBuf {
@@ -108,6 +109,84 @@ mod tests {
                 0o600
             );
         }
+
+        fs::remove_dir_all(root).expect("temporary directory should be removed");
+    }
+
+    #[test]
+    fn provisional_identity_binding_cannot_be_reassigned_by_conflicting_registration() {
+        let root = unique_temp_dir("provisional-identity-immutable");
+        let (_, database) = initialized_database(&root);
+        let second_project = StorageProject {
+            project_id: "prj_11111111111111111111111111".to_string(),
+            project_key: "second-project--11111111111111111111111111".to_string(),
+            created_at: "2026-09-07T00:00:00Z".to_string(),
+        };
+        database
+            .ensure_project(&second_project)
+            .expect("second project should be persisted");
+        database
+            .with_immediate_transaction(|transaction| {
+                transaction.execute(
+                    "INSERT INTO workspaces(workspace_id, project_id, workspace_key, created_at) VALUES (?1, ?2, ?3, ?4)",
+                    AC_params![
+                        "wsp_00000000000000000000000000",
+                        project().project_id,
+                        "workspace--00000000000000000000000000",
+                        "2026-09-07T00:00:00Z",
+                    ],
+                )?;
+                transaction.execute(
+                    "INSERT INTO workspaces(workspace_id, project_id, workspace_key, created_at) VALUES (?1, ?2, ?3, ?4)",
+                    AC_params![
+                        "wsp_11111111111111111111111111",
+                        second_project.project_id,
+                        "workspace--11111111111111111111111111",
+                        "2026-09-07T00:00:00Z",
+                    ],
+                )?;
+                Ok(())
+            })
+            .expect("workspace fixtures should be persisted");
+
+        let original = ProvisionalProjectRegistration {
+            peer_uid: 1000,
+            project_identity_fingerprint: [31_u8; 32],
+            workspace_identity_fingerprint: [32_u8; 32],
+            project_id: project().project_id,
+            workspace_id: "wsp_00000000000000000000000000".to_string(),
+            project_key: project().project_key,
+            workspace_key: "workspace--00000000000000000000000000".to_string(),
+            created_at_unix: 1_788_739_200,
+        };
+        database
+            .store_provisional_registration(&original)
+            .expect("initial identity binding should be persisted");
+        let conflicting = ProvisionalProjectRegistration {
+            peer_uid: original.peer_uid,
+            project_identity_fingerprint: original.project_identity_fingerprint,
+            workspace_identity_fingerprint: original.workspace_identity_fingerprint,
+            project_id: second_project.project_id,
+            workspace_id: "wsp_11111111111111111111111111".to_string(),
+            project_key: second_project.project_key,
+            workspace_key: "workspace--11111111111111111111111111".to_string(),
+            created_at_unix: original.created_at_unix + 1,
+        };
+
+        assert!(matches!(
+            database.store_provisional_registration(&conflicting),
+            Err(TransactionalStorageError::Integrity(message))
+                if message == "project identity is already bound to another project"
+        ));
+        assert_eq!(
+            database
+                .provisional_registration(
+                    original.peer_uid,
+                    &original.workspace_identity_fingerprint
+                )
+                .expect("registration lookup should succeed"),
+            Some(original)
+        );
 
         fs::remove_dir_all(root).expect("temporary directory should be removed");
     }

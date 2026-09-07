@@ -4,6 +4,7 @@ set -euo pipefail
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 project_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
 fixture_source="$project_root/tests/fixtures/t76-standard-cargo"
+violation_source="$project_root/tests/fixtures/t8g-restricted-token-main.rs"
 release_binary="$project_root/target/x86_64-unknown-linux-gnu/release/antdelirium"
 bundle_root="$project_root/target/t86-system-installation-bundle"
 bundle_binary="$bundle_root/usr/libexec/antdelirium/antdelirium"
@@ -20,7 +21,7 @@ fail() {
     exit 1
 }
 
-for command in cargo cp cut date find grep id jq mkdir sha256sum sort stat systemctl; do
+for command in cargo cp cut date find grep id jq mkdir seq sha256sum sleep sort stat systemctl; do
     command -v "$command" >/dev/null 2>&1 \
         || fail "required command is unavailable: $command"
 done
@@ -28,6 +29,8 @@ done
 [[ $(id -u) -ne 0 ]] || fail 'run this acceptance gate as the non-root operator.'
 [[ -f "$fixture_source/Cargo.lock" && ! -L "$fixture_source" ]] \
     || fail 'the maintained synthetic Rust fixture is unavailable.'
+[[ -f "$violation_source" && ! -L "$violation_source" ]] \
+    || fail 'the maintained governance-violation fixture is unavailable.'
 [[ ! -e "$fixture_source/guard" ]] \
     || fail 'the maintained fixture contains generated state; preserve it under target first.'
 [[ -x "$release_binary" && ! -L "$release_binary" ]] \
@@ -101,6 +104,7 @@ done
 
 run_cargo_command() {
     local command_name=$1
+    local audit_diagnostic="$log_root/cargo-$command_name.audit"
     if ! (
         cd "$synthetic_project"
         env \
@@ -111,21 +115,77 @@ run_cargo_command() {
             -u CARGO_BUILD_RUSTC_WRAPPER \
             -u CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER \
             -u ANTDELIRIUM_WRAPPER_DEPTH \
+            ANTDELIRIUM_SUPERVISOR_DIAGNOSTIC_FD=3 \
             CARGO_TARGET_DIR="$target_root/$command_name" \
-            cargo "$command_name"
+            cargo "$command_name" 3>"$audit_diagnostic"
     ) >"$log_root/cargo-$command_name.stdout" \
         2>"$log_root/cargo-$command_name.stderr"; then
         fail "cargo $command_name failed through the installed integration."
     fi
 }
 
+require_audit_pass() {
+    local command_name=$1
+    local audit_diagnostic="$log_root/cargo-$command_name.audit"
+    for _ in $(seq 1 100); do
+        [[ -s "$audit_diagnostic" ]] && break
+        sleep 0.1
+    done
+    if ! grep -Fxq 'audit=pass' "$audit_diagnostic"; then
+        printf '%s\n' 'AD-T8G: wrapper audit diagnostic:' >&2
+        sed -n '1,40p' "$audit_diagnostic" >&2
+        fail "cargo $command_name did not complete the protected audit."
+    fi
+}
+
+cp "$violation_source" "$synthetic_project/src/main.rs"
 run_cargo_command check
-run_cargo_command build
-run_cargo_command test
+require_audit_pass check
 
 guard_root="$synthetic_project/guard"
 todo_projection="$guard_root/to-do_list.json"
 error_projection="$guard_root/governance_error.json"
+for _ in $(seq 1 100); do
+    if [[ -f "$error_projection" ]] && jq -e '
+        any(.violations[]?;
+            (.rule_id | contains("restricted_tokens")) and
+            .path == "src/main.rs")
+    ' "$error_projection" >/dev/null 2>&1; then
+        break
+    fi
+    sleep 0.1
+done
+jq -e '
+    any(.violations[]?;
+        (.rule_id | contains("restricted_tokens")) and
+        .path == "src/main.rs")
+' "$error_projection" >/dev/null \
+    || fail 'cargo check did not project the restricted-token violation.'
+cp "$error_projection" "$log_root/governance-error-with-violation.json"
+
+cp "$fixture_source/src/main.rs" "$synthetic_project/src/main.rs"
+run_cargo_command build
+require_audit_pass build
+for _ in $(seq 1 100); do
+    if [[ -f "$error_projection" ]] \
+        && jq -e '
+            all(.violations[]?;
+                (.rule_id | contains("restricted_tokens") | not) and
+                (.rule_id | contains("token_sanitization") | not))
+        ' "$error_projection" >/dev/null 2>&1; then
+        break
+    fi
+    sleep 0.1
+done
+jq -e '
+    all(.violations[]?;
+        (.rule_id | contains("restricted_tokens") | not) and
+        (.rule_id | contains("token_sanitization") | not))
+' "$error_projection" >/dev/null \
+    || fail 'the corrected source did not clear the introduced token violation.'
+run_cargo_command test
+require_audit_pass test
+
 [[ -d "$guard_root" && ! -L "$guard_root" ]] \
     || fail 'normal Cargo commands did not materialize the public guard directory.'
 
@@ -164,7 +224,10 @@ jq -e '
     (.project_ref | test("^prj_[0-9a-z]{26}$")) and
     (.workspace_ref | test("^wsp_[0-9a-z]{26}$")) and
     (.source_revision | type == "number") and
-    .violations == []
+    (.violations | type == "array") and
+    all(.violations[]?;
+        (.rule_id | contains("restricted_tokens") | not) and
+        (.rule_id | contains("token_sanitization") | not))
 ' "$error_projection" >/dev/null \
     || fail 'the governance-error projection violates its public contract.'
 
@@ -190,6 +253,8 @@ done
     printf 'bundle_matches_release=yes\n'
     printf 'doctor=ready\n'
     printf 'cargo_check=pass\n'
+    printf 'cargo_check_violation_projection=pass\n'
+    printf 'corrected_source_token_violation=cleared\n'
     printf 'cargo_build=pass\n'
     printf 'cargo_test=pass\n'
     printf 'public_projection_count=2\n'

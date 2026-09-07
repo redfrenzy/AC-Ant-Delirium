@@ -1390,7 +1390,7 @@ externo receberá plano e aceite próprios depois da conclusão do AntDelirium.
 10. **Fechada na T7.7/T9.7 para o produto local:** supervisor usa target limpo, digest protegido e decisão assinada; publicação desse resultado em branch protection é integração opcional do projeto governado.
 11. **Fechada na T1.8:** permanecem canônicos até stage, paridade e aprovação; depois do cutover o SQLite protegido é canônico e a origem fica congelada/recuperável por no mínimo 30 dias.
 12. **Fechada na T1.6:** sockets/listeners separados, `SO_PEERCRED` e capability de 256 bits vinculada a UID, ator e escopo; supervisor entrega capabilities protegidas por descriptor.
-13. **Fechada na T1.8:** regra autocontida e exata em `guard/.gitignore` somente quando necessária; nunca editar root ignore, index, exclude ou configuração Git automaticamente.
+13. **Fechada no contrato final T5.1/T10.2:** o AntDelirium não consulta nem altera Git do projeto e materializa em `guard/` somente os dois JSONs públicos; qualquer regra de ignore pertence ao operador.
 14. **Fechada na T1.2:** UID dedicado, ausência de `CAP_SYS_PTRACE`, Yama, daemon não dumpable, AppArmor e sandbox do agente com PID namespace/procfs oculto.
 15. **Fechada na T1.3:** estado canônico migra para SQLite protegido; o cliente recebe somente projeções JSON sanitizadas e nunca o path do banco.
 16. **Fechada na T9.3:** paths físicos protegidos, paths do mantenedor, logs previsíveis, RPATH e metadados ELF evitáveis são proibidos; nomes genéricos não concedem autoridade e saem com o rollback em T10.2/T10.3.

@@ -6,16 +6,6 @@ mod Identity_Axiom_Common_unitcore;
 
 /// [AESTHETIC CORE - INTERNAL VACUUM]
 pub fn patrol(ctx: &mut AuditContext<'_>) {
-    let tag_separator = match ctx
-        .require_named_global_axiom_parameter("dna_suffix", "tag_separator")
-    {
-        Ok(binding) => binding.value,
-        Err(message) => {
-            Identity_Axiom_Common_unitcore::push_resolution_violation(ctx, "dna_suffix", &message);
-            return;
-        }
-    };
-
     if !ctx.file_path.ends_with(".rs") {
         return;
     }
@@ -27,6 +17,17 @@ pub fn patrol(ctx: &mut AuditContext<'_>) {
     if Identity_Axiom_Common_unitcore::is_generic_rust_file_stem(stem) {
         return;
     }
+
+    let tag_separator = match ctx
+        .require_named_global_axiom_parameter("dna_suffix", "tag_separator")
+    {
+        Ok(binding) => binding.value,
+        Err(message) => {
+            Identity_Axiom_Common_unitcore::push_resolution_violation(ctx, "dna_suffix", &message);
+            return;
+        }
+    };
+
     let has_logic = !ctx.functions.is_empty()
         || ctx.source.contains("fn ")
         || ctx.source.contains("struct ")

@@ -1,6 +1,6 @@
 use super::{
-    AtomicProjectProjectionWriter, EventWriteOutcome, GovernanceErrorsProjection, ProjectDatabase,
-    ProjectionMetadata, ProjectionWriteReceipt, TransactionalStorageResult,
+    AtomicProjectProjectionWriter, AuditViolation, EventWriteOutcome, GovernanceErrorsProjection,
+    ProjectDatabase, ProjectionMetadata, ProjectionWriteReceipt, TransactionalStorageResult,
 };
 
 pub const CANONICAL_GOVERNANCE_SNAPSHOT_VERSION: &str = "canonical-governance-snapshot-v1";
@@ -45,6 +45,18 @@ pub fn build_governance_errors_projection(
 
 pub fn is_agent_correctable_violation_path(path: &str) -> bool {
     super::Governance_Errors_Projection_structcore::is_agent_correctable_violation_path(path)
+}
+
+pub fn project_audit_violations(
+    project_id: &str,
+    workspace_id: &str,
+    violations: &[AuditViolation],
+) -> TransactionalStorageResult<Vec<ProjectedGovernanceViolation>> {
+    super::Governance_Errors_Projection_structcore::project_audit_violations(
+        project_id,
+        workspace_id,
+        violations,
+    )
 }
 
 impl AtomicProjectProjectionWriter {

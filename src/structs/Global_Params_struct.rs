@@ -23,6 +23,14 @@ pub struct AuditResult {
     pub logs: Vec<String>,
 }
 
+/// A project-relative UTF-8 source captured by the installed wrapper and audited
+/// inside the protected service without exposing the original filesystem path.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuditSourceFile {
+    pub path: String,
+    pub content: String,
+}
+
 // --- ESTRUTURAS DE CONFIGURAÇÃO ---
 
 #[derive(Default, Debug)]

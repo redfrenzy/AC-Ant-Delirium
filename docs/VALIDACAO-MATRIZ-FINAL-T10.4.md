@@ -66,7 +66,9 @@ de 25 bancos v10→v11 com `project_workspace_identity_migration=ready`.
 - duas worktrees ligadas compartilharam `project_ref`;
 - cada worktree recebeu seu próprio `workspace_ref`;
 - projetos não-Git receberam somente os dois JSONs públicos;
-- worktrees Git receberam os dois JSONs e a política `guard/.gitignore`;
+- naquela execução intermediária, worktrees Git ainda receberam a política
+  `guard/.gitignore`; a T10.2 substituiu esse comportamento pelo contrato final
+  de exatamente dois JSONs, comprovado pela aceitação instalada;
 - nenhum temporário de publicação permaneceu;
 - nenhuma projeção publicou localizador físico.
 

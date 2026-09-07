@@ -17,11 +17,18 @@ backup_root="$backup_parent/$run_id"
 log_root="$project_root/target/t86-capability-upgrade-logs/$run_id"
 upgrade_started=false
 upgrade_committed=false
+artifact_divergence_recovery=false
 
 fail() {
     printf '%s\n' "AD-T86-UPGRADE: $1" >&2
     exit 1
 }
+
+if [[ $# -eq 1 && ${1:-} == '--recover-reviewed-artifact-divergence' ]]; then
+    artifact_divergence_recovery=true
+elif [[ $# -ne 0 ]]; then
+    fail 'usage: upgrade-installed-service.sh [--recover-reviewed-artifact-divergence]'
+fi
 
 [[ $EUID -eq 0 ]] || fail 'execute this reviewed routine with sudo.'
 invoking_user=${SUDO_USER:-}
@@ -63,6 +70,7 @@ finish() {
     {
         printf 'run_id=%s\nexit_code=%s\nupgrade_committed=%s\n' \
             "$run_id" "$exit_code" "$upgrade_committed"
+        printf 'artifact_divergence_recovery=%s\n' "$artifact_divergence_recovery"
         printf 'completed_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     } >"$log_root/result.env"
     systemctl status antdelirium.service antdelirium-agent.socket \
@@ -99,8 +107,11 @@ install -m 0644 -o root -g root "$log_root/protected-gate-public.der" "$gate_pub
     || fail 'the invoking operator Cargo wrapper ownership or mode is unsafe.'
 current_service_hash=$(sha256sum "$installed_binary" | cut -d ' ' -f 1)
 current_wrapper_hash=$(sha256sum "$user_wrapper" | cut -d ' ' -f 1)
-[[ "$current_service_hash" == "$current_wrapper_hash" ]] \
-    || fail 'the installed service and Cargo wrapper do not identify the same prior release.'
+if [[ "$current_service_hash" != "$current_wrapper_hash" ]]; then
+    [[ "$artifact_divergence_recovery" == true ]] \
+        || fail 'the installed service and Cargo wrapper do not identify the same prior release.'
+    printf '%s\n' 'AD-T86-UPGRADE: explicit recovery will preserve both divergent prior artifacts before replacement.'
+fi
 [[ -d "$state_root" && ! -L "$state_root" ]] \
     || fail 'the protected state root is unavailable.'
 jq -e '.contract_version == "system-installation-bundle-v1" and .activation_performed == false and .global_installation_performed == false' \
