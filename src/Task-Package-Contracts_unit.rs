@@ -138,6 +138,12 @@ pub(crate) struct TaskPackageProposal {
     pub(crate) expected_state_revision: i64,
     pub(crate) source_sha256: String,
     pub(crate) payload_sha256: String,
+    pub(crate) source_plan_count: usize,
+    pub(crate) source_task_count: usize,
+    pub(crate) converted_plan_count: usize,
+    pub(crate) converted_task_count: usize,
+    pub(crate) unconverted_source_keys_sha256: Vec<String>,
+    pub(crate) differences: Vec<TaskPackageDifference>,
     pub(crate) plans: Vec<TaskPackagePlan>,
     pub(crate) warnings: Vec<String>,
     pub(crate) state: String,
@@ -151,6 +157,14 @@ pub(crate) struct TaskPackagePlan {
     pub(crate) source_key_sha256: String,
     pub(crate) objective: String,
     pub(crate) tasks: Vec<TaskPackageTask>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct TaskPackageDifference {
+    pub(crate) source_key_sha256: String,
+    pub(crate) kind: String,
+    pub(crate) summary: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -304,6 +318,36 @@ pub(crate) fn validate_proposal(
     require_sha256(&proposal.source_sha256)?;
     require_sha256(&proposal.payload_sha256)?;
     validate_package_plans(&proposal.plans)?;
+    let converted_task_count: usize = proposal.plans.iter().map(|plan| plan.tasks.len()).sum();
+    if proposal.source_plan_count > MAX_PLANS
+        || proposal.source_task_count > MAX_TASKS
+        || proposal.source_plan_count < proposal.converted_plan_count
+        || proposal.source_task_count < proposal.converted_task_count
+        || proposal.converted_plan_count != proposal.plans.len()
+        || proposal.converted_task_count != converted_task_count
+        || proposal.unconverted_source_keys_sha256.len() > MAX_TASKS
+        || proposal.differences.len() > MAX_WARNINGS
+    {
+        return Err(TaskPackageContractError::Content);
+    }
+    let mut unconverted_source_keys = HashSet::new();
+    for source_key in &proposal.unconverted_source_keys_sha256 {
+        require_sha256(source_key)?;
+        if !unconverted_source_keys.insert(source_key) {
+            return Err(TaskPackageContractError::Content);
+        }
+    }
+    for difference in &proposal.differences {
+        require_sha256(&difference.source_key_sha256)?;
+        if !matches!(
+            difference.kind.as_str(),
+            "normalized" | "omitted" | "unsupported"
+        ) || difference.summary.trim().is_empty()
+            || difference.summary.len() > MAX_ITEM_BYTES
+        {
+            return Err(TaskPackageContractError::Content);
+        }
+    }
     validate_bounded_texts(&proposal.warnings, MAX_WARNINGS, MAX_ITEM_BYTES)
 }
 

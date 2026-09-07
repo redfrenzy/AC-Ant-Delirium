@@ -80,6 +80,10 @@ mod administrative_protocol;
 #[path = "Task-Package-Contracts_unit.rs"]
 mod task_package_contracts;
 
+#[allow(dead_code)]
+#[path = "Task-Package-Generator_unit.rs"]
+mod task_package_generator;
+
 fn main() {
     binary_mode::run_authoritative_binary();
 }
