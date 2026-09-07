@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:task-package-operation-receipt-v1",
+  "title": "Task package operation receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "request_id", "operation", "project_id", "workspace_id", "artifact_id", "artifact_sha256", "previous_state_revision", "resulting_state_revision", "state"],
+  "properties": {
+    "contract_version": { "const": "task-package-operation-receipt-v1" },
+    "request_id": { "type": "string", "pattern": "^req_[0-9a-hjkmnp-tv-z]{26}$" },
+    "operation": { "enum": ["prepare", "inspect", "attest", "approve", "install"] },
+    "project_id": { "type": "string", "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$" },
+    "workspace_id": { "type": "string", "pattern": "^wsp_[0-9a-hjkmnp-tv-z]{26}$" },
+    "artifact_id": { "type": "string", "pattern": "^(?:prp|att|apr|rcp)_[0-9a-hjkmnp-tv-z]{26}$" },
+    "artifact_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "previous_state_revision": { "type": "integer", "minimum": 0 },
+    "resulting_state_revision": { "type": "integer", "minimum": 0 },
+    "state": { "enum": ["prepared", "inspected", "attested", "approved", "installed"] }
+  }
+}

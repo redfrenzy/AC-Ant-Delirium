@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:task-package-approval-v1",
+  "title": "Task package operator approval v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "approval_id", "proposal_id", "proposal_sha256", "attestation_id", "attestation_sha256", "project_id", "workspace_id", "expected_state_revision", "operator_subject_sha256", "decision", "approved_at", "state"],
+  "properties": {
+    "contract_version": { "const": "task-package-approval-v1" },
+    "approval_id": { "type": "string", "pattern": "^apr_[0-9a-hjkmnp-tv-z]{26}$" },
+    "proposal_id": { "type": "string", "pattern": "^prp_[0-9a-hjkmnp-tv-z]{26}$" },
+    "proposal_sha256": { "$ref": "#/$defs/sha256" },
+    "attestation_id": { "type": "string", "pattern": "^att_[0-9a-hjkmnp-tv-z]{26}$" },
+    "attestation_sha256": { "$ref": "#/$defs/sha256" },
+    "project_id": { "type": "string", "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$" },
+    "workspace_id": { "type": "string", "pattern": "^wsp_[0-9a-hjkmnp-tv-z]{26}$" },
+    "expected_state_revision": { "type": "integer", "minimum": 0 },
+    "operator_subject_sha256": { "$ref": "#/$defs/sha256" },
+    "decision": { "const": "approved" },
+    "approved_at": { "type": "string", "pattern": "^unix:[0-9]+$" },
+    "state": { "const": "approved" }
+  },
+  "$defs": { "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
+}

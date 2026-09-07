@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:migration-identity-association-v1",
+  "title": "Migration identity association request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "request_id", "migration_id", "cutover_id", "approval_id", "provisional_project_id", "provisional_workspace_id", "candidate_project_id", "candidate_workspace_id", "project_identity_sha256", "workspace_identity_sha256", "candidate_logical_state_sha256", "cutover_binding_sha256", "provisional_state_policy", "expected_registry_revision"],
+  "properties": {
+    "contract_version": { "const": "migration-identity-association-v1" },
+    "request_id": { "$ref": "#/$defs/requestId" }, "migration_id": { "$ref": "#/$defs/migrationId" }, "cutover_id": { "$ref": "#/$defs/cutoverId" }, "approval_id": { "$ref": "#/$defs/approvalId" },
+    "provisional_project_id": { "$ref": "#/$defs/projectId" }, "provisional_workspace_id": { "$ref": "#/$defs/workspaceId" },
+    "candidate_project_id": { "$ref": "#/$defs/projectId" }, "candidate_workspace_id": { "$ref": "#/$defs/workspaceId" },
+    "project_identity_sha256": { "$ref": "#/$defs/sha256" }, "workspace_identity_sha256": { "$ref": "#/$defs/sha256" },
+    "candidate_logical_state_sha256": { "$ref": "#/$defs/sha256" }, "cutover_binding_sha256": { "$ref": "#/$defs/sha256" },
+    "provisional_state_policy": { "enum": ["require-empty", "quarantine-preserve"] },
+    "expected_registry_revision": { "type": "integer", "minimum": 0 }
+  },
+  "$defs": {
+    "requestId": { "type": "string", "pattern": "^req_[0-9a-hjkmnp-tv-z]{26}$" }, "migrationId": { "type": "string", "pattern": "^mig_[0-9a-hjkmnp-tv-z]{26}$" },
+    "cutoverId": { "type": "string", "pattern": "^cut_[0-9a-hjkmnp-tv-z]{26}$" }, "approvalId": { "type": "string", "pattern": "^apr_[0-9a-hjkmnp-tv-z]{26}$" },
+    "projectId": { "type": "string", "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$" }, "workspaceId": { "type": "string", "pattern": "^wsp_[0-9a-hjkmnp-tv-z]{26}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:migration-identity-association-receipt-v1",
+  "title": "Migration identity association receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "request_id", "association_id", "migration_id", "cutover_id", "project_id", "workspace_id", "previous_registry_revision", "resulting_registry_revision", "association_sha256", "state"],
+  "properties": {
+    "contract_version": { "const": "migration-identity-association-receipt-v1" },
+    "request_id": { "type": "string", "pattern": "^req_[0-9a-hjkmnp-tv-z]{26}$" },
+    "association_id": { "type": "string", "pattern": "^asn_[0-9a-hjkmnp-tv-z]{26}$" },
+    "migration_id": { "type": "string", "pattern": "^mig_[0-9a-hjkmnp-tv-z]{26}$" },
+    "cutover_id": { "type": "string", "pattern": "^cut_[0-9a-hjkmnp-tv-z]{26}$" },
+    "project_id": { "type": "string", "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$" },
+    "workspace_id": { "type": "string", "pattern": "^wsp_[0-9a-hjkmnp-tv-z]{26}$" },
+    "previous_registry_revision": { "type": "integer", "minimum": 0 },
+    "resulting_registry_revision": { "type": "integer", "minimum": 1 },
+    "association_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "state": { "const": "associated" }
+  }
+}

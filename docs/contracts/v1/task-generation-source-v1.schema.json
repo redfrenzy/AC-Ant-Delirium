@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:task-generation-source-v1",
+  "title": "Task generation source v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "request_id", "source_format", "source_sha256", "project_id", "workspace_id", "expected_state_revision", "plans"],
+  "properties": {
+    "contract_version": { "const": "task-generation-source-v1" },
+    "request_id": { "$ref": "#/$defs/requestId" },
+    "source_format": { "const": "ordered-objectives-v1" },
+    "source_sha256": { "$ref": "#/$defs/sha256" },
+    "project_id": { "$ref": "#/$defs/projectId" },
+    "workspace_id": { "$ref": "#/$defs/workspaceId" },
+    "expected_state_revision": { "type": "integer", "minimum": 0 },
+    "plans": { "type": "array", "minItems": 1, "maxItems": 64, "items": { "$ref": "#/$defs/plan" } }
+  },
+  "$defs": {
+    "requestId": { "type": "string", "pattern": "^req_[0-9a-hjkmnp-tv-z]{26}$" },
+    "projectId": { "type": "string", "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$" },
+    "workspaceId": { "type": "string", "pattern": "^wsp_[0-9a-hjkmnp-tv-z]{26}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "text": { "type": "string", "minLength": 1, "maxLength": 16384 },
+    "itemText": { "type": "string", "minLength": 1, "maxLength": 4096 },
+    "relativePath": { "type": "string", "minLength": 1, "maxLength": 4096, "pattern": "^(?!/)(?![A-Za-z]:[/\\\\])(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\\\u0000]+$" },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_key_sha256", "objective", "acceptance_criteria", "relevant_paths"],
+      "properties": {
+        "source_key_sha256": { "$ref": "#/$defs/sha256" },
+        "objective": { "$ref": "#/$defs/text" },
+        "acceptance_criteria": { "type": "array", "maxItems": 128, "items": { "$ref": "#/$defs/itemText" } },
+        "relevant_paths": { "type": "array", "maxItems": 256, "uniqueItems": true, "items": { "$ref": "#/$defs/relativePath" } }
+      }
+    },
+    "plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_key_sha256", "objective", "tasks"],
+      "properties": {
+        "source_key_sha256": { "$ref": "#/$defs/sha256" },
+        "objective": { "$ref": "#/$defs/text" },
+        "tasks": { "type": "array", "minItems": 1, "maxItems": 1024, "items": { "$ref": "#/$defs/task" } }
+      }
+    }
+  }
+}

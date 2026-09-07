@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:task-package-proposal-v1",
+  "title": "Task package proposal v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "proposal_id", "request_id", "project_id", "workspace_id", "expected_state_revision", "source_sha256", "payload_sha256", "plans", "warnings", "state"],
+  "properties": {
+    "contract_version": { "const": "task-package-proposal-v1" },
+    "proposal_id": { "$ref": "#/$defs/proposalId" },
+    "request_id": { "$ref": "#/$defs/requestId" },
+    "project_id": { "$ref": "#/$defs/projectId" },
+    "workspace_id": { "$ref": "#/$defs/workspaceId" },
+    "expected_state_revision": { "type": "integer", "minimum": 0 },
+    "source_sha256": { "$ref": "#/$defs/sha256" },
+    "payload_sha256": { "$ref": "#/$defs/sha256" },
+    "plans": { "type": "array", "minItems": 1, "maxItems": 64, "items": { "$ref": "#/$defs/plan" } },
+    "warnings": { "type": "array", "maxItems": 256, "items": { "$ref": "#/$defs/itemText" } },
+    "state": { "const": "prepared" }
+  },
+  "$defs": {
+    "proposalId": { "type": "string", "pattern": "^prp_[0-9a-hjkmnp-tv-z]{26}$" },
+    "requestId": { "type": "string", "pattern": "^req_[0-9a-hjkmnp-tv-z]{26}$" },
+    "projectId": { "type": "string", "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$" },
+    "workspaceId": { "type": "string", "pattern": "^wsp_[0-9a-hjkmnp-tv-z]{26}$" },
+    "planId": { "type": "string", "pattern": "^pln_[0-9a-hjkmnp-tv-z]{26}$" },
+    "taskId": { "type": "string", "pattern": "^tsk_[0-9a-hjkmnp-tv-z]{26}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "text": { "type": "string", "minLength": 1, "maxLength": 16384 },
+    "itemText": { "type": "string", "minLength": 1, "maxLength": 4096 },
+    "relativePath": { "type": "string", "minLength": 1, "maxLength": 4096, "pattern": "^(?!/)(?![A-Za-z]:[/\\\\])(?!.*(?:^|/)\\.\\.(?:/|$))[^\\\\\\u0000]+$" },
+    "task": {
+      "type": "object", "additionalProperties": false,
+      "required": ["task_id", "task_ordinal", "task_revision", "source_key_sha256", "objective", "acceptance_criteria", "relevant_paths"],
+      "properties": {
+        "task_id": { "$ref": "#/$defs/taskId" }, "task_ordinal": { "type": "integer", "minimum": 0 }, "task_revision": { "const": 1 },
+        "source_key_sha256": { "$ref": "#/$defs/sha256" }, "objective": { "$ref": "#/$defs/text" },
+        "acceptance_criteria": { "type": "array", "maxItems": 128, "items": { "$ref": "#/$defs/itemText" } },
+        "relevant_paths": { "type": "array", "maxItems": 256, "uniqueItems": true, "items": { "$ref": "#/$defs/relativePath" } }
+      }
+    },
+    "plan": {
+      "type": "object", "additionalProperties": false,
+      "required": ["plan_id", "plan_ordinal", "source_key_sha256", "objective", "tasks"],
+      "properties": {
+        "plan_id": { "$ref": "#/$defs/planId" }, "plan_ordinal": { "type": "integer", "minimum": 0 },
+        "source_key_sha256": { "$ref": "#/$defs/sha256" }, "objective": { "$ref": "#/$defs/text" },
+        "tasks": { "type": "array", "minItems": 1, "maxItems": 1024, "items": { "$ref": "#/$defs/task" } }
+      }
+    }
+  }
+}

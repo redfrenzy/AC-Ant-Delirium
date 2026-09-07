@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:task-package-attestation-v1",
+  "title": "Task package verifier attestation v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "attestation_id", "proposal_id", "proposal_sha256", "source_sha256", "project_id", "workspace_id", "expected_state_revision", "verifier_subject_sha256", "decision", "attested_at", "state"],
+  "properties": {
+    "contract_version": { "const": "task-package-attestation-v1" },
+    "attestation_id": { "type": "string", "pattern": "^att_[0-9a-hjkmnp-tv-z]{26}$" },
+    "proposal_id": { "type": "string", "pattern": "^prp_[0-9a-hjkmnp-tv-z]{26}$" },
+    "proposal_sha256": { "$ref": "#/$defs/sha256" },
+    "source_sha256": { "$ref": "#/$defs/sha256" },
+    "project_id": { "type": "string", "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$" },
+    "workspace_id": { "type": "string", "pattern": "^wsp_[0-9a-hjkmnp-tv-z]{26}$" },
+    "expected_state_revision": { "type": "integer", "minimum": 0 },
+    "verifier_subject_sha256": { "$ref": "#/$defs/sha256" },
+    "decision": { "const": "accepted" },
+    "attested_at": { "type": "string", "pattern": "^unix:[0-9]+$" },
+    "state": { "const": "attested" }
+  },
+  "$defs": { "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
+}

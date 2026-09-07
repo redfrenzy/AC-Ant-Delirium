@@ -76,6 +76,10 @@ mod legacy_cutover;
 #[path = "Administrative-Protocol_unit.rs"]
 mod administrative_protocol;
 
+#[allow(dead_code)]
+#[path = "Task-Package-Contracts_unit.rs"]
+mod task_package_contracts;
+
 fn main() {
     binary_mode::run_authoritative_binary();
 }
