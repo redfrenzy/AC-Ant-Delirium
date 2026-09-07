@@ -84,6 +84,10 @@ mod task_package_contracts;
 #[path = "Task-Package-Generator_unit.rs"]
 mod task_package_generator;
 
+#[allow(dead_code)]
+#[path = "Task-Package-Store_unit.rs"]
+mod task_package_store;
+
 fn main() {
     binary_mode::run_authoritative_binary();
 }

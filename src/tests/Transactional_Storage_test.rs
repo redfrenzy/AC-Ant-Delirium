@@ -114,6 +114,48 @@ mod tests {
     }
 
     #[test]
+    fn storage_v14_migration_adds_separate_immutable_task_package_records() {
+        let root = unique_temp_dir("storage-v14-task-package-records");
+        let (state_root, database) = initialized_database(&root);
+        database
+            .with_immediate_transaction(|transaction| {
+                transaction.execute("DROP TABLE task_package_approvals", [])?;
+                transaction.execute("DROP TABLE task_package_attestations", [])?;
+                transaction.execute("DROP TABLE task_package_proposals", [])?;
+                transaction.execute("DELETE FROM schema_migrations WHERE version = 14", [])?;
+                transaction.pragma_update(None, "user_version", 13)?;
+                Ok(())
+            })
+            .unwrap();
+        drop(database);
+
+        let migrated = ProjectDatabase::open_existing_at(state_root.root()).unwrap();
+        assert_eq!(migrated.health().unwrap().schema_version, 14);
+        let tables = migrated
+            .with_immediate_transaction(|transaction| {
+                let mut statement = transaction.prepare(
+                    "SELECT name FROM sqlite_schema WHERE type = 'table' AND name LIKE 'task_package_%' ORDER BY name",
+                )?;
+                let rows = statement.query_map([], |row| row.get::<_, String>(0))?;
+                let mut tables = Vec::new();
+                for row in rows {
+                    tables.push(row?);
+                }
+                Ok(tables)
+            })
+            .unwrap();
+        assert_eq!(
+            tables,
+            vec![
+                "task_package_approvals".to_string(),
+                "task_package_attestations".to_string(),
+                "task_package_proposals".to_string(),
+            ]
+        );
+        fs::remove_dir_all(root).expect("temporary directory should be removed");
+    }
+
+    #[test]
     fn provisional_identity_binding_cannot_be_reassigned_by_conflicting_registration() {
         let root = unique_temp_dir("provisional-identity-immutable");
         let (_, database) = initialized_database(&root);
@@ -253,9 +295,12 @@ DROP TABLE provisional_project_identities;
                         "2026-08-27T00:00:00Z",
                     ],
                 )?;
+                transaction.execute("DROP TABLE task_package_approvals", [])?;
+                transaction.execute("DROP TABLE task_package_attestations", [])?;
+                transaction.execute("DROP TABLE task_package_proposals", [])?;
                 transaction.execute("DROP TABLE backup_checkpoints", [])?;
                 transaction.execute(
-                    "DELETE FROM schema_migrations WHERE version IN (10, 11, 12, 13)",
+                    "DELETE FROM schema_migrations WHERE version IN (10, 11, 12, 13, 14)",
                     [],
                 )?;
                 transaction.pragma_update(None, "user_version", 9)?;

@@ -253,12 +253,32 @@ fn receipts_bind_operation_state_and_advance_revisions_explicitly() {
         state: "prepared".to_string(),
     };
     validate_operation_receipt(&receipt).unwrap();
+    let mut false_advance = receipt.clone();
+    false_advance.resulting_state_revision = 1;
+    assert_eq!(
+        validate_operation_receipt(&false_advance),
+        Err(TaskPackageContractError::Scope)
+    );
     let mut mismatched = receipt;
     mismatched.state = "installed".to_string();
     assert_eq!(
         validate_operation_receipt(&mismatched),
         Err(TaskPackageContractError::Scope)
     );
+
+    let installed = TaskPackageOperationReceipt {
+        contract_version: TASK_PACKAGE_OPERATION_RECEIPT_V1.to_string(),
+        request_id: "req_00000000000000000000000000".to_string(),
+        operation: "install".to_string(),
+        project_id: PROJECT_ID.to_string(),
+        workspace_id: WORKSPACE_ID.to_string(),
+        artifact_id: "rcp_00000000000000000000000000".to_string(),
+        artifact_sha256: digest('b'),
+        previous_state_revision: 0,
+        resulting_state_revision: 1,
+        state: "installed".to_string(),
+    };
+    validate_operation_receipt(&installed).unwrap();
 
     let association = MigrationIdentityAssociationReceipt {
         contract_version: MIGRATION_IDENTITY_ASSOCIATION_RECEIPT_V1.to_string(),

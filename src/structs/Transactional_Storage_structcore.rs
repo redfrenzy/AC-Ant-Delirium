@@ -567,6 +567,87 @@ CREATE INDEX backup_checkpoints_task_idx
 ON backup_checkpoints(project_id, workspace_id, task_id, state_revision);
 "#;
 
+const STORAGE_SCHEMA_V14: &str = r#"
+CREATE TABLE task_package_proposals (
+    proposal_id TEXT PRIMARY KEY CHECK (length(proposal_id) = 30 AND substr(proposal_id, 1, 4) = 'prp_' AND substr(proposal_id, 5) NOT GLOB '*[^0-9a-hjkmnp-tv-z]*'),
+    request_id TEXT NOT NULL CHECK (length(request_id) = 30 AND substr(request_id, 1, 4) = 'req_' AND substr(request_id, 5) NOT GLOB '*[^0-9a-hjkmnp-tv-z]*'),
+    project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE RESTRICT,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(workspace_id) ON DELETE RESTRICT,
+    expected_state_revision INTEGER NOT NULL CHECK (expected_state_revision >= 0),
+    source_sha256 TEXT NOT NULL CHECK (length(source_sha256) = 64 AND source_sha256 NOT GLOB '*[^0-9a-f]*'),
+    payload_sha256 TEXT NOT NULL CHECK (length(payload_sha256) = 64 AND payload_sha256 NOT GLOB '*[^0-9a-f]*'),
+    state TEXT NOT NULL CHECK (state = 'prepared'),
+    payload BLOB NOT NULL,
+    UNIQUE (project_id, workspace_id, request_id),
+    UNIQUE (project_id, workspace_id, payload_sha256)
+) STRICT;
+
+CREATE TABLE task_package_attestations (
+    attestation_id TEXT PRIMARY KEY CHECK (length(attestation_id) = 30 AND substr(attestation_id, 1, 4) = 'att_' AND substr(attestation_id, 5) NOT GLOB '*[^0-9a-hjkmnp-tv-z]*'),
+    proposal_id TEXT NOT NULL UNIQUE REFERENCES task_package_proposals(proposal_id) ON DELETE RESTRICT,
+    proposal_sha256 TEXT NOT NULL CHECK (length(proposal_sha256) = 64 AND proposal_sha256 NOT GLOB '*[^0-9a-f]*'),
+    source_sha256 TEXT NOT NULL CHECK (length(source_sha256) = 64 AND source_sha256 NOT GLOB '*[^0-9a-f]*'),
+    project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE RESTRICT,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(workspace_id) ON DELETE RESTRICT,
+    expected_state_revision INTEGER NOT NULL CHECK (expected_state_revision >= 0),
+    verifier_subject_sha256 TEXT NOT NULL CHECK (length(verifier_subject_sha256) = 64 AND verifier_subject_sha256 NOT GLOB '*[^0-9a-f]*'),
+    decision TEXT NOT NULL CHECK (decision = 'accepted'),
+    attested_at TEXT NOT NULL,
+    state TEXT NOT NULL CHECK (state = 'attested'),
+    payload_sha256 TEXT NOT NULL UNIQUE CHECK (length(payload_sha256) = 64 AND payload_sha256 NOT GLOB '*[^0-9a-f]*'),
+    payload BLOB NOT NULL
+) STRICT;
+
+CREATE TABLE task_package_approvals (
+    approval_id TEXT PRIMARY KEY CHECK (length(approval_id) = 30 AND substr(approval_id, 1, 4) = 'apr_' AND substr(approval_id, 5) NOT GLOB '*[^0-9a-hjkmnp-tv-z]*'),
+    proposal_id TEXT NOT NULL UNIQUE REFERENCES task_package_proposals(proposal_id) ON DELETE RESTRICT,
+    proposal_sha256 TEXT NOT NULL CHECK (length(proposal_sha256) = 64 AND proposal_sha256 NOT GLOB '*[^0-9a-f]*'),
+    attestation_id TEXT NOT NULL UNIQUE REFERENCES task_package_attestations(attestation_id) ON DELETE RESTRICT,
+    attestation_sha256 TEXT NOT NULL CHECK (length(attestation_sha256) = 64 AND attestation_sha256 NOT GLOB '*[^0-9a-f]*'),
+    project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE RESTRICT,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(workspace_id) ON DELETE RESTRICT,
+    expected_state_revision INTEGER NOT NULL CHECK (expected_state_revision >= 0),
+    operator_subject_sha256 TEXT NOT NULL CHECK (length(operator_subject_sha256) = 64 AND operator_subject_sha256 NOT GLOB '*[^0-9a-f]*'),
+    decision TEXT NOT NULL CHECK (decision = 'approved'),
+    approved_at TEXT NOT NULL,
+    state TEXT NOT NULL CHECK (state = 'approved'),
+    payload_sha256 TEXT NOT NULL UNIQUE CHECK (length(payload_sha256) = 64 AND payload_sha256 NOT GLOB '*[^0-9a-f]*'),
+    payload BLOB NOT NULL
+) STRICT;
+
+CREATE INDEX task_package_proposals_scope_idx
+ON task_package_proposals(project_id, workspace_id, expected_state_revision);
+CREATE INDEX task_package_attestations_scope_idx
+ON task_package_attestations(project_id, workspace_id, expected_state_revision);
+CREATE INDEX task_package_approvals_scope_idx
+ON task_package_approvals(project_id, workspace_id, expected_state_revision);
+
+CREATE TRIGGER task_package_proposals_no_update
+BEFORE UPDATE ON task_package_proposals BEGIN
+    SELECT RAISE(ABORT, 'task package proposals are immutable');
+END;
+CREATE TRIGGER task_package_proposals_no_delete
+BEFORE DELETE ON task_package_proposals BEGIN
+    SELECT RAISE(ABORT, 'task package proposals are immutable');
+END;
+CREATE TRIGGER task_package_attestations_no_update
+BEFORE UPDATE ON task_package_attestations BEGIN
+    SELECT RAISE(ABORT, 'task package attestations are immutable');
+END;
+CREATE TRIGGER task_package_attestations_no_delete
+BEFORE DELETE ON task_package_attestations BEGIN
+    SELECT RAISE(ABORT, 'task package attestations are immutable');
+END;
+CREATE TRIGGER task_package_approvals_no_update
+BEFORE UPDATE ON task_package_approvals BEGIN
+    SELECT RAISE(ABORT, 'task package approvals are immutable');
+END;
+CREATE TRIGGER task_package_approvals_no_delete
+BEFORE DELETE ON task_package_approvals BEGIN
+    SELECT RAISE(ABORT, 'task package approvals are immutable');
+END;
+"#;
+
 impl From<AC_Error> for TransactionalStorageError {
     fn from(error: AC_Error) -> Self {
         Self::Database(error.to_string())
@@ -1215,6 +1296,15 @@ impl ProjectDatabase {
                 AC_params!["storage-v13-workspace-backup-checkpoints"],
             )?;
             transaction.pragma_update(None, "user_version", 13)?;
+            version = 13;
+        }
+        if version == 13 {
+            transaction.execute_batch(STORAGE_SCHEMA_V14)?;
+            transaction.execute(
+                "INSERT INTO schema_migrations(version, applied_at) VALUES (14, ?1)",
+                AC_params!["storage-v14-task-package-decisions"],
+            )?;
+            transaction.pragma_update(None, "user_version", 14)?;
         }
         transaction.commit()?;
         Ok(())

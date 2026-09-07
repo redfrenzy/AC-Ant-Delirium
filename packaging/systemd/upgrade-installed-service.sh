@@ -295,4 +295,4 @@ validate_storage_v12_once >"$log_root/storage-validation.txt" 2>&1 \
     || fail 'protected storage did not remain valid after service stabilization.'
 
 upgrade_committed=true
-printf '%s\n' "AD-T86-UPGRADE: service upgraded to storage-v13; rollback backup retained under $backup_root"
+printf '%s\n' "AD-T86-UPGRADE: service upgraded to storage-v14; rollback backup retained under $backup_root"

@@ -493,17 +493,25 @@ pub(crate) fn validate_operation_receipt(
         receipt.previous_state_revision,
     )?;
     require_sha256(&receipt.artifact_sha256)?;
-    let (artifact_prefix, expected_state) = match receipt.operation.as_str() {
-        "prepare" => ("prp_", "prepared"),
-        "inspect" => ("rcp_", "inspected"),
-        "attest" => ("att_", "attested"),
-        "approve" => ("apr_", "approved"),
-        "install" => ("rcp_", "installed"),
+    let (artifact_prefix, expected_state, advances_state) = match receipt.operation.as_str() {
+        "prepare" => ("prp_", "prepared", false),
+        "inspect" => ("rcp_", "inspected", false),
+        "attest" => ("att_", "attested", false),
+        "approve" => ("apr_", "approved", false),
+        "install" => ("rcp_", "installed", true),
         _ => return Err(TaskPackageContractError::Contract),
     };
     require_id(&receipt.artifact_id, artifact_prefix)?;
+    let expected_resulting_revision = if advances_state {
+        receipt
+            .previous_state_revision
+            .checked_add(1)
+            .ok_or(TaskPackageContractError::Scope)?
+    } else {
+        receipt.previous_state_revision
+    };
     if receipt.state != expected_state
-        || receipt.resulting_state_revision < receipt.previous_state_revision
+        || receipt.resulting_state_revision != expected_resulting_revision
     {
         return Err(TaskPackageContractError::Scope);
     }

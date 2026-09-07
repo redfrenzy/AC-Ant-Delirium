@@ -185,8 +185,8 @@ Regras mínimas:
 - manter backup exato do registry e bancos afetados antes da operação;
 - preservar candidatos preparados e rejeitados;
 - suportar rollback da associação sem apagar eventos posteriores;
-- manter storage-v13 legível e introduzir migration de schema somente se um novo
-  campo/tabela for indispensável;
+- manter storage-v13 legível e migrá-lo aditivamente para storage-v14, necessário
+  para os registros protegidos e separados de proposta, attestation e approval;
 - manter o wrapper e a API limitada binariamente compatíveis.
 
 ## 9. Matriz obrigatória de testes
