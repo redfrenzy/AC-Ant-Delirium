@@ -364,10 +364,13 @@ mod tests {
         database
             .with_immediate_transaction(|tx| {
                 tx.execute_batch(
-                    "DROP TABLE task_package_installations;
+                    "DROP VIEW effective_project_registrations;
+                DROP TABLE migration_identity_associations;
+                DROP TABLE migration_identity_registry_revision;
+                DROP TABLE task_package_installations;
                 DROP INDEX plans_explicit_order_idx;
                 ALTER TABLE plans DROP COLUMN plan_ordinal;
-                DELETE FROM schema_migrations WHERE version = 16;
+                DELETE FROM schema_migrations WHERE version >= 16;
                 PRAGMA user_version = 15;",
                 )?;
                 Ok(())

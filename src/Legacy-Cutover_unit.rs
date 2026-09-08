@@ -646,6 +646,100 @@ fn load_cutover_binding(
         .map_err(|_| LegacyCutoverError::Storage)
 }
 
+// Validate the exact durable cutover authority; an approved staging candidate
+// without this service event is not a destination for identity association.
+pub(crate) fn validate_association_cutover(
+    transaction: &ac_ant_delirium::libres::Rusqlite_unit::AC_Transaction<'_>,
+    request: &crate::task_package_contracts::MigrationIdentityAssociation,
+    service_subject_sha256: &str,
+    check_candidate_state: bool,
+) -> Result<(), TransactionalStorageError> {
+    let mut statement = transaction.prepare(
+        "SELECT payload, fingerprint, actor_subject_id, event_id, sequence FROM events WHERE project_id = ?1 AND workspace_id = ?2 AND actor_kind = 'service' AND event_kind = 'migration_applied' AND outcome = 'succeeded' AND resource_id = ?3",
+    )?;
+    let records = statement
+        .query_map(
+            AC_params![
+                request.candidate_project_id,
+                request.candidate_workspace_id,
+                request.migration_id
+            ],
+            |row| {
+                Ok((
+                    row.get::<_, Vec<u8>>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, i64>(4)?,
+                ))
+            },
+        )?
+        .collect::<Result<Vec<_>, _>>()?;
+    if records.len() != 1 {
+        return Err(integrity("cutover authority is absent or ambiguous"));
+    }
+    let record = &records[0];
+    let binding: MigrationCutoverBinding =
+        serde_json::from_slice(&record.0).map_err(|_| integrity("cutover authority is invalid"))?;
+    if binding.contract_version != CUTOVER_BINDING_CONTRACT
+        || binding.migration_id != request.migration_id
+        || binding.cutover_id != request.cutover_id
+        || binding.cutover_id
+            != deterministic_id("cut_", &request.approval_id, &request.migration_id)
+        || binding.approval_id != request.approval_id
+        || binding.project_id != request.candidate_project_id
+        || binding.workspace_id != request.candidate_workspace_id
+        || binding.candidate_logical_state_sha256 != request.candidate_logical_state_sha256
+        || binding.service_subject_sha256 != service_subject_sha256
+        || record.2 != service_subject_sha256
+        || record.3 != deterministic_id("evt_", &binding.cutover_id, "canonical-authority")
+        || record.1 != request.cutover_binding_sha256
+        || lowercase_hex(&sha256(&record.0)) != request.cutover_binding_sha256
+    {
+        return Err(integrity("cutover authority binding conflicts"));
+    }
+    if check_candidate_state {
+        if record.4 != binding.post_cutover_first_sequence {
+            return Err(integrity("candidate cutover sequence differs"));
+        }
+        let count = |sql: &str| -> Result<u64, TransactionalStorageError> {
+            Ok(
+                transaction.query_row(sql, AC_params![request.candidate_project_id], |row| {
+                    row.get(0)
+                })?,
+            )
+        };
+        let legacy_count = |kind: &str| -> Result<u64, TransactionalStorageError> {
+            Ok(transaction.query_row(
+                "SELECT count(*) FROM legacy_migration_records WHERE project_id = ?1 AND migration_id = ?2 AND record_kind = ?3",
+                AC_params![request.candidate_project_id, request.migration_id, kind], |row| row.get(0),
+            )?)
+        };
+        let counts = crate::legacy_conversion::LegacyConversionCounts {
+            plans: count("SELECT count(*) FROM plans WHERE project_id = ?1")?,
+            tasks: count("SELECT count(*) FROM tasks WHERE project_id = ?1")?,
+            submissions: 0,
+            reviews: 0,
+            history_events: legacy_count("history")?,
+            problems: legacy_count("problem")?,
+            transitions: legacy_count("transition")?,
+        };
+        if logical_state_sha256(
+            transaction,
+            &request.candidate_project_id,
+            &request.candidate_workspace_id,
+            &request.migration_id,
+            &counts,
+        )? != request.candidate_logical_state_sha256
+            || count("SELECT count(*) FROM submissions WHERE project_id = ?1")? != 0
+            || count("SELECT count(*) FROM reviews WHERE project_id = ?1")? != 0
+        {
+            return Err(integrity("candidate state changed after cutover"));
+        }
+    }
+    Ok(())
+}
+
 fn validate_binding(
     binding: &MigrationCutoverBinding,
     request: &LegacyCutoverRequest,
@@ -925,4 +1019,4 @@ fn integrity(message: &str) -> TransactionalStorageError {
 
 #[cfg(test)]
 #[path = "tests/Legacy_Cutover_test.rs"]
-mod legacy_cutover_tests;
+pub(crate) mod legacy_cutover_tests;

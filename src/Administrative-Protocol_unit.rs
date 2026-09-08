@@ -34,8 +34,8 @@ use crate::service_hardening::set_descriptor_close_on_exec;
 use crate::service_storage::ManagedCapabilityGrantRequest;
 use crate::service_storage::ProtectedServiceStorage;
 use crate::task_package_contracts::{
-    GovernanceTaskPackageV2, TaskGenerationSource,
-    TaskPackageApproval as OfficialTaskPackageApproval,
+    GovernanceTaskPackageV2, MigrationIdentityAssociation, MigrationIdentityAssociationReceipt,
+    TaskGenerationSource, TaskPackageApproval as OfficialTaskPackageApproval,
     TaskPackageAttestation as OfficialTaskPackageAttestation, TaskPackageOperationReceipt,
     TaskPackageProposal,
 };
@@ -52,6 +52,8 @@ const ADMIN_CAPABILITY_FD_ENV: &str = "ANTDELIRIUM_ADMIN_CAPABILITY_FD";
 const TASK_PACKAGE_FD_ENV: &str = "ANTDELIRIUM_TASK_PACKAGE_FD";
 const TASK_PACKAGE_INPUT_FD_ENV: &str = "ANTDELIRIUM_TASK_PACKAGE_INPUT_FD";
 const TASK_PACKAGE_OUTPUT_FD_ENV: &str = "ANTDELIRIUM_TASK_PACKAGE_OUTPUT_FD";
+const IDENTITY_ASSOCIATION_INPUT_FD_ENV: &str = "ANTDELIRIUM_MIGRATION_ASSOCIATION_INPUT_FD";
+const IDENTITY_ASSOCIATION_OUTPUT_FD_ENV: &str = "ANTDELIRIUM_MIGRATION_ASSOCIATION_OUTPUT_FD";
 const TASK_ADVANCE_FD_ENV: &str = "ANTDELIRIUM_TASK_ADVANCE_FD";
 const PROJECTION_CAPABILITY_FD_ENV: &str = "ANTDELIRIUM_PROJECTION_CAPABILITY_FD";
 const CAPABILITY_OUTPUT_FD_ENV: &str = "ANTDELIRIUM_CAPABILITY_OUTPUT_FD";
@@ -304,6 +306,7 @@ struct TaskAdvanceReceipt {
 #[derive(Serialize, Deserialize)]
 #[serde(untagged)]
 enum AdministrativeBody {
+    IdentityAssociate(MigrationIdentityAssociation),
     Grant(CapabilityGrantBody),
     Revoke(CapabilityRevokeBody),
     TaskPackage(TaskPackageBody),
@@ -337,6 +340,7 @@ struct AdministrativeRequest {
 #[derive(Serialize, Deserialize)]
 #[serde(untagged)]
 enum AdministrativeResult {
+    IdentityAssociation(MigrationIdentityAssociationReceipt),
     Grant(CapabilityGrantReceipt),
     Revoke(CapabilityRevokeReceipt),
     TaskPackage(TaskPackageReceipt),
@@ -498,7 +502,8 @@ pub(crate) fn run_migration_operator(args: &[OsString]) {
         }
         Ok(
             AdministrativeResult::TaskPackageArtifact(_)
-            | AdministrativeResult::TaskPackageDecision(_),
+            | AdministrativeResult::TaskPackageDecision(_)
+            | AdministrativeResult::IdentityAssociation(_),
         ) => OutputRouter::exit(PublicError::Authorization),
         Ok(AdministrativeResult::TaskAdvance(_)) => {
             OutputRouter::exit(PublicError::Authorization)
@@ -519,6 +524,10 @@ pub(crate) fn run_migration_operator(args: &[OsString]) {
 }
 
 pub(crate) fn run_task_package_operator(args: &[OsString]) {
+    let identity_associate = args.len() == 3
+        && args[0] == OsStr::new("operator")
+        && args[1] == OsStr::new("migration")
+        && args[2] == OsStr::new("identity-associate");
     let task_package_action = if args.len() == 3
         && args[0] == OsStr::new("operator")
         && args[1] == OsStr::new("task-package")
@@ -540,7 +549,7 @@ pub(crate) fn run_task_package_operator(args: &[OsString]) {
         && args[0] == OsStr::new("operator")
         && args[1] == OsStr::new("projection")
         && args[2] == OsStr::new("refresh");
-    if task_package_action.is_none() && !advance && !refresh {
+    if task_package_action.is_none() && !advance && !refresh && !identity_associate {
         OutputRouter::exit(PublicError::Authorization);
     }
     if cfg!(debug_assertions) {
@@ -549,7 +558,16 @@ pub(crate) fn run_task_package_operator(args: &[OsString]) {
     if crate::service_hardening::harden_operator_process().is_err() {
         OutputRouter::exit(PublicError::Authorization);
     }
-    if task_package_action == Some("install")
+    if identity_associate {
+        match run_official_task_package_operator_inner("identity-associate") {
+            Ok(AdministrativeResult::IdentityAssociation(receipt)) => OutputRouter::write_success(&format!(
+                "antdelirium[AD-MIGRATION-IDENTITY-ASSOCIATED]: association_id={} project_id={} workspace_id={} registry_revision={} state={}",
+                receipt.association_id, receipt.project_id, receipt.workspace_id, receipt.resulting_registry_revision, receipt.state,
+            )),
+            Ok(_) => OutputRouter::exit(PublicError::Protocol),
+            Err(error) => exit_operator_protocol_error(error),
+        }
+    } else if task_package_action == Some("install")
         && std::env::var_os(TASK_PACKAGE_INPUT_FD_ENV).is_none()
     {
         match run_task_package_operator_inner() {
@@ -625,10 +643,26 @@ fn run_official_task_package_operator_inner(
     action: &str,
 ) -> Result<AdministrativeResult, AdministrativeProtocolError> {
     let endpoint = std::env::var_os(ADMIN_SOCKET_ENV);
-    let input_fd = std::env::var_os(TASK_PACKAGE_INPUT_FD_ENV);
-    let output_fd = std::env::var_os(TASK_PACKAGE_OUTPUT_FD_ENV);
+    let association = action == "identity-associate";
+    let input_fd = std::env::var_os(if association {
+        IDENTITY_ASSOCIATION_INPUT_FD_ENV
+    } else {
+        TASK_PACKAGE_INPUT_FD_ENV
+    });
+    let output_fd = std::env::var_os(if association {
+        IDENTITY_ASSOCIATION_OUTPUT_FD_ENV
+    } else {
+        TASK_PACKAGE_OUTPUT_FD_ENV
+    });
     let capability_fd = std::env::var_os(ADMIN_CAPABILITY_FD_ENV);
-    let conflicting_legacy_input = std::env::var_os(TASK_PACKAGE_FD_ENV).is_some();
+    let conflicting_legacy_input = std::env::var_os(TASK_PACKAGE_FD_ENV).is_some()
+        || if association {
+            std::env::var_os(TASK_PACKAGE_INPUT_FD_ENV).is_some()
+                || std::env::var_os(TASK_PACKAGE_OUTPUT_FD_ENV).is_some()
+        } else {
+            std::env::var_os(IDENTITY_ASSOCIATION_INPUT_FD_ENV).is_some()
+                || std::env::var_os(IDENTITY_ASSOCIATION_OUTPUT_FD_ENV).is_some()
+        };
     clear_task_package_environment();
     std::env::remove_var(ADMIN_CAPABILITY_FD_ENV);
     if conflicting_legacy_input {
@@ -653,6 +687,9 @@ fn run_official_task_package_operator_inner(
     let capability = read_administrative_capability_from_fd(capability_fd)?;
     let mut input = read_bounded_json_from_raw_fd(input_fd)?;
     let body = match action {
+        "identity-associate" => serde_json::from_slice(&input)
+            .map(AdministrativeBody::IdentityAssociate)
+            .map_err(|_| AdministrativeProtocolError::Envelope),
         "install" => serde_json::from_slice(&input)
             .map(AdministrativeBody::TaskPackageInstallV2)
             .map_err(|_| AdministrativeProtocolError::Envelope),
@@ -672,6 +709,7 @@ fn run_official_task_package_operator_inner(
     };
     input.fill(0);
     let operation = match action {
+        "identity-associate" => "migration.identity-associate",
         "install" => "governance.task-package.install",
         "prepare" => "governance.task-package.prepare",
         "inspect" => "governance.task-package.inspect",
@@ -682,6 +720,9 @@ fn run_official_task_package_operator_inner(
     let body = body?;
     // Retain the exact typed input to bind the private response to this request.
     let expected = match &body {
+        AdministrativeBody::IdentityAssociate(body) => {
+            AdministrativeBody::IdentityAssociate(body.clone())
+        }
         AdministrativeBody::TaskPackageInstallV2(body) => {
             AdministrativeBody::TaskPackageInstallV2(body.clone())
         }
@@ -713,6 +754,19 @@ fn validate_official_task_package_result(
     use crate::task_package_contracts::{validate_operation_receipt, validate_proposal};
     use crate::task_package_generator::{generate_task_package_proposal, proposal_payload_sha256};
     let invalid = AdministrativeProtocolError::Envelope;
+    if let (
+        AdministrativeBody::IdentityAssociate(request),
+        AdministrativeResult::IdentityAssociation(receipt),
+    ) = (body, result)
+    {
+        return if *receipt
+            == crate::migration_identity::association_receipt(request).map_err(|_| invalid)?
+        {
+            Ok(())
+        } else {
+            Err(invalid)
+        };
+    }
     let (receipt, project_id, workspace_id, revision, operation) = match (body, result) {
         (
             AdministrativeBody::TaskPackageInstallV2(package),
@@ -1694,6 +1748,7 @@ pub(crate) fn serve_administrative_request(
                     | AdministrativeBody::TaskPackageAttest(_)
                     | AdministrativeBody::TaskPackageApprove(_)
                     | AdministrativeBody::TaskPackageInstallV2(_)
+                    | AdministrativeBody::IdentityAssociate(_)
             ) && request_authority_matches(&request, &capability) =>
         {
             capability
@@ -1701,6 +1756,13 @@ pub(crate) fn serve_administrative_request(
         _ => return Err(AdministrativeProtocolError::Authorization),
     };
     let result = match request.body {
+        AdministrativeBody::IdentityAssociate(request) => {
+            AdministrativeResult::IdentityAssociation(
+                storage
+                    .associate_migrated_identity(authority, &capability, &request)
+                    .map_err(|_| AdministrativeProtocolError::Authorization)?,
+            )
+        }
         AdministrativeBody::TaskPackageInstallV2(package) => {
             let outcome = storage
                 .install_official_task_package(authority, &capability, &package)
@@ -1917,6 +1979,11 @@ fn capability_request(
         &serde_json::to_vec(&request.body).map_err(|_| AdministrativeProtocolError::Envelope)?,
     );
     let (operation, project_id, workspace_id) = match &request.body {
+        AdministrativeBody::IdentityAssociate(body) => (
+            CapabilityOperation::StateAdmin,
+            Some(body.candidate_project_id.clone()),
+            Some(body.candidate_workspace_id.clone()),
+        ),
         AdministrativeBody::TaskPackageInstallV2(body) => (
             CapabilityOperation::InstallationAdmin,
             Some(body.project_id.clone()),
@@ -1979,6 +2046,13 @@ fn request_authority_matches(
     capability: &ac_ant_delirium::structs::AuthorizedCapability,
 ) -> bool {
     match &request.body {
+        AdministrativeBody::IdentityAssociate(body) => exact_task_package_authority(
+            capability,
+            CapabilityActor::Operator,
+            CapabilityOperation::StateAdmin,
+            &body.candidate_project_id,
+            &body.candidate_workspace_id,
+        ),
         AdministrativeBody::TaskPackageInstallV2(body) => exact_task_package_authority(
             capability,
             CapabilityActor::Ci,
@@ -2073,6 +2147,7 @@ fn validate_request(
         || !matches!(
             request.operation.as_str(),
             "capability.grant"
+                | "migration.identity-associate"
                 | "capability.revoke"
                 | "governance.task-package.prepare"
                 | "governance.task-package.inspect"
@@ -2096,6 +2171,11 @@ fn validate_request(
         return Err(AdministrativeProtocolError::Envelope);
     }
     match (&request.operation[..], &request.body) {
+        ("migration.identity-associate", AdministrativeBody::IdentityAssociate(body))
+            if crate::task_package_contracts::validate_identity_association(body).is_ok() =>
+        {
+            Ok(())
+        }
         ("governance.task-package.install", AdministrativeBody::TaskPackageInstallV2(body))
             if crate::task_package_contracts::validate_governance_package_v2(body).is_ok() =>
         {
@@ -2575,6 +2655,8 @@ fn clear_capability_environment() {
 
 fn clear_task_package_environment() {
     for name in [
+        IDENTITY_ASSOCIATION_INPUT_FD_ENV,
+        IDENTITY_ASSOCIATION_OUTPUT_FD_ENV,
         ADMIN_SOCKET_ENV,
         TASK_PACKAGE_FD_ENV,
         TASK_PACKAGE_INPUT_FD_ENV,

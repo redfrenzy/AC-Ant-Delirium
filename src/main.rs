@@ -25,6 +25,8 @@ mod service_authority;
 #[path = "Service-Storage_unit.rs"]
 mod service_storage;
 
+#[path = "Migration-Identity_unit.rs"]
+mod migration_identity;
 #[path = "Task-Package-Install_unit.rs"]
 mod task_package_install;
 

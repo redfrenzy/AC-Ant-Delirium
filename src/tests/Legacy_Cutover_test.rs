@@ -152,6 +152,48 @@ fn fixture_request() -> LegacyCutoverRequest {
     )
 }
 
+pub(crate) fn seed_association_fixture(
+    candidate: &ProjectDatabase,
+    registry: &ProjectDatabase,
+    association: &mut crate::task_package_contracts::MigrationIdentityAssociation,
+    service_subject: &str,
+) {
+    let mut request = fixture_request();
+    request.project_id = association.candidate_project_id.clone();
+    request.workspace_id = association.candidate_workspace_id.clone();
+    request.migration_id = association.migration_id.clone();
+    request.approval_id = association.approval_id.clone();
+    request.expected_candidate_logical_state_sha256 = candidate
+        .with_immediate_transaction(|transaction| {
+            logical_state_sha256(
+                transaction,
+                &request.project_id,
+                &request.workspace_id,
+                &request.migration_id,
+                &crate::legacy_conversion::LegacyConversionCounts {
+                    plans: 1,
+                    tasks: 1,
+                    submissions: 0,
+                    reviews: 0,
+                    history_events: 0,
+                    problems: 0,
+                    transitions: 0,
+                },
+            )
+        })
+        .unwrap();
+    let mut binding = fixture_binding(&request);
+    binding.service_subject_sha256 = service_subject.to_string();
+    binding.post_cutover_first_sequence =
+        candidate.last_event_sequence(&request.project_id).unwrap() + 1;
+    let event = cutover_event(&binding).unwrap();
+    candidate.record_event(&event).unwrap();
+    registry.record_event(&event).unwrap();
+    association.candidate_logical_state_sha256 = binding.candidate_logical_state_sha256;
+    association.cutover_id = binding.cutover_id;
+    association.cutover_binding_sha256 = event.fingerprint;
+}
+
 fn fixture_binding(request: &LegacyCutoverRequest) -> MigrationCutoverBinding {
     MigrationCutoverBinding {
         contract_version: CUTOVER_BINDING_CONTRACT.to_string(),

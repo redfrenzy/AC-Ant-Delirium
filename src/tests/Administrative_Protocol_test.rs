@@ -35,6 +35,194 @@ use crate::service_storage::ProtectedServiceStorage;
 const ADMIN_SOCKET_CHILD: &str = "ANTDELIRIUM_ADMIN_SOCKET_TEST_CHILD";
 
 #[cfg(unix)]
+#[test]
+fn identity_association_uses_scoped_operator_authority_and_private_descriptors() {
+    if !enter_isolated_socket_test("identity-association",
+        "administrative_protocol::administrative_protocol_tests::identity_association_uses_scoped_operator_authority_and_private_descriptors") { return; }
+    let f = crate::migration_identity::tests::fixture("ada1");
+    let uid = f.authority.effective_uid();
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+    let secret = [53; 32];
+    let grants = [
+        (
+            "cap_00000000000000000000000001",
+            CapabilityActor::Operator,
+            CapabilityOperation::StateAdmin,
+            None,
+            None,
+        ),
+        (
+            "cap_00000000000000000000000002",
+            CapabilityActor::Operator,
+            CapabilityOperation::StateAdmin,
+            Some(f.request.provisional_project_id.clone()),
+            Some(f.request.provisional_workspace_id.clone()),
+        ),
+        (
+            "cap_00000000000000000000000003",
+            CapabilityActor::Ci,
+            CapabilityOperation::InstallationAdmin,
+            Some(f.request.candidate_project_id.clone()),
+            Some(f.request.candidate_workspace_id.clone()),
+        ),
+        (
+            "cap_00000000000000000000000004",
+            CapabilityActor::Operator,
+            CapabilityOperation::StateAdmin,
+            Some(f.request.candidate_project_id.clone()),
+            Some(f.request.candidate_workspace_id.clone()),
+        ),
+    ];
+    for (id, actor, operation, project_id, workspace_id) in &grants {
+        f.storage
+            .registry()
+            .store_capability_grant(&NewCapabilityGrant {
+                grant_id: id.to_string(),
+                secret_hash: sha256(&secret),
+                subject_uid: uid,
+                actor: *actor,
+                channel: CapabilityChannel::Administrative,
+                operation: *operation,
+                project_id: project_id.clone(),
+                workspace_id: workspace_id.clone(),
+                task_id: None,
+                not_before_unix: now - 60,
+                expires_at_unix: now + 600,
+                revocation_epoch: 0,
+                granted_at: format!("unix:{now}"),
+            })
+            .unwrap();
+    }
+    let wire = |id: &str, request_id: &str| AdministrativeRequest {
+        message_type: "request".to_string(),
+        wire_version: ADMIN_WIRE_VERSION.to_string(),
+        request_id: request_id.to_string(),
+        connection_nonce: String::new(),
+        operation: "migration.identity-associate".to_string(),
+        capability: WireCapability {
+            capability_id: id.to_string(),
+            token: encode_base64url(&secret),
+        },
+        body: AdministrativeBody::IdentityAssociate(f.request.clone()),
+    };
+    for (index, grant) in grants[..3].iter().enumerate() {
+        assert!(try_exchange_test_request(
+            &f.authority,
+            &f.storage,
+            uid,
+            [54 + index as u8; 32],
+            wire(grant.0, &format!("req_{:026}", index + 1))
+        )
+        .is_err());
+    }
+    assert!(try_exchange_test_request(
+        &f.authority,
+        &f.storage,
+        uid + 1,
+        [57; 32],
+        wire(grants[3].0, "req_00000000000000000000000004")
+    )
+    .is_err());
+
+    let socket = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
+        "target/t116-{}-{}.sock",
+        std::process::id(),
+        now
+    ));
+    let listener = std::os::unix::net::UnixListener::bind(&socket).unwrap();
+    fs::set_permissions(&socket, fs::Permissions::from_mode(0o600)).unwrap();
+    let input = f.root.join("association.json");
+    let capability = f.root.join("capability.json");
+    let output = f.root.join("receipt.json");
+    fs::write(&input, serde_json::to_vec(&f.request).unwrap()).unwrap();
+    fs::write(
+        &capability,
+        serde_json::to_vec(&AdministrativeCapabilityBundle {
+            contract_version: "admin-capability-v1".to_string(),
+            capability: WireCapability {
+                capability_id: grants[3].0.to_string(),
+                token: encode_base64url(&secret),
+            },
+        })
+        .unwrap(),
+    )
+    .unwrap();
+    fs::set_permissions(&input, fs::Permissions::from_mode(0o600)).unwrap();
+    fs::set_permissions(&capability, fs::Permissions::from_mode(0o600)).unwrap();
+    use std::os::unix::fs::OpenOptionsExt;
+    let writer = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(&output)
+        .unwrap();
+    std::env::set_var(ADMIN_SOCKET_ENV, &socket);
+    std::env::set_var(
+        IDENTITY_ASSOCIATION_INPUT_FD_ENV,
+        fs::File::open(&input).unwrap().into_raw_fd().to_string(),
+    );
+    std::env::set_var(
+        IDENTITY_ASSOCIATION_OUTPUT_FD_ENV,
+        writer.into_raw_fd().to_string(),
+    );
+    std::env::set_var(
+        ADMIN_CAPABILITY_FD_ENV,
+        fs::File::open(&capability)
+            .unwrap()
+            .into_raw_fd()
+            .to_string(),
+    );
+    let result = std::thread::scope(|scope| {
+        scope.spawn(|| {
+            let (mut server, _) = listener.accept().unwrap();
+            let nonce = [58; 32];
+            answer_administrative_hello(&mut server, &nonce).unwrap();
+            serve_administrative_request(
+                &mut server,
+                &ConnectionAuthentication::for_test(uid, nonce),
+                &f.authority,
+                &f.storage,
+            )
+            .unwrap();
+        });
+        run_official_task_package_operator_inner("identity-associate").unwrap()
+    });
+    let AdministrativeResult::IdentityAssociation(receipt) = result else {
+        panic!("association receipt expected")
+    };
+    assert_eq!(
+        receipt,
+        crate::migration_identity::association_receipt(&f.request).unwrap()
+    );
+    let stored: MigrationIdentityAssociationReceipt =
+        serde_json::from_slice(&fs::read(&output).unwrap()).unwrap();
+    assert_eq!(stored, receipt);
+    for nonce in [[59; 32], [60; 32]] {
+        let response = exchange_test_request(
+            &f.authority,
+            &f.storage,
+            uid,
+            nonce,
+            wire(grants[3].0, "req_00000000000000000000000005"),
+        );
+        let AdministrativeResult::IdentityAssociation(replayed) = response.result.unwrap() else {
+            panic!("replayed receipt expected")
+        };
+        assert_eq!(replayed, receipt);
+    }
+    let mut substituted = receipt;
+    substituted.workspace_id = "wsp_00000000000000000000000009".to_string();
+    assert!(validate_official_task_package_result(
+        &AdministrativeBody::IdentityAssociate(f.request.clone()),
+        &AdministrativeResult::IdentityAssociation(substituted)
+    )
+    .is_err());
+}
+
+#[cfg(unix)]
 fn enter_isolated_socket_test(label: &str, exact_test_name: &str) -> bool {
     if std::env::var_os(ADMIN_SOCKET_CHILD).is_some_and(|value| value == label) {
         return true;

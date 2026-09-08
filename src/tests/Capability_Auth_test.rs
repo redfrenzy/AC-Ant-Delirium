@@ -661,6 +661,9 @@ mod tests {
                 DROP TABLE preserved_events;
                 CREATE INDEX capability_management_time_idx ON capability_management_events(occurred_at_unix, sequence);
                 CREATE INDEX capability_management_scope_idx ON capability_management_events(project_id, workspace_id, task_id);
+                DROP VIEW effective_project_registrations;
+                DROP TABLE migration_identity_associations;
+                DROP TABLE migration_identity_registry_revision;
                 DROP TABLE task_package_installations;
                 DROP INDEX plans_explicit_order_idx;
                 ALTER TABLE plans DROP COLUMN plan_ordinal;
@@ -746,6 +749,9 @@ mod tests {
                     DROP INDEX capability_scope_idx;
                     DROP INDEX capability_subject_idx;
 
+                    DROP VIEW effective_project_registrations;
+                    DROP TABLE migration_identity_associations;
+                    DROP TABLE migration_identity_registry_revision;
                     DROP INDEX provisional_project_identity_idx;
                     DROP INDEX provisional_project_peer_idx;
                     ALTER TABLE provisional_project_registrations RENAME TO provisional_project_registrations_v11;
@@ -833,7 +839,7 @@ mod tests {
                     DROP TABLE task_package_attestations;
                     DROP TABLE task_package_proposals;
                     DROP TABLE backup_checkpoints;
-                    DELETE FROM schema_migrations WHERE version IN (9, 10, 11, 12, 13, 14, 15, 16);
+                    DELETE FROM schema_migrations WHERE version IN (9, 10, 11, 12, 13, 14, 15, 16, 17);
                     PRAGMA user_version = 8;
                     "#,
                 )?;

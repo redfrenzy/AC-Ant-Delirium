@@ -531,6 +531,14 @@ impl ProtectedServiceStorage {
         capability: &AuthorizedCapability,
         package: &CanonicalTaskPackage,
     ) -> Result<CanonicalMutationOutcome, ()> {
+        let _backup_guard = self.backup_transition_lock.lock().map_err(|_| ())?;
+        if self
+            .registry
+            .project_identity_is_retired(&package.project_id)
+            .map_err(|_| ())?
+        {
+            return Err(());
+        }
         let now = trusted_service_unix_time().map_err(|_| ())?;
         let authorized = capability.actor() == CapabilityActor::Operator
             && capability.channel() == CapabilityChannel::Administrative
@@ -713,6 +721,7 @@ impl ProtectedServiceStorage {
         capability: &AuthorizedCapability,
         package: &crate::task_package_contracts::GovernanceTaskPackageV2,
     ) -> Result<crate::task_package_store::TaskPackageWriteOutcome, ()> {
+        let _backup_guard = self.backup_transition_lock.lock().map_err(|_| ())?;
         if !official_task_package_authority_matches(
             capability,
             CapabilityActor::Ci,
@@ -1304,6 +1313,60 @@ impl ProtectedServiceStorage {
         .map_err(|_| ())
     }
 
+    pub(crate) fn associate_migrated_identity(
+        &self,
+        authority: &VerifiedServiceAuthority,
+        capability: &AuthorizedCapability,
+        request: &crate::task_package_contracts::MigrationIdentityAssociation,
+    ) -> Result<crate::task_package_contracts::MigrationIdentityAssociationReceipt, ()> {
+        let _guard = self.bootstrap_lock.lock().map_err(|_| ())?;
+        let _backup_guard = self.backup_transition_lock.lock().map_err(|_| ())?;
+        if !official_task_package_authority_matches(
+            capability,
+            CapabilityActor::Operator,
+            CapabilityOperation::StateAdmin,
+            &request.candidate_project_id,
+            &request.candidate_workspace_id,
+        ) {
+            self.audit_rejected_authorized_request(capability)?;
+            return Err(());
+        }
+        let candidate = self.resolve_authorized_resource(authority, capability)?;
+        let provisional =
+            self.open_registered_project(authority, &request.provisional_project_id)?;
+        let receipt = crate::migration_identity::association_receipt(request).map_err(|_| ())?;
+        let mut service_material = b"migration-cutover-service-v1\0".to_vec();
+        service_material.extend_from_slice(&authority.effective_uid().to_be_bytes());
+        let service_subject = lowercase_hex(&sha256(&service_material));
+        let event = NewAuditEvent {
+            contract_version: AUDIT_EVENT_CONTRACT_VERSION.to_string(),
+            event_id: random_crockford_id("evt_").map_err(|_| ())?,
+            project_id: request.candidate_project_id.clone(),
+            workspace_id: Some(request.candidate_workspace_id.clone()),
+            actor_kind: "operator".to_string(),
+            actor_subject_id: task_package_subject_sha256(capability.subject_uid()),
+            event_kind: "migration_applied".to_string(),
+            outcome: "succeeded".to_string(),
+            occurred_at: format!("unix:{}", trusted_service_unix_time().map_err(|_| ())?),
+            fingerprint: receipt.association_sha256.clone(),
+            correlation_id: random_crockford_id("ref_").map_err(|_| ())?,
+            resource_id: Some(receipt.association_id.clone()),
+            payload: serde_json::to_vec(&receipt).map_err(|_| ())?,
+        };
+        crate::migration_identity::associate_identity(
+            crate::migration_identity::AssociationContext {
+                registry: &self.registry,
+                provisional: &provisional,
+                candidate: candidate.database(),
+                peer_uid: capability.subject_uid(),
+                service_subject_sha256: &service_subject,
+            },
+            request,
+            &event,
+        )
+        .map_err(|_| ())
+    }
+
     pub(crate) fn grant_managed_capability(
         &self,
         capability: &AuthorizedCapability,
@@ -1567,6 +1630,15 @@ impl ProtectedServiceStorage {
             .registry
             .provisional_project(peer_uid, project_identity_fingerprint)
             .map_err(|_| ())?;
+        if let Some(project) = &existing_project {
+            if self
+                .registry
+                .project_identity_is_retired(&project.project_id)
+                .map_err(|_| ())?
+            {
+                return Err(());
+            }
+        }
         let project_id = match existing_project.as_ref() {
             Some(project) => project.project_id.clone(),
             None => random_crockford_id("prj_").map_err(|_| ())?,

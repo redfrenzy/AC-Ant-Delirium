@@ -710,6 +710,52 @@ BEFORE DELETE ON task_package_installations BEGIN
 END;
 "#;
 
+const STORAGE_SCHEMA_V17: &str = r#"
+CREATE TABLE migration_identity_registry_revision (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    revision INTEGER NOT NULL CHECK (revision >= 0)
+) STRICT;
+INSERT INTO migration_identity_registry_revision VALUES (1, 0);
+CREATE TABLE migration_identity_associations (
+    association_id TEXT PRIMARY KEY,
+    request_id TEXT NOT NULL UNIQUE,
+    peer_uid INTEGER NOT NULL CHECK (peer_uid >= 0),
+    project_identity_fingerprint BLOB NOT NULL CHECK (length(project_identity_fingerprint) = 32),
+    workspace_identity_fingerprint BLOB NOT NULL CHECK (length(workspace_identity_fingerprint) = 32),
+    provisional_project_id TEXT NOT NULL UNIQUE REFERENCES projects(project_id) ON DELETE RESTRICT,
+    provisional_workspace_id TEXT NOT NULL UNIQUE REFERENCES workspaces(workspace_id) ON DELETE RESTRICT,
+    candidate_project_id TEXT NOT NULL UNIQUE REFERENCES projects(project_id) ON DELETE RESTRICT,
+    candidate_workspace_id TEXT NOT NULL UNIQUE REFERENCES workspaces(workspace_id) ON DELETE RESTRICT,
+    event_id TEXT NOT NULL UNIQUE REFERENCES events(event_id) ON DELETE RESTRICT,
+    payload BLOB NOT NULL,
+    receipt BLOB NOT NULL,
+    UNIQUE (peer_uid, project_identity_fingerprint),
+    UNIQUE (peer_uid, workspace_identity_fingerprint),
+    FOREIGN KEY (peer_uid, workspace_identity_fingerprint)
+        REFERENCES provisional_project_registrations(peer_uid, workspace_identity_fingerprint) ON DELETE RESTRICT
+) STRICT;
+CREATE TRIGGER migration_identity_associations_no_update
+BEFORE UPDATE ON migration_identity_associations BEGIN
+    SELECT RAISE(ABORT, 'migration identity associations are immutable');
+END;
+CREATE TRIGGER migration_identity_associations_no_delete
+BEFORE DELETE ON migration_identity_associations BEGIN
+    SELECT RAISE(ABORT, 'migration identity associations are immutable');
+END;
+CREATE VIEW effective_project_registrations AS
+SELECT r.peer_uid, r.project_identity_fingerprint, r.workspace_identity_fingerprint,
+       r.project_id, r.workspace_id, r.project_key, r.workspace_key, r.created_at_unix
+FROM provisional_project_registrations r
+WHERE NOT EXISTS (SELECT 1 FROM migration_identity_associations a WHERE a.provisional_project_id = r.project_id)
+UNION ALL
+SELECT a.peer_uid, a.project_identity_fingerprint, a.workspace_identity_fingerprint,
+       a.candidate_project_id, a.candidate_workspace_id, p.project_key, w.workspace_key, r.created_at_unix
+FROM migration_identity_associations a
+JOIN projects p ON p.project_id = a.candidate_project_id
+JOIN workspaces w ON w.workspace_id = a.candidate_workspace_id AND w.project_id = p.project_id AND w.status = 'active'
+JOIN provisional_project_registrations r ON r.peer_uid = a.peer_uid AND r.workspace_identity_fingerprint = a.workspace_identity_fingerprint;
+"#;
+
 impl From<AC_Error> for TransactionalStorageError {
     fn from(error: AC_Error) -> Self {
         Self::Database(error.to_string())
@@ -803,7 +849,7 @@ impl ProjectDatabase {
         let connection = self.open_connection(false)?;
         connection
             .query_row(
-                "SELECT project_identity_fingerprint, project_id, workspace_id, project_key, workspace_key, created_at_unix FROM provisional_project_registrations WHERE peer_uid = ?1 AND workspace_identity_fingerprint = ?2",
+                "SELECT project_identity_fingerprint, project_id, workspace_id, project_key, workspace_key, created_at_unix FROM effective_project_registrations WHERE peer_uid = ?1 AND workspace_identity_fingerprint = ?2",
                 AC_params![i64::from(peer_uid), workspace_identity_fingerprint.as_slice()],
                 |row| {
                     Ok(ProvisionalProjectRegistration {
@@ -833,7 +879,7 @@ impl ProjectDatabase {
         let connection = self.open_connection(false)?;
         let persisted: Option<(Vec<u8>, Vec<u8>, String, String, i64)> = connection
             .query_row(
-                "SELECT project_identity_fingerprint, workspace_identity_fingerprint, project_key, workspace_key, created_at_unix FROM provisional_project_registrations WHERE peer_uid = ?1 AND project_id = ?2 AND workspace_id = ?3",
+                "SELECT project_identity_fingerprint, workspace_identity_fingerprint, project_key, workspace_key, created_at_unix FROM effective_project_registrations WHERE peer_uid = ?1 AND project_id = ?2 AND workspace_id = ?3",
                 AC_params![i64::from(peer_uid), project_id, workspace_id],
                 |row| {
                     Ok((
@@ -900,6 +946,17 @@ impl ProjectDatabase {
             .map_err(Into::into)
     }
 
+    pub fn project_identity_is_retired(
+        &self,
+        project_id: &str,
+    ) -> TransactionalStorageResult<bool> {
+        let connection = self.open_connection(false)?;
+        Ok(connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM migration_identity_associations WHERE provisional_project_id = ?1)",
+            AC_params![project_id], |row| row.get(0),
+        )?)
+    }
+
     pub fn provisional_registration_count(&self, peer_uid: u32) -> TransactionalStorageResult<i64> {
         let connection = self.open_connection(false)?;
         Ok(connection.query_row(
@@ -928,6 +985,13 @@ impl ProjectDatabase {
             ));
         }
         self.with_immediate_transaction(|transaction| {
+            let retired: bool = transaction.query_row(
+                "SELECT EXISTS(SELECT 1 FROM migration_identity_associations WHERE provisional_project_id = ?1 OR candidate_project_id = ?1)",
+                AC_params![registration.project_id], |row| row.get(0),
+            )?;
+            if retired {
+                return Err(TransactionalStorageError::Integrity("identity requires explicit reconciliation".to_string()));
+            }
             transaction.execute(
                 "INSERT INTO provisional_project_identities(peer_uid, project_identity_fingerprint, project_id) VALUES (?1, ?2, ?3) ON CONFLICT(peer_uid, project_identity_fingerprint) DO NOTHING",
                 AC_params![
@@ -1385,6 +1449,15 @@ impl ProjectDatabase {
                 AC_params!["storage-v16-ordered-task-package-installations"],
             )?;
             transaction.pragma_update(None, "user_version", 16)?;
+            version = 16;
+        }
+        if version == 16 {
+            transaction.execute_batch(STORAGE_SCHEMA_V17)?;
+            transaction.execute(
+                "INSERT INTO schema_migrations(version, applied_at) VALUES (17, ?1)",
+                AC_params!["storage-v17-explicit-migration-identity"],
+            )?;
+            transaction.pragma_update(None, "user_version", 17)?;
         }
         transaction.commit()?;
         Ok(())

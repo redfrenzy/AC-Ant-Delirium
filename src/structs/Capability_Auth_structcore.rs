@@ -325,6 +325,13 @@ impl ProjectDatabase {
             ) else {
                 return self.deny_and_audit(transaction, &denial_event);
             };
+            let retired: bool = transaction.query_row(
+                "SELECT EXISTS(SELECT 1 FROM migration_identity_associations WHERE provisional_project_id = ?1)",
+                AC_params![authorized.project_id()], |row| row.get(0),
+            )?;
+            if retired {
+                return self.deny_and_audit(transaction, &denial_event);
+            }
 
             let epoch: Option<i64> = transaction
                 .query_row(
@@ -403,6 +410,11 @@ impl ProjectDatabase {
     ) -> TransactionalStorageResult<bool> {
         if trusted_now_unix < 0 {
             return Ok(false);
+        }
+        if let Some(project_id) = capability.project_id() {
+            if self.project_identity_is_retired(project_id)? {
+                return Ok(false);
+            }
         }
         let connection = self.open_connection(false)?;
         let persisted: Option<PersistedGrant> = connection

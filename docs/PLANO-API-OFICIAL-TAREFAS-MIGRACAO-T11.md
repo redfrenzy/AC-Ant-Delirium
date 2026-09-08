@@ -230,6 +230,42 @@ A associação deve executar em uma única transação do registry:
 Não usar `ON CONFLICT DO UPDATE` para identidade. Não listar candidatos para
 escolher o primeiro. Não usar `project_key` como autoridade.
 
+### 6.1 Associação implementada na T11.6
+
+`operator migration identity-associate` usa ADA1, com entrada em
+`ANTDELIRIUM_MIGRATION_ASSOCIATION_INPUT_FD`, recibo privado em
+`ANTDELIRIUM_MIGRATION_ASSOCIATION_OUTPUT_FD` e a capability administrativa no
+descritor existente. Valem os mesmos limites, validação de arquivos e separação
+de descritores da T11.4. O terminal recebe somente IDs, revisão e estado.
+
+A autoridade é operador `StateAdmin` no **projeto/workspace candidato exatos**.
+O UID autenticado também deve ser o proprietário do registro provisório; um
+grant global, CI ou de outro workspace não autoriza a associação. O daemon
+confere IDs e digests do binding de cutover tanto no registry como no banco do
+candidato, incluindo a identidade do serviço. Antes da primeira associação,
+recalcula o digest do estado lógico para recusar candidato alterado após cutover.
+
+O storage-v17 grava associação imutável, recibo e auditoria na mesma transação
+do registry. `expected_registry_revision` é o contador exclusivo dessas
+associações, inicialmente zero; não é a revisão das tarefas nem a quantidade
+de projetos registrados. Os bancos de origem e destino permanecem bloqueados
+contra escrita durante a conferência e não são modificados pela associação.
+
+A consulta efetiva do wrapper passa a usar o vínculo explícito. A linha
+provisória original permanece intacta, mas inativa para resolução, e suas
+capabilities são recusadas. A tarefa corrente do candidato não é reativada,
+reordenada ou substituída. Repetir a entrada idêntica recupera o mesmo recibo,
+inclusive após alterações posteriores no candidato, sem retroceder seu estado.
+
+Nesta etapa somente `require-empty` é executável: nenhum plano, tarefa,
+submissão, revisão ou registro legado pode existir na origem, e a revisão deve
+ser zero. Observações de compilação e backup inicial são preservados. Origens
+com workspaces adicionais, identidades concorrentes ou destino já associado
+são recusadas; nenhum worktree é capturado implicitamente. Um novo worktree da
+identidade já associada também exige reconciliação explícita. A política
+`quarantine-preserve`, reconciliação e rollback ficam na T11.7; não são
+substituídos por descarte de dados.
+
 ## 7. Geração de tarefas
 
 O gerador é determinístico para a mesma requisição e não é um agente autônomo.
@@ -262,6 +298,9 @@ Regras mínimas:
 - aplicar storage-v16 para a ordem explícita de novos planos e os recibos
   imutáveis de instalação; planos anteriores mantêm ordinal nulo e seu fluxo
   existente, sem inferir ordem por nome, ID ou posição física;
+- aplicar storage-v17 aditivamente para associações, revisão do registry e
+  consulta efetiva de identidade, sem reatribuir fingerprints nos registros
+  originais ou criar associações durante a atualização do banco;
 - manter o wrapper e a API limitada binariamente compatíveis.
 
 ## 9. Matriz obrigatória de testes
