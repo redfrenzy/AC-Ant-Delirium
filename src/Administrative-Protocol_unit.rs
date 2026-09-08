@@ -3,7 +3,6 @@ use std::io::{Read, Write};
 #[cfg(unix)]
 use std::os::fd::{AsRawFd, FromRawFd};
 #[cfg(unix)]
-#[cfg(unix)]
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -34,6 +33,11 @@ use crate::service_authority::VerifiedServiceAuthority;
 use crate::service_hardening::set_descriptor_close_on_exec;
 use crate::service_storage::ManagedCapabilityGrantRequest;
 use crate::service_storage::ProtectedServiceStorage;
+use crate::task_package_contracts::{
+    TaskGenerationSource, TaskPackageApproval as OfficialTaskPackageApproval,
+    TaskPackageAttestation as OfficialTaskPackageAttestation, TaskPackageOperationReceipt,
+    TaskPackageProposal,
+};
 
 const ADMIN_MAGIC: [u8; 4] = *b"ADA1";
 const ADMIN_WIRE_VERSION: &str = "ada/1";
@@ -45,6 +49,8 @@ const MIGRATION_OPERATION_TIMEOUT: Duration = Duration::from_secs(600);
 const ADMIN_SOCKET_ENV: &str = "ANTDELIRIUM_ADMIN_SOCKET";
 const ADMIN_CAPABILITY_FD_ENV: &str = "ANTDELIRIUM_ADMIN_CAPABILITY_FD";
 const TASK_PACKAGE_FD_ENV: &str = "ANTDELIRIUM_TASK_PACKAGE_FD";
+const TASK_PACKAGE_INPUT_FD_ENV: &str = "ANTDELIRIUM_TASK_PACKAGE_INPUT_FD";
+const TASK_PACKAGE_OUTPUT_FD_ENV: &str = "ANTDELIRIUM_TASK_PACKAGE_OUTPUT_FD";
 const TASK_ADVANCE_FD_ENV: &str = "ANTDELIRIUM_TASK_ADVANCE_FD";
 const PROJECTION_CAPABILITY_FD_ENV: &str = "ANTDELIRIUM_PROJECTION_CAPABILITY_FD";
 const CAPABILITY_OUTPUT_FD_ENV: &str = "ANTDELIRIUM_CAPABILITY_OUTPUT_FD";
@@ -239,6 +245,24 @@ struct TaskPackageReceipt {
     state: String,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TaskPackageInspectBody {
+    contract_version: String,
+    request_id: String,
+    project_id: String,
+    workspace_id: String,
+    expected_state_revision: i64,
+    proposal_id: String,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TaskPackageArtifactResult {
+    receipt: TaskPackageOperationReceipt,
+    proposal: Option<TaskPackageProposal>,
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct TaskAdvanceBody {
@@ -282,6 +306,10 @@ enum AdministrativeBody {
     Grant(CapabilityGrantBody),
     Revoke(CapabilityRevokeBody),
     TaskPackage(TaskPackageBody),
+    TaskPackagePrepare(TaskGenerationSource),
+    TaskPackageInspect(TaskPackageInspectBody),
+    TaskPackageAttest(OfficialTaskPackageAttestation),
+    TaskPackageApprove(OfficialTaskPackageApproval),
     TaskAdvance(TaskAdvanceBody),
     Stage(MigrationStageBody),
     Normalize(LegacyNormalizationRequest),
@@ -310,6 +338,8 @@ enum AdministrativeResult {
     Grant(CapabilityGrantReceipt),
     Revoke(CapabilityRevokeReceipt),
     TaskPackage(TaskPackageReceipt),
+    TaskPackageArtifact(TaskPackageArtifactResult),
+    TaskPackageDecision(TaskPackageOperationReceipt),
     TaskAdvance(TaskAdvanceReceipt),
     Stage(LegacyStageReceipt),
     Normalize(LegacyNormalizationReceipt),
@@ -464,6 +494,10 @@ pub(crate) fn run_migration_operator(args: &[OsString]) {
         Ok(AdministrativeResult::TaskPackage(_)) => {
             OutputRouter::exit(PublicError::Authorization)
         }
+        Ok(
+            AdministrativeResult::TaskPackageArtifact(_)
+            | AdministrativeResult::TaskPackageDecision(_),
+        ) => OutputRouter::exit(PublicError::Authorization),
         Ok(AdministrativeResult::TaskAdvance(_)) => {
             OutputRouter::exit(PublicError::Authorization)
         }
@@ -483,10 +517,19 @@ pub(crate) fn run_migration_operator(args: &[OsString]) {
 }
 
 pub(crate) fn run_task_package_operator(args: &[OsString]) {
-    let install = args.len() == 3
+    let task_package_action = if args.len() == 3
         && args[0] == OsStr::new("operator")
         && args[1] == OsStr::new("task-package")
-        && args[2] == OsStr::new("install");
+    {
+        args[2].to_str().filter(|action| {
+            matches!(
+                *action,
+                "prepare" | "inspect" | "attest" | "approve" | "install"
+            )
+        })
+    } else {
+        None
+    };
     let advance = args.len() == 3
         && args[0] == OsStr::new("operator")
         && args[1] == OsStr::new("task")
@@ -495,7 +538,7 @@ pub(crate) fn run_task_package_operator(args: &[OsString]) {
         && args[0] == OsStr::new("operator")
         && args[1] == OsStr::new("projection")
         && args[2] == OsStr::new("refresh");
-    if !install && !advance && !refresh {
+    if task_package_action.is_none() && !advance && !refresh {
         OutputRouter::exit(PublicError::Authorization);
     }
     if cfg!(debug_assertions) {
@@ -504,7 +547,7 @@ pub(crate) fn run_task_package_operator(args: &[OsString]) {
     if crate::service_hardening::harden_operator_process().is_err() {
         OutputRouter::exit(PublicError::Authorization);
     }
-    if install {
+    if task_package_action == Some("install") {
         match run_task_package_operator_inner() {
             Ok(receipt) => OutputRouter::write_success(&format!(
             "antdelirium[AD-TASK-PACKAGE-INSTALLED]: project_id={} workspace_id={} plan_id={} current_task_id={} state_revision={} task_count={} audit_sequence={} state={}",
@@ -517,6 +560,36 @@ pub(crate) fn run_task_package_operator(args: &[OsString]) {
             receipt.audit_sequence,
             receipt.state,
             )),
+            Err(error) => exit_operator_protocol_error(error),
+        }
+    } else if let Some(action) = task_package_action {
+        match run_official_task_package_operator_inner(action) {
+            Ok(AdministrativeResult::TaskPackageArtifact(result)) => {
+                let proposal = result
+                    .proposal
+                    .as_ref()
+                    .unwrap_or_else(|| OutputRouter::exit(PublicError::Protocol));
+                OutputRouter::write_success(&format!(
+                    "antdelirium[AD-TASK-PACKAGE-{}]: proposal_id={} artifact_sha256={} plan_count={} task_count={} state={}",
+                    action.to_ascii_uppercase(),
+                    proposal.proposal_id,
+                    result.receipt.artifact_sha256,
+                    proposal.converted_plan_count,
+                    proposal.converted_task_count,
+                    result.receipt.state,
+                ));
+            }
+            Ok(AdministrativeResult::TaskPackageDecision(receipt)) => {
+                OutputRouter::write_success(&format!(
+                    "antdelirium[AD-TASK-PACKAGE-{}]: artifact_id={} artifact_sha256={} state_revision={} state={}",
+                    action.to_ascii_uppercase(),
+                    receipt.artifact_id,
+                    receipt.artifact_sha256,
+                    receipt.resulting_state_revision,
+                    receipt.state,
+                ));
+            }
+            Ok(_) => OutputRouter::exit(PublicError::Protocol),
             Err(error) => exit_operator_protocol_error(error),
         }
     } else if advance {
@@ -541,6 +614,192 @@ pub(crate) fn run_task_package_operator(args: &[OsString]) {
             Err(error) => exit_operator_protocol_error(error),
         }
     }
+}
+
+#[cfg(unix)]
+fn run_official_task_package_operator_inner(
+    action: &str,
+) -> Result<AdministrativeResult, AdministrativeProtocolError> {
+    let endpoint = std::env::var_os(ADMIN_SOCKET_ENV);
+    let input_fd = std::env::var_os(TASK_PACKAGE_INPUT_FD_ENV);
+    let output_fd = std::env::var_os(TASK_PACKAGE_OUTPUT_FD_ENV);
+    let capability_fd = std::env::var_os(ADMIN_CAPABILITY_FD_ENV);
+    clear_task_package_environment();
+    std::env::remove_var(ADMIN_CAPABILITY_FD_ENV);
+    let input_fd = input_fd.ok_or(AdministrativeProtocolError::Authorization)?;
+    let output_fd = output_fd.ok_or(AdministrativeProtocolError::Authorization)?;
+    let capability_fd = capability_fd.ok_or(AdministrativeProtocolError::Authorization)?;
+    let descriptors = [
+        parse_open_descriptor(&input_fd)?,
+        parse_open_descriptor(&output_fd)?,
+        parse_open_descriptor(&capability_fd)?,
+    ];
+    if descriptors[0] == descriptors[1]
+        || descriptors[0] == descriptors[2]
+        || descriptors[1] == descriptors[2]
+    {
+        return Err(AdministrativeProtocolError::Authorization);
+    }
+    let mut output = open_private_task_package_output(output_fd)?;
+    let endpoint = required_absolute_path(endpoint)?;
+    let capability = read_administrative_capability_from_fd(capability_fd)?;
+    let mut input = read_bounded_json_from_raw_fd(input_fd)?;
+    let body = match action {
+        "prepare" => serde_json::from_slice(&input)
+            .map(AdministrativeBody::TaskPackagePrepare)
+            .map_err(|_| AdministrativeProtocolError::Envelope),
+        "inspect" => serde_json::from_slice(&input)
+            .map(AdministrativeBody::TaskPackageInspect)
+            .map_err(|_| AdministrativeProtocolError::Envelope),
+        "attest" => serde_json::from_slice(&input)
+            .map(AdministrativeBody::TaskPackageAttest)
+            .map_err(|_| AdministrativeProtocolError::Envelope),
+        "approve" => serde_json::from_slice(&input)
+            .map(AdministrativeBody::TaskPackageApprove)
+            .map_err(|_| AdministrativeProtocolError::Envelope),
+        _ => Err(AdministrativeProtocolError::Authorization),
+    };
+    input.fill(0);
+    let operation = match action {
+        "prepare" => "governance.task-package.prepare",
+        "inspect" => "governance.task-package.inspect",
+        "attest" => "governance.task-package.attest",
+        "approve" => "governance.task-package.approve",
+        _ => return Err(AdministrativeProtocolError::Authorization),
+    };
+    let body = body?;
+    // Retain the exact typed input to bind the private response to this request.
+    let expected = match &body {
+        AdministrativeBody::TaskPackagePrepare(body) => {
+            AdministrativeBody::TaskPackagePrepare(body.clone())
+        }
+        AdministrativeBody::TaskPackageInspect(body) => {
+            AdministrativeBody::TaskPackageInspect(body.clone())
+        }
+        AdministrativeBody::TaskPackageAttest(body) => {
+            AdministrativeBody::TaskPackageAttest(body.clone())
+        }
+        AdministrativeBody::TaskPackageApprove(body) => {
+            AdministrativeBody::TaskPackageApprove(body.clone())
+        }
+        _ => return Err(AdministrativeProtocolError::Envelope),
+    };
+    let result =
+        exchange_administrative_request(&endpoint, capability.capability, operation, body)?;
+    validate_official_task_package_result(&expected, &result)?;
+    write_bounded_private_json(&mut output, &result)?;
+    Ok(result)
+}
+
+fn validate_official_task_package_result(
+    body: &AdministrativeBody,
+    result: &AdministrativeResult,
+) -> Result<(), AdministrativeProtocolError> {
+    use crate::task_package_contracts::{validate_operation_receipt, validate_proposal};
+    use crate::task_package_generator::{generate_task_package_proposal, proposal_payload_sha256};
+    let invalid = AdministrativeProtocolError::Envelope;
+    let (receipt, project_id, workspace_id, revision, operation) = match (body, result) {
+        (
+            AdministrativeBody::TaskPackagePrepare(source),
+            AdministrativeResult::TaskPackageArtifact(artifact),
+        ) => {
+            let proposal = artifact.proposal.as_ref().ok_or(invalid)?;
+            if *proposal != generate_task_package_proposal(source).map_err(|_| invalid)?
+                || artifact.receipt.request_id != source.request_id
+                || artifact.receipt.artifact_id != proposal.proposal_id
+                || artifact.receipt.artifact_sha256 != proposal.payload_sha256
+            {
+                return Err(invalid);
+            }
+            (
+                &artifact.receipt,
+                &source.project_id,
+                &source.workspace_id,
+                source.expected_state_revision,
+                "prepare",
+            )
+        }
+        (
+            AdministrativeBody::TaskPackageInspect(query),
+            AdministrativeResult::TaskPackageArtifact(artifact),
+        ) => {
+            let proposal = artifact.proposal.as_ref().ok_or(invalid)?;
+            validate_proposal(proposal).map_err(|_| invalid)?;
+            if proposal.proposal_id != query.proposal_id
+                || proposal.project_id != query.project_id
+                || proposal.workspace_id != query.workspace_id
+                || proposal.expected_state_revision != query.expected_state_revision
+                || proposal_payload_sha256(proposal).map_err(|_| invalid)?
+                    != proposal.payload_sha256
+                || artifact.receipt.request_id != query.request_id
+                || artifact.receipt.artifact_sha256 != proposal.payload_sha256
+            {
+                return Err(invalid);
+            }
+            (
+                &artifact.receipt,
+                &query.project_id,
+                &query.workspace_id,
+                query.expected_state_revision,
+                "inspect",
+            )
+        }
+        (
+            AdministrativeBody::TaskPackageAttest(decision),
+            AdministrativeResult::TaskPackageDecision(receipt),
+        ) => {
+            let bytes = serde_json::to_vec(decision).map_err(|_| invalid)?;
+            if receipt.artifact_id != decision.attestation_id
+                || receipt.artifact_sha256 != crate::legacy_staging::lowercase_hex(&sha256(&bytes))
+            {
+                return Err(invalid);
+            }
+            (
+                receipt,
+                &decision.project_id,
+                &decision.workspace_id,
+                decision.expected_state_revision,
+                "attest",
+            )
+        }
+        (
+            AdministrativeBody::TaskPackageApprove(decision),
+            AdministrativeResult::TaskPackageDecision(receipt),
+        ) => {
+            let bytes = serde_json::to_vec(decision).map_err(|_| invalid)?;
+            if receipt.artifact_id != decision.approval_id
+                || receipt.artifact_sha256 != crate::legacy_staging::lowercase_hex(&sha256(&bytes))
+            {
+                return Err(invalid);
+            }
+            (
+                receipt,
+                &decision.project_id,
+                &decision.workspace_id,
+                decision.expected_state_revision,
+                "approve",
+            )
+        }
+        _ => return Err(invalid),
+    };
+    validate_operation_receipt(receipt).map_err(|_| invalid)?;
+    if receipt.project_id != *project_id
+        || receipt.workspace_id != *workspace_id
+        || receipt.previous_state_revision != revision
+        || receipt.operation != operation
+    {
+        return Err(invalid);
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn run_official_task_package_operator_inner(
+    _action: &str,
+) -> Result<AdministrativeResult, AdministrativeProtocolError> {
+    Err(AdministrativeProtocolError::Transport(
+        "unsupported-platform",
+    ))
 }
 
 fn exit_operator_protocol_error(error: AdministrativeProtocolError) -> ! {
@@ -1394,6 +1653,17 @@ pub(crate) fn serve_administrative_request(
         {
             capability
         }
+        CapabilityAuthorizationOutcome::Replay(capability)
+            if matches!(
+                request.body,
+                AdministrativeBody::TaskPackagePrepare(_)
+                    | AdministrativeBody::TaskPackageInspect(_)
+                    | AdministrativeBody::TaskPackageAttest(_)
+                    | AdministrativeBody::TaskPackageApprove(_)
+            ) && request_authority_matches(&request, &capability) =>
+        {
+            capability
+        }
         _ => return Err(AdministrativeProtocolError::Authorization),
     };
     let result = match request.body {
@@ -1444,6 +1714,44 @@ pub(crate) fn serve_administrative_request(
                 correlation_id: receipt.correlation_id,
                 state: "revoked".to_string(),
             })
+        }
+        AdministrativeBody::TaskPackagePrepare(source) => {
+            let (proposal, outcome) = storage
+                .prepare_official_task_package(authority, &capability, &source)
+                .map_err(|_| AdministrativeProtocolError::Authorization)?;
+            AdministrativeResult::TaskPackageArtifact(TaskPackageArtifactResult {
+                receipt: outcome.receipt().clone(),
+                proposal: Some(proposal),
+            })
+        }
+        AdministrativeBody::TaskPackageInspect(body) => {
+            let (proposal, receipt) = storage
+                .inspect_official_task_package(
+                    authority,
+                    &capability,
+                    &body.request_id,
+                    &body.project_id,
+                    &body.workspace_id,
+                    body.expected_state_revision,
+                    &body.proposal_id,
+                )
+                .map_err(|_| AdministrativeProtocolError::Authorization)?;
+            AdministrativeResult::TaskPackageArtifact(TaskPackageArtifactResult {
+                receipt,
+                proposal: Some(proposal),
+            })
+        }
+        AdministrativeBody::TaskPackageAttest(attestation) => {
+            let outcome = storage
+                .attest_official_task_package(authority, &capability, &attestation)
+                .map_err(|_| AdministrativeProtocolError::Authorization)?;
+            AdministrativeResult::TaskPackageDecision(outcome.receipt().clone())
+        }
+        AdministrativeBody::TaskPackageApprove(approval) => {
+            let outcome = storage
+                .approve_official_task_package(authority, &capability, &approval)
+                .map_err(|_| AdministrativeProtocolError::Authorization)?;
+            AdministrativeResult::TaskPackageDecision(outcome.receipt().clone())
         }
         AdministrativeBody::TaskPackage(body) => {
             let package = CanonicalTaskPackage::from(body);
@@ -1577,6 +1885,26 @@ fn capability_request(
             Some(body.project_id.clone()),
             Some(body.workspace_id.clone()),
         ),
+        AdministrativeBody::TaskPackagePrepare(body) => (
+            CapabilityOperation::StateAdmin,
+            Some(body.project_id.clone()),
+            Some(body.workspace_id.clone()),
+        ),
+        AdministrativeBody::TaskPackageInspect(body) => (
+            CapabilityOperation::DiagnosticPrivate,
+            Some(body.project_id.clone()),
+            Some(body.workspace_id.clone()),
+        ),
+        AdministrativeBody::TaskPackageAttest(body) => (
+            CapabilityOperation::AttestationCreate,
+            Some(body.project_id.clone()),
+            Some(body.workspace_id.clone()),
+        ),
+        AdministrativeBody::TaskPackageApprove(body) => (
+            CapabilityOperation::StateAdmin,
+            Some(body.project_id.clone()),
+            Some(body.workspace_id.clone()),
+        ),
         AdministrativeBody::TaskAdvance(body) => (
             CapabilityOperation::StateTransition,
             Some(body.project_id.clone()),
@@ -1622,6 +1950,34 @@ fn request_authority_matches(
                 && capability.workspace_id() == Some(body.workspace_id.as_str())
                 && capability.task_id().is_none()
         }
+        AdministrativeBody::TaskPackagePrepare(body) => exact_task_package_authority(
+            capability,
+            CapabilityActor::Operator,
+            CapabilityOperation::StateAdmin,
+            &body.project_id,
+            &body.workspace_id,
+        ),
+        AdministrativeBody::TaskPackageInspect(body) => exact_task_package_authority(
+            capability,
+            CapabilityActor::Operator,
+            CapabilityOperation::DiagnosticPrivate,
+            &body.project_id,
+            &body.workspace_id,
+        ),
+        AdministrativeBody::TaskPackageAttest(body) => exact_task_package_authority(
+            capability,
+            CapabilityActor::Ci,
+            CapabilityOperation::AttestationCreate,
+            &body.project_id,
+            &body.workspace_id,
+        ),
+        AdministrativeBody::TaskPackageApprove(body) => exact_task_package_authority(
+            capability,
+            CapabilityActor::Operator,
+            CapabilityOperation::StateAdmin,
+            &body.project_id,
+            &body.workspace_id,
+        ),
         AdministrativeBody::TaskAdvance(body) => {
             capability.actor() == CapabilityActor::Ci
                 && capability.channel() == CapabilityChannel::Administrative
@@ -1641,6 +1997,21 @@ fn request_authority_matches(
     }
 }
 
+fn exact_task_package_authority(
+    capability: &ac_ant_delirium::structs::AuthorizedCapability,
+    actor: CapabilityActor,
+    operation: CapabilityOperation,
+    project_id: &str,
+    workspace_id: &str,
+) -> bool {
+    capability.actor() == actor
+        && capability.channel() == CapabilityChannel::Administrative
+        && capability.operation() == operation
+        && capability.project_id() == Some(project_id)
+        && capability.workspace_id() == Some(workspace_id)
+        && capability.task_id().is_none()
+}
+
 fn validate_request(
     request: &AdministrativeRequest,
     expected_nonce: &[u8; 32],
@@ -1651,6 +2022,10 @@ fn validate_request(
             request.operation.as_str(),
             "capability.grant"
                 | "capability.revoke"
+                | "governance.task-package.prepare"
+                | "governance.task-package.inspect"
+                | "governance.task-package.attest"
+                | "governance.task-package.approve"
                 | "governance.task-package.install"
                 | "governance.task.advance.accepted"
                 | "migration.stage"
@@ -1679,6 +2054,31 @@ fn validate_request(
         ("capability.revoke", AdministrativeBody::Revoke(body))
             if body.contract_version == "capability-revoke-request-v1"
                 && valid_opaque_id(&body.capability_id, "cap_") =>
+        {
+            Ok(())
+        }
+        ("governance.task-package.prepare", AdministrativeBody::TaskPackagePrepare(body))
+            if crate::task_package_contracts::validate_generation_source(body).is_ok() =>
+        {
+            Ok(())
+        }
+        ("governance.task-package.inspect", AdministrativeBody::TaskPackageInspect(body))
+            if body.contract_version == "task-package-inspect-v1"
+                && valid_opaque_id(&body.request_id, "req_")
+                && valid_opaque_id(&body.project_id, "prj_")
+                && valid_opaque_id(&body.workspace_id, "wsp_")
+                && valid_opaque_id(&body.proposal_id, "prp_")
+                && body.expected_state_revision >= 0 =>
+        {
+            Ok(())
+        }
+        ("governance.task-package.attest", AdministrativeBody::TaskPackageAttest(body))
+            if crate::task_package_contracts::validate_attestation(body).is_ok() =>
+        {
+            Ok(())
+        }
+        ("governance.task-package.approve", AdministrativeBody::TaskPackageApprove(body))
+            if crate::task_package_contracts::validate_approval(body).is_ok() =>
         {
             Ok(())
         }
@@ -1746,6 +2146,7 @@ fn parse_managed_actor(value: &str) -> Result<CapabilityActor, AdministrativePro
         "wrapper" => Ok(CapabilityActor::Wrapper),
         "agent" => Ok(CapabilityActor::Agent),
         "reviewer" => Ok(CapabilityActor::Reviewer),
+        "operator" => Ok(CapabilityActor::Operator),
         "ci" => Ok(CapabilityActor::Ci),
         _ => Err(AdministrativeProtocolError::Envelope),
     }
@@ -1771,6 +2172,9 @@ fn parse_managed_operation(
         "review.decide.assigned" => Ok(CapabilityOperation::ReviewDecideAssigned),
         "attestation.create" => Ok(CapabilityOperation::AttestationCreate),
         "state.transition" => Ok(CapabilityOperation::StateTransition),
+        "state.admin" => Ok(CapabilityOperation::StateAdmin),
+        "installation.admin" => Ok(CapabilityOperation::InstallationAdmin),
+        "diagnostic.private" => Ok(CapabilityOperation::DiagnosticPrivate),
         _ => Err(AdministrativeProtocolError::Envelope),
     }
 }
@@ -2113,7 +2517,12 @@ fn clear_capability_environment() {
 }
 
 fn clear_task_package_environment() {
-    for name in [ADMIN_SOCKET_ENV, TASK_PACKAGE_FD_ENV] {
+    for name in [
+        ADMIN_SOCKET_ENV,
+        TASK_PACKAGE_FD_ENV,
+        TASK_PACKAGE_INPUT_FD_ENV,
+        TASK_PACKAGE_OUTPUT_FD_ENV,
+    ] {
         std::env::remove_var(name);
     }
 }
@@ -2245,6 +2654,60 @@ fn write_capability_bundle_to_fd(
 }
 
 #[cfg(unix)]
+fn open_private_task_package_output(
+    raw: OsString,
+) -> Result<std::fs::File, AdministrativeProtocolError> {
+    let raw_fd = parse_open_descriptor(&raw)?;
+    let file = unsafe { std::fs::File::from_raw_fd(raw_fd) };
+    validate_private_task_package_output(&file)?;
+    Ok(file)
+}
+
+#[cfg(unix)]
+fn validate_private_task_package_output(
+    file: &std::fs::File,
+) -> Result<(), AdministrativeProtocolError> {
+    set_descriptor_close_on_exec(file.as_raw_fd())
+        .map_err(|_| AdministrativeProtocolError::Authorization)?;
+    let mut status: libc::stat = unsafe { std::mem::zeroed() };
+    let flags = unsafe { libc::fcntl(file.as_raw_fd(), libc::F_GETFL) };
+    let offset = unsafe { libc::lseek(file.as_raw_fd(), 0, libc::SEEK_CUR) };
+    if unsafe { libc::fstat(file.as_raw_fd(), &mut status) } != 0
+        || (status.st_mode & libc::S_IFMT) != libc::S_IFREG
+        || (status.st_mode & 0o777) != 0o600
+        || status.st_uid != unsafe { libc::geteuid() }
+        || status.st_nlink != 1
+        || status.st_size != 0
+        || flags < 0
+        || (flags & libc::O_ACCMODE) == libc::O_RDONLY
+        || offset != 0
+    {
+        return Err(AdministrativeProtocolError::Authorization);
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn write_bounded_private_json<T: Serialize>(
+    file: &mut std::fs::File,
+    value: &T,
+) -> Result<(), AdministrativeProtocolError> {
+    validate_private_task_package_output(file)?;
+    let mut bytes = serde_json::to_vec(value).map_err(|_| AdministrativeProtocolError::Envelope)?;
+    bytes.push(b'\n');
+    if bytes.len() as u64 > MAX_TASK_PACKAGE_BYTES {
+        bytes.fill(0);
+        return Err(AdministrativeProtocolError::Framing);
+    }
+    let result = file
+        .write_all(&bytes)
+        .and_then(|_| file.sync_all())
+        .map_err(|_| AdministrativeProtocolError::Transport("task-package-output-write"));
+    bytes.fill(0);
+    result
+}
+
+#[cfg(unix)]
 fn parse_open_descriptor(raw: &OsStr) -> Result<i32, AdministrativeProtocolError> {
     raw.to_str()
         .and_then(|value| value.parse::<i32>().ok())
@@ -2324,7 +2787,9 @@ fn read_bounded_json_from_raw_fd(raw: OsString) -> Result<Vec<u8>, Administrativ
     }
     let expected_size = status.st_size as usize;
     let mut bytes = Vec::with_capacity(expected_size);
-    file.read_to_end(&mut bytes)
+    std::io::Read::by_ref(&mut file)
+        .take(MAX_TASK_PACKAGE_BYTES + 1)
+        .read_to_end(&mut bytes)
         .map_err(|_| AdministrativeProtocolError::Envelope)?;
     if bytes.len() != expected_size {
         bytes.fill(0);
@@ -2339,6 +2804,13 @@ fn read_administrative_capability(
     let raw = std::env::var_os(ADMIN_CAPABILITY_FD_ENV)
         .ok_or(AdministrativeProtocolError::Authorization)?;
     std::env::remove_var(ADMIN_CAPABILITY_FD_ENV);
+    read_administrative_capability_from_fd(raw)
+}
+
+#[cfg(unix)]
+fn read_administrative_capability_from_fd(
+    raw: OsString,
+) -> Result<AdministrativeCapabilityBundle, AdministrativeProtocolError> {
     let mut capability = read_capability_bundle_from_raw_fd(raw)?;
     if !matches!(
         capability.contract_version.as_str(),

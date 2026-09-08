@@ -619,6 +619,112 @@ mod tests {
     }
 
     #[test]
+    fn managed_task_package_authorities_are_exactly_scoped_and_non_transferable() {
+        let root = fixture_root("managed-task-package-authorities");
+        let database = unregistered_database(&root);
+        let scoped_operator = NewCapabilityGrant {
+            grant_id: "cap_11111111111111111111111111".to_string(),
+            secret_hash: sha256(&[41; 32]),
+            subject_uid: 1000,
+            actor: CapabilityActor::Operator,
+            channel: CapabilityChannel::Administrative,
+            operation: CapabilityOperation::StateAdmin,
+            project_id: Some(PROJECT_ID.to_string()),
+            workspace_id: Some(WORKSPACE_ID.to_string()),
+            task_id: None,
+            not_before_unix: 100,
+            expires_at_unix: 200,
+            revocation_epoch: 0,
+            granted_at: "unix:100".to_string(),
+        };
+        let mut legacy = scoped_operator.clone();
+        legacy.grant_id = GRANT_ID.to_string();
+        legacy.secret_hash = sha256(&[40; 32]);
+        legacy.actor = CapabilityActor::Ci;
+        legacy.operation = CapabilityOperation::AttestationCreate;
+        let legacy_receipt = database
+            .grant_managed_capability(1000, &legacy, 100)
+            .unwrap();
+        // Reconstruct the v14 event table with a real existing grant/event,
+        // then require migration to preserve it before issuing new authorities.
+        database.with_immediate_transaction(|transaction| {
+            let current: String = transaction.query_row(
+                "SELECT sql FROM sqlite_schema WHERE name = 'capability_management_events'", [], |row| row.get(0))?;
+            let previous = current.replace(", 'operator'", "")
+                .replace(", 'state.admin', 'diagnostic.private', 'installation.admin'", "");
+            assert_ne!(current, previous);
+            transaction.execute_batch("DROP INDEX capability_management_time_idx;
+                DROP INDEX capability_management_scope_idx;
+                ALTER TABLE capability_management_events RENAME TO preserved_events;")?;
+            transaction.execute_batch(&previous)?;
+            transaction.execute_batch("INSERT INTO capability_management_events SELECT * FROM preserved_events;
+                DROP TABLE preserved_events;
+                CREATE INDEX capability_management_time_idx ON capability_management_events(occurred_at_unix, sequence);
+                CREATE INDEX capability_management_scope_idx ON capability_management_events(project_id, workspace_id, task_id);
+                DELETE FROM schema_migrations WHERE version = 15;
+                PRAGMA user_version = 14;")?;
+            Ok(())
+        }).unwrap();
+        drop(database);
+        let database = ProjectDatabase::open_existing_at(&root.join("protected")).unwrap();
+        assert_eq!(
+            database.health().unwrap().schema_version,
+            STORAGE_SCHEMA_VERSION
+        );
+        let preserved: (String, String, i64) = database.with_immediate_transaction(|transaction| {
+            Ok(transaction.query_row("SELECT event_id, correlation_id, sequence FROM capability_management_events WHERE grant_id = ?1",
+                AC_params![GRANT_ID], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?)
+        }).unwrap();
+        assert_eq!(
+            preserved,
+            (
+                legacy_receipt.event_id,
+                legacy_receipt.correlation_id,
+                legacy_receipt.audit_sequence
+            )
+        );
+        database
+            .grant_managed_capability(1000, &scoped_operator, 100)
+            .expect("same-uid scoped operator authority");
+
+        let mut transferred = scoped_operator.clone();
+        transferred.grant_id = "cap_22222222222222222222222222".to_string();
+        transferred.secret_hash = sha256(&[42; 32]);
+        transferred.subject_uid = 1001;
+        assert!(database
+            .grant_managed_capability(1000, &transferred, 100)
+            .is_err());
+
+        let mut global = scoped_operator.clone();
+        global.grant_id = "cap_33333333333333333333333333".to_string();
+        global.secret_hash = sha256(&[43; 32]);
+        global.operation = CapabilityOperation::DiagnosticPrivate;
+        global.project_id = None;
+        global.workspace_id = None;
+        assert!(database
+            .grant_managed_capability(1000, &global, 100)
+            .is_err());
+
+        let mut ci_install = scoped_operator;
+        ci_install.grant_id = "cap_44444444444444444444444444".to_string();
+        ci_install.secret_hash = sha256(&[44; 32]);
+        ci_install.actor = CapabilityActor::Ci;
+        ci_install.operation = CapabilityOperation::InstallationAdmin;
+        database
+            .grant_managed_capability(1000, &ci_install, 100)
+            .expect("scoped CI installation authority");
+        assert_eq!(database.capability_management_event_count().unwrap(), 3);
+        database
+            .revoke_managed_capability(1000, &ci_install.grant_id, 0, 150)
+            .unwrap();
+        database
+            .revoke_managed_capability(1000, "cap_11111111111111111111111111", 0, 150)
+            .unwrap();
+        assert_eq!(database.capability_management_event_count().unwrap(), 5);
+        fs::remove_dir_all(root).expect("fixture cleanup");
+    }
+
+    #[test]
     fn storage_upgrade_from_v8_preserves_grants_and_removes_only_the_scope_foreign_key() {
         let root = fixture_root("upgrade-v8-grants");
         let state_root = ProjectStateRoot::with_default_config(
@@ -721,7 +827,7 @@ mod tests {
                     DROP TABLE task_package_attestations;
                     DROP TABLE task_package_proposals;
                     DROP TABLE backup_checkpoints;
-                    DELETE FROM schema_migrations WHERE version IN (9, 10, 11, 12, 13, 14);
+                    DELETE FROM schema_migrations WHERE version IN (9, 10, 11, 12, 13, 14, 15);
                     PRAGMA user_version = 8;
                     "#,
                 )?;

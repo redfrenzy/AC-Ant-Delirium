@@ -1,5 +1,6 @@
 use ac_ant_delirium::libres::Rusqlite_unit::{AC_OptionalExtension, AC_Transaction, AC_params};
 use ac_ant_delirium::libres::Sha2_unit::sha256;
+use ac_ant_delirium::libres::System_Random_unit::crockford_id;
 use ac_ant_delirium::structs::{
     ProjectDatabase, TransactionalStorageError, TransactionalStorageResult,
 };
@@ -314,6 +315,69 @@ pub(crate) fn store_task_package_approval(
         .map_err(map_storage_error)
 }
 
+pub(crate) fn inspect_task_package_proposal(
+    database: &ProjectDatabase,
+    request_id: &str,
+    project_id: &str,
+    workspace_id: &str,
+    expected_state_revision: i64,
+    proposal_id: &str,
+) -> Result<(TaskPackageProposal, TaskPackageOperationReceipt), TaskPackageStoreError> {
+    database
+        .with_immediate_transaction(|transaction| {
+            require_exact_scope_revision(
+                transaction,
+                project_id,
+                workspace_id,
+                expected_state_revision,
+            )?;
+            let payload: Option<Vec<u8>> = transaction
+                .query_row(
+                    "SELECT payload FROM task_package_proposals WHERE proposal_id = ?1 AND project_id = ?2 AND workspace_id = ?3 AND expected_state_revision = ?4",
+                    AC_params![proposal_id, project_id, workspace_id, expected_state_revision],
+                    |row| row.get(0),
+                )
+                .optional()?;
+            let Some(payload) = payload else {
+                return Err(conflict("task package proposal is unavailable"));
+            };
+            let proposal: TaskPackageProposal = serde_json::from_slice(&payload).map_err(|_| {
+                TransactionalStorageError::Integrity(
+                    "task package proposal payload is invalid".to_string(),
+                )
+            })?;
+            validate_proposal(&proposal).map_err(|_| {
+                TransactionalStorageError::Integrity(
+                    "task package proposal contract is invalid".to_string(),
+                )
+            })?;
+            if proposal.proposal_id != proposal_id
+                || proposal.project_id != project_id
+                || proposal.workspace_id != workspace_id
+                || proposal.expected_state_revision != expected_state_revision
+                || proposal_payload_sha256(&proposal).map_err(|_| {
+                    TransactionalStorageError::Integrity(
+                        "task package proposal digest is invalid".to_string(),
+                    )
+                })? != proposal.payload_sha256
+            {
+                return Err(conflict("task package proposal binding conflicts"));
+            }
+            let receipt = unchanged_revision_receipt(
+                request_id,
+                "inspect",
+                project_id,
+                workspace_id,
+                &deterministic_receipt_id(request_id, proposal_id),
+                &proposal.payload_sha256,
+                expected_state_revision,
+                "inspected",
+            )?;
+            Ok((proposal, receipt))
+        })
+        .map_err(map_storage_error)
+}
+
 fn proposal_binding(
     transaction: &AC_Transaction<'_>,
     proposal_id: &str,
@@ -421,6 +485,18 @@ fn artifact_sha256(payload: &[u8]) -> String {
         output.push(char::from(HEX[usize::from(byte & 0x0f)]));
     }
     output
+}
+
+fn deterministic_receipt_id(request_id: &str, artifact_id: &str) -> String {
+    let mut material = b"task-package-inspection-receipt-v1".to_vec();
+    material.push(0);
+    material.extend_from_slice(request_id.as_bytes());
+    material.push(0);
+    material.extend_from_slice(artifact_id.as_bytes());
+    let digest = sha256(&material);
+    let mut opaque = [0_u8; 16];
+    opaque.copy_from_slice(&digest[..16]);
+    crockford_id("rcp_", &opaque)
 }
 
 fn conflict(message: &str) -> TransactionalStorageError {

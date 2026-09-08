@@ -157,7 +157,7 @@ systemctl is-active --quiet antdelirium-admin.socket
 python3 -B "$readiness_probe" /run/antdelirium-admin/admin.sock \
     || fail 'the upgraded service did not complete its administrative protocol startup.'
 
-validate_storage_v12_once() {
+validate_current_storage_once() {
 python3 - "$state_root" "$backup_root/state" <<'PY'
 import glob
 import sqlite3
@@ -190,8 +190,14 @@ try:
             for row in connection.execute("pragma table_info(backup_checkpoints)")
             if row[5] > 0
         }
-        if version != 13:
+        if version != 15:
             failures.append("database-" + str(ordinal) + ":schema-version")
+        package_tables = connection.execute(
+            "select count(*) from sqlite_schema where type='table' and name in "
+            "('task_package_proposals', 'task_package_attestations', 'task_package_approvals')"
+        ).fetchone()[0]
+        if package_tables != 3:
+            failures.append("database-" + str(ordinal) + ":task-package-tables")
         if "task_ordinal" not in task_columns:
             failures.append("database-" + str(ordinal) + ":task-order")
         if registration_columns != {
@@ -232,6 +238,10 @@ try:
         failures.append("registry:management-table")
     if management_sql is None or "state.transition" not in management_sql[0]:
         failures.append("registry:state-transition-operation")
+    if management_sql is None or any(value not in management_sql[0] for value in (
+        "'operator'", "'state.admin'", "'diagnostic.private'", "'installation.admin'"
+    )):
+        failures.append("registry:scoped-administrative-grants")
     previous_registry = sqlite3.connect(
         "file:" + previous_root + "/registry/state/state.db?mode=ro", uri=True
     )
@@ -247,7 +257,7 @@ try:
             (uid, fingerprint, fingerprint, project_id, workspace_id, project_key, workspace_key, created_at)
             for uid, fingerprint, project_id, workspace_id, project_key, workspace_key, created_at in previous_rows
         ]
-    elif previous_version in (11, 12, 13):
+    elif previous_version in (11, 12, 13, 14, 15):
         expected_rows = previous_registry.execute(
             "select peer_uid, project_identity_fingerprint, workspace_identity_fingerprint, project_id, workspace_id, project_key, workspace_key, created_at_unix from provisional_project_registrations order by peer_uid, workspace_identity_fingerprint"
         ).fetchall()
@@ -276,7 +286,7 @@ PY
 
 storage_ready=false
 for ((attempt = 1; attempt <= 100; attempt++)); do
-    if validate_storage_v12_once >"$log_root/storage-validation.txt" 2>&1; then
+    if validate_current_storage_once >"$log_root/storage-validation.txt" 2>&1; then
         storage_ready=true
         break
     fi
@@ -286,13 +296,13 @@ for ((attempt = 1; attempt <= 100; attempt++)); do
     sleep 0.1
 done
 [[ "$storage_ready" == true ]] \
-    || fail 'timed out waiting for the protected storage-v11 migration.'
+    || fail 'timed out waiting for the protected storage-v15 migration.'
 
 sleep 1
 systemctl is-active --quiet antdelirium.service \
     || fail 'the upgraded service did not remain active after migration.'
-validate_storage_v12_once >"$log_root/storage-validation.txt" 2>&1 \
+validate_current_storage_once >"$log_root/storage-validation.txt" 2>&1 \
     || fail 'protected storage did not remain valid after service stabilization.'
 
 upgrade_committed=true
-printf '%s\n' "AD-T86-UPGRADE: service upgraded to storage-v14; rollback backup retained under $backup_root"
+printf '%s\n' "AD-T86-UPGRADE: service upgraded to storage-v15; rollback backup retained under $backup_root"

@@ -7,6 +7,8 @@ use crate::task_package_contracts::{
 };
 
 const EMPTY_DIGEST: &str = "0000000000000000000000000000000000000000000000000000000000000000";
+// Reserve space in ADA1 for the receipt and envelope before any store write.
+const MAX_PROPOSAL_BYTES: usize = 4 * 1024 * 1024 - 128 * 1024;
 
 pub(crate) fn generate_task_package_proposal(
     source: &TaskGenerationSource,
@@ -105,6 +107,9 @@ pub(crate) fn proposal_payload_sha256(
     let mut unsigned = proposal.clone();
     unsigned.payload_sha256 = EMPTY_DIGEST.to_string();
     let bytes = serde_json::to_vec(&unsigned).map_err(|_| TaskPackageContractError::Content)?;
+    if bytes.len() > MAX_PROPOSAL_BYTES {
+        return Err(TaskPackageContractError::Content);
+    }
     Ok(lowercase_hex(&sha256(&bytes)))
 }
 

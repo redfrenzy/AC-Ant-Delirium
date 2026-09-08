@@ -592,6 +592,121 @@ impl ProtectedServiceStorage {
             .map_err(|_| ())
     }
 
+    pub(crate) fn prepare_official_task_package(
+        &self,
+        authority: &VerifiedServiceAuthority,
+        capability: &AuthorizedCapability,
+        source: &crate::task_package_contracts::TaskGenerationSource,
+    ) -> Result<
+        (
+            crate::task_package_contracts::TaskPackageProposal,
+            crate::task_package_store::TaskPackageWriteOutcome,
+        ),
+        (),
+    > {
+        if !official_task_package_authority_matches(
+            capability,
+            CapabilityActor::Operator,
+            CapabilityOperation::StateAdmin,
+            &source.project_id,
+            &source.workspace_id,
+        ) {
+            self.audit_rejected_authorized_request(capability)?;
+            return Err(());
+        }
+        let resource = self.resolve_authorized_resource(authority, capability)?;
+        let proposal = crate::task_package_generator::generate_task_package_proposal(source)
+            .map_err(|_| ())?;
+        let outcome =
+            crate::task_package_store::store_task_package_proposal(resource.database(), &proposal)
+                .map_err(|_| ())?;
+        Ok((proposal, outcome))
+    }
+
+    pub(crate) fn inspect_official_task_package(
+        &self,
+        authority: &VerifiedServiceAuthority,
+        capability: &AuthorizedCapability,
+        request_id: &str,
+        project_id: &str,
+        workspace_id: &str,
+        expected_state_revision: i64,
+        proposal_id: &str,
+    ) -> Result<
+        (
+            crate::task_package_contracts::TaskPackageProposal,
+            crate::task_package_contracts::TaskPackageOperationReceipt,
+        ),
+        (),
+    > {
+        if !official_task_package_authority_matches(
+            capability,
+            CapabilityActor::Operator,
+            CapabilityOperation::DiagnosticPrivate,
+            project_id,
+            workspace_id,
+        ) {
+            self.audit_rejected_authorized_request(capability)?;
+            return Err(());
+        }
+        let resource = self.resolve_authorized_resource(authority, capability)?;
+        crate::task_package_store::inspect_task_package_proposal(
+            resource.database(),
+            request_id,
+            project_id,
+            workspace_id,
+            expected_state_revision,
+            proposal_id,
+        )
+        .map_err(|_| ())
+    }
+
+    pub(crate) fn attest_official_task_package(
+        &self,
+        authority: &VerifiedServiceAuthority,
+        capability: &AuthorizedCapability,
+        attestation: &crate::task_package_contracts::TaskPackageAttestation,
+    ) -> Result<crate::task_package_store::TaskPackageWriteOutcome, ()> {
+        if !official_task_package_authority_matches(
+            capability,
+            CapabilityActor::Ci,
+            CapabilityOperation::AttestationCreate,
+            &attestation.project_id,
+            &attestation.workspace_id,
+        ) || attestation.verifier_subject_sha256
+            != task_package_subject_sha256(capability.subject_uid())
+        {
+            self.audit_rejected_authorized_request(capability)?;
+            return Err(());
+        }
+        let resource = self.resolve_authorized_resource(authority, capability)?;
+        crate::task_package_store::store_task_package_attestation(resource.database(), attestation)
+            .map_err(|_| ())
+    }
+
+    pub(crate) fn approve_official_task_package(
+        &self,
+        authority: &VerifiedServiceAuthority,
+        capability: &AuthorizedCapability,
+        approval: &crate::task_package_contracts::TaskPackageApproval,
+    ) -> Result<crate::task_package_store::TaskPackageWriteOutcome, ()> {
+        if !official_task_package_authority_matches(
+            capability,
+            CapabilityActor::Operator,
+            CapabilityOperation::StateAdmin,
+            &approval.project_id,
+            &approval.workspace_id,
+        ) || approval.operator_subject_sha256
+            != task_package_subject_sha256(capability.subject_uid())
+        {
+            self.audit_rejected_authorized_request(capability)?;
+            return Err(());
+        }
+        let resource = self.resolve_authorized_resource(authority, capability)?;
+        crate::task_package_store::store_task_package_approval(resource.database(), approval)
+            .map_err(|_| ())
+    }
+
     pub(crate) fn advance_reviewed_task(
         &self,
         authority: &VerifiedServiceAuthority,
@@ -815,6 +930,29 @@ impl ProtectedServiceStorage {
         }
         Ok(context)
     }
+}
+
+pub(crate) fn task_package_subject_sha256(subject_uid: u32) -> String {
+    // A new grant or actor label must not let the same OS principal approve
+    // its own attestation. The UID comes from the authenticated capability.
+    let mut material = b"task-package-subject-v1\0".to_vec();
+    material.extend_from_slice(&subject_uid.to_be_bytes());
+    lowercase_hex(&sha256(&material))
+}
+
+fn official_task_package_authority_matches(
+    capability: &AuthorizedCapability,
+    actor: CapabilityActor,
+    operation: CapabilityOperation,
+    project_id: &str,
+    workspace_id: &str,
+) -> bool {
+    capability.actor() == actor
+        && capability.channel() == CapabilityChannel::Administrative
+        && capability.operation() == operation
+        && capability.project_id() == Some(project_id)
+        && capability.workspace_id() == Some(workspace_id)
+        && capability.task_id().is_none()
 }
 
 pub(crate) fn initialize_configured_service_storage(

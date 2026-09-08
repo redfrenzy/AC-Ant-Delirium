@@ -142,6 +142,46 @@ Entradas grandes chegam por `ANTDELIRIUM_*_FD` herdado, limitado, regular,
 somente leitura e `CLOEXEC`. Argumentos de linha de comando nunca carregam
 paths, JSON, tokens ou fingerprints.
 
+### 5.1 Transporte implementado na T11.4
+
+`prepare`, `inspect`, `attest` e `approve` usam o mesmo canal ADA1. O cliente
+consome `ANTDELIRIUM_TASK_PACKAGE_INPUT_FD`, com arquivo regular somente leitura
+na posição zero, e `ANTDELIRIUM_TASK_PACKAGE_OUTPUT_FD`, com arquivo regular
+vazio, privado (0600), pertencente ao usuário e com um único link. Entrada,
+saída e `ANTDELIRIUM_ADMIN_CAPABILITY_FD` devem ser descritores distintos.
+A saída é validada antes do envio da operação; todos os descritores consumidos
+recebem `CLOEXEC`. O limite de leitura é 4 MiB menos 64 KiB, e a proposta gerada
+deve caber em 4 MiB menos 128 KiB antes de ser persistida.
+
+O descritor de saída recebe a proposta e seu recibo em `prepare/inspect`, ou
+somente o recibo em `attest/approve`. O terminal mostra IDs, digests, contagens
+e estado, sem texto da proposta. O cliente confere o contrato, escopo, revisão,
+operação e digest da resposta. Se a saída falhar depois do commit, repetir a
+mesma entrada com uma saída válida recupera o recibo persistido.
+
+As credenciais administrativas mantêm o envelope `admin-capability-v1`.
+`prepare/approve` exigem operador com `StateAdmin`, `inspect` exige operador
+com `DiagnosticPrivate` e `attest` exige CI com `AttestationCreate`; todos com
+projeto/workspace exatos e sem escopo de tarefa. O gerenciador permite emitir
+as novas credenciais de operador somente para o próprio UID autorizado.
+
+Os campos `verifier_subject_sha256` e `operator_subject_sha256` precisam ser
+iguais ao SHA-256 de `task-package-subject-v1`, seguido de um byte NUL e do UID
+autenticado em quatro bytes big-endian. O serviço verifica esse vínculo; trocar
+o JSON, o papel ou o grant não muda a identidade. Verificador e aprovador
+precisam ter UIDs distintos. Os launchers da T11.7 deverão aplicar esse contrato.
+
+Reenvios idênticos das quatro operações são aceitos somente após nova checagem
+de autorização, expiração, revogação, escopo e revisão. Reutilizar o mesmo ID de
+requisição com payload diferente é recusado. O `request_id` dos recibos de
+decisão acompanha a requisição de origem da proposta; o envelope ADA1 identifica
+cada troca de mensagens. A inspeção tem seu próprio `request_id`.
+
+`source_sha256` é uma referência declarada à origem externa, a ser conferida
+pelo verificador; o serviço não lê essa origem. O digest `payload_sha256` é
+calculado sobre a proposta gerada e persistida. A instalação v1 continua em
+`ANTDELIRIUM_TASK_PACKAGE_FD`; a instalação v2 será ligada na T11.5.
+
 ## 6. Semântica da associação
 
 A associação deve executar em uma única transação do registry:
@@ -187,6 +227,9 @@ Regras mínimas:
 - suportar rollback da associação sem apagar eventos posteriores;
 - manter storage-v13 legível e migrá-lo aditivamente para storage-v14, necessário
   para os registros protegidos e separados de proposta, attestation e approval;
+- aplicar em seguida storage-v15 para ampliar os tipos aceitos na auditoria de
+  emissão/revogação das capabilities escopadas, copiando integralmente os eventos
+  anteriores na mesma transação; v14 existente também segue essa migração;
 - manter o wrapper e a API limitada binariamente compatíveis.
 
 ## 9. Matriz obrigatória de testes

@@ -773,26 +773,43 @@ fn validate_managed_grant_policy(
     grant: &NewCapabilityGrant,
 ) -> TransactionalStorageResult<()> {
     validate_grant(grant)?;
+    let scoped_operator_task_package_authority = grant.actor == CapabilityActor::Operator
+        && grant.subject_uid == operator_uid
+        && grant.channel == CapabilityChannel::Administrative
+        && matches!(
+            grant.operation,
+            CapabilityOperation::StateAdmin | CapabilityOperation::DiagnosticPrivate
+        )
+        && grant.project_id.is_some()
+        && grant.workspace_id.is_some()
+        && grant.task_id.is_none();
+    let scoped_ci_task_package_installation = grant.actor == CapabilityActor::Ci
+        && grant.channel == CapabilityChannel::Administrative
+        && grant.operation == CapabilityOperation::InstallationAdmin
+        && grant.project_id.is_some()
+        && grant.workspace_id.is_some()
+        && grant.task_id.is_none();
     if operator_uid == 0
         || grant.subject_uid == 0
-        || !matches!(
-            grant.actor,
-            CapabilityActor::Wrapper
-                | CapabilityActor::Agent
-                | CapabilityActor::Reviewer
-                | CapabilityActor::Ci
-        )
-        || !matches!(
-            grant.operation,
-            CapabilityOperation::CompileObserve
-                | CapabilityOperation::ProjectionRefresh
-                | CapabilityOperation::TaskCurrentRead
-                | CapabilityOperation::SubmissionCreate
-                | CapabilityOperation::SubmissionReadAssigned
-                | CapabilityOperation::ReviewDecideAssigned
-                | CapabilityOperation::AttestationCreate
-                | CapabilityOperation::StateTransition
-        )
+        || !(scoped_operator_task_package_authority
+            || scoped_ci_task_package_installation
+            || (matches!(
+                grant.actor,
+                CapabilityActor::Wrapper
+                    | CapabilityActor::Agent
+                    | CapabilityActor::Reviewer
+                    | CapabilityActor::Ci
+            ) && matches!(
+                grant.operation,
+                CapabilityOperation::CompileObserve
+                    | CapabilityOperation::ProjectionRefresh
+                    | CapabilityOperation::TaskCurrentRead
+                    | CapabilityOperation::SubmissionCreate
+                    | CapabilityOperation::SubmissionReadAssigned
+                    | CapabilityOperation::ReviewDecideAssigned
+                    | CapabilityOperation::AttestationCreate
+                    | CapabilityOperation::StateTransition
+            )))
     {
         return Err(invalid_grant());
     }

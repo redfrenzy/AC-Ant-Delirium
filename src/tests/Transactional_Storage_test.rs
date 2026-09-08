@@ -122,7 +122,7 @@ mod tests {
                 transaction.execute("DROP TABLE task_package_approvals", [])?;
                 transaction.execute("DROP TABLE task_package_attestations", [])?;
                 transaction.execute("DROP TABLE task_package_proposals", [])?;
-                transaction.execute("DELETE FROM schema_migrations WHERE version = 14", [])?;
+                transaction.execute("DELETE FROM schema_migrations WHERE version >= 14", [])?;
                 transaction.pragma_update(None, "user_version", 13)?;
                 Ok(())
             })
@@ -130,7 +130,10 @@ mod tests {
         drop(database);
 
         let migrated = ProjectDatabase::open_existing_at(state_root.root()).unwrap();
-        assert_eq!(migrated.health().unwrap().schema_version, 14);
+        assert_eq!(
+            migrated.health().unwrap().schema_version,
+            STORAGE_SCHEMA_VERSION
+        );
         let tables = migrated
             .with_immediate_transaction(|transaction| {
                 let mut statement = transaction.prepare(
@@ -300,7 +303,7 @@ DROP TABLE provisional_project_identities;
                 transaction.execute("DROP TABLE task_package_proposals", [])?;
                 transaction.execute("DROP TABLE backup_checkpoints", [])?;
                 transaction.execute(
-                    "DELETE FROM schema_migrations WHERE version IN (10, 11, 12, 13, 14)",
+                    "DELETE FROM schema_migrations WHERE version IN (10, 11, 12, 13, 14, 15)",
                     [],
                 )?;
                 transaction.pragma_update(None, "user_version", 9)?;

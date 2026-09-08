@@ -66,6 +66,42 @@ fn lowercase_hex(bytes: &[u8]) -> String {
 }
 
 #[cfg(unix)]
+fn exchange_test_request(
+    authority: &VerifiedServiceAuthority,
+    storage: &ProtectedServiceStorage,
+    peer_uid: u32,
+    nonce: [u8; 32],
+    request: AdministrativeRequest,
+) -> AdministrativeResponse {
+    try_exchange_test_request(authority, storage, peer_uid, nonce, request).unwrap()
+}
+
+#[cfg(unix)]
+fn try_exchange_test_request(
+    authority: &VerifiedServiceAuthority,
+    storage: &ProtectedServiceStorage,
+    peer_uid: u32,
+    nonce: [u8; 32],
+    mut request: AdministrativeRequest,
+) -> Result<AdministrativeResponse, AdministrativeProtocolError> {
+    let authentication = ConnectionAuthentication::for_test(peer_uid, nonce);
+    let (mut client, mut server) = UnixStream::pair().unwrap();
+    let response_bytes = std::thread::scope(|scope| {
+        let worker = scope.spawn(move || {
+            answer_administrative_hello(&mut server, &nonce).unwrap();
+            serve_administrative_request(&mut server, &authentication, authority, storage)
+        });
+        request.connection_nonce = negotiate_client(&mut client).unwrap();
+        write_frame(&mut client, &request).unwrap();
+        let response = read_frame(&mut client);
+        worker.join().unwrap()?;
+        response
+    })?;
+    assert!(!String::from_utf8_lossy(&response_bytes).contains("/home/"));
+    Ok(serde_json::from_slice(&response_bytes).unwrap())
+}
+
+#[cfg(unix)]
 #[test]
 fn migration_source_inputs_require_readonly_inherited_descriptors() {
     let nonce = SystemTime::now()
@@ -330,6 +366,123 @@ fn migration_request_binds_connection_operation_and_inventory_digest() {
 }
 
 #[test]
+fn official_task_package_grammar_binds_each_operation_to_exact_scope() {
+    let nonce = [14_u8; 32];
+    let project_id = "prj_11111111111111111111111111";
+    let workspace_id = "wsp_11111111111111111111111111";
+    let source = TaskGenerationSource {
+        contract_version: crate::task_package_contracts::TASK_GENERATION_SOURCE_V1.to_string(),
+        request_id: "req_11111111111111111111111111".to_string(),
+        source_format: "ordered-objectives-v1".to_string(),
+        source_sha256: "a".repeat(64),
+        project_id: project_id.to_string(),
+        workspace_id: workspace_id.to_string(),
+        expected_state_revision: 0,
+        plans: vec![crate::task_package_contracts::TaskGenerationSourcePlan {
+            source_key_sha256: "b".repeat(64),
+            objective: "Prepare one proposal".to_string(),
+            tasks: vec![crate::task_package_contracts::TaskGenerationSourceTask {
+                source_key_sha256: "c".repeat(64),
+                objective: "Exercise the closed grammar".to_string(),
+                acceptance_criteria: Vec::new(),
+                relevant_paths: vec!["src/lib.rs".to_string()],
+            }],
+        }],
+    };
+    let proposal = crate::task_package_generator::generate_task_package_proposal(&source).unwrap();
+    let mut request = AdministrativeRequest {
+        message_type: "request".to_string(),
+        wire_version: ADMIN_WIRE_VERSION.to_string(),
+        request_id: "req_22222222222222222222222222".to_string(),
+        connection_nonce: encode_base64url(&nonce),
+        operation: "governance.task-package.prepare".to_string(),
+        capability: WireCapability {
+            capability_id: "cap_11111111111111111111111111".to_string(),
+            token: encode_base64url(&[15_u8; 32]),
+        },
+        body: AdministrativeBody::TaskPackagePrepare(source),
+    };
+    assert_eq!(validate_request(&request, &nonce), Ok(()));
+    let authentication = ConnectionAuthentication::for_test(1000, nonce);
+    let authorization = capability_request(&authentication, &request).unwrap();
+    assert_eq!(authorization.operation, CapabilityOperation::StateAdmin);
+    assert_eq!(authorization.project_id.as_deref(), Some(project_id));
+    assert_eq!(authorization.workspace_id.as_deref(), Some(workspace_id));
+    assert!(authorization.task_id.is_none());
+
+    request.operation = "governance.task-package.inspect".to_string();
+    request.body = AdministrativeBody::TaskPackageInspect(TaskPackageInspectBody {
+        contract_version: "task-package-inspect-v1".to_string(),
+        request_id: "req_33333333333333333333333333".to_string(),
+        project_id: project_id.to_string(),
+        workspace_id: workspace_id.to_string(),
+        expected_state_revision: 0,
+        proposal_id: proposal.proposal_id.clone(),
+    });
+    assert_eq!(validate_request(&request, &nonce), Ok(()));
+    assert_eq!(
+        capability_request(&authentication, &request)
+            .unwrap()
+            .operation,
+        CapabilityOperation::DiagnosticPrivate
+    );
+
+    let attestation = OfficialTaskPackageAttestation {
+        contract_version: crate::task_package_contracts::TASK_PACKAGE_ATTESTATION_V1.to_string(),
+        attestation_id: "att_11111111111111111111111111".to_string(),
+        proposal_id: proposal.proposal_id.clone(),
+        proposal_sha256: proposal.payload_sha256.clone(),
+        source_sha256: proposal.source_sha256.clone(),
+        project_id: project_id.to_string(),
+        workspace_id: workspace_id.to_string(),
+        expected_state_revision: 0,
+        verifier_subject_sha256: "d".repeat(64),
+        decision: "accepted".to_string(),
+        attested_at: "unix:1".to_string(),
+        state: "attested".to_string(),
+    };
+    request.operation = "governance.task-package.attest".to_string();
+    request.body = AdministrativeBody::TaskPackageAttest(attestation.clone());
+    assert_eq!(validate_request(&request, &nonce), Ok(()));
+    assert_eq!(
+        capability_request(&authentication, &request)
+            .unwrap()
+            .operation,
+        CapabilityOperation::AttestationCreate
+    );
+
+    request.operation = "governance.task-package.approve".to_string();
+    request.body = AdministrativeBody::TaskPackageApprove(OfficialTaskPackageApproval {
+        contract_version: crate::task_package_contracts::TASK_PACKAGE_APPROVAL_V1.to_string(),
+        approval_id: "apr_11111111111111111111111111".to_string(),
+        proposal_id: proposal.proposal_id,
+        proposal_sha256: proposal.payload_sha256,
+        attestation_id: attestation.attestation_id,
+        attestation_sha256: "e".repeat(64),
+        project_id: project_id.to_string(),
+        workspace_id: workspace_id.to_string(),
+        expected_state_revision: 0,
+        operator_subject_sha256: "f".repeat(64),
+        decision: "approved".to_string(),
+        approved_at: "unix:2".to_string(),
+        state: "approved".to_string(),
+    });
+    assert_eq!(validate_request(&request, &nonce), Ok(()));
+    assert_eq!(
+        capability_request(&authentication, &request)
+            .unwrap()
+            .operation,
+        CapabilityOperation::StateAdmin
+    );
+
+    request.operation = "governance.task-package.prepare".to_string();
+    assert_eq!(
+        validate_request(&request, &nonce),
+        Err(AdministrativeProtocolError::Envelope)
+    );
+}
+
+#[test]
 fn generic_task_package_request_is_closed_and_requires_state_admin() {
     let nonce = [5_u8; 32];
     let request = AdministrativeRequest {
@@ -440,8 +593,23 @@ fn issued_agent_submission_capability_has_a_non_administrative_contract() {
         issued_capability_contract("wrapper", "limited", "projection.refresh"),
         "wrapper-projection-capability-v1"
     );
+    assert_eq!(
+        issued_capability_contract("operator", "administrative", "state.admin"),
+        "admin-capability-v1"
+    );
+    assert_eq!(
+        issued_capability_contract("operator", "administrative", "diagnostic.private"),
+        "admin-capability-v1"
+    );
+    assert_eq!(
+        issued_capability_contract("ci", "administrative", "attestation.create"),
+        "admin-capability-v1"
+    );
+    assert_eq!(
+        issued_capability_contract("ci", "administrative", "installation.admin"),
+        "admin-capability-v1"
+    );
     for (actor, channel, operation) in [
-        ("operator", "administrative", "state.admin"),
         ("agent", "administrative", "submission.create"),
         ("agent", "limited", "task.current.read"),
     ] {
@@ -555,6 +723,455 @@ fn state_admin_installs_a_task_package_end_to_end_over_ada1() {
     assert_eq!(receipt.state_revision, 1);
     assert_eq!(receipt.task_count, 1);
     assert_eq!(receipt.state, "installed");
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn official_task_package_decision_chain_runs_over_ada1_without_canonical_mutation() {
+    if !enter_isolated_socket_test(
+        "official-task-package-chain",
+        "administrative_protocol::administrative_protocol_tests::official_task_package_decision_chain_runs_over_ada1_without_canonical_mutation",
+    ) {
+        return;
+    }
+    let authority = VerifiedServiceAuthority::for_current_test_process().unwrap();
+    let clock = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+    let now = clock.as_secs() as i64;
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
+        "target/t114-{}-{}",
+        std::process::id(),
+        clock.as_nanos()
+    ));
+    fs::create_dir_all(&root).unwrap();
+    let storage = ProtectedServiceStorage::initialize(&authority, &root).unwrap();
+    let registration = storage
+        .bootstrap_provisional(
+            &authority,
+            authority.effective_uid(),
+            &[71_u8; 32],
+            &[72_u8; 32],
+            "synthetic-official-task-package",
+        )
+        .unwrap();
+
+    let capabilities = [
+        (
+            "cap_11111111111111111111111111",
+            [73_u8; 32],
+            CapabilityActor::Operator,
+            CapabilityOperation::StateAdmin,
+        ),
+        (
+            "cap_22222222222222222222222222",
+            [74_u8; 32],
+            CapabilityActor::Operator,
+            CapabilityOperation::DiagnosticPrivate,
+        ),
+        (
+            "cap_33333333333333333333333333",
+            [75_u8; 32],
+            CapabilityActor::Ci,
+            CapabilityOperation::AttestationCreate,
+        ),
+    ];
+    let operator_uid = authority.effective_uid();
+    let verifier_uid = operator_uid + 1;
+    for (capability_id, secret, actor, operation) in &capabilities {
+        storage
+            .registry()
+            .store_capability_grant(&NewCapabilityGrant {
+                grant_id: (*capability_id).to_string(),
+                secret_hash: sha256(secret),
+                subject_uid: if *actor == CapabilityActor::Ci {
+                    verifier_uid
+                } else {
+                    operator_uid
+                },
+                actor: *actor,
+                channel: CapabilityChannel::Administrative,
+                operation: *operation,
+                project_id: Some(registration.project_id.clone()),
+                workspace_id: Some(registration.workspace_id.clone()),
+                task_id: None,
+                not_before_unix: now - 60,
+                expires_at_unix: now + 600,
+                revocation_epoch: 0,
+                granted_at: format!("unix:{}", now - 60),
+            })
+            .unwrap();
+    }
+
+    let source = TaskGenerationSource {
+        contract_version: crate::task_package_contracts::TASK_GENERATION_SOURCE_V1.to_string(),
+        request_id: "req_11111111111111111111111111".to_string(),
+        source_format: "ordered-objectives-v1".to_string(),
+        source_sha256: "a".repeat(64),
+        project_id: registration.project_id.clone(),
+        workspace_id: registration.workspace_id.clone(),
+        expected_state_revision: 0,
+        plans: vec![crate::task_package_contracts::TaskGenerationSourcePlan {
+            source_key_sha256: "b".repeat(64),
+            objective: "Prepare an official package".to_string(),
+            tasks: vec![crate::task_package_contracts::TaskGenerationSourceTask {
+                source_key_sha256: "c".repeat(64),
+                objective: "Keep the canonical state unchanged".to_string(),
+                acceptance_criteria: vec!["All decisions are persisted separately".to_string()],
+                relevant_paths: vec!["src/lib.rs".to_string()],
+            }],
+        }],
+    };
+    let request = |request_id: &str,
+                   operation: &str,
+                   capability_id: &str,
+                   secret: &[u8; 32],
+                   body: AdministrativeBody| AdministrativeRequest {
+        message_type: "request".to_string(),
+        wire_version: ADMIN_WIRE_VERSION.to_string(),
+        request_id: request_id.to_string(),
+        connection_nonce: String::new(),
+        operation: operation.to_string(),
+        capability: WireCapability {
+            capability_id: capability_id.to_string(),
+            token: encode_base64url(secret),
+        },
+        body,
+    };
+
+    let prepared = exchange_test_request(
+        &authority,
+        &storage,
+        operator_uid,
+        [76_u8; 32],
+        request(
+            "req_22222222222222222222222222",
+            "governance.task-package.prepare",
+            capabilities[0].0,
+            &capabilities[0].1,
+            AdministrativeBody::TaskPackagePrepare(source.clone()),
+        ),
+    );
+    let AdministrativeResult::TaskPackageArtifact(prepared) = prepared.result.unwrap() else {
+        panic!("prepared proposal expected");
+    };
+    let proposal = prepared.proposal.clone().unwrap();
+    assert_eq!(prepared.receipt.state, "prepared");
+    assert_eq!(prepared.receipt.resulting_state_revision, 0);
+
+    // Exercise the real client FD path, including rejection before transport.
+    let endpoint = root.join("admin.sock");
+    let input_path = root.join("input.json");
+    let capability_path = root.join("capability.json");
+    let output_path = root.join("output.json");
+    fs::write(&input_path, serde_json::to_vec(&source).unwrap()).unwrap();
+    fs::write(
+        &capability_path,
+        serde_json::to_vec(&AdministrativeCapabilityBundle {
+            contract_version: "admin-capability-v1".to_string(),
+            capability: WireCapability {
+                capability_id: capabilities[0].0.to_string(),
+                token: encode_base64url(&capabilities[0].1),
+            },
+        })
+        .unwrap(),
+    )
+    .unwrap();
+    fs::set_permissions(&capability_path, fs::Permissions::from_mode(0o600)).unwrap();
+    fs::write(&output_path, b"occupied").unwrap();
+    fs::set_permissions(&output_path, fs::Permissions::from_mode(0o600)).unwrap();
+    let input = fs::File::open(&input_path).unwrap();
+    let credential = fs::File::open(&capability_path).unwrap();
+    let output = OpenOptions::new().write(true).open(&output_path).unwrap();
+    std::env::set_var(ADMIN_SOCKET_ENV, &endpoint);
+    std::env::set_var(ADMIN_CAPABILITY_FD_ENV, credential.as_raw_fd().to_string());
+    std::env::set_var(TASK_PACKAGE_INPUT_FD_ENV, input.as_raw_fd().to_string());
+    std::env::set_var(TASK_PACKAGE_OUTPUT_FD_ENV, output.into_raw_fd().to_string());
+    assert!(matches!(
+        run_official_task_package_operator_inner("prepare"),
+        Err(AdministrativeProtocolError::Authorization)
+    ));
+    assert_eq!(fs::read(&output_path).unwrap(), b"occupied");
+    assert!(!endpoint.exists());
+    // Fresh private output, with no argv payload and no input FD leaked to children.
+    let result_path = root.join("proposal.json");
+    let output = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&result_path)
+        .unwrap();
+    fs::set_permissions(&result_path, fs::Permissions::from_mode(0o600)).unwrap();
+    std::env::set_var(ADMIN_SOCKET_ENV, &endpoint);
+    std::env::set_var(
+        ADMIN_CAPABILITY_FD_ENV,
+        credential.into_raw_fd().to_string(),
+    );
+    std::env::set_var(TASK_PACKAGE_INPUT_FD_ENV, input.into_raw_fd().to_string());
+    std::env::set_var(TASK_PACKAGE_OUTPUT_FD_ENV, output.into_raw_fd().to_string());
+    let listener = std::os::unix::net::UnixListener::bind(&endpoint).unwrap();
+    let client_result = std::thread::scope(|scope| {
+        let worker = scope.spawn(|| {
+            let (mut stream, _) = listener.accept().unwrap();
+            let nonce = [84_u8; 32];
+            answer_administrative_hello(&mut stream, &nonce).unwrap();
+            serve_administrative_request(
+                &mut stream,
+                &ConnectionAuthentication::for_test(operator_uid, nonce),
+                &authority,
+                &storage,
+            )
+            .unwrap();
+        });
+        let result = run_official_task_package_operator_inner("prepare").unwrap();
+        worker.join().unwrap();
+        result
+    });
+    assert_eq!(
+        serde_json::to_value(&client_result).unwrap(),
+        serde_json::from_slice::<Value>(&fs::read(&result_path).unwrap()).unwrap()
+    );
+    assert!(std::env::var_os(TASK_PACKAGE_INPUT_FD_ENV).is_none());
+    assert!(std::env::var_os(TASK_PACKAGE_OUTPUT_FD_ENV).is_none());
+    assert!(std::env::var_os(ADMIN_CAPABILITY_FD_ENV).is_none());
+
+    let mut wrong_response = client_result;
+    if let AdministrativeResult::TaskPackageArtifact(artifact) = &mut wrong_response {
+        artifact.receipt.workspace_id = "wsp_99999999999999999999999999".to_string();
+    }
+    assert_eq!(
+        validate_official_task_package_result(
+            &AdministrativeBody::TaskPackagePrepare(source.clone()),
+            &wrong_response
+        ),
+        Err(AdministrativeProtocolError::Envelope)
+    );
+
+    let replay = exchange_test_request(
+        &authority,
+        &storage,
+        operator_uid,
+        [80_u8; 32],
+        request(
+            "req_22222222222222222222222222",
+            "governance.task-package.prepare",
+            capabilities[0].0,
+            &capabilities[0].1,
+            AdministrativeBody::TaskPackagePrepare(source.clone()),
+        ),
+    );
+    assert_eq!(
+        serde_json::to_value(replay.result.unwrap()).unwrap(),
+        serde_json::to_value(AdministrativeResult::TaskPackageArtifact(prepared)).unwrap()
+    );
+    let mut conflicting = source.clone();
+    conflicting.plans[0].objective = "A different proposal with the same request".to_string();
+    assert!(matches!(
+        try_exchange_test_request(
+            &authority,
+            &storage,
+            operator_uid,
+            [81_u8; 32],
+            request(
+                "req_22222222222222222222222222",
+                "governance.task-package.prepare",
+                capabilities[0].0,
+                &capabilities[0].1,
+                AdministrativeBody::TaskPackagePrepare(conflicting)
+            ),
+        ),
+        Err(AdministrativeProtocolError::Authorization)
+    ));
+    // A scoped inspection credential cannot mutate proposals.
+    assert!(matches!(
+        try_exchange_test_request(
+            &authority,
+            &storage,
+            operator_uid,
+            [82_u8; 32],
+            request(
+                "req_77777777777777777777777777",
+                "governance.task-package.prepare",
+                capabilities[1].0,
+                &capabilities[1].1,
+                AdministrativeBody::TaskPackagePrepare(source)
+            ),
+        ),
+        Err(AdministrativeProtocolError::Authorization)
+    ));
+
+    let inspected = exchange_test_request(
+        &authority,
+        &storage,
+        operator_uid,
+        [77_u8; 32],
+        request(
+            "req_33333333333333333333333333",
+            "governance.task-package.inspect",
+            capabilities[1].0,
+            &capabilities[1].1,
+            AdministrativeBody::TaskPackageInspect(TaskPackageInspectBody {
+                contract_version: "task-package-inspect-v1".to_string(),
+                request_id: "req_44444444444444444444444444".to_string(),
+                project_id: registration.project_id.clone(),
+                workspace_id: registration.workspace_id.clone(),
+                expected_state_revision: 0,
+                proposal_id: proposal.proposal_id.clone(),
+            }),
+        ),
+    );
+    let AdministrativeResult::TaskPackageArtifact(inspected) = inspected.result.unwrap() else {
+        panic!("inspected proposal expected");
+    };
+    assert_eq!(inspected.proposal.as_ref(), Some(&proposal));
+    assert_eq!(inspected.receipt.state, "inspected");
+    assert!(matches!(
+        try_exchange_test_request(
+            &authority,
+            &storage,
+            operator_uid,
+            [85_u8; 32],
+            request(
+                "req_88888888888888888888888888",
+                "governance.task-package.inspect",
+                capabilities[1].0,
+                &capabilities[1].1,
+                AdministrativeBody::TaskPackageInspect(TaskPackageInspectBody {
+                    contract_version: "task-package-inspect-v1".to_string(),
+                    request_id: "req_88888888888888888888888888".to_string(),
+                    project_id: registration.project_id.clone(),
+                    workspace_id: "wsp_99999999999999999999999999".to_string(),
+                    expected_state_revision: 0,
+                    proposal_id: proposal.proposal_id.clone(),
+                })
+            ),
+        ),
+        Err(AdministrativeProtocolError::Authorization)
+    ));
+
+    let attestation = OfficialTaskPackageAttestation {
+        contract_version: crate::task_package_contracts::TASK_PACKAGE_ATTESTATION_V1.to_string(),
+        attestation_id: "att_11111111111111111111111111".to_string(),
+        proposal_id: proposal.proposal_id.clone(),
+        proposal_sha256: proposal.payload_sha256.clone(),
+        source_sha256: proposal.source_sha256.clone(),
+        project_id: registration.project_id.clone(),
+        workspace_id: registration.workspace_id.clone(),
+        expected_state_revision: 0,
+        verifier_subject_sha256: crate::service_storage::task_package_subject_sha256(verifier_uid),
+        decision: "accepted".to_string(),
+        attested_at: "unix:1".to_string(),
+        state: "attested".to_string(),
+    };
+    let mut forged = attestation.clone();
+    forged.verifier_subject_sha256 = "f".repeat(64);
+    assert!(matches!(
+        try_exchange_test_request(
+            &authority,
+            &storage,
+            verifier_uid,
+            [83_u8; 32],
+            request(
+                "req_77777777777777777777777777",
+                "governance.task-package.attest",
+                capabilities[2].0,
+                &capabilities[2].1,
+                AdministrativeBody::TaskPackageAttest(forged)
+            ),
+        ),
+        Err(AdministrativeProtocolError::Authorization)
+    ));
+    let attested = exchange_test_request(
+        &authority,
+        &storage,
+        verifier_uid,
+        [78_u8; 32],
+        request(
+            "req_55555555555555555555555555",
+            "governance.task-package.attest",
+            capabilities[2].0,
+            &capabilities[2].1,
+            AdministrativeBody::TaskPackageAttest(attestation.clone()),
+        ),
+    );
+    let AdministrativeResult::TaskPackageDecision(attested) = attested.result.unwrap() else {
+        panic!("attestation receipt expected");
+    };
+    assert_eq!(attested.state, "attested");
+    assert_eq!(attested.resulting_state_revision, 0);
+
+    let approval = OfficialTaskPackageApproval {
+        contract_version: crate::task_package_contracts::TASK_PACKAGE_APPROVAL_V1.to_string(),
+        approval_id: "apr_11111111111111111111111111".to_string(),
+        proposal_id: proposal.proposal_id,
+        proposal_sha256: proposal.payload_sha256,
+        attestation_id: attestation.attestation_id,
+        attestation_sha256: attested.artifact_sha256,
+        project_id: registration.project_id,
+        workspace_id: registration.workspace_id,
+        expected_state_revision: 0,
+        operator_subject_sha256: crate::service_storage::task_package_subject_sha256(operator_uid),
+        decision: "approved".to_string(),
+        approved_at: "unix:2".to_string(),
+        state: "approved".to_string(),
+    };
+    // Even a separately issued operator grant cannot approve its UID's own attestation.
+    let reused_subject_secret = [86_u8; 32];
+    let reused_subject_grant = "cap_44444444444444444444444444";
+    storage
+        .registry()
+        .store_capability_grant(&NewCapabilityGrant {
+            grant_id: reused_subject_grant.to_string(),
+            secret_hash: sha256(&reused_subject_secret),
+            subject_uid: verifier_uid,
+            actor: CapabilityActor::Operator,
+            channel: CapabilityChannel::Administrative,
+            operation: CapabilityOperation::StateAdmin,
+            project_id: Some(approval.project_id.clone()),
+            workspace_id: Some(approval.workspace_id.clone()),
+            task_id: None,
+            not_before_unix: now - 60,
+            expires_at_unix: now + 600,
+            revocation_epoch: 0,
+            granted_at: format!("unix:{}", now - 60),
+        })
+        .unwrap();
+    let mut self_approval = approval.clone();
+    self_approval.operator_subject_sha256 =
+        crate::service_storage::task_package_subject_sha256(verifier_uid);
+    assert!(matches!(
+        try_exchange_test_request(
+            &authority,
+            &storage,
+            verifier_uid,
+            [87_u8; 32],
+            request(
+                "req_99999999999999999999999999",
+                "governance.task-package.approve",
+                reused_subject_grant,
+                &reused_subject_secret,
+                AdministrativeBody::TaskPackageApprove(self_approval)
+            ),
+        ),
+        Err(AdministrativeProtocolError::Authorization)
+    ));
+    let approved = exchange_test_request(
+        &authority,
+        &storage,
+        operator_uid,
+        [79_u8; 32],
+        request(
+            "req_66666666666666666666666666",
+            "governance.task-package.approve",
+            capabilities[0].0,
+            &capabilities[0].1,
+            AdministrativeBody::TaskPackageApprove(approval),
+        ),
+    );
+    let AdministrativeResult::TaskPackageDecision(approved) = approved.result.unwrap() else {
+        panic!("approval receipt expected");
+    };
+    assert_eq!(approved.state, "approved");
+    assert_eq!(approved.previous_state_revision, 0);
+    assert_eq!(approved.resulting_state_revision, 0);
     fs::remove_dir_all(root).unwrap();
 }
 
@@ -795,6 +1412,54 @@ fn capability_descriptor_writer_requires_a_private_empty_regular_file() {
         write_capability_bundle_to_fd(public.into_raw_fd().to_string().into(), &bundle),
         Err(AdministrativeProtocolError::Authorization)
     );
+    assert_eq!(fs::metadata(&public_path).unwrap().len(), 0);
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn task_package_output_requires_a_private_empty_descriptor_and_writes_bounded_json() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
+        "target/admin-protocol-tests/task-package-output-{}",
+        std::process::id()
+    ));
+    fs::create_dir_all(&root).unwrap();
+    let value = serde_json::json!({"contract_version":"task-package-output-test-v1"});
+
+    let private_path = root.join("private.json");
+    let private = fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&private_path)
+        .unwrap();
+    fs::set_permissions(&private_path, fs::Permissions::from_mode(0o600)).unwrap();
+    let mut output =
+        open_private_task_package_output(private.into_raw_fd().to_string().into()).unwrap();
+    write_bounded_private_json(&mut output, &value).unwrap();
+    let persisted: Value = serde_json::from_slice(&fs::read(&private_path).unwrap()).unwrap();
+    assert_eq!(persisted, value);
+
+    let nonempty_path = root.join("nonempty.json");
+    fs::write(&nonempty_path, b"occupied").unwrap();
+    fs::set_permissions(&nonempty_path, fs::Permissions::from_mode(0o600)).unwrap();
+    let nonempty = OpenOptions::new().write(true).open(&nonempty_path).unwrap();
+    assert!(matches!(
+        open_private_task_package_output(nonempty.into_raw_fd().to_string().into()),
+        Err(AdministrativeProtocolError::Authorization)
+    ));
+    assert_eq!(fs::read(&nonempty_path).unwrap(), b"occupied");
+
+    let public_path = root.join("public.json");
+    let public = fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&public_path)
+        .unwrap();
+    fs::set_permissions(&public_path, fs::Permissions::from_mode(0o644)).unwrap();
+    assert!(matches!(
+        open_private_task_package_output(public.into_raw_fd().to_string().into()),
+        Err(AdministrativeProtocolError::Authorization)
+    ));
     assert_eq!(fs::metadata(&public_path).unwrap().len(), 0);
     fs::remove_dir_all(root).unwrap();
 }

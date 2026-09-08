@@ -138,6 +138,19 @@ fn proposal_attestation_and_approval_are_separate_reentrant_records() {
         store_task_package_proposal(&database, &proposal).unwrap(),
         TaskPackageWriteOutcome::Replay(_)
     ));
+    let (inspected, inspection_receipt) = inspect_task_package_proposal(
+        &database,
+        "req_11111111111111111111111111",
+        PROJECT_ID,
+        WORKSPACE_ID,
+        0,
+        &proposal.proposal_id,
+    )
+    .unwrap();
+    assert_eq!(inspected, proposal);
+    assert_eq!(inspection_receipt.operation, "inspect");
+    assert_eq!(inspection_receipt.previous_state_revision, 0);
+    assert_eq!(inspection_receipt.resulting_state_revision, 0);
 
     let attestation = attestation(&proposal);
     let attested = store_task_package_attestation(&database, &attestation).unwrap();

@@ -14,13 +14,14 @@
     "capability_id": { "type": "string", "pattern": "^cap_[0-9a-hjkmnp-tv-z]{26}$" },
     "token": { "type": "string", "pattern": "^[A-Za-z0-9_-]{43}$" },
     "subject_uid": { "type": "integer", "minimum": 1, "maximum": 4294967295 },
-    "actor": { "enum": ["wrapper", "agent", "reviewer", "ci"] },
+    "actor": { "enum": ["wrapper", "agent", "reviewer", "ci", "operator"] },
     "channel": { "enum": ["limited", "administrative"] },
     "capability_operation": {
       "enum": [
         "compile.observe", "projection.refresh", "task.current.read",
         "submission.create", "submission.read.assigned",
-        "review.decide.assigned", "attestation.create"
+        "review.decide.assigned", "attestation.create", "state.transition",
+        "state.admin", "diagnostic.private", "installation.admin"
       ]
     },
     "project_id": {

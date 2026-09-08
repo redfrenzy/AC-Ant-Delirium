@@ -38,6 +38,26 @@ fn source() -> TaskGenerationSource {
 }
 
 #[test]
+fn expanded_proposal_must_fit_the_administrative_response_before_persistence() {
+    let mut input = source();
+    let prototype = input.plans[0].tasks[0].clone();
+    input.plans[0].tasks = (0..400)
+        .map(|index| {
+            let mut task = prototype.clone();
+            task.source_key_sha256 = format!("{index:064x}");
+            task.objective = "x".repeat(10_000);
+            task
+        })
+        .collect();
+    // The input fits the frame, but generated IDs and metadata expand it.
+    assert!(serde_json::to_vec(&input).unwrap().len() < 4 * 1024 * 1024 - 64 * 1024);
+    assert_eq!(
+        generate_task_package_proposal(&input),
+        Err(TaskPackageContractError::Content)
+    );
+}
+
+#[test]
 fn identical_source_produces_byte_identical_proposals_and_opaque_ids() {
     let first = generate_task_package_proposal(&source()).unwrap();
     let second = generate_task_package_proposal(&source()).unwrap();
