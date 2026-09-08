@@ -102,6 +102,8 @@ Evolução compatível do pacote atual para suportar, de forma limitada:
 - um ou mais planos ordenados;
 - tarefas com ordinal explícito;
 - um único plano ativo e uma única tarefa corrente declarados;
+- seleção inicial igual ao primeiro plano e à primeira tarefa na ordem aprovada,
+  sem permitir que o instalador pule objetivos anteriores;
 - instalação somente sobre projeto vazio na revisão esperada;
 - vínculo obrigatório à proposta atestada e aprovada.
 
@@ -169,7 +171,7 @@ Os campos `verifier_subject_sha256` e `operator_subject_sha256` precisam ser
 iguais ao SHA-256 de `task-package-subject-v1`, seguido de um byte NUL e do UID
 autenticado em quatro bytes big-endian. O serviço verifica esse vínculo; trocar
 o JSON, o papel ou o grant não muda a identidade. Verificador e aprovador
-precisam ter UIDs distintos. Os launchers da T11.7 deverão aplicar esse contrato.
+precisam ter UIDs distintos. Os launchers da T11.8 deverão aplicar esse contrato.
 
 Reenvios idênticos das quatro operações são aceitos somente após nova checagem
 de autorização, expiração, revogação, escopo e revisão. Reutilizar o mesmo ID de
@@ -180,7 +182,34 @@ cada troca de mensagens. A inspeção tem seu próprio `request_id`.
 `source_sha256` é uma referência declarada à origem externa, a ser conferida
 pelo verificador; o serviço não lê essa origem. O digest `payload_sha256` é
 calculado sobre a proposta gerada e persistida. A instalação v1 continua em
-`ANTDELIRIUM_TASK_PACKAGE_FD`; a instalação v2 será ligada na T11.5.
+`ANTDELIRIUM_TASK_PACKAGE_FD`; a instalação v2 usa o transporte descrito abaixo.
+
+### 5.2 Instalação v2 implementada na T11.5
+
+`operator task-package install` recebe v2 por
+`ANTDELIRIUM_TASK_PACKAGE_INPUT_FD` e grava o recibo em
+`ANTDELIRIUM_TASK_PACKAGE_OUTPUT_FD`, mantendo a entrada v1 separada no
+descritor legado. Fornecer ambas as entradas é erro. O serviço exige CI com
+`InstallationAdmin` limitado ao projeto/workspace exatos; a credencial usada
+pelo operador para aprovar não permite instalar.
+
+A transação compara o pacote completo com a proposta persistida e confere a
+cadeia de attestation/approval, seus IDs, digests, identidades e revisão. Não
+aceita projeto com plano, tarefa, submissão ou revisão anteriores. Planos,
+tarefas, seleção inicial, revisão canônica, continuidade dos erros de governança,
+evento de auditoria e recibo de instalação são gravados na mesma transação.
+Qualquer falha desfaz todas essas alterações.
+
+A ordem dos planos fica em `plan_ordinal`. Ao concluir a última tarefa de um
+plano por revisão e avanço autorizados, o motor passa ao próximo plano ordenado.
+O ponteiro `active_plan_id` identifica o único plano selecionado; o status
+interno `active` continua significando plano ainda não concluído. Importar um
+pacote deixa todas as tarefas sem conclusão; somente a primeira fica corrente.
+
+O recibo imutável permite repetir a instalação idêntica até depois de tarefas
+terem avançado, sem repetir eventos ou restaurar o estado antigo. Um pacote
+conflitante é recusado. A instalação não escreve os JSONs do projeto: a projeção
+existente os atualiza a partir do estado confirmado pelo serviço.
 
 ## 6. Semântica da associação
 
@@ -230,6 +259,9 @@ Regras mínimas:
 - aplicar em seguida storage-v15 para ampliar os tipos aceitos na auditoria de
   emissão/revogação das capabilities escopadas, copiando integralmente os eventos
   anteriores na mesma transação; v14 existente também segue essa migração;
+- aplicar storage-v16 para a ordem explícita de novos planos e os recibos
+  imutáveis de instalação; planos anteriores mantêm ordinal nulo e seu fluxo
+  existente, sem inferir ordem por nome, ID ou posição física;
 - manter o wrapper e a API limitada binariamente compatíveis.
 
 ## 9. Matriz obrigatória de testes

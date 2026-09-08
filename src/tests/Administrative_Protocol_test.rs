@@ -728,10 +728,10 @@ fn state_admin_installs_a_task_package_end_to_end_over_ada1() {
 
 #[cfg(unix)]
 #[test]
-fn official_task_package_decision_chain_runs_over_ada1_without_canonical_mutation() {
+fn official_task_package_cycle_installs_only_after_scoped_ci_authorization() {
     if !enter_isolated_socket_test(
         "official-task-package-chain",
-        "administrative_protocol::administrative_protocol_tests::official_task_package_decision_chain_runs_over_ada1_without_canonical_mutation",
+        "administrative_protocol::administrative_protocol_tests::official_task_package_cycle_installs_only_after_scoped_ci_authorization",
     ) {
         return;
     }
@@ -1101,8 +1101,8 @@ fn official_task_package_decision_chain_runs_over_ada1_without_canonical_mutatio
     let approval = OfficialTaskPackageApproval {
         contract_version: crate::task_package_contracts::TASK_PACKAGE_APPROVAL_V1.to_string(),
         approval_id: "apr_11111111111111111111111111".to_string(),
-        proposal_id: proposal.proposal_id,
-        proposal_sha256: proposal.payload_sha256,
+        proposal_id: proposal.proposal_id.clone(),
+        proposal_sha256: proposal.payload_sha256.clone(),
         attestation_id: attestation.attestation_id,
         attestation_sha256: attested.artifact_sha256,
         project_id: registration.project_id,
@@ -1163,7 +1163,7 @@ fn official_task_package_decision_chain_runs_over_ada1_without_canonical_mutatio
             "governance.task-package.approve",
             capabilities[0].0,
             &capabilities[0].1,
-            AdministrativeBody::TaskPackageApprove(approval),
+            AdministrativeBody::TaskPackageApprove(approval.clone()),
         ),
     );
     let AdministrativeResult::TaskPackageDecision(approved) = approved.result.unwrap() else {
@@ -1172,6 +1172,146 @@ fn official_task_package_decision_chain_runs_over_ada1_without_canonical_mutatio
     assert_eq!(approved.state, "approved");
     assert_eq!(approved.previous_state_revision, 0);
     assert_eq!(approved.resulting_state_revision, 0);
+    let package = GovernanceTaskPackageV2 {
+        contract_version: crate::task_package_contracts::GOVERNANCE_TASK_PACKAGE_V2.to_string(),
+        request_id: "req_88888888888888888888888888".to_string(),
+        project_id: approval.project_id.clone(),
+        workspace_id: approval.workspace_id.clone(),
+        expected_state_revision: 0,
+        proposal_id: approval.proposal_id.clone(),
+        proposal_sha256: approval.proposal_sha256.clone(),
+        attestation_id: approval.attestation_id.clone(),
+        attestation_sha256: approval.attestation_sha256.clone(),
+        approval_id: approval.approval_id.clone(),
+        approval_sha256: approved.artifact_sha256.clone(),
+        active_plan_id: proposal.plans[0].plan_id.clone(),
+        current_task_id: proposal.plans[0].tasks[0].task_id.clone(),
+        plans: proposal.plans,
+    };
+    // The operator approval credential does not also authorize installation.
+    assert!(matches!(
+        try_exchange_test_request(
+            &authority,
+            &storage,
+            operator_uid,
+            [88_u8; 32],
+            request(
+                "req_88888888888888888888888888",
+                "governance.task-package.install",
+                capabilities[0].0,
+                &capabilities[0].1,
+                AdministrativeBody::TaskPackageInstallV2(package.clone())
+            ),
+        ),
+        Err(AdministrativeProtocolError::Authorization)
+    ));
+    let install_secret = [89_u8; 32];
+    let install_id = "cap_55555555555555555555555555";
+    storage
+        .registry()
+        .store_capability_grant(&NewCapabilityGrant {
+            grant_id: install_id.to_string(),
+            secret_hash: sha256(&install_secret),
+            subject_uid: operator_uid,
+            actor: CapabilityActor::Ci,
+            channel: CapabilityChannel::Administrative,
+            operation: CapabilityOperation::InstallationAdmin,
+            project_id: Some(package.project_id.clone()),
+            workspace_id: Some(package.workspace_id.clone()),
+            task_id: None,
+            not_before_unix: now - 60,
+            expires_at_unix: now + 600,
+            revocation_epoch: 0,
+            granted_at: format!("unix:{}", now - 60),
+        })
+        .unwrap();
+    // A new private output proves the v2 client path and response validation.
+    let install_input = root.join("installation.json");
+    let install_credential = root.join("installer.json");
+    fs::write(&install_input, serde_json::to_vec(&package).unwrap()).unwrap();
+    fs::write(
+        &install_credential,
+        serde_json::to_vec(&AdministrativeCapabilityBundle {
+            contract_version: "admin-capability-v1".to_string(),
+            capability: WireCapability {
+                capability_id: install_id.to_string(),
+                token: encode_base64url(&install_secret),
+            },
+        })
+        .unwrap(),
+    )
+    .unwrap();
+    fs::set_permissions(&install_credential, fs::Permissions::from_mode(0o600)).unwrap();
+    let install_output = root.join("installed.json");
+    let output = OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&install_output)
+        .unwrap();
+    fs::set_permissions(&install_output, fs::Permissions::from_mode(0o600)).unwrap();
+    std::env::set_var(ADMIN_SOCKET_ENV, &endpoint);
+    std::env::set_var(
+        ADMIN_CAPABILITY_FD_ENV,
+        fs::File::open(&install_credential)
+            .unwrap()
+            .into_raw_fd()
+            .to_string(),
+    );
+    std::env::set_var(
+        TASK_PACKAGE_INPUT_FD_ENV,
+        fs::File::open(&install_input)
+            .unwrap()
+            .into_raw_fd()
+            .to_string(),
+    );
+    std::env::set_var(TASK_PACKAGE_OUTPUT_FD_ENV, output.into_raw_fd().to_string());
+    let installed = std::thread::scope(|scope| {
+        let worker = scope.spawn(|| {
+            let (mut stream, _) = listener.accept().unwrap();
+            let nonce = [90_u8; 32];
+            answer_administrative_hello(&mut stream, &nonce).unwrap();
+            serve_administrative_request(
+                &mut stream,
+                &ConnectionAuthentication::for_test(operator_uid, nonce),
+                &authority,
+                &storage,
+            )
+            .unwrap();
+        });
+        let installed = run_official_task_package_operator_inner("install").unwrap();
+        worker.join().unwrap();
+        installed
+    });
+    let expected = crate::task_package_install::installation_receipt(&package).unwrap();
+    assert_eq!(
+        serde_json::from_slice::<TaskPackageOperationReceipt>(&fs::read(&install_output).unwrap())
+            .unwrap(),
+        expected
+    );
+    validate_official_task_package_result(
+        &AdministrativeBody::TaskPackageInstallV2(package.clone()),
+        &installed,
+    )
+    .unwrap();
+    for nonce in [[91_u8; 32], [92_u8; 32]] {
+        let repeated = exchange_test_request(
+            &authority,
+            &storage,
+            operator_uid,
+            nonce,
+            request(
+                "req_88888888888888888888888888",
+                "governance.task-package.install",
+                install_id,
+                &install_secret,
+                AdministrativeBody::TaskPackageInstallV2(package.clone()),
+            ),
+        );
+        let AdministrativeResult::TaskPackageDecision(receipt) = repeated.result.unwrap() else {
+            panic!("installation receipt expected");
+        };
+        assert_eq!(receipt, expected);
+    }
     fs::remove_dir_all(root).unwrap();
 }
 

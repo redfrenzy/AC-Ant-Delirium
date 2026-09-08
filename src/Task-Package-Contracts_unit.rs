@@ -429,15 +429,10 @@ pub(crate) fn validate_governance_package_v2(
         require_sha256(digest)?;
     }
     validate_package_plans(&package.plans)?;
-    let active = package
-        .plans
-        .iter()
-        .find(|plan| plan.plan_id == package.active_plan_id)
-        .ok_or(TaskPackageContractError::Scope)?;
-    if !active
-        .tasks
-        .iter()
-        .any(|task| task.task_id == package.current_task_id)
+    // Importing objectives starts at the approved order's beginning. The CI
+    // installer cannot select a later task and silently skip earlier work.
+    if package.active_plan_id != package.plans[0].plan_id
+        || package.current_task_id != package.plans[0].tasks[0].task_id
     {
         return Err(TaskPackageContractError::Scope);
     }

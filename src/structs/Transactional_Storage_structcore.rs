@@ -680,6 +680,36 @@ CREATE INDEX capability_management_scope_idx
 ON capability_management_events(project_id, workspace_id, task_id);
 "#;
 
+const STORAGE_SCHEMA_V16: &str = r#"
+ALTER TABLE plans ADD COLUMN plan_ordinal INTEGER CHECK (plan_ordinal >= 0);
+CREATE UNIQUE INDEX plans_explicit_order_idx ON plans(project_id, plan_ordinal)
+WHERE plan_ordinal IS NOT NULL;
+
+CREATE TABLE task_package_installations (
+    receipt_id TEXT PRIMARY KEY,
+    request_id TEXT NOT NULL,
+    project_id TEXT NOT NULL UNIQUE REFERENCES projects(project_id) ON DELETE RESTRICT,
+    workspace_id TEXT NOT NULL REFERENCES workspaces(workspace_id) ON DELETE RESTRICT,
+    proposal_id TEXT NOT NULL UNIQUE REFERENCES task_package_proposals(proposal_id) ON DELETE RESTRICT,
+    attestation_id TEXT NOT NULL REFERENCES task_package_attestations(attestation_id) ON DELETE RESTRICT,
+    approval_id TEXT NOT NULL UNIQUE REFERENCES task_package_approvals(approval_id) ON DELETE RESTRICT,
+    package_sha256 TEXT NOT NULL CHECK (length(package_sha256) = 64 AND package_sha256 NOT GLOB '*[^0-9a-f]*'),
+    resulting_state_revision INTEGER NOT NULL CHECK (resulting_state_revision >= 1),
+    event_id TEXT NOT NULL UNIQUE REFERENCES events(event_id) ON DELETE RESTRICT,
+    payload BLOB NOT NULL,
+    receipt BLOB NOT NULL,
+    UNIQUE (project_id, workspace_id, request_id)
+) STRICT;
+CREATE TRIGGER task_package_installations_no_update
+BEFORE UPDATE ON task_package_installations BEGIN
+    SELECT RAISE(ABORT, 'task package installations are immutable');
+END;
+CREATE TRIGGER task_package_installations_no_delete
+BEFORE DELETE ON task_package_installations BEGIN
+    SELECT RAISE(ABORT, 'task package installations are immutable');
+END;
+"#;
+
 impl From<AC_Error> for TransactionalStorageError {
     fn from(error: AC_Error) -> Self {
         Self::Database(error.to_string())
@@ -1346,6 +1376,15 @@ impl ProjectDatabase {
                 AC_params!["storage-v15-scoped-administrative-grants"],
             )?;
             transaction.pragma_update(None, "user_version", 15)?;
+            version = 15;
+        }
+        if version == 15 {
+            transaction.execute_batch(STORAGE_SCHEMA_V16)?;
+            transaction.execute(
+                "INSERT INTO schema_migrations(version, applied_at) VALUES (16, ?1)",
+                AC_params!["storage-v16-ordered-task-package-installations"],
+            )?;
+            transaction.pragma_update(None, "user_version", 16)?;
         }
         transaction.commit()?;
         Ok(())

@@ -25,6 +25,9 @@ mod service_authority;
 #[path = "Service-Storage_unit.rs"]
 mod service_storage;
 
+#[path = "Task-Package-Install_unit.rs"]
+mod task_package_install;
+
 #[path = "Protected-Git-Backup_unit.rs"]
 mod protected_git_backup;
 

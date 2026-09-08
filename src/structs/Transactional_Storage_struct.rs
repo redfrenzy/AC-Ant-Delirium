@@ -1,7 +1,7 @@
 use std::fmt;
 use std::path::PathBuf;
 
-pub const STORAGE_SCHEMA_VERSION: i32 = 15;
+pub const STORAGE_SCHEMA_VERSION: i32 = 16;
 pub const STORAGE_BUSY_TIMEOUT_MILLIS: u64 = 5_000;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -34,7 +34,8 @@ use crate::service_hardening::set_descriptor_close_on_exec;
 use crate::service_storage::ManagedCapabilityGrantRequest;
 use crate::service_storage::ProtectedServiceStorage;
 use crate::task_package_contracts::{
-    TaskGenerationSource, TaskPackageApproval as OfficialTaskPackageApproval,
+    GovernanceTaskPackageV2, TaskGenerationSource,
+    TaskPackageApproval as OfficialTaskPackageApproval,
     TaskPackageAttestation as OfficialTaskPackageAttestation, TaskPackageOperationReceipt,
     TaskPackageProposal,
 };
@@ -306,6 +307,7 @@ enum AdministrativeBody {
     Grant(CapabilityGrantBody),
     Revoke(CapabilityRevokeBody),
     TaskPackage(TaskPackageBody),
+    TaskPackageInstallV2(GovernanceTaskPackageV2),
     TaskPackagePrepare(TaskGenerationSource),
     TaskPackageInspect(TaskPackageInspectBody),
     TaskPackageAttest(OfficialTaskPackageAttestation),
@@ -547,7 +549,9 @@ pub(crate) fn run_task_package_operator(args: &[OsString]) {
     if crate::service_hardening::harden_operator_process().is_err() {
         OutputRouter::exit(PublicError::Authorization);
     }
-    if task_package_action == Some("install") {
+    if task_package_action == Some("install")
+        && std::env::var_os(TASK_PACKAGE_INPUT_FD_ENV).is_none()
+    {
         match run_task_package_operator_inner() {
             Ok(receipt) => OutputRouter::write_success(&format!(
             "antdelirium[AD-TASK-PACKAGE-INSTALLED]: project_id={} workspace_id={} plan_id={} current_task_id={} state_revision={} task_count={} audit_sequence={} state={}",
@@ -624,8 +628,12 @@ fn run_official_task_package_operator_inner(
     let input_fd = std::env::var_os(TASK_PACKAGE_INPUT_FD_ENV);
     let output_fd = std::env::var_os(TASK_PACKAGE_OUTPUT_FD_ENV);
     let capability_fd = std::env::var_os(ADMIN_CAPABILITY_FD_ENV);
+    let conflicting_legacy_input = std::env::var_os(TASK_PACKAGE_FD_ENV).is_some();
     clear_task_package_environment();
     std::env::remove_var(ADMIN_CAPABILITY_FD_ENV);
+    if conflicting_legacy_input {
+        return Err(AdministrativeProtocolError::Authorization);
+    }
     let input_fd = input_fd.ok_or(AdministrativeProtocolError::Authorization)?;
     let output_fd = output_fd.ok_or(AdministrativeProtocolError::Authorization)?;
     let capability_fd = capability_fd.ok_or(AdministrativeProtocolError::Authorization)?;
@@ -645,6 +653,9 @@ fn run_official_task_package_operator_inner(
     let capability = read_administrative_capability_from_fd(capability_fd)?;
     let mut input = read_bounded_json_from_raw_fd(input_fd)?;
     let body = match action {
+        "install" => serde_json::from_slice(&input)
+            .map(AdministrativeBody::TaskPackageInstallV2)
+            .map_err(|_| AdministrativeProtocolError::Envelope),
         "prepare" => serde_json::from_slice(&input)
             .map(AdministrativeBody::TaskPackagePrepare)
             .map_err(|_| AdministrativeProtocolError::Envelope),
@@ -661,6 +672,7 @@ fn run_official_task_package_operator_inner(
     };
     input.fill(0);
     let operation = match action {
+        "install" => "governance.task-package.install",
         "prepare" => "governance.task-package.prepare",
         "inspect" => "governance.task-package.inspect",
         "attest" => "governance.task-package.attest",
@@ -670,6 +682,9 @@ fn run_official_task_package_operator_inner(
     let body = body?;
     // Retain the exact typed input to bind the private response to this request.
     let expected = match &body {
+        AdministrativeBody::TaskPackageInstallV2(body) => {
+            AdministrativeBody::TaskPackageInstallV2(body.clone())
+        }
         AdministrativeBody::TaskPackagePrepare(body) => {
             AdministrativeBody::TaskPackagePrepare(body.clone())
         }
@@ -699,6 +714,24 @@ fn validate_official_task_package_result(
     use crate::task_package_generator::{generate_task_package_proposal, proposal_payload_sha256};
     let invalid = AdministrativeProtocolError::Envelope;
     let (receipt, project_id, workspace_id, revision, operation) = match (body, result) {
+        (
+            AdministrativeBody::TaskPackageInstallV2(package),
+            AdministrativeResult::TaskPackageDecision(receipt),
+        ) => {
+            if *receipt
+                != crate::task_package_install::installation_receipt(package)
+                    .map_err(|_| invalid)?
+            {
+                return Err(invalid);
+            }
+            (
+                receipt,
+                &package.project_id,
+                &package.workspace_id,
+                package.expected_state_revision,
+                "install",
+            )
+        }
         (
             AdministrativeBody::TaskPackagePrepare(source),
             AdministrativeResult::TaskPackageArtifact(artifact),
@@ -1660,6 +1693,7 @@ pub(crate) fn serve_administrative_request(
                     | AdministrativeBody::TaskPackageInspect(_)
                     | AdministrativeBody::TaskPackageAttest(_)
                     | AdministrativeBody::TaskPackageApprove(_)
+                    | AdministrativeBody::TaskPackageInstallV2(_)
             ) && request_authority_matches(&request, &capability) =>
         {
             capability
@@ -1667,6 +1701,12 @@ pub(crate) fn serve_administrative_request(
         _ => return Err(AdministrativeProtocolError::Authorization),
     };
     let result = match request.body {
+        AdministrativeBody::TaskPackageInstallV2(package) => {
+            let outcome = storage
+                .install_official_task_package(authority, &capability, &package)
+                .map_err(|_| AdministrativeProtocolError::Authorization)?;
+            AdministrativeResult::TaskPackageDecision(outcome.receipt().clone())
+        }
         AdministrativeBody::Grant(mut body) => {
             let actor = parse_managed_actor(&body.actor)?;
             let channel = parse_capability_channel(&body.channel)?;
@@ -1877,6 +1917,11 @@ fn capability_request(
         &serde_json::to_vec(&request.body).map_err(|_| AdministrativeProtocolError::Envelope)?,
     );
     let (operation, project_id, workspace_id) = match &request.body {
+        AdministrativeBody::TaskPackageInstallV2(body) => (
+            CapabilityOperation::InstallationAdmin,
+            Some(body.project_id.clone()),
+            Some(body.workspace_id.clone()),
+        ),
         AdministrativeBody::Grant(_) | AdministrativeBody::Revoke(_) => {
             (CapabilityOperation::InstallationAdmin, None, None)
         }
@@ -1934,6 +1979,13 @@ fn request_authority_matches(
     capability: &ac_ant_delirium::structs::AuthorizedCapability,
 ) -> bool {
     match &request.body {
+        AdministrativeBody::TaskPackageInstallV2(body) => exact_task_package_authority(
+            capability,
+            CapabilityActor::Ci,
+            CapabilityOperation::InstallationAdmin,
+            &body.project_id,
+            &body.workspace_id,
+        ),
         AdministrativeBody::Grant(_) | AdministrativeBody::Revoke(_) => {
             capability.actor() == CapabilityActor::Operator
                 && capability.channel() == CapabilityChannel::Administrative
@@ -2044,6 +2096,11 @@ fn validate_request(
         return Err(AdministrativeProtocolError::Envelope);
     }
     match (&request.operation[..], &request.body) {
+        ("governance.task-package.install", AdministrativeBody::TaskPackageInstallV2(body))
+            if crate::task_package_contracts::validate_governance_package_v2(body).is_ok() =>
+        {
+            Ok(())
+        }
         ("capability.grant", AdministrativeBody::Grant(body))
             if body.contract_version == "capability-grant-request-v1"
                 && valid_opaque_id(&body.capability_id, "cap_")

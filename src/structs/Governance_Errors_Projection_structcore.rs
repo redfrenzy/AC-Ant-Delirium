@@ -197,7 +197,7 @@ pub(super) fn initialize_empty_governance_snapshot(
     })
 }
 
-pub(super) fn carry_forward_canonical_governance_snapshot(
+pub fn carry_forward_canonical_governance_snapshot(
     transaction: &AC_Transaction<'_>,
     project_id: &str,
     workspace_id: &str,

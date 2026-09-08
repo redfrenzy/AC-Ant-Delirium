@@ -65,6 +65,7 @@
             { "$ref": "urn:antdelirium:contract:capability-grant-request-v1" },
             { "$ref": "urn:antdelirium:contract:capability-revoke-request-v1" },
             { "$ref": "urn:antdelirium:contract:governance-task-package-v1" },
+            { "$ref": "urn:antdelirium:contract:governance-task-package-v2" },
             { "$ref": "urn:antdelirium:contract:task-generation-source-v1" },
             { "$ref": "#/$defs/taskPackageInspect" },
             { "$ref": "urn:antdelirium:contract:task-package-attestation-v1" },
@@ -107,7 +108,10 @@
         },
         {
           "if": { "properties": { "operation": { "const": "governance.task-package.install" } } },
-          "then": { "properties": { "body": { "$ref": "urn:antdelirium:contract:governance-task-package-v1" } } }
+          "then": { "properties": { "body": { "oneOf": [
+            { "$ref": "urn:antdelirium:contract:governance-task-package-v1" },
+            { "$ref": "urn:antdelirium:contract:governance-task-package-v2" }
+          ] } } }
         },
         {
           "if": { "properties": { "operation": { "const": "governance.task.advance.accepted" } } },

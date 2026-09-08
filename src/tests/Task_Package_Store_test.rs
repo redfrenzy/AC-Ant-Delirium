@@ -19,6 +19,9 @@ use crate::task_package_generator::generate_task_package_proposal;
 const PROJECT_ID: &str = "prj_00000000000000000000000000";
 const WORKSPACE_ID: &str = "wsp_00000000000000000000000000";
 
+#[path = "Task_Package_Install_test.rs"]
+mod installation;
+
 fn digest(byte: char) -> String {
     std::iter::repeat_n(byte, 64).collect()
 }
@@ -28,10 +31,12 @@ fn unique_test_root(label: &str) -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    let root = std::env::temp_dir().join(format!(
-        "antdelirium-task-package-store-{label}-{}-{nonce}",
-        std::process::id()
-    ));
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("target/task-package-store-tests")
+        .join(format!(
+            "antdelirium-task-package-store-{label}-{}-{nonce}",
+            std::process::id()
+        ));
     fs::create_dir_all(&root).unwrap();
     root
 }

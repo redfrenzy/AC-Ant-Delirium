@@ -661,7 +661,10 @@ mod tests {
                 DROP TABLE preserved_events;
                 CREATE INDEX capability_management_time_idx ON capability_management_events(occurred_at_unix, sequence);
                 CREATE INDEX capability_management_scope_idx ON capability_management_events(project_id, workspace_id, task_id);
-                DELETE FROM schema_migrations WHERE version = 15;
+                DROP TABLE task_package_installations;
+                DROP INDEX plans_explicit_order_idx;
+                ALTER TABLE plans DROP COLUMN plan_ordinal;
+                DELETE FROM schema_migrations WHERE version >= 15;
                 PRAGMA user_version = 14;")?;
             Ok(())
         }).unwrap();
@@ -823,11 +826,14 @@ mod tests {
                     CREATE INDEX capability_subject_idx ON capability_grants(subject_uid, actor_kind, revocation_epoch);
                     DROP INDEX tasks_plan_ordinal_idx;
                     ALTER TABLE tasks DROP COLUMN task_ordinal;
+                    DROP TABLE task_package_installations;
+                    DROP INDEX plans_explicit_order_idx;
+                    ALTER TABLE plans DROP COLUMN plan_ordinal;
                     DROP TABLE task_package_approvals;
                     DROP TABLE task_package_attestations;
                     DROP TABLE task_package_proposals;
                     DROP TABLE backup_checkpoints;
-                    DELETE FROM schema_migrations WHERE version IN (9, 10, 11, 12, 13, 14, 15);
+                    DELETE FROM schema_migrations WHERE version IN (9, 10, 11, 12, 13, 14, 15, 16);
                     PRAGMA user_version = 8;
                     "#,
                 )?;

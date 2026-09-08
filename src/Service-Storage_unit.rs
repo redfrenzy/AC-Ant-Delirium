@@ -707,6 +707,47 @@ impl ProtectedServiceStorage {
             .map_err(|_| ())
     }
 
+    pub(crate) fn install_official_task_package(
+        &self,
+        authority: &VerifiedServiceAuthority,
+        capability: &AuthorizedCapability,
+        package: &crate::task_package_contracts::GovernanceTaskPackageV2,
+    ) -> Result<crate::task_package_store::TaskPackageWriteOutcome, ()> {
+        if !official_task_package_authority_matches(
+            capability,
+            CapabilityActor::Ci,
+            CapabilityOperation::InstallationAdmin,
+            &package.project_id,
+            &package.workspace_id,
+        ) {
+            self.audit_rejected_authorized_request(capability)?;
+            return Err(());
+        }
+        let resource = self.resolve_authorized_resource(authority, capability)?;
+        let receipt = crate::task_package_install::installation_receipt(package).map_err(|_| ())?;
+        let event = NewAuditEvent {
+            contract_version: AUDIT_EVENT_CONTRACT_VERSION.to_string(),
+            event_id: random_crockford_id("evt_").map_err(|_| ())?,
+            project_id: package.project_id.clone(),
+            workspace_id: Some(package.workspace_id.clone()),
+            actor_kind: "ci".to_string(),
+            actor_subject_id: task_package_subject_sha256(capability.subject_uid()),
+            event_kind: "state_transitioned".to_string(),
+            outcome: "succeeded".to_string(),
+            occurred_at: format!("unix:{}", trusted_service_unix_time().map_err(|_| ())?),
+            fingerprint: receipt.artifact_sha256.clone(),
+            correlation_id: random_crockford_id("ref_").map_err(|_| ())?,
+            resource_id: Some(receipt.artifact_id.clone()),
+            payload: serde_json::to_vec(&receipt).map_err(|_| ())?,
+        };
+        crate::task_package_install::install_approved_task_package(
+            resource.database(),
+            package,
+            &event,
+        )
+        .map_err(|_| ())
+    }
+
     pub(crate) fn advance_reviewed_task(
         &self,
         authority: &VerifiedServiceAuthority,

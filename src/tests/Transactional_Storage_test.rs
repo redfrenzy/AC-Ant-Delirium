@@ -119,6 +119,9 @@ mod tests {
         let (state_root, database) = initialized_database(&root);
         database
             .with_immediate_transaction(|transaction| {
+                transaction.execute("DROP TABLE task_package_installations", [])?;
+                transaction.execute("DROP INDEX plans_explicit_order_idx", [])?;
+                transaction.execute("ALTER TABLE plans DROP COLUMN plan_ordinal", [])?;
                 transaction.execute("DROP TABLE task_package_approvals", [])?;
                 transaction.execute("DROP TABLE task_package_attestations", [])?;
                 transaction.execute("DROP TABLE task_package_proposals", [])?;
@@ -152,6 +155,7 @@ mod tests {
             vec![
                 "task_package_approvals".to_string(),
                 "task_package_attestations".to_string(),
+                "task_package_installations".to_string(),
                 "task_package_proposals".to_string(),
             ]
         );
@@ -298,12 +302,15 @@ DROP TABLE provisional_project_identities;
                         "2026-08-27T00:00:00Z",
                     ],
                 )?;
+                transaction.execute("DROP TABLE task_package_installations", [])?;
+                transaction.execute("DROP INDEX plans_explicit_order_idx", [])?;
+                transaction.execute("ALTER TABLE plans DROP COLUMN plan_ordinal", [])?;
                 transaction.execute("DROP TABLE task_package_approvals", [])?;
                 transaction.execute("DROP TABLE task_package_attestations", [])?;
                 transaction.execute("DROP TABLE task_package_proposals", [])?;
                 transaction.execute("DROP TABLE backup_checkpoints", [])?;
                 transaction.execute(
-                    "DELETE FROM schema_migrations WHERE version IN (10, 11, 12, 13, 14, 15)",
+                    "DELETE FROM schema_migrations WHERE version IN (10, 11, 12, 13, 14, 15, 16)",
                     [],
                 )?;
                 transaction.pragma_update(None, "user_version", 9)?;

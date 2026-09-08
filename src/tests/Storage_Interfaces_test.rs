@@ -352,6 +352,52 @@ mod tests {
     }
 
     #[test]
+    fn ordered_installation_migration_preserves_existing_v1_state_without_inventing_plan_order() {
+        let root = unique_temp_dir("v16-existing-v1");
+        let (state_root, database) = initialized(&root);
+        database
+            .install_task_package(&task_package(), &task_package_event(1, 16))
+            .unwrap();
+        let before = database
+            .load_canonical_state(PROJECT_ID, WORKSPACE_ID)
+            .unwrap();
+        database
+            .with_immediate_transaction(|tx| {
+                tx.execute_batch(
+                    "DROP TABLE task_package_installations;
+                DROP INDEX plans_explicit_order_idx;
+                ALTER TABLE plans DROP COLUMN plan_ordinal;
+                DELETE FROM schema_migrations WHERE version = 16;
+                PRAGMA user_version = 15;",
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        drop(database);
+        let migrated = ProjectDatabase::open_existing_at(state_root.root()).unwrap();
+        assert_eq!(
+            migrated
+                .load_canonical_state(PROJECT_ID, WORKSPACE_ID)
+                .unwrap(),
+            before
+        );
+        let assigned: i64 = migrated
+            .with_immediate_transaction(|tx| {
+                Ok(tx.query_row(
+                    "SELECT count(*) FROM plans WHERE plan_ordinal IS NOT NULL",
+                    [],
+                    |row| row.get(0),
+                )?)
+            })
+            .unwrap();
+        assert_eq!(assigned, 0);
+        assert_eq!(
+            migrated.health().unwrap().schema_version,
+            crate::structs::STORAGE_SCHEMA_VERSION
+        );
+    }
+
+    #[test]
     fn accepted_review_advances_by_package_order_and_records_history_atomically() {
         let root = unique_temp_dir("accepted-advance");
         let (_, database) = initialized(&root);

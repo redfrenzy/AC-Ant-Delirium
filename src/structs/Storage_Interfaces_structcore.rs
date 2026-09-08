@@ -349,13 +349,15 @@ impl ProjectDatabase {
                     ))
                 },
             )?;
-            let next_task_id = transaction
+            let next_task = transaction
                 .query_row(
-                    "SELECT task_id FROM tasks WHERE project_id = ?1 AND plan_id = ?2 AND task_ordinal > ?3 AND status = 'available' ORDER BY task_ordinal ASC LIMIT 1",
+                    "SELECT t.task_id, t.plan_id FROM tasks t JOIN plans p ON p.plan_id = t.plan_id AND p.project_id = t.project_id JOIN plans current ON current.plan_id = ?2 AND current.project_id = t.project_id WHERE t.project_id = ?1 AND t.status = 'available' AND p.status = 'active' AND ((t.plan_id = ?2 AND t.task_ordinal > ?3) OR (current.plan_ordinal IS NOT NULL AND p.plan_ordinal > current.plan_ordinal)) ORDER BY p.plan_ordinal ASC, t.task_ordinal ASC LIMIT 1",
                     AC_params![advance.project_id, task.0, task.1],
-                    |row| row.get::<_, String>(0),
+                    |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
                 )
                 .optional()?;
+            let next_task_id = next_task.as_ref().map(|next| next.0.clone());
+            let next_plan_id = next_task.as_ref().map(|next| next.1.as_str());
             if audit.inserted() {
                 let project = transaction.query_row(
                     "SELECT state_revision, active_plan_id, current_task_id FROM projects WHERE project_id = ?1",
@@ -411,14 +413,26 @@ impl ProjectDatabase {
                     ));
                 }
                 if let Some(next_task_id) = next_task_id.as_deref() {
+                    if next_plan_id != Some(task.0.as_str()) {
+                        let completed_plan = transaction.execute(
+                            "UPDATE plans SET status = 'completed' WHERE project_id = ?1 AND plan_id = ?2 AND status = 'active'",
+                            AC_params![advance.project_id, task.0],
+                        )?;
+                        if completed_plan != 1 {
+                            return Err(TransactionalStorageError::Integrity(
+                                "canonical plan changed before accepted advancement".to_string(),
+                            ));
+                        }
+                    }
                     let updated = transaction.execute(
-                        "UPDATE projects SET current_task_id = ?3, state_revision = state_revision + 1 WHERE project_id = ?1 AND state_revision = ?2 AND current_task_id = ?4 AND active_plan_id = ?5",
+                        "UPDATE projects SET current_task_id = ?3, active_plan_id = ?6, state_revision = state_revision + 1 WHERE project_id = ?1 AND state_revision = ?2 AND current_task_id = ?4 AND active_plan_id = ?5",
                         AC_params![
                             advance.project_id,
                             advance.expected_state_revision,
                             next_task_id,
                             advance.task_id,
                             task.0,
+                            next_plan_id,
                         ],
                     )?;
                     if updated != 1 {
@@ -474,8 +488,7 @@ impl ProjectDatabase {
                 || completed.status != "completed"
                 || completed.review_status != "accepted"
                 || (next_task_id.is_none() && state.active_plan_id.is_some())
-                || (next_task_id.is_some()
-                    && state.active_plan_id.as_deref() != Some(task.0.as_str()))
+                || (next_task_id.is_some() && state.active_plan_id.as_deref() != next_plan_id)
             {
                 return Err(TransactionalStorageError::Integrity(
                     "persisted accepted advancement does not match canonical state".to_string(),
