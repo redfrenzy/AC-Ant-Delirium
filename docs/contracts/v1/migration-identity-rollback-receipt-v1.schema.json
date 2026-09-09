@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:migration-identity-rollback-receipt-v1",
+  "title": "Preserving migration identity rollback receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "request_id", "rollback_id", "association_id", "project_id", "workspace_id", "preserved_candidate_project_id", "preserved_candidate_workspace_id", "previous_registry_revision", "resulting_registry_revision", "rollback_sha256", "state"],
+  "properties": {
+    "contract_version": { "const": "migration-identity-rollback-receipt-v1" },
+    "request_id": { "type": "string", "pattern": "^req_[0-9a-hjkmnp-tv-z]{26}$" },
+    "rollback_id": { "type": "string", "pattern": "^rbk_[0-9a-hjkmnp-tv-z]{26}$" },
+    "association_id": { "type": "string", "pattern": "^asn_[0-9a-hjkmnp-tv-z]{26}$" },
+    "project_id": { "$ref": "#/$defs/projectId" }, "workspace_id": { "$ref": "#/$defs/workspaceId" },
+    "preserved_candidate_project_id": { "$ref": "#/$defs/projectId" }, "preserved_candidate_workspace_id": { "$ref": "#/$defs/workspaceId" },
+    "previous_registry_revision": { "type": "integer", "minimum": 0 }, "resulting_registry_revision": { "type": "integer", "minimum": 1 },
+    "rollback_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "state": { "const": "rolled_back" }
+  },
+  "$defs": {
+    "projectId": { "type": "string", "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$" },
+    "workspaceId": { "type": "string", "pattern": "^wsp_[0-9a-hjkmnp-tv-z]{26}$" }
+  }
+}

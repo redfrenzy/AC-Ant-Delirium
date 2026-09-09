@@ -187,6 +187,7 @@ impl ProtectedServiceStorage {
             workspace_descriptor,
         )?;
         let _backup_guard = self.backup_transition_lock.lock().map_err(|_| ())?;
+        self.require_active_identity_project(project_id)?;
         let project = self
             .registry
             .registered_projects()
@@ -266,6 +267,7 @@ impl ProtectedServiceStorage {
     ) -> Result<crate::protected_git_backup::BackupCommitReceipt, ()> {
         self.validate_workspace_descriptor(peer_uid, project_id, workspace_id, descriptor)?;
         let _backup_guard = self.backup_transition_lock.lock().map_err(|_| ())?;
+        self.require_active_identity_project(project_id)?;
         let project = self
             .registry
             .registered_projects()
@@ -396,6 +398,7 @@ impl ProtectedServiceStorage {
     ) -> Result<BackupCheckpointRecord, ()> {
         self.validate_workspace_descriptor(peer_uid, project_id, workspace_id, descriptor)?;
         let _backup_guard = self.backup_transition_lock.lock().map_err(|_| ())?;
+        self.require_active_identity_project(project_id)?;
         let project = self
             .registry
             .registered_projects()
@@ -467,6 +470,7 @@ impl ProtectedServiceStorage {
         review_id: &str,
     ) -> Result<BackupCheckpointRecord, ()> {
         let _backup_guard = self.backup_transition_lock.lock().map_err(|_| ())?;
+        self.require_active_identity_project(project_id)?;
         let project = self
             .registry
             .registered_projects()
@@ -764,6 +768,7 @@ impl ProtectedServiceStorage {
         advance: &CanonicalTaskAdvance,
         protected_gate_envelope: &[u8],
     ) -> Result<CanonicalTaskAdvanceOutcome, ()> {
+        let _backup_guard = self.backup_transition_lock.lock().map_err(|_| ())?;
         let now = trusted_service_unix_time().map_err(|_| ())?;
         let authorized = capability.actor() == CapabilityActor::Ci
             && capability.channel() == CapabilityChannel::Administrative
@@ -779,8 +784,6 @@ impl ProtectedServiceStorage {
             self.audit_rejected_authorized_request_at(capability, now)?;
             return Err(());
         }
-
-        let _backup_guard = self.backup_transition_lock.lock().map_err(|_| ())?;
 
         let database = self.open_registered_project(authority, &advance.project_id)?;
         let mut fingerprint_material = Vec::new();
@@ -914,6 +917,27 @@ impl ProtectedServiceStorage {
     }
 
     fn open_registered_project(
+        &self,
+        authority: &VerifiedServiceAuthority,
+        project_id: &str,
+    ) -> Result<ProjectDatabase, ()> {
+        self.require_active_identity_project(project_id)?;
+        self.open_preserved_registered_project(authority, project_id)
+    }
+
+    fn require_active_identity_project(&self, project_id: &str) -> Result<(), ()> {
+        if self
+            .registry
+            .project_identity_is_retired(project_id)
+            .map_err(|_| ())?
+        {
+            Err(())
+        } else {
+            Ok(())
+        }
+    }
+
+    fn open_preserved_registered_project(
         &self,
         authority: &VerifiedServiceAuthority,
         project_id: &str,
@@ -1333,7 +1357,7 @@ impl ProtectedServiceStorage {
         }
         let candidate = self.resolve_authorized_resource(authority, capability)?;
         let provisional =
-            self.open_registered_project(authority, &request.provisional_project_id)?;
+            self.open_preserved_registered_project(authority, &request.provisional_project_id)?;
         let receipt = crate::migration_identity::association_receipt(request).map_err(|_| ())?;
         let mut service_material = b"migration-cutover-service-v1\0".to_vec();
         service_material.extend_from_slice(&authority.effective_uid().to_be_bytes());
@@ -1360,6 +1384,58 @@ impl ProtectedServiceStorage {
                 candidate: candidate.database(),
                 peer_uid: capability.subject_uid(),
                 service_subject_sha256: &service_subject,
+            },
+            request,
+            &event,
+        )
+        .map_err(|_| ())
+    }
+
+    pub(crate) fn rollback_migrated_identity(
+        &self,
+        authority: &VerifiedServiceAuthority,
+        capability: &AuthorizedCapability,
+        request: &crate::task_package_contracts::MigrationIdentityRollback,
+    ) -> Result<crate::task_package_contracts::MigrationIdentityRollbackReceipt, ()> {
+        let _guard = self.bootstrap_lock.lock().map_err(|_| ())?;
+        let _backup_guard = self.backup_transition_lock.lock().map_err(|_| ())?;
+        if !official_task_package_authority_matches(
+            capability,
+            CapabilityActor::Operator,
+            CapabilityOperation::StateAdmin,
+            &request.candidate_project_id,
+            &request.candidate_workspace_id,
+        ) {
+            self.audit_rejected_authorized_request(capability)?;
+            return Err(());
+        }
+        let candidate = self.resolve_authorized_resource(authority, capability)?;
+        let provisional =
+            self.open_preserved_registered_project(authority, &request.provisional_project_id)?;
+        let receipt =
+            crate::migration_identity_recovery::rollback_receipt(request).map_err(|_| ())?;
+        let event = NewAuditEvent {
+            contract_version: AUDIT_EVENT_CONTRACT_VERSION.to_string(),
+            event_id: random_crockford_id("evt_").map_err(|_| ())?,
+            project_id: request.candidate_project_id.clone(),
+            workspace_id: Some(request.candidate_workspace_id.clone()),
+            actor_kind: "operator".to_string(),
+            actor_subject_id: task_package_subject_sha256(capability.subject_uid()),
+            event_kind: "migration_applied".to_string(),
+            outcome: "succeeded".to_string(),
+            occurred_at: format!("unix:{}", trusted_service_unix_time().map_err(|_| ())?),
+            fingerprint: receipt.rollback_sha256.clone(),
+            correlation_id: random_crockford_id("ref_").map_err(|_| ())?,
+            resource_id: Some(receipt.rollback_id.clone()),
+            payload: serde_json::to_vec(&receipt).map_err(|_| ())?,
+        };
+        crate::migration_identity_recovery::rollback_identity(
+            crate::migration_identity::AssociationContext {
+                registry: &self.registry,
+                provisional: &provisional,
+                candidate: candidate.database(),
+                peer_uid: capability.subject_uid(),
+                service_subject_sha256: "",
             },
             request,
             &event,

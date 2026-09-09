@@ -190,7 +190,7 @@ try:
             for row in connection.execute("pragma table_info(backup_checkpoints)")
             if row[5] > 0
         }
-        if version != 17:
+        if version != 18:
             failures.append("database-" + str(ordinal) + ":schema-version")
         package_tables = connection.execute(
             "select count(*) from sqlite_schema where type='table' and name in "
@@ -202,9 +202,9 @@ try:
             failures.append("database-" + str(ordinal) + ":plan-order")
         identity_objects = connection.execute(
             "select count(*) from sqlite_schema where name in "
-            "('migration_identity_associations', 'migration_identity_registry_revision', 'effective_project_registrations')"
+            "('migration_identity_associations', 'migration_identity_registry_revision', 'effective_project_registrations', 'migration_identity_rollbacks', 'migration_identity_recovery_points', 'active_migration_identity_associations')"
         ).fetchone()[0]
-        if identity_objects != 3:
+        if identity_objects != 6:
             failures.append("database-" + str(ordinal) + ":identity-association-contract")
         if "task_ordinal" not in task_columns:
             failures.append("database-" + str(ordinal) + ":task-order")
@@ -265,7 +265,7 @@ try:
             (uid, fingerprint, fingerprint, project_id, workspace_id, project_key, workspace_key, created_at)
             for uid, fingerprint, project_id, workspace_id, project_key, workspace_key, created_at in previous_rows
         ]
-    elif previous_version in (11, 12, 13, 14, 15, 16, 17):
+    elif previous_version in (11, 12, 13, 14, 15, 16, 17, 18):
         expected_rows = previous_registry.execute(
             "select peer_uid, project_identity_fingerprint, workspace_identity_fingerprint, project_id, workspace_id, project_key, workspace_key, created_at_unix from provisional_project_registrations order by peer_uid, workspace_identity_fingerprint"
         ).fetchall()
@@ -304,7 +304,7 @@ for ((attempt = 1; attempt <= 100; attempt++)); do
     sleep 0.1
 done
 [[ "$storage_ready" == true ]] \
-    || fail 'timed out waiting for the protected storage-v17 migration.'
+    || fail 'timed out waiting for the protected storage-v18 migration.'
 
 sleep 1
 systemctl is-active --quiet antdelirium.service \
@@ -313,4 +313,4 @@ validate_current_storage_once >"$log_root/storage-validation.txt" 2>&1 \
     || fail 'protected storage did not remain valid after service stabilization.'
 
 upgrade_committed=true
-printf '%s\n' "AD-T86-UPGRADE: service upgraded to storage-v17; rollback backup retained under $backup_root"
+printf '%s\n' "AD-T86-UPGRADE: service upgraded to storage-v18; rollback backup retained under $backup_root"

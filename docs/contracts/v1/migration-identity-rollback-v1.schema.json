@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:antdelirium:contract:migration-identity-rollback-v1",
+  "title": "Preserving migration identity rollback request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "request_id", "association_id", "association_sha256", "provisional_project_id", "provisional_workspace_id", "candidate_project_id", "candidate_workspace_id", "expected_registry_revision", "policy"],
+  "properties": {
+    "contract_version": { "const": "migration-identity-rollback-v1" },
+    "request_id": { "type": "string", "pattern": "^req_[0-9a-hjkmnp-tv-z]{26}$" },
+    "association_id": { "type": "string", "pattern": "^asn_[0-9a-hjkmnp-tv-z]{26}$" },
+    "association_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "provisional_project_id": { "$ref": "#/$defs/projectId" }, "provisional_workspace_id": { "$ref": "#/$defs/workspaceId" },
+    "candidate_project_id": { "$ref": "#/$defs/projectId" }, "candidate_workspace_id": { "$ref": "#/$defs/workspaceId" },
+    "expected_registry_revision": { "type": "integer", "minimum": 0 },
+    "policy": { "const": "restore-provisional-preserve-candidate" }
+  },
+  "$defs": {
+    "projectId": { "type": "string", "pattern": "^prj_[0-9a-hjkmnp-tv-z]{26}$" },
+    "workspaceId": { "type": "string", "pattern": "^wsp_[0-9a-hjkmnp-tv-z]{26}$" }
+  }
+}

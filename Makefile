@@ -144,6 +144,8 @@ ci:
 	jq empty docs/contracts/v1/migration-identity-association-v1.schema.json
 	jq empty docs/contracts/v1/task-package-operation-receipt-v1.schema.json
 	jq empty docs/contracts/v1/migration-identity-association-receipt-v1.schema.json
+	jq empty docs/contracts/v1/migration-identity-rollback-v1.schema.json
+	jq empty docs/contracts/v1/migration-identity-rollback-receipt-v1.schema.json
 	jq empty docs/contracts/v1/fail-open-rollout-evidence-v1.schema.json
 	jq empty docs/contracts/v1/bypass-matrix-evidence-v1.schema.json
 	jq empty docs/contracts/v1/release-elf-audit-v1.schema.json

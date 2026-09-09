@@ -123,6 +123,15 @@ Pedido administrativo que contém exatamente:
 
 O pedido não contém prefixo, slug, path ou seleção por posição.
 
+### `migration-identity-rollback-v1`
+
+Pedido administrativo separado, vinculado ao ID e digest da associação, aos
+quatro IDs de projeto/workspace e à revisão esperada do registry. A única
+política aceita é `restore-provisional-preserve-candidate`: restaurar o vínculo
+original mantendo os dois históricos. O recibo
+`migration-identity-rollback-receipt-v1` identifica a reversão, o vínculo
+restaurado e o candidato preservado, sem informar caminhos privados.
+
 ### Recibos
 
 Cada operação produz recibo path-free, serializável e auditável com request ID,
@@ -138,7 +147,8 @@ Preservar `operator task-package install` e acrescentar uma gramática fechada:
 - `operator task-package attest`;
 - `operator task-package approve`;
 - `operator task-package install` para v1/v2;
-- `operator migration identity-associate`.
+- `operator migration identity-associate`;
+- `operator migration identity-rollback`.
 
 Entradas grandes chegam por `ANTDELIRIUM_*_FD` herdado, limitado, regular,
 somente leitura e `CLOEXEC`. Argumentos de linha de comando nunca carregam
@@ -247,7 +257,7 @@ recalcula o digest do estado lógico para recusar candidato alterado após cutov
 
 O storage-v17 grava associação imutável, recibo e auditoria na mesma transação
 do registry. `expected_registry_revision` é o contador exclusivo dessas
-associações, inicialmente zero; não é a revisão das tarefas nem a quantidade
+mudanças de associação, inicialmente zero; não é a revisão das tarefas nem a quantidade
 de projetos registrados. Os bancos de origem e destino permanecem bloqueados
 contra escrita durante a conferência e não são modificados pela associação.
 
@@ -257,14 +267,52 @@ capabilities são recusadas. A tarefa corrente do candidato não é reativada,
 reordenada ou substituída. Repetir a entrada idêntica recupera o mesmo recibo,
 inclusive após alterações posteriores no candidato, sem retroceder seu estado.
 
-Nesta etapa somente `require-empty` é executável: nenhum plano, tarefa,
+Na entrega da T11.6 somente `require-empty` era executável: nenhum plano, tarefa,
 submissão, revisão ou registro legado pode existir na origem, e a revisão deve
 ser zero. Observações de compilação e backup inicial são preservados. Origens
 com workspaces adicionais, identidades concorrentes ou destino já associado
 são recusadas; nenhum worktree é capturado implicitamente. Um novo worktree da
 identidade já associada também exige reconciliação explícita. A política
-`quarantine-preserve`, reconciliação e rollback ficam na T11.7; não são
-substituídos por descarte de dados.
+`quarantine-preserve` e o rollback foram acrescentados na T11.7, conforme abaixo.
+
+### 6.2 Quarentena e rollback implementados na T11.7
+
+`require-empty` mantém a recusa de origem com estado canônico. A política
+explícita `quarantine-preserve` permite associar uma origem não vazia, mas
+mantém seu banco, tarefas, eventos e backup Git intactos e separados do
+candidato. Não há fusão de tarefas nem conclusão inferida. Workspaces adicionais
+e identidades conflitantes continuam recusados; essa política não autoriza
+capturar worktrees não especificados no pedido.
+
+Antes de uma nova associação ou reversão, o serviço bloqueia os três bancos
+contra escrita e faz cópias SQLite consistentes do registry, origem e candidato,
+incluindo o estado confirmado no WAL. Os snapshots ficam em diretórios privados
+0700, com arquivos 0600 e manifesto de hashes; nenhum caminho é devolvido pela
+API. O vínculo só muda depois da persistência dessas cópias. Uma falha aborta a
+transação e mantém qualquer cópia já produzida para diagnóstico, sem limpeza.
+Essas cópias são pontos de recuperação; o rollback normal não as sobrepõe aos
+bancos em uso. O histórico Git privado existente não é reescrito.
+
+`operator migration identity-rollback` usa os mesmos descritores privados da
+associação. Exige operador `StateAdmin` no candidato exato e o UID proprietário
+da origem. Valida associação, digest, IDs e revisão do registry; grava um novo
+evento e recibo imutável e restaura a resolução para o registro original.
+Não restaura uma revisão antiga de tarefas: submissões, revisões e avanços
+posteriores no candidato permanecem intactos.
+
+A associação revoga os grants da origem. O rollback revoga os grants dos dois
+projetos, inclusive aquele que autorizou a operação. Replay exige autorização
+atual: depois do rollback, emitir nova capability escopada ao candidato para
+recuperar o mesmo recibo. A repetição não duplica eventos nem revoga a nova
+capability. Credenciais anteriores nunca voltam a funcionar por restauração do
+vínculo. A API limitada do agente não recebe operações novas.
+
+O storage-v18 conserva as associações anteriores e acrescenta registros
+imutáveis de reversão e de recuperação. A consulta efetiva considera somente
+associações sem rollback. Repetir a associação depois de revertida é recusado;
+o histórico único também impede reassociar silenciosamente os mesmos IDs.
+Uma nova migração após reversão requer um fluxo futuro explicitamente aprovado,
+não edição de registros. A atualização v17→v18 não cria nem desfaz vínculos.
 
 ## 7. Geração de tarefas
 
@@ -287,7 +335,8 @@ Regras mínimas:
 
 - detectar registros contaminados pelo daemon de 7 de setembro antes de migrar;
 - nunca associar um projeto provisório não vazio silenciosamente;
-- manter backup exato do registry e bancos afetados antes da operação;
+- manter snapshots SQLite consistentes do registry e bancos afetados antes da
+  operação, com verificação de integridade e hashes;
 - preservar candidatos preparados e rejeitados;
 - suportar rollback da associação sem apagar eventos posteriores;
 - manter storage-v13 legível e migrá-lo aditivamente para storage-v14, necessário
@@ -301,6 +350,8 @@ Regras mínimas:
 - aplicar storage-v17 aditivamente para associações, revisão do registry e
   consulta efetiva de identidade, sem reatribuir fingerprints nos registros
   originais ou criar associações durante a atualização do banco;
+- aplicar storage-v18 para reversões e pontos de recuperação imutáveis,
+  preservando vínculos v17 e todo o histórico, sem rollback automático;
 - manter o wrapper e a API limitada binariamente compatíveis.
 
 ## 9. Matriz obrigatória de testes

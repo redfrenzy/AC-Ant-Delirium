@@ -35,7 +35,8 @@ use crate::service_storage::ManagedCapabilityGrantRequest;
 use crate::service_storage::ProtectedServiceStorage;
 use crate::task_package_contracts::{
     GovernanceTaskPackageV2, MigrationIdentityAssociation, MigrationIdentityAssociationReceipt,
-    TaskGenerationSource, TaskPackageApproval as OfficialTaskPackageApproval,
+    MigrationIdentityRollback, MigrationIdentityRollbackReceipt, TaskGenerationSource,
+    TaskPackageApproval as OfficialTaskPackageApproval,
     TaskPackageAttestation as OfficialTaskPackageAttestation, TaskPackageOperationReceipt,
     TaskPackageProposal,
 };
@@ -306,6 +307,7 @@ struct TaskAdvanceReceipt {
 #[derive(Serialize, Deserialize)]
 #[serde(untagged)]
 enum AdministrativeBody {
+    IdentityRollback(MigrationIdentityRollback),
     IdentityAssociate(MigrationIdentityAssociation),
     Grant(CapabilityGrantBody),
     Revoke(CapabilityRevokeBody),
@@ -340,6 +342,7 @@ struct AdministrativeRequest {
 #[derive(Serialize, Deserialize)]
 #[serde(untagged)]
 enum AdministrativeResult {
+    IdentityRollback(MigrationIdentityRollbackReceipt),
     IdentityAssociation(MigrationIdentityAssociationReceipt),
     Grant(CapabilityGrantReceipt),
     Revoke(CapabilityRevokeReceipt),
@@ -503,7 +506,8 @@ pub(crate) fn run_migration_operator(args: &[OsString]) {
         Ok(
             AdministrativeResult::TaskPackageArtifact(_)
             | AdministrativeResult::TaskPackageDecision(_)
-            | AdministrativeResult::IdentityAssociation(_),
+            | AdministrativeResult::IdentityAssociation(_)
+            | AdministrativeResult::IdentityRollback(_),
         ) => OutputRouter::exit(PublicError::Authorization),
         Ok(AdministrativeResult::TaskAdvance(_)) => {
             OutputRouter::exit(PublicError::Authorization)
@@ -524,10 +528,16 @@ pub(crate) fn run_migration_operator(args: &[OsString]) {
 }
 
 pub(crate) fn run_task_package_operator(args: &[OsString]) {
-    let identity_associate = args.len() == 3
+    let identity_action = if args.len() == 3
         && args[0] == OsStr::new("operator")
         && args[1] == OsStr::new("migration")
-        && args[2] == OsStr::new("identity-associate");
+    {
+        args[2]
+            .to_str()
+            .filter(|action| matches!(*action, "identity-associate" | "identity-rollback"))
+    } else {
+        None
+    };
     let task_package_action = if args.len() == 3
         && args[0] == OsStr::new("operator")
         && args[1] == OsStr::new("task-package")
@@ -549,7 +559,7 @@ pub(crate) fn run_task_package_operator(args: &[OsString]) {
         && args[0] == OsStr::new("operator")
         && args[1] == OsStr::new("projection")
         && args[2] == OsStr::new("refresh");
-    if task_package_action.is_none() && !advance && !refresh && !identity_associate {
+    if task_package_action.is_none() && !advance && !refresh && identity_action.is_none() {
         OutputRouter::exit(PublicError::Authorization);
     }
     if cfg!(debug_assertions) {
@@ -558,8 +568,12 @@ pub(crate) fn run_task_package_operator(args: &[OsString]) {
     if crate::service_hardening::harden_operator_process().is_err() {
         OutputRouter::exit(PublicError::Authorization);
     }
-    if identity_associate {
-        match run_official_task_package_operator_inner("identity-associate") {
+    if let Some(action) = identity_action {
+        match run_official_task_package_operator_inner(action) {
+            Ok(AdministrativeResult::IdentityRollback(receipt)) => OutputRouter::write_success(&format!(
+                "antdelirium[AD-MIGRATION-IDENTITY-ROLLED-BACK]: rollback_id={} project_id={} workspace_id={} registry_revision={} state={}",
+                receipt.rollback_id, receipt.project_id, receipt.workspace_id, receipt.resulting_registry_revision, receipt.state,
+            )),
             Ok(AdministrativeResult::IdentityAssociation(receipt)) => OutputRouter::write_success(&format!(
                 "antdelirium[AD-MIGRATION-IDENTITY-ASSOCIATED]: association_id={} project_id={} workspace_id={} registry_revision={} state={}",
                 receipt.association_id, receipt.project_id, receipt.workspace_id, receipt.resulting_registry_revision, receipt.state,
@@ -643,7 +657,7 @@ fn run_official_task_package_operator_inner(
     action: &str,
 ) -> Result<AdministrativeResult, AdministrativeProtocolError> {
     let endpoint = std::env::var_os(ADMIN_SOCKET_ENV);
-    let association = action == "identity-associate";
+    let association = matches!(action, "identity-associate" | "identity-rollback");
     let input_fd = std::env::var_os(if association {
         IDENTITY_ASSOCIATION_INPUT_FD_ENV
     } else {
@@ -687,6 +701,9 @@ fn run_official_task_package_operator_inner(
     let capability = read_administrative_capability_from_fd(capability_fd)?;
     let mut input = read_bounded_json_from_raw_fd(input_fd)?;
     let body = match action {
+        "identity-rollback" => serde_json::from_slice(&input)
+            .map(AdministrativeBody::IdentityRollback)
+            .map_err(|_| AdministrativeProtocolError::Envelope),
         "identity-associate" => serde_json::from_slice(&input)
             .map(AdministrativeBody::IdentityAssociate)
             .map_err(|_| AdministrativeProtocolError::Envelope),
@@ -709,6 +726,7 @@ fn run_official_task_package_operator_inner(
     };
     input.fill(0);
     let operation = match action {
+        "identity-rollback" => "migration.identity-rollback",
         "identity-associate" => "migration.identity-associate",
         "install" => "governance.task-package.install",
         "prepare" => "governance.task-package.prepare",
@@ -720,6 +738,9 @@ fn run_official_task_package_operator_inner(
     let body = body?;
     // Retain the exact typed input to bind the private response to this request.
     let expected = match &body {
+        AdministrativeBody::IdentityRollback(body) => {
+            AdministrativeBody::IdentityRollback(body.clone())
+        }
         AdministrativeBody::IdentityAssociate(body) => {
             AdministrativeBody::IdentityAssociate(body.clone())
         }
@@ -754,6 +775,19 @@ fn validate_official_task_package_result(
     use crate::task_package_contracts::{validate_operation_receipt, validate_proposal};
     use crate::task_package_generator::{generate_task_package_proposal, proposal_payload_sha256};
     let invalid = AdministrativeProtocolError::Envelope;
+    if let (
+        AdministrativeBody::IdentityRollback(request),
+        AdministrativeResult::IdentityRollback(receipt),
+    ) = (body, result)
+    {
+        return if *receipt
+            == crate::migration_identity_recovery::rollback_receipt(request).map_err(|_| invalid)?
+        {
+            Ok(())
+        } else {
+            Err(invalid)
+        };
+    }
     if let (
         AdministrativeBody::IdentityAssociate(request),
         AdministrativeResult::IdentityAssociation(receipt),
@@ -1749,6 +1783,7 @@ pub(crate) fn serve_administrative_request(
                     | AdministrativeBody::TaskPackageApprove(_)
                     | AdministrativeBody::TaskPackageInstallV2(_)
                     | AdministrativeBody::IdentityAssociate(_)
+                    | AdministrativeBody::IdentityRollback(_)
             ) && request_authority_matches(&request, &capability) =>
         {
             capability
@@ -1756,6 +1791,11 @@ pub(crate) fn serve_administrative_request(
         _ => return Err(AdministrativeProtocolError::Authorization),
     };
     let result = match request.body {
+        AdministrativeBody::IdentityRollback(request) => AdministrativeResult::IdentityRollback(
+            storage
+                .rollback_migrated_identity(authority, &capability, &request)
+                .map_err(|_| AdministrativeProtocolError::Authorization)?,
+        ),
         AdministrativeBody::IdentityAssociate(request) => {
             AdministrativeResult::IdentityAssociation(
                 storage
@@ -1979,6 +2019,11 @@ fn capability_request(
         &serde_json::to_vec(&request.body).map_err(|_| AdministrativeProtocolError::Envelope)?,
     );
     let (operation, project_id, workspace_id) = match &request.body {
+        AdministrativeBody::IdentityRollback(body) => (
+            CapabilityOperation::StateAdmin,
+            Some(body.candidate_project_id.clone()),
+            Some(body.candidate_workspace_id.clone()),
+        ),
         AdministrativeBody::IdentityAssociate(body) => (
             CapabilityOperation::StateAdmin,
             Some(body.candidate_project_id.clone()),
@@ -2046,6 +2091,13 @@ fn request_authority_matches(
     capability: &ac_ant_delirium::structs::AuthorizedCapability,
 ) -> bool {
     match &request.body {
+        AdministrativeBody::IdentityRollback(body) => exact_task_package_authority(
+            capability,
+            CapabilityActor::Operator,
+            CapabilityOperation::StateAdmin,
+            &body.candidate_project_id,
+            &body.candidate_workspace_id,
+        ),
         AdministrativeBody::IdentityAssociate(body) => exact_task_package_authority(
             capability,
             CapabilityActor::Operator,
@@ -2148,6 +2200,7 @@ fn validate_request(
             request.operation.as_str(),
             "capability.grant"
                 | "migration.identity-associate"
+                | "migration.identity-rollback"
                 | "capability.revoke"
                 | "governance.task-package.prepare"
                 | "governance.task-package.inspect"
@@ -2171,6 +2224,11 @@ fn validate_request(
         return Err(AdministrativeProtocolError::Envelope);
     }
     match (&request.operation[..], &request.body) {
+        ("migration.identity-rollback", AdministrativeBody::IdentityRollback(body))
+            if crate::task_package_contracts::validate_identity_rollback(body).is_ok() =>
+        {
+            Ok(())
+        }
         ("migration.identity-associate", AdministrativeBody::IdentityAssociate(body))
             if crate::task_package_contracts::validate_identity_association(body).is_ok() =>
         {

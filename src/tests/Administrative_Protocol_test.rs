@@ -133,6 +133,7 @@ fn identity_association_uses_scoped_operator_authority_and_private_descriptors()
         now
     ));
     let listener = std::os::unix::net::UnixListener::bind(&socket).unwrap();
+    listener.set_nonblocking(true).unwrap();
     fs::set_permissions(&socket, fs::Permissions::from_mode(0o600)).unwrap();
     let input = f.root.join("association.json");
     let capability = f.root.join("capability.json");
@@ -177,7 +178,7 @@ fn identity_association_uses_scoped_operator_authority_and_private_descriptors()
     );
     let result = std::thread::scope(|scope| {
         scope.spawn(|| {
-            let (mut server, _) = listener.accept().unwrap();
+            let mut server = accept_identity_test_connection(&listener);
             let nonce = [58; 32];
             answer_administrative_hello(&mut server, &nonce).unwrap();
             serve_administrative_request(
@@ -220,6 +221,152 @@ fn identity_association_uses_scoped_operator_authority_and_private_descriptors()
         &AdministrativeResult::IdentityAssociation(substituted)
     )
     .is_err());
+
+    let rollback = crate::migration_identity::tests::recovery::rollback_request(&f);
+    let rollback_wire = |id: &str| AdministrativeRequest {
+        operation: "migration.identity-rollback".to_string(),
+        body: AdministrativeBody::IdentityRollback(rollback.clone()),
+        ..wire(id, "req_00000000000000000000000006")
+    };
+    for grant in &grants[..3] {
+        assert!(try_exchange_test_request(
+            &f.authority,
+            &f.storage,
+            uid,
+            [61; 32],
+            rollback_wire(grant.0)
+        )
+        .is_err());
+    }
+    assert!(try_exchange_test_request(
+        &f.authority,
+        &f.storage,
+        uid + 1,
+        [62; 32],
+        rollback_wire(grants[3].0)
+    )
+    .is_err());
+    let rollback_input = f.root.join("rollback.json");
+    let rollback_output = f.root.join("rollback-receipt.json");
+    fs::write(&rollback_input, serde_json::to_vec(&rollback).unwrap()).unwrap();
+    fs::set_permissions(&rollback_input, fs::Permissions::from_mode(0o600)).unwrap();
+    let writer = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(&rollback_output)
+        .unwrap();
+    std::env::set_var(ADMIN_SOCKET_ENV, &socket);
+    std::env::set_var(
+        IDENTITY_ASSOCIATION_INPUT_FD_ENV,
+        fs::File::open(&rollback_input)
+            .unwrap()
+            .into_raw_fd()
+            .to_string(),
+    );
+    std::env::set_var(
+        IDENTITY_ASSOCIATION_OUTPUT_FD_ENV,
+        writer.into_raw_fd().to_string(),
+    );
+    std::env::set_var(
+        ADMIN_CAPABILITY_FD_ENV,
+        fs::File::open(&capability)
+            .unwrap()
+            .into_raw_fd()
+            .to_string(),
+    );
+    let result = std::thread::scope(|scope| {
+        scope.spawn(|| {
+            let mut server = accept_identity_test_connection(&listener);
+            let nonce = [63; 32];
+            answer_administrative_hello(&mut server, &nonce).unwrap();
+            serve_administrative_request(
+                &mut server,
+                &ConnectionAuthentication::for_test(uid, nonce),
+                &f.authority,
+                &f.storage,
+            )
+            .unwrap();
+        });
+        run_official_task_package_operator_inner("identity-rollback").unwrap()
+    });
+    let AdministrativeResult::IdentityRollback(receipt) = result else {
+        panic!("rollback receipt expected")
+    };
+    assert_eq!(
+        receipt,
+        crate::migration_identity_recovery::rollback_receipt(&rollback).unwrap()
+    );
+    let stored: MigrationIdentityRollbackReceipt =
+        serde_json::from_slice(&fs::read(&rollback_output).unwrap()).unwrap();
+    assert_eq!(stored, receipt);
+    assert!(
+        try_exchange_test_request(
+            &f.authority,
+            &f.storage,
+            uid,
+            [64; 32],
+            rollback_wire(grants[3].0)
+        )
+        .is_err(),
+        "rollback must revoke even the consumed operator grant"
+    );
+    let fresh_id = "cap_00000000000000000000000005";
+    f.storage
+        .registry()
+        .store_capability_grant(&NewCapabilityGrant {
+            grant_id: fresh_id.to_string(),
+            secret_hash: sha256(&secret),
+            subject_uid: uid,
+            actor: CapabilityActor::Operator,
+            channel: CapabilityChannel::Administrative,
+            operation: CapabilityOperation::StateAdmin,
+            project_id: Some(f.request.candidate_project_id.clone()),
+            workspace_id: Some(f.request.candidate_workspace_id.clone()),
+            task_id: None,
+            not_before_unix: now - 60,
+            expires_at_unix: now + 600,
+            revocation_epoch: 0,
+            granted_at: format!("unix:{now}"),
+        })
+        .unwrap();
+    for nonce in [[65; 32], [66; 32]] {
+        let response = exchange_test_request(
+            &f.authority,
+            &f.storage,
+            uid,
+            nonce,
+            rollback_wire(fresh_id),
+        );
+        let AdministrativeResult::IdentityRollback(replayed) = response.result.unwrap() else {
+            panic!("replayed rollback expected")
+        };
+        assert_eq!(replayed, receipt);
+    }
+    let mut substituted = receipt;
+    substituted.workspace_id = "wsp_00000000000000000000000009".to_string();
+    assert!(validate_official_task_package_result(
+        &AdministrativeBody::IdentityRollback(rollback),
+        &AdministrativeResult::IdentityRollback(substituted)
+    )
+    .is_err());
+}
+
+#[cfg(unix)]
+fn accept_identity_test_connection(listener: &std::os::unix::net::UnixListener) -> UnixStream {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    loop {
+        match listener.accept() {
+            Ok((stream, _)) => return stream,
+            Err(error)
+                if error.kind() == std::io::ErrorKind::WouldBlock
+                    && std::time::Instant::now() < deadline =>
+            {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            Err(error) => panic!("identity test connection failed: {error}"),
+        }
+    }
 }
 
 #[cfg(unix)]

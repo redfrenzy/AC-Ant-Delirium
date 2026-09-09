@@ -27,6 +27,8 @@ mod service_storage;
 
 #[path = "Migration-Identity_unit.rs"]
 mod migration_identity;
+#[path = "Migration-Identity-Recovery_unit.rs"]
+mod migration_identity_recovery;
 #[path = "Task-Package-Install_unit.rs"]
 mod task_package_install;
 

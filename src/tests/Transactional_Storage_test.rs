@@ -119,7 +119,7 @@ mod tests {
         let (state_root, database) = initialized_database(&root);
         database
             .with_immediate_transaction(|transaction| {
-                transaction.execute_batch("DROP VIEW effective_project_registrations; DROP TABLE migration_identity_associations; DROP TABLE migration_identity_registry_revision;")?;
+                transaction.execute_batch("DROP VIEW effective_project_registrations; DROP VIEW active_migration_identity_associations; DROP TABLE migration_identity_rollbacks; DROP TABLE migration_identity_recovery_points; DROP TABLE migration_identity_associations; DROP TABLE migration_identity_registry_revision;")?;
                 transaction.execute("DROP TABLE task_package_installations", [])?;
                 transaction.execute("DROP INDEX plans_explicit_order_idx", [])?;
                 transaction.execute("ALTER TABLE plans DROP COLUMN plan_ordinal", [])?;
@@ -247,7 +247,7 @@ mod tests {
         let (state_root, database) = initialized_database(&root);
         database
             .with_immediate_transaction(|transaction| {
-                transaction.execute_batch("DROP VIEW effective_project_registrations; DROP TABLE migration_identity_associations; DROP TABLE migration_identity_registry_revision;")?;
+                transaction.execute_batch("DROP VIEW effective_project_registrations; DROP VIEW active_migration_identity_associations; DROP TABLE migration_identity_rollbacks; DROP TABLE migration_identity_recovery_points; DROP TABLE migration_identity_associations; DROP TABLE migration_identity_registry_revision;")?;
                 transaction.execute("DROP INDEX provisional_project_identity_idx", [])?;
                 transaction.execute("DROP INDEX provisional_project_peer_idx", [])?;
                 transaction.execute(
@@ -312,7 +312,7 @@ DROP TABLE provisional_project_identities;
                 transaction.execute("DROP TABLE task_package_proposals", [])?;
                 transaction.execute("DROP TABLE backup_checkpoints", [])?;
                 transaction.execute(
-                    "DELETE FROM schema_migrations WHERE version IN (10, 11, 12, 13, 14, 15, 16, 17)",
+                    "DELETE FROM schema_migrations WHERE version IN (10, 11, 12, 13, 14, 15, 16, 17, 18)",
                     [],
                 )?;
                 transaction.pragma_update(None, "user_version", 9)?;

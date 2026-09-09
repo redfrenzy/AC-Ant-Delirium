@@ -14,6 +14,9 @@ pub(crate) const MIGRATION_IDENTITY_ASSOCIATION_V1: &str = "migration-identity-a
 pub(crate) const TASK_PACKAGE_OPERATION_RECEIPT_V1: &str = "task-package-operation-receipt-v1";
 pub(crate) const MIGRATION_IDENTITY_ASSOCIATION_RECEIPT_V1: &str =
     "migration-identity-association-receipt-v1";
+pub(crate) const MIGRATION_IDENTITY_ROLLBACK_V1: &str = "migration-identity-rollback-v1";
+pub(crate) const MIGRATION_IDENTITY_ROLLBACK_RECEIPT_V1: &str =
+    "migration-identity-rollback-receipt-v1";
 
 const MAX_PLANS: usize = 64;
 const MAX_TASKS: usize = 1_024;
@@ -42,6 +45,7 @@ pub(crate) enum TaskPackageAdministrativeAction {
     Approve,
     Install,
     IdentityAssociate,
+    IdentityRollback,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,9 +62,10 @@ pub(crate) fn authority_policy(
 ) -> TaskPackageAuthorityPolicy {
     use TaskPackageAdministrativeAction as Action;
     let (actor, operation) = match action {
-        Action::Prepare | Action::Approve | Action::IdentityAssociate => {
-            (CapabilityActor::Operator, CapabilityOperation::StateAdmin)
-        }
+        Action::Prepare
+        | Action::Approve
+        | Action::IdentityAssociate
+        | Action::IdentityRollback => (CapabilityActor::Operator, CapabilityOperation::StateAdmin),
         Action::Inspect => (
             CapabilityActor::Operator,
             CapabilityOperation::DiagnosticPrivate,
@@ -282,6 +287,102 @@ pub(crate) struct MigrationIdentityAssociationReceipt {
     pub(crate) resulting_registry_revision: i64,
     pub(crate) association_sha256: String,
     pub(crate) state: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct MigrationIdentityRollback {
+    pub(crate) contract_version: String,
+    pub(crate) request_id: String,
+    pub(crate) association_id: String,
+    pub(crate) association_sha256: String,
+    pub(crate) provisional_project_id: String,
+    pub(crate) provisional_workspace_id: String,
+    pub(crate) candidate_project_id: String,
+    pub(crate) candidate_workspace_id: String,
+    pub(crate) expected_registry_revision: i64,
+    pub(crate) policy: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct MigrationIdentityRollbackReceipt {
+    pub(crate) contract_version: String,
+    pub(crate) request_id: String,
+    pub(crate) rollback_id: String,
+    pub(crate) association_id: String,
+    pub(crate) project_id: String,
+    pub(crate) workspace_id: String,
+    pub(crate) preserved_candidate_project_id: String,
+    pub(crate) preserved_candidate_workspace_id: String,
+    pub(crate) previous_registry_revision: i64,
+    pub(crate) resulting_registry_revision: i64,
+    pub(crate) rollback_sha256: String,
+    pub(crate) state: String,
+}
+
+pub(crate) fn validate_identity_rollback(
+    request: &MigrationIdentityRollback,
+) -> Result<(), TaskPackageContractError> {
+    if request.contract_version != MIGRATION_IDENTITY_ROLLBACK_V1
+        || request.policy != "restore-provisional-preserve-candidate"
+    {
+        return Err(TaskPackageContractError::Contract);
+    }
+    require_id(&request.request_id, "req_")?;
+    require_id(&request.association_id, "asn_")?;
+    require_sha256(&request.association_sha256)?;
+    validate_scope(
+        &request.provisional_project_id,
+        &request.provisional_workspace_id,
+        request.expected_registry_revision,
+    )?;
+    validate_scope(
+        &request.candidate_project_id,
+        &request.candidate_workspace_id,
+        request.expected_registry_revision,
+    )?;
+    if request.provisional_project_id == request.candidate_project_id
+        || request.provisional_workspace_id == request.candidate_workspace_id
+    {
+        return Err(TaskPackageContractError::Scope);
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_identity_rollback_receipt(
+    receipt: &MigrationIdentityRollbackReceipt,
+) -> Result<(), TaskPackageContractError> {
+    if receipt.contract_version != MIGRATION_IDENTITY_ROLLBACK_RECEIPT_V1
+        || receipt.state != "rolled_back"
+    {
+        return Err(TaskPackageContractError::Contract);
+    }
+    require_id(&receipt.request_id, "req_")?;
+    require_id(&receipt.rollback_id, "rbk_")?;
+    require_id(&receipt.association_id, "asn_")?;
+    require_sha256(&receipt.rollback_sha256)?;
+    validate_scope(
+        &receipt.project_id,
+        &receipt.workspace_id,
+        receipt.previous_registry_revision,
+    )?;
+    validate_scope(
+        &receipt.preserved_candidate_project_id,
+        &receipt.preserved_candidate_workspace_id,
+        receipt.previous_registry_revision,
+    )?;
+    if receipt.project_id == receipt.preserved_candidate_project_id
+        || receipt.workspace_id == receipt.preserved_candidate_workspace_id
+        || receipt.resulting_registry_revision
+            != receipt
+                .previous_registry_revision
+                .checked_add(1)
+                .ok_or(TaskPackageContractError::Scope)?
+    {
+        return Err(TaskPackageContractError::Scope);
+    }
+    Ok(())
 }
 
 pub(crate) fn validate_generation_source(

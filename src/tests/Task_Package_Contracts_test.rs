@@ -190,6 +190,7 @@ fn authority_matrix_never_assigns_new_operations_to_the_agent() {
         Action::Approve,
         Action::Install,
         Action::IdentityAssociate,
+        Action::IdentityRollback,
     ];
     for action in actions {
         let policy = authority_policy(action);
@@ -364,8 +365,22 @@ fn versioned_schemas_match_the_compiled_contract_constants() {
             MIGRATION_IDENTITY_ASSOCIATION_RECEIPT_V1,
         ),
     ];
+    let recovery_schemas = [
+        (
+            include_str!("../../docs/contracts/v1/migration-identity-rollback-v1.schema.json"),
+            "urn:antdelirium:contract:migration-identity-rollback-v1",
+            MIGRATION_IDENTITY_ROLLBACK_V1,
+        ),
+        (
+            include_str!(
+                "../../docs/contracts/v1/migration-identity-rollback-receipt-v1.schema.json"
+            ),
+            "urn:antdelirium:contract:migration-identity-rollback-receipt-v1",
+            MIGRATION_IDENTITY_ROLLBACK_RECEIPT_V1,
+        ),
+    ];
     let mut identifiers = std::collections::HashSet::new();
-    for (source, expected_id, expected_contract) in schemas {
+    for (source, expected_id, expected_contract) in schemas.into_iter().chain(recovery_schemas) {
         let schema: serde_json::Value = serde_json::from_str(source).unwrap();
         assert_eq!(
             schema["$schema"],

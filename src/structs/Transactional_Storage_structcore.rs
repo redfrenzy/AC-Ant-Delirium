@@ -756,6 +756,55 @@ JOIN workspaces w ON w.workspace_id = a.candidate_workspace_id AND w.project_id 
 JOIN provisional_project_registrations r ON r.peer_uid = a.peer_uid AND r.workspace_identity_fingerprint = a.workspace_identity_fingerprint;
 "#;
 
+const STORAGE_SCHEMA_V18: &str = r#"
+CREATE TABLE migration_identity_rollbacks (
+    rollback_id TEXT PRIMARY KEY,
+    request_id TEXT NOT NULL UNIQUE,
+    association_id TEXT NOT NULL UNIQUE REFERENCES migration_identity_associations(association_id) ON DELETE RESTRICT,
+    peer_uid INTEGER NOT NULL CHECK (peer_uid >= 0),
+    event_id TEXT NOT NULL UNIQUE REFERENCES events(event_id) ON DELETE RESTRICT,
+    payload BLOB NOT NULL,
+    receipt BLOB NOT NULL
+) STRICT;
+CREATE TRIGGER migration_identity_rollbacks_no_update
+BEFORE UPDATE ON migration_identity_rollbacks BEGIN
+    SELECT RAISE(ABORT, 'identity rollbacks are immutable');
+END;
+CREATE TRIGGER migration_identity_rollbacks_no_delete
+BEFORE DELETE ON migration_identity_rollbacks BEGIN
+    SELECT RAISE(ABORT, 'identity rollbacks are immutable');
+END;
+CREATE TABLE migration_identity_recovery_points (
+    operation_id TEXT PRIMARY KEY,
+    snapshot_id TEXT NOT NULL UNIQUE,
+    manifest_sha256 TEXT NOT NULL CHECK (length(manifest_sha256) = 64 AND manifest_sha256 NOT GLOB '*[^0-9a-f]*')
+) STRICT;
+CREATE TRIGGER migration_identity_recovery_points_no_update
+BEFORE UPDATE ON migration_identity_recovery_points BEGIN
+    SELECT RAISE(ABORT, 'identity recovery points are immutable');
+END;
+CREATE TRIGGER migration_identity_recovery_points_no_delete
+BEFORE DELETE ON migration_identity_recovery_points BEGIN
+    SELECT RAISE(ABORT, 'identity recovery points are immutable');
+END;
+CREATE VIEW active_migration_identity_associations AS
+SELECT a.* FROM migration_identity_associations a
+WHERE NOT EXISTS (SELECT 1 FROM migration_identity_rollbacks r WHERE r.association_id = a.association_id);
+DROP VIEW effective_project_registrations;
+CREATE VIEW effective_project_registrations AS
+SELECT r.peer_uid, r.project_identity_fingerprint, r.workspace_identity_fingerprint,
+       r.project_id, r.workspace_id, r.project_key, r.workspace_key, r.created_at_unix
+FROM provisional_project_registrations r
+WHERE NOT EXISTS (SELECT 1 FROM active_migration_identity_associations a WHERE a.provisional_project_id = r.project_id)
+UNION ALL
+SELECT a.peer_uid, a.project_identity_fingerprint, a.workspace_identity_fingerprint,
+       a.candidate_project_id, a.candidate_workspace_id, p.project_key, w.workspace_key, r.created_at_unix
+FROM active_migration_identity_associations a
+JOIN projects p ON p.project_id = a.candidate_project_id
+JOIN workspaces w ON w.workspace_id = a.candidate_workspace_id AND w.project_id = p.project_id AND w.status = 'active'
+JOIN provisional_project_registrations r ON r.peer_uid = a.peer_uid AND r.workspace_identity_fingerprint = a.workspace_identity_fingerprint;
+"#;
+
 impl From<AC_Error> for TransactionalStorageError {
     fn from(error: AC_Error) -> Self {
         Self::Database(error.to_string())
@@ -952,7 +1001,7 @@ impl ProjectDatabase {
     ) -> TransactionalStorageResult<bool> {
         let connection = self.open_connection(false)?;
         Ok(connection.query_row(
-            "SELECT EXISTS(SELECT 1 FROM migration_identity_associations WHERE provisional_project_id = ?1)",
+            "SELECT EXISTS(SELECT 1 FROM active_migration_identity_associations WHERE provisional_project_id = ?1)",
             AC_params![project_id], |row| row.get(0),
         )?)
     }
@@ -986,7 +1035,7 @@ impl ProjectDatabase {
         }
         self.with_immediate_transaction(|transaction| {
             let retired: bool = transaction.query_row(
-                "SELECT EXISTS(SELECT 1 FROM migration_identity_associations WHERE provisional_project_id = ?1 OR candidate_project_id = ?1)",
+                "SELECT EXISTS(SELECT 1 FROM active_migration_identity_associations WHERE provisional_project_id = ?1 OR candidate_project_id = ?1)",
                 AC_params![registration.project_id], |row| row.get(0),
             )?;
             if retired {
@@ -1458,6 +1507,15 @@ impl ProjectDatabase {
                 AC_params!["storage-v17-explicit-migration-identity"],
             )?;
             transaction.pragma_update(None, "user_version", 17)?;
+            version = 17;
+        }
+        if version == 17 {
+            transaction.execute_batch(STORAGE_SCHEMA_V18)?;
+            transaction.execute(
+                "INSERT INTO schema_migrations(version, applied_at) VALUES (18, ?1)",
+                AC_params!["storage-v18-preserved-identity-recovery"],
+            )?;
+            transaction.pragma_update(None, "user_version", 18)?;
         }
         transaction.commit()?;
         Ok(())

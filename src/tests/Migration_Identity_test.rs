@@ -391,7 +391,7 @@ fn wrong_identity_binding_revision_scope_or_policy_never_changes_the_registry() 
             "migration_id" => "mig_00000000000000000000000009".into(),
             "cutover_id" => "cut_00000000000000000000000009".into(),
             "expected_registry_revision" => 1.into(),
-            "provisional_state_policy" => "quarantine-preserve".into(),
+            "provisional_state_policy" => "discard-provisional".into(),
             _ => "9".repeat(64).into(),
         };
         assert!(
@@ -536,3 +536,6 @@ fn changed_candidate_or_unmentioned_worktree_cannot_be_associated() {
     assert!(f.apply(&f.request).is_err());
     assert_eq!(f.association_count(), 0);
 }
+
+#[path = "Migration_Identity_Recovery_test.rs"]
+pub(crate) mod recovery;

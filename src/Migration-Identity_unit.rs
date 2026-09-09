@@ -50,9 +50,7 @@ pub(crate) fn associate_identity(
     event: &NewAuditEvent,
 ) -> TransactionalStorageResult<MigrationIdentityAssociationReceipt> {
     let receipt = association_receipt(request)?;
-    // T11.7 owns nonempty-state reconciliation. Never silently quarantine it.
-    if request.provisional_state_policy != "require-empty"
-        || event.project_id != request.candidate_project_id
+    if event.project_id != request.candidate_project_id
         || event.workspace_id.as_deref() != Some(request.candidate_workspace_id.as_str())
         || event.actor_kind != "operator"
         || event.event_kind != "migration_applied"
@@ -78,6 +76,9 @@ pub(crate) fn associate_identity(
                 ).optional()?;
                 if let Some(previous) = previous {
                     if previous != (context.peer_uid, payload.clone(), receipt_bytes.clone()) { return Err(invalid()); }
+                    let rolled_back: bool = registry.query_row("SELECT EXISTS(SELECT 1 FROM migration_identity_rollbacks WHERE association_id = ?1)",
+                        AC_params![receipt.association_id], |row| row.get(0))?;
+                    if rolled_back { return Err(invalid()); }
                     // A retry is a receipt read, not a second cutover or rewind.
                     return Ok(receipt.clone());
                 }
@@ -122,9 +123,13 @@ pub(crate) fn associate_identity(
                     "SELECT state_revision = 0 AND active_plan_id IS NULL AND current_task_id IS NULL AND NOT EXISTS(SELECT 1 FROM plans WHERE project_id = ?1) AND NOT EXISTS(SELECT 1 FROM tasks WHERE project_id = ?1) AND NOT EXISTS(SELECT 1 FROM submissions WHERE project_id = ?1) AND NOT EXISTS(SELECT 1 FROM reviews WHERE project_id = ?1) AND NOT EXISTS(SELECT 1 FROM legacy_migration_records WHERE project_id = ?1) AND (SELECT count(*) FROM workspaces WHERE project_id = ?1) = 1 FROM projects WHERE project_id = ?1",
                     AC_params![request.provisional_project_id], |row| row.get(0),
                 )?;
-                if !empty { return Err(invalid()); }
+                if request.provisional_state_policy == "require-empty" && !empty { return Err(invalid()); }
+                let workspace_count: i64 = source.query_row("SELECT count(*) FROM workspaces WHERE project_id = ?1", AC_params![request.provisional_project_id], |row| row.get(0))?;
+                if workspace_count != 1 { return Err(invalid()); }
                 crate::legacy_cutover::validate_association_cutover(candidate, request, context.service_subject_sha256, true)?;
                 crate::legacy_cutover::validate_association_cutover(registry, request, context.service_subject_sha256, false)?;
+                crate::migration_identity_recovery::preserve_databases(&context, registry, &receipt.association_id)?;
+                crate::migration_identity_recovery::revoke_scope_capabilities(registry, &request.provisional_project_id, &receipt.association_id, &event.occurred_at)?;
                 if !context.registry.record_event_in_transaction(registry, event)?.inserted() { return Err(invalid()); }
                 registry.execute(
                     "INSERT INTO migration_identity_associations(association_id, request_id, peer_uid, project_identity_fingerprint, workspace_identity_fingerprint, provisional_project_id, provisional_workspace_id, candidate_project_id, candidate_workspace_id, event_id, payload, receipt) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",

@@ -365,6 +365,9 @@ mod tests {
             .with_immediate_transaction(|tx| {
                 tx.execute_batch(
                     "DROP VIEW effective_project_registrations;
+                DROP VIEW active_migration_identity_associations;
+                DROP TABLE migration_identity_rollbacks;
+                DROP TABLE migration_identity_recovery_points;
                 DROP TABLE migration_identity_associations;
                 DROP TABLE migration_identity_registry_revision;
                 DROP TABLE task_package_installations;

@@ -4,6 +4,19 @@ pub fn sha256(input: &[u8]) -> [u8; 32] {
     Sha256::digest(input).into()
 }
 
+pub fn sha256_reader(mut reader: impl std::io::Read) -> std::io::Result<[u8; 32]> {
+    let mut digest = Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let count = reader.read(&mut buffer)?;
+        if count == 0 {
+            break;
+        }
+        digest.update(&buffer[..count]);
+    }
+    Ok(digest.finalize().into())
+}
+
 pub fn constant_time_equal(left: &[u8], right: &[u8]) -> bool {
     let mut difference = left.len() ^ right.len();
     let compared = left.len().min(right.len());
@@ -19,6 +32,15 @@ mod tests {
 
     #[test]
     fn hashes_with_sha256_and_compares_without_early_exit() {
+        assert_eq!(
+            super::sha256_reader(std::io::Cursor::new(b"abc")).unwrap(),
+            sha256(b"abc")
+        );
+        let large = vec![7_u8; 128 * 1024 + 3];
+        assert_eq!(
+            super::sha256_reader(std::io::Cursor::new(&large)).unwrap(),
+            sha256(&large)
+        );
         assert_eq!(
             sha256(b"abc"),
             [

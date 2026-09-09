@@ -326,7 +326,7 @@ impl ProjectDatabase {
                 return self.deny_and_audit(transaction, &denial_event);
             };
             let retired: bool = transaction.query_row(
-                "SELECT EXISTS(SELECT 1 FROM migration_identity_associations WHERE provisional_project_id = ?1)",
+                "SELECT EXISTS(SELECT 1 FROM active_migration_identity_associations WHERE provisional_project_id = ?1)",
                 AC_params![authorized.project_id()], |row| row.get(0),
             )?;
             if retired {
