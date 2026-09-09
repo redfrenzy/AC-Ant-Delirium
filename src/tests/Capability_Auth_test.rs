@@ -392,6 +392,61 @@ mod tests {
     }
 
     #[test]
+    fn managed_revocation_confirms_a_prior_identity_revocation_without_replacing_it() {
+        let root = fixture_root("confirm-identity-revocation");
+        let database = database(&root);
+        let mut managed = grant(&[41; 32]);
+        managed.actor = CapabilityActor::Operator;
+        managed.channel = CapabilityChannel::Administrative;
+        managed.operation = CapabilityOperation::StateAdmin;
+        managed.task_id = None;
+        managed.granted_at = "unix:100".to_string();
+        database
+            .grant_managed_capability(1000, &managed, 100)
+            .unwrap();
+        let original = NewCapabilityRevocation {
+            revocation_id: "rev_11111111111111111111111111".to_string(),
+            grant_id: GRANT_ID.to_string(),
+            revocation_epoch: 0,
+            revoked_at: "unix:110".to_string(),
+            reason: "identity scope changed; fresh authority required".to_string(),
+        };
+        database.revoke_capability(&original).unwrap();
+        assert!(database
+            .revoke_managed_capability(1001, GRANT_ID, 0, 120)
+            .is_err());
+        assert!(database
+            .revoke_managed_capability(1000, GRANT_ID, 1, 120)
+            .is_err());
+        for time in [120, 130] {
+            let confirmed = database
+                .revoke_managed_capability(1000, GRANT_ID, 0, time)
+                .unwrap();
+            assert_eq!(confirmed.revocation_id, original.revocation_id);
+        }
+        assert_eq!(database.capability_management_event_count().unwrap(), 3);
+        database
+            .with_immediate_transaction(|tx| {
+                let preserved: (String, String, String, i64) = tx.query_row(
+                    "SELECT revocation_id, revoked_at, reason, count(*) FROM revocations",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+                )?;
+                assert_eq!(
+                    preserved,
+                    (
+                        original.revocation_id,
+                        original.revoked_at,
+                        original.reason,
+                        1
+                    )
+                );
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    #[test]
     fn audited_ci_grant_can_authorize_a_pre_cutover_scope_and_be_revoked() {
         let root = fixture_root("managed-pre-cutover-ci");
         let database = unregistered_database(&root);

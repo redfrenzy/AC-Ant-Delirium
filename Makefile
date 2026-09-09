@@ -74,6 +74,8 @@ check:
 .PHONY: ci
 ci:
 	cargo fmt --all -- --check
+	bash -n packaging/systemd/run-official-task-operation.sh
+	python3 -I -B packaging/systemd/tests/official_task_operation_test.py
 	bash -n packaging/cargo/validate-standard-commands.sh
 	bash -n packaging/cargo/validate-installed-uninstall-rollback.sh
 	bash -n packaging/rollout/validate-fail-open.sh

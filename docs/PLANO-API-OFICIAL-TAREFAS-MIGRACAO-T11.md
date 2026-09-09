@@ -221,6 +221,76 @@ terem avançado, sem repetir eventos ou restaurar o estado antigo. Um pacote
 conflitante é recusado. A instalação não escreve os JSONs do projeto: a projeção
 existente os atualiza a partir do estado confirmado pelo serviço.
 
+### 5.3 Launcher operacional implementado na T11.8
+
+[`run-official-task-operation.sh`](../packaging/systemd/run-official-task-operation.sh)
+oferece uma entrada única para as sete operações. Seu supervisor Python usa o
+binário instalado existente; não compila, instala, cria usuários, aprova
+propostas nem migra projetos automaticamente.
+
+| Operação | Sujeito do cliente | Autoridade temporária |
+| --- | --- | --- |
+| `prepare` | operador que chamou sudo | `StateAdmin` no projeto/workspace |
+| `inspect` | operador | `DiagnosticPrivate` no projeto/workspace |
+| `attest` | `--ci-user` distinto do operador | `AttestationCreate` no projeto/workspace |
+| `approve` | operador | `StateAdmin` no projeto/workspace |
+| `install` | `--ci-user` distinto do operador | `InstallationAdmin` no projeto/workspace |
+| `identity-associate` | operador | `StateAdmin` no candidato exato |
+| `identity-rollback` | operador | `StateAdmin` no candidato exato |
+
+O usuário CI deve existir, ser não-root, diferente da conta do serviço e ter
+acesso ao socket administrativo pelo grupo instalado. O supervisor verifica
+isso antes de emitir permissões; não altera grupos para fazer o teste passar.
+As identidades declaradas na attestation/approval devem corresponder ao UID
+autenticado conforme §5.1; o launcher recusa divergência, sem corrigir decisões.
+
+O JSON chega por **stdin regular 0600**, pertencente ao operador, e o recibo sai
+por **stdout regular 0600, vazio**, do mesmo operador. Não são aceitos pipes,
+terminal, `.env`, paths de origem, tokens ou JSON como argumentos. Exemplo de
+uso **depois do aceite da instalação atualizada na T11.10**, com entrada já
+revisada e privada:
+
+```bash
+umask 077
+set -o noclobber
+sudo bash packaging/systemd/run-official-task-operation.sh prepare < origem.json > proposta-nova.json
+```
+
+Usar sempre uma saída nova: `noclobber` impede que o shell trunque um artefato
+existente antes que o launcher possa validá-lo. Para `attest/install`, acrescentar
+`--ci-user NOME` antes dos redirecionamentos. Cada operação é uma decisão
+separada; o launcher não transforma uma proposta em aprovação automaticamente.
+`bash packaging/systemd/run-official-task-operation.sh --help` não precisa de sudo.
+
+O supervisor decripta a credencial gerencial instalada em memória. Cada cliente
+recebe somente os descritores necessários, com entrada selada/somente leitura,
+ambiente reconstruído e privilégios de root removidos. A credencial gerencial
+não acompanha o cliente da operação; este recebe apenas seu grant escopado.
+Os arquivos de saída herdados têm dono igual ao UID que executa cada cliente.
+
+O grant dura no máximo 600 segundos e é revogado ao terminar, inclusive após
+erro, timeout ou interrupção tratável. Falha de emissão com descritor produzido
+também exige revogação, pois o pedido pode ter chegado ao serviço. Não se declara
+sucesso nem se publica recibo quando a revogação falha. `SIGKILL`, queda de energia
+ou indisponibilidade podem impedir essa confirmação. `started.json` é persistido
+antes da emissão; sua presença sem `result.json` significa execução interrompida,
+não sucesso. Falhas tratáveis ficam no resultado como falhas/não confirmadas.
+O limite de validade do grant continua aplicável.
+
+O comando Rust de revogação agora pode confirmar uma revogação já existente —
+necessário após `identity-rollback`. Conserva ID, data e motivo originais e
+acrescenta auditoria da confirmação autorizada. Não reativa grants nem ignora
+divergência de operador ou epoch.
+
+Após o pré-check, resumos sanitizados ficam em
+`target/t118-official-task-operation-logs/<run>/result.json`, legíveis no projeto.
+Não contêm propostas, texto de tarefas, tokens, stderr bruto ou caminhos de
+planos externos. Artefatos de recuperação ficam no subdiretório privado 0700,
+sem limpeza de diretórios; o arquivo transitório do grant é esvaziado ao fechar.
+Logs e artefatos não são autoridade de conclusão nem são executados como shell.
+Validação local cobre orquestração e descritores; troca real de UID e integração
+com systemd permanecem no aceite instalado da T11.10.
+
 ## 6. Semântica da associação
 
 A associação deve executar em uma única transação do registry:

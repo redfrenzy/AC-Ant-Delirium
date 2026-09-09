@@ -210,16 +210,26 @@ impl ProjectDatabase {
             if persisted.10 != epoch {
                 return Err(invalid_grant());
             }
-            let revocation_id = random_security_id("rev_")?;
-            transaction.execute(
-                "INSERT INTO revocations(revocation_id, grant_id, revocation_epoch, revoked_at, reason) VALUES (?1, ?2, ?3, ?4, 'operator-request')",
-                AC_params![
-                    revocation_id,
-                    grant_id,
-                    epoch,
-                    format!("unix:{trusted_now_unix}"),
-                ],
-            )?;
+            let existing: Option<(String, i64)> = transaction.query_row(
+                "SELECT revocation_id, revocation_epoch FROM revocations WHERE grant_id = ?1",
+                AC_params![grant_id], |row| Ok((row.get(0)?, row.get(1)?)),
+            ).optional()?;
+            let revocation_id = if let Some((id, existing_epoch)) = existing {
+                if existing_epoch != epoch {
+                    return Err(invalid_grant());
+                }
+                // Identity rollback can revoke this grant before the supervisor
+                // finishes. Confirm it without replacing the original record;
+                // this independently authorized confirmation is still audited.
+                id
+            } else {
+                let id = random_security_id("rev_")?;
+                transaction.execute(
+                    "INSERT INTO revocations(revocation_id, grant_id, revocation_epoch, revoked_at, reason) VALUES (?1, ?2, ?3, ?4, 'operator-request')",
+                    AC_params![id, grant_id, epoch, format!("unix:{trusted_now_unix}")],
+                )?;
+                id
+            };
             let audit = append_capability_management_event(
                 transaction,
                 "revoke",
